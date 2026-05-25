@@ -5,43 +5,41 @@
   const PLUGIN_ID = 'slopscale';
   const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   const NOTE_ALIASES = { C:0, 'B#':0, 'C#':1, Db:1, D:2, 'D#':3, Eb:3, E:4, Fb:4, F:5, 'E#':5, 'F#':6, Gb:6, G:7, 'G#':8, Ab:8, A:9, 'A#':10, Bb:10, B:11, Cb:11 };
+  const STRING_COLORS = ['#ef4444', '#eab308', '#3b82f6', '#f97316', '#22c55e', '#a855f7', '#ec4899', '#14b8a6'];
 
   const SCALE_INTERVALS = {
     major: [0,2,4,5,7,9,11], natural_minor: [0,2,3,5,7,8,10], harmonic_minor: [0,2,3,5,7,8,11],
     minor_pentatonic: [0,3,5,7,10], major_pentatonic: [0,2,4,7,9], blues: [0,3,5,6,7,10],
     dorian: [0,2,3,5,7,9,10], phrygian: [0,1,3,5,7,8,10], mixolydian: [0,2,4,5,7,9,10]
   };
-
   const CHORD_FORMULAS = {
     maj: { symbol:'maj', intervals:[0,4,7] }, min: { symbol:'min', intervals:[0,3,7] }, dim: { symbol:'dim', intervals:[0,3,6] }, aug: { symbol:'aug', intervals:[0,4,8] },
     maj7: { symbol:'maj7', intervals:[0,4,7,11] }, min7: { symbol:'min7', intervals:[0,3,7,10] }, dom7: { symbol:'7', intervals:[0,4,7,10] },
     min7b5: { symbol:'m7b5', intervals:[0,3,6,10] }, dim7: { symbol:'dim7', intervals:[0,3,6,9] }, sus4: { symbol:'sus4', intervals:[0,5,7] }, add9: { symbol:'add9', intervals:[0,4,7,14] }
   };
-
   const DIATONIC_QUALITIES = {
     major: { triad:['maj','min','min','maj','maj','min','dim'], seventh:['maj7','min7','min7','maj7','dom7','min7','min7b5'] },
     natural_minor: { triad:['min','dim','maj','min','min','maj','maj'], seventh:['min7','min7b5','maj7','min7','min7','maj7','dom7'] },
     harmonic_minor: { triad:['min','dim','aug','min','maj','maj','dim'], seventh:['min7','min7b5','maj7','min7','dom7','maj7','dim7'] }
   };
-
   const COMMON_PROGRESSIONS = {
     diatonic:[1,2,3,4,5,6,7,1], 'I-IV-V':[1,4,5,1], 'I-V-vi-IV':[1,5,6,4], 'ii-V-I':[2,5,1,1],
     'vi-IV-I-V':[6,4,1,5], '12_bar_blues':[1,1,1,1,4,4,1,1,5,4,1,5], 'i-VI-III-VII':[1,6,3,7]
   };
-
   const STANDARD_OPEN_MIDI = { guitar:[40,45,50,55,59,64], drop_d:[38,45,50,55,59,64], bass:[28,33,38,43] };
 
   let renderer = null, activeBundle = null, rafId = null;
   let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
 
-  function injectCss() {
-    if (document.getElementById('slopscale-css')) return;
-    const link = document.createElement('link');
-    link.id = 'slopscale-css'; link.rel = 'stylesheet'; link.href = `/api/plugins/${PLUGIN_ID}/assets/slopscale.css`;
-    document.head.appendChild(link);
-  }
   function $(id) { return document.getElementById(id); }
   function pcName(pc) { return NOTE_NAMES[((pc % 12) + 12) % 12]; }
+
+  function goScreen(id) {
+    if (typeof window.showScreen === 'function') { window.showScreen(id); return; }
+    const nav = document.querySelector(`[data-screen="${id}"]`);
+    if (nav) { nav.click(); return; }
+    location.hash = id;
+  }
 
   function parseMeter(value) {
     const [sig, groupingRaw] = String(value || '4/4').split(':');
@@ -60,7 +58,7 @@
     const fretMin = Math.max(0, parseInt(data.get('fretMin') || '0', 10));
     const fretMax = Math.max(fretMin + 1, parseInt(data.get('fretMax') || '5', 10));
     return {
-      mode: data.get('mode') || 'scale', renderer: data.get('renderer') || 'highway_3d', instrument, tuningId, stringCount,
+      mode: data.get('mode') || 'scale', renderer: data.get('renderer') || 'builtin_2d', instrument, tuningId, stringCount,
       key: data.get('key') || 'C', scale: data.get('scale') || 'major', bpm: Math.max(30, Math.min(260, parseFloat(data.get('bpm') || '100'))),
       meter: parseMeter(data.get('meter')), subdivision: data.get('subdivision') || 'eighth', fretMin, fretMax,
       bars: Math.max(1, Math.min(32, parseInt(data.get('bars') || '4', 10))), chordDepth: data.get('chordDepth') || 'triad',
@@ -88,7 +86,6 @@
     }
     return out.sort((a,b) => a.midi - b.midi || a.s - b.s || a.f - b.f);
   }
-
   function allScalePositions(cfg) {
     const pcs = new Set(scalePcs(cfg)), opens = openMidisForConfig(cfg), out = [];
     for (let s = 0; s < cfg.stringCount; s++) for (let f = cfg.fretMin; f <= cfg.fretMax; f++) {
@@ -97,13 +94,11 @@
     const seen = new Set();
     return out.sort((a,b) => a.midi - b.midi || a.s - b.s || a.f - b.f).filter(p => { const k = `${p.s}:${p.f}`; if (seen.has(k)) return false; seen.add(k); return true; });
   }
-
   function secondsPerDivision(cfg) {
     const q = 60 / cfg.bpm;
     return ({ quarter:q, eighth:q/2, sixteenth:q/4, triplet:q/3, eighth_triplet:q/3, sixteenth_triplet:q/6 })[cfg.subdivision] || q/2;
   }
   function measureSeconds(cfg) { return (60 / cfg.bpm) * (4 / cfg.meter.denominator) * cfg.meter.numerator; }
-
   function buildBeats(cfg, duration) {
     const beats = [], beatUnit = (60 / cfg.bpm) * (4 / cfg.meter.denominator), mLen = measureSeconds(cfg), groupingStarts = new Set();
     let g = 0; for (const width of cfg.meter.grouping) { groupingStarts.add(g); g += width; }
@@ -143,7 +138,6 @@
     for (let i = 0; i < totalEvents; i++) { const p = path[i % path.length]; notes.push(noteDefaults({ t:Number((i * step).toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * 0.78), ac:i % Math.max(1, cfg.meter.numerator) === 0 })); }
     return { notes, chords:[], chordTemplates:[], handShapes:[], sections:[{ name:'scale', number:1, time:0 }], duration };
   }
-
   function buildArpeggioExercise(cfg, degrees) {
     const step = secondsPerDivision(cfg), mLen = measureSeconds(cfg), chordSlot = Math.max(step * 4, mLen);
     const chordTemplates = [], chords = [], handShapes = [], notes = []; let t = 0;
@@ -160,13 +154,11 @@
     });
     return { notes, chords, chordTemplates, handShapes, sections:[{ name:'arpeggios', number:1, time:0 }], duration:Math.max(t, cfg.bars * mLen) };
   }
-
   function generateExercise(cfg) {
     const chart = cfg.mode === 'scale' ? buildScaleExercise(cfg) : buildArpeggioExercise(cfg, cfg.mode === 'diatonic_arpeggios' ? COMMON_PROGRESSIONS.diatonic : (COMMON_PROGRESSIONS[cfg.progression] || COMMON_PROGRESSIONS['I-V-vi-IV']));
     const duration = Math.max(chart.duration || 0, cfg.bars * measureSeconds(cfg));
     return { version:1, session:cfg, chart:Object.assign({}, chart, { beats:buildBeats(cfg, duration), anchors:buildAnchors(cfg, duration), duration }) };
   }
-
   function makeBundle(exercise) {
     const cfg = exercise.session, c = exercise.chart;
     return { currentTime:0, songInfo:{ title:`SlopScale ${cfg.mode}`, artist:'SlopScale', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'slopscale-practice' }, isReady:true,
@@ -174,21 +166,39 @@
       lyrics:[], toneChanges:[], toneBase:'', drumTab:null, mastery:1, hasPhraseData:false, inverted:false, lefty:false, renderScale:1, lyricsVisible:false, project:null, fretX:null, getNoteState:function(){return null;}, getNoteStateProvider:function(){return null;} };
   }
 
-  function loadScriptOnce(id, src) { return new Promise((resolve, reject) => { if (document.getElementById(id)) return resolve(); const s = document.createElement('script'); s.id = id; s.src = src; s.onload = () => resolve(); s.onerror = () => reject(new Error(`Failed to load ${src}`)); document.head.appendChild(s); }); }
+  function makeBuiltin2DRenderer() {
+    let canvas = null, ctx = null, W = 0, H = 0;
+    function resize() { if (!canvas) return; const r = canvas.parentElement.getBoundingClientRect(); W = Math.max(640, Math.round(r.width || 1280)); H = Math.max(420, Math.round(r.height || 720)); canvas.width = W; canvas.height = H; }
+    function laneY(s, count) { const top = 95, bottom = H - 58; return bottom - (s * ((bottom - top) / Math.max(1, count - 1))); }
+    function draw(bundle) {
+      if (!ctx || !bundle) return; resize();
+      const now = bundle.currentTime || 0, ahead = 8, behind = 1.5, nStr = Math.max(1, bundle.stringCount || 6);
+      ctx.fillStyle = '#050711'; ctx.fillRect(0, 0, W, H);
+      const grad = ctx.createLinearGradient(0, 0, 0, H); grad.addColorStop(0, '#08111f'); grad.addColorStop(1, '#050711'); ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = 'rgba(148,163,184,0.25)'; ctx.lineWidth = 1;
+      for (let s = 0; s < nStr; s++) { const y = laneY(s, nStr); ctx.beginPath(); ctx.moveTo(54, y); ctx.lineTo(W - 32, y); ctx.stroke(); ctx.fillStyle = STRING_COLORS[s] || '#94a3b8'; ctx.font = '700 12px system-ui'; ctx.fillText(`S${s + 1}`, 18, y + 4); }
+      for (const b of bundle.beats || []) { const dt = b.time - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); ctx.strokeStyle = b.measure >= 0 ? 'rgba(96,165,250,0.55)' : 'rgba(148,163,184,0.18)'; ctx.beginPath(); ctx.moveTo(x, 72); ctx.lineTo(x, H - 36); ctx.stroke(); if (b.measure >= 0) { ctx.fillStyle = '#93c5fd'; ctx.font = '11px system-ui'; ctx.fillText(String(b.measure), x + 4, 66); } }
+      ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(90 + behind / (ahead + behind) * (W - 150), 60); ctx.lineTo(90 + behind / (ahead + behind) * (W - 150), H - 36); ctx.stroke();
+      for (const ch of bundle.chords || []) { const dt = ch.t - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); const name = bundle.chordTemplates?.[ch.id]?.displayName || bundle.chordTemplates?.[ch.id]?.name || ''; ctx.fillStyle = 'rgba(168,85,247,0.18)'; ctx.fillRect(x - 38, 24, 76, 28); ctx.strokeStyle = 'rgba(168,85,247,0.75)'; ctx.strokeRect(x - 38, 24, 76, 28); ctx.fillStyle = '#e9d5ff'; ctx.font = '700 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(name, x, 43); ctx.textAlign = 'left'; }
+      for (const n of bundle.notes || []) { const dt = n.t - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); const y = laneY(n.s, nStr); const col = STRING_COLORS[n.s] || '#94a3b8'; if ((n.sus || 0) > 0) { const x2 = 90 + (dt + n.sus + behind) / (ahead + behind) * (W - 150); ctx.strokeStyle = col; ctx.globalAlpha = 0.38; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(Math.min(W - 30, x2), y); ctx.stroke(); ctx.globalAlpha = 1; } ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(x - 16, y - 12, 32, 24, 6); ctx.fill(); ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = n.ac ? 3 : 1; ctx.stroke(); ctx.fillStyle = '#020617'; ctx.font = '800 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(String(n.f), x, y + 5); ctx.textAlign = 'left'; }
+      ctx.fillStyle = '#e5e7eb'; ctx.font = '700 14px system-ui'; ctx.fillText(bundle.songInfo?.title || 'SlopScale', 18, 28); ctx.fillStyle = '#94a3b8'; ctx.font = '12px system-ui'; ctx.fillText(`${now.toFixed(2)}s / ${(bundle.songInfo?.duration || 0).toFixed(2)}s`, 18, 48);
+    }
+    return { init(c) { canvas = c; ctx = c.getContext('2d'); resize(); window.addEventListener('resize', resize); }, draw, resize, destroy() { window.removeEventListener('resize', resize); canvas = null; ctx = null; } };
+  }
 
+  function loadScriptOnce(id, src) { return new Promise((resolve, reject) => { if (document.getElementById(id)) return resolve(); const s = document.createElement('script'); s.id = id; s.src = src; s.onload = () => resolve(); s.onerror = () => reject(new Error(`Failed to load ${src}`)); document.head.appendChild(s); }); }
   async function resolveRendererFactory(kind) {
+    if (kind === 'builtin_2d') return { factory:makeBuiltin2DRenderer, label:'Built-in 2D practice highway' };
     if (kind === 'highway_3d') {
       if (!window.slopsmithViz_highway_3d) await loadScriptOnce('slopscale-highway-3d-loader', '/api/plugins/highway_3d/screen.js');
       if (typeof window.slopsmithViz_highway_3d === 'function') return { factory:window.slopsmithViz_highway_3d, label:'Existing 3D Highway' };
-      throw new Error('3D Highway renderer factory was not found. Confirm the bundled highway_3d plugin is installed.');
+      throw new Error('3D Highway renderer factory was not found.');
     }
     for (const [globalName, label] of [['slopsmithViz_tab_2d','Existing 2D tab renderer'], ['slopsmithViz_highway_2d','Existing 2D highway renderer'], ['slopsmithViz_classic_2d','Existing classic 2D renderer']]) if (typeof window[globalName] === 'function') return { factory:window[globalName], label };
     throw new Error('No compatible 2D/tab renderer factory is currently exposed by Slopsmith.');
   }
-
-  function replaceCanvas() { const host = $('slopscale-render-host'), old = $('slopscale-canvas'), canvas = document.createElement('canvas'); canvas.id = 'slopscale-canvas'; canvas.style.width = '100%'; canvas.style.height = '100%'; if (old) old.replaceWith(canvas); else host.appendChild(canvas); const rect = host.getBoundingClientRect(); canvas.width = Math.max(640, Math.round(rect.width || 1280)); canvas.height = Math.max(360, Math.round(rect.height || 720)); return canvas; }
+  function replaceCanvas() { const host = $('slopscale-render-host'), old = $('slopscale-canvas'), canvas = document.createElement('canvas'); canvas.id = 'slopscale-canvas'; canvas.style.width = '100%'; canvas.style.height = '100%'; if (old) old.replaceWith(canvas); else host.appendChild(canvas); const rect = host.getBoundingClientRect(); canvas.width = Math.max(640, Math.round(rect.width || 1280)); canvas.height = Math.max(420, Math.round(rect.height || 720)); return canvas; }
   function stopRenderer() { playing = false; if (rafId) { cancelAnimationFrame(rafId); rafId = null; } if (renderer && typeof renderer.destroy === 'function') { try { renderer.destroy(); } catch (e) { console.warn('[SlopScale] renderer destroy failed', e); } } renderer = null; }
-
   async function attachRenderer(exercise) {
     const cfg = exercise.session; stopRenderer(); activeBundle = makeBundle(exercise); currentPracticeTime = 0;
     const canvas = replaceCanvas(), resolved = await resolveRendererFactory(cfg.renderer); renderer = resolved.factory();
@@ -201,21 +211,19 @@
   function tick(nowMs) { if (!renderer || !activeBundle) return; if (playing) { currentPracticeTime = playAnchorChartTime + (nowMs - playAnchorMs) / 1000; const duration = activeBundle.songInfo.duration || 1; if (currentPracticeTime > duration) { currentPracticeTime = 0; playAnchorChartTime = 0; playAnchorMs = nowMs; } } drawOnce(); rafId = requestAnimationFrame(tick); }
   function startPlayback() { if (!activeBundle) return; playing = true; playAnchorChartTime = currentPracticeTime; playAnchorMs = performance.now(); if (!rafId) rafId = requestAnimationFrame(tick); }
   function stopPlayback() { playing = false; currentPracticeTime = 0; playAnchorChartTime = 0; if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); }
-
   function summarize(exercise) { const cfg = exercise.session, c = exercise.chart, meter = `${cfg.meter.numerator}/${cfg.meter.denominator}`; return [`Mode: ${cfg.mode}`, `Key/scale: ${cfg.key} ${cfg.scale}`, `BPM/meter/division: ${cfg.bpm} BPM, ${meter}, ${cfg.subdivision}`, `Position: frets ${cfg.fretMin}-${cfg.fretMax}`, `Generated: ${c.notes.length} notes, ${c.chords.length} chords, ${c.chordTemplates.length} templates, ${c.handShapes.length} hand shapes, ${c.beats.length} beats`, `Duration: ${c.duration.toFixed(2)}s`].join('\n'); }
-
   async function onGenerate() { const status = $('slopscale-chart-status'), summary = $('slopscale-summary'); try { const exercise = generateExercise(readConfig()); status.textContent = 'Chart: generated'; summary.textContent = summarize(exercise); await attachRenderer(exercise); } catch (e) { status.textContent = 'Chart: error'; summary.textContent = `Error: ${e.message || e}`; console.error('[SlopScale] generate failed', e); } }
   async function savePreset() { const cfg = readConfig(), name = `${cfg.key} ${cfg.scale} ${cfg.mode}`, id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36); const res = await fetch(`/api/plugins/${PLUGIN_ID}/presets`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ id, name, kind:cfg.mode, config:cfg }) }); if (!res.ok) throw new Error(await res.text()); $('slopscale-summary').textContent += `\n\nSaved preset: ${name}`; }
-
   function bind() {
-    const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1'; injectCss();
+    const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1';
     $('slopscale-generate').addEventListener('click', onGenerate); $('slopscale-play').addEventListener('click', startPlayback); $('slopscale-stop').addEventListener('click', stopPlayback);
     $('slopscale-save').addEventListener('click', () => savePreset().catch(e => { $('slopscale-summary').textContent += `\n\nPreset save failed: ${e.message || e}`; }));
+    $('slopscale-go-library')?.addEventListener('click', () => { stopRenderer(); goScreen('home'); });
+    $('slopscale-go-plugins')?.addEventListener('click', () => { stopRenderer(); goScreen('plugins'); });
     $('slopscale-controls').addEventListener('change', () => { if (activeBundle) onGenerate(); });
     onGenerate(); return true;
   }
   function boot() { if (bind()) return; let tries = 0; const timer = setInterval(() => { tries += 1; if (bind() || tries > 40) clearInterval(timer); }, 250); }
-
   window.SlopScale = { generateExercise, makeBundle, resolveRendererFactory };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
