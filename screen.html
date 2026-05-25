@@ -461,22 +461,66 @@
     }
   };
 
+  /* Set a field value WITHOUT dispatching change/input events. The form has a
+     listener (screen.js line ~715) that calls onGenerate on every change; if
+     we fire 15 changes in sequence we get 15 racing async generates and the
+     output is usually whatever the FIRST one (partial state) produced. */
   function setField(name, value) {
     const field = form.querySelector('[name="' + name + '"]');
     if (!field) return;
     if (field.type === 'checkbox') field.checked = !!value;
     else field.value = String(value);
-    field.dispatchEvent(new Event('change', { bubbles: true }));
-    field.dispatchEvent(new Event('input',  { bubbles: true }));
+  }
+
+  /* Manually replicate what the various change-listeners in screen.js would
+     do, since we're skipping change events. */
+  function syncAdvancedDisabled() {
+    const root = document.getElementById('slopscale-root');
+    const toggle = document.getElementById('slopscale-advanced-toggle');
+    if (!root || !toggle) return;
+    const enabled = !!toggle.checked;
+    root.classList.toggle('slopscale-advanced', enabled);
+    document.querySelectorAll('.slopscale-advanced-only input, .slopscale-advanced-only select, .slopscale-advanced-only textarea, .slopscale-advanced-only button')
+      .forEach(el => { el.disabled = !enabled; });
+  }
+  function syncCagedUi() {
+    const sysSelect = document.getElementById('slopscale-fretboard-system');
+    const cagedHidden = document.getElementById('slopscale-caged-shape-value');
+    if (sysSelect) {
+      const isCaged = sysSelect.value === 'caged' || sysSelect.value === 'caged_shape_run';
+      if (isCaged) form.setAttribute('data-fretboard-caged', '1');
+      else form.removeAttribute('data-fretboard-caged');
+    }
+    if (cagedHidden) {
+      const shape = cagedHidden.value;
+      document.querySelectorAll('.slopscale-caged-shape-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-shape') === shape);
+      });
+    }
+  }
+  function syncInstrumentFromSetup() {
+    const setupEl = document.querySelector('[name="stringSetup"]');
+    const instrumentEl = document.querySelector('[name="instrument"]');
+    if (!setupEl || !instrumentEl) return;
+    instrumentEl.value = setupEl.value.indexOf('bass') === 0 ? 'bass' : 'guitar';
   }
 
   function applyConfig(config) {
     if (!config) return;
-    // Apply advancedMode first so dependent fields are mounted/visible when set.
+    // 1. advancedMode first so we can un-disable advanced-only fields before
+    //    setting them (FormData skips disabled fields).
     if (Object.prototype.hasOwnProperty.call(config, 'advancedMode')) {
       setField('advancedMode', config.advancedMode);
     }
+    syncAdvancedDisabled();
+    // 2. Apply all other fields silently.
     Object.keys(config).forEach(k => { if (k !== 'advancedMode') setField(k, config[k]); });
+    // 3. Re-sync derived UI that the skipped change events would have updated.
+    syncInstrumentFromSetup();
+    syncCagedUi();
+    // 4. Trigger exactly one generate.
+    const generateBtn = document.getElementById('slopscale-generate');
+    if (generateBtn) generateBtn.click();
   }
 
   function applyPathway(id) {
