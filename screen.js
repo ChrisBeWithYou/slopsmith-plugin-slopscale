@@ -32,8 +32,32 @@
     harmonic_minor:{triad:['min','dim','aug','min','maj','maj','dim'], seventh:['min7','min7b5','maj7','min7','dom7','maj7','dim7']}
   };
   const COMMON_PROGRESSIONS = {
-    diatonic:[1,2,3,4,5,6,7,1], 'I-IV-V':[1,4,5,1], 'I-V-vi-IV':[1,5,6,4], 'ii-V-I':[2,5,1,1],
-    'vi-IV-I-V':[6,4,1,5], '12_bar_blues':[1,1,1,1,4,4,1,1,5,4,1,5], 'i-VI-III-VII':[1,6,3,7]
+    diatonic:[1,2,3,4,5,6,7,1],
+    'I-IV-V':[1,4,5,1],
+    'I-V-vi-IV':[1,5,6,4],
+    'I-vi-IV-V':[1,6,4,5],
+    'I-vi-ii-V':[1,6,2,5],
+    'ii-V-I':[2,5,1,1],
+    'vi-ii-V-I':[6,2,5,1],
+    'I-iii-IV-V':[1,3,4,5],
+    'I-IV-vi-V':[1,4,6,5],
+    'I-ii-IV-V':[1,2,4,5],
+    'vi-IV-I-V':[6,4,1,5],
+    pachelbel:[1,5,6,3,4,1,4,5],
+    circle_diatonic:[1,4,7,3,6,2,5,1],
+    '12_bar_blues':[1,1,1,1,4,4,1,1,5,4,1,5],
+    quick_change_blues:[1,4,1,1,4,4,1,1,5,4,1,5],
+    'i-VI-III-VII':[1,6,3,7],
+    'i-VII-VI-VII':[1,7,6,7],
+    minor_ii_V_i:[2,5,1,1]
+  };
+  const FRETBOARD_SYSTEM_LABELS = {
+    position:'Position box / selected fret range',
+    three_nps:'3-notes-per-string',
+    caged:'CAGED position',
+    caged_shape_run:'CAGED single-shape run up the neck',
+    single_string:'Single-string run',
+    full_neck:'Full-neck map'
   };
 
   let renderer = null, activeBundle = null, rafId = null;
@@ -71,9 +95,13 @@
     const fretMin = Math.max(0, parseInt(data.get('fretMin') || '0', 10));
     const fretMax = Math.max(fretMin + 1, parseInt(data.get('fretMax') || '5', 10));
     const practiceType = data.get('practiceType') || data.get('mode') || 'scale';
+    const advancedMode = data.get('advancedMode') === 'on';
+    const fretboardSystem = advancedMode ? (data.get('fretboardSystem') || 'position') : 'position';
     return {
       mode: practiceType,
       practiceType,
+      advancedMode,
+      fretboardSystem,
       renderer: data.get('renderer') || 'highway_3d',
       instrument: setup.instrument,
       stringSetup,
@@ -84,14 +112,14 @@
       bpm: Math.max(30, Math.min(260, parseFloat(data.get('bpm') || '100'))),
       meter: parseMeter(data.get('meter')),
       subdivision: data.get('subdivision') || 'eighth',
-      direction: data.get('direction') || 'up_down',
-      repeatCount: Math.max(1, Math.min(16, parseInt(data.get('repeatCount') || '1', 10))),
+      direction: advancedMode ? (data.get('direction') || 'up_down') : 'up_down',
+      repeatCount: advancedMode ? Math.max(1, Math.min(16, parseInt(data.get('repeatCount') || '1', 10))) : 1,
       fretMin,
       fretMax,
       bars: Math.max(1, Math.min(32, parseInt(data.get('bars') || '4', 10))),
-      chordDepth: data.get('chordDepth') || 'triad',
-      progression: data.get('progression') || 'diatonic',
-      chordOverride: data.get('chordOverride') || 'auto',
+      chordDepth: advancedMode ? (data.get('chordDepth') || 'triad') : 'triad',
+      progression: advancedMode ? (data.get('progression') || 'diatonic') : 'diatonic',
+      chordOverride: advancedMode ? (data.get('chordOverride') || 'auto') : 'auto',
       audio: { notes: data.get('audioNotes') === 'on', metronome: data.get('audioMetronome') === 'on', harmony: data.get('audioHarmony') === 'on' }
     };
   }
@@ -102,6 +130,7 @@
   function scalePcs(cfg) { const keyPc = NOTE_ALIASES[cfg.key] ?? 0; return (SCALE_INTERVALS[cfg.scale] || SCALE_INTERVALS.major).map(i => (keyPc + i) % 12); }
   function secondsPerDivision(cfg) { const q = 60 / cfg.bpm; return ({ quarter:q, eighth:q/2, sixteenth:q/4, triplet:q/3, eighth_triplet:q/3, sixteenth_triplet:q/6 })[cfg.subdivision] || q/2; }
   function measureSeconds(cfg) { return (60 / cfg.bpm) * (4 / cfg.meter.denominator) * cfg.meter.numerator; }
+  function fretboardSystemLabel(value) { return FRETBOARD_SYSTEM_LABELS[value] || FRETBOARD_SYSTEM_LABELS.position; }
 
   function shuffleCopy(items) {
     const out = items.slice();
@@ -172,12 +201,45 @@
       }
     }
     if (chosen.length > 1) return chosen;
-    const fallback = [];
+    return everyScalePosition(cfg).filter((p, index, arr) => arr.findIndex(x => x.midi === p.midi) === index);
+  }
+
+  function everyScalePosition(cfg) {
+    const pcs = new Set(scalePcs(cfg));
+    const opens = openMidisForConfig(cfg);
+    const out = [];
     for (let s = 0; s < cfg.stringCount; s++) for (let f = cfg.fretMin; f <= cfg.fretMax; f++) {
       const midi = opens[s] + f, pc = midi % 12;
-      if (pcs.has(pc) && !usedMidi.has(midi)) { fallback.push({ s, f, midi, pc }); usedMidi.add(midi); }
+      if (pcs.has(pc)) out.push({ s, f, midi, pc });
     }
-    return fallback.sort((a,b) => a.midi - b.midi || a.s - b.s || a.f - b.f);
+    return out.sort((a,b) => a.midi - b.midi || a.s - b.s || a.f - b.f);
+  }
+
+  function singleStringScalePositions(cfg) {
+    const pcs = new Set(scalePcs(cfg));
+    const opens = openMidisForConfig(cfg);
+    let best = [];
+    for (let s = 0; s < cfg.stringCount; s++) {
+      const row = [];
+      for (let f = cfg.fretMin; f <= cfg.fretMax; f++) {
+        const midi = opens[s] + f, pc = midi % 12;
+        if (pcs.has(pc)) row.push({ s, f, midi, pc });
+      }
+      if (row.length > best.length) best = row;
+    }
+    return best.sort((a,b) => a.midi - b.midi || a.f - b.f);
+  }
+
+  function scalePositionsForSystem(cfg) {
+    switch (cfg.fretboardSystem) {
+      case 'single_string': return singleStringScalePositions(cfg);
+      case 'full_neck': return everyScalePosition(Object.assign({}, cfg, { fretMin:0, fretMax:24 }));
+      case 'three_nps':
+      case 'caged':
+      case 'caged_shape_run':
+      case 'position':
+      default: return allScalePositions(cfg);
+    }
   }
 
   function buildBeats(cfg, duration) {
@@ -277,7 +339,7 @@
   }
 
   function buildScaleExercise(cfg) {
-    const positions = allScalePositions(cfg);
+    const positions = scalePositionsForSystem(cfg);
     if (!positions.length) throw new Error('No scale notes found inside this fret range.');
     const step = secondsPerDivision(cfg), minDuration = cfg.bars * measureSeconds(cfg);
     const path = directedPath(positions, cfg.direction, cfg.repeatCount);
@@ -288,7 +350,7 @@
       const p = path[i % path.length];
       notes.push(noteDefaults({ t:Number((i * step).toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * 0.78), ac:i % Math.max(1, cfg.meter.numerator) === 0 }));
     }
-    return { notes, chords:[], chordTemplates:[], handShapes:[], sections:[{ name:'scale-3nps', number:1, time:0 }], duration };
+    return { notes, chords:[], chordTemplates:[], handShapes:[], sections:[{ name:`scale-${cfg.fretboardSystem || 'position'}`, number:1, time:0 }], duration };
   }
 
   function buildArpeggioExercise(cfg, degrees) {
@@ -327,7 +389,7 @@
     const cfg = exercise.session, c = exercise.chart;
     const bundle = {
       currentTime:0,
-      songInfo:{ title:`SlopScale ${cfg.mode}`, artist:'SlopScale', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'slopscale-practice' },
+      songInfo:{ title:`SlopScale ${cfg.mode}`, artist:'SlopScale', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'slopscale-practice', fretboardSystem:cfg.fretboardSystem },
       isReady:true, notes:c.notes, chords:c.chords, anchors:c.anchors, beats:c.beats, sections:c.sections, chordTemplates:c.chordTemplates, handShapes:c.handShapes,
       backingEvents:buildBackingEvents(cfg, c.duration),
       stringCount:cfg.stringCount, tuning:tuningOffsetsForConfig(cfg), capo:0,
@@ -460,8 +522,10 @@
     const backingCount = buildBackingEvents(cfg, c.duration).length;
     return [
       `Practice type: ${cfg.mode}`,
+      `Advanced controls: ${cfg.advancedMode ? 'on' : 'off'}`,
+      `Fretboard system: ${fretboardSystemLabel(cfg.fretboardSystem)}`,
       `Direction/repeats: ${cfg.direction}, ${cfg.repeatCount}x`,
-      `Pattern: ${cfg.mode === 'scale' ? '3-notes-per-string default' : 'full chord-tone arpeggios across one position'}`,
+      `Pattern: ${cfg.mode === 'scale' ? fretboardSystemLabel(cfg.fretboardSystem) : 'full chord-tone arpeggios across one position'}`,
       `Instrument: ${cfg.setupLabel}`,
       `Highway inverted: ${readHighwayInverted() ? 'on' : 'off'}`,
       `Key/scale: ${cfg.key} ${cfg.scale}`,
@@ -484,17 +548,24 @@
     $('slopscale-summary').textContent += `\n\nSaved preset: ${name}`;
   }
   function syncStringSetupControls() { const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'); if (!instrument || !setup) return; const current = STRING_SETUPS[setup.value] || STRING_SETUPS.guitar_6_standard; instrument.value = current.instrument; }
+  function syncAdvancedMode() {
+    const root = $('slopscale-root'), toggle = $('slopscale-advanced-toggle');
+    const enabled = !!toggle?.checked;
+    root?.classList.toggle('slopscale-advanced', enabled);
+    document.querySelectorAll('.slopscale-advanced-only input, .slopscale-advanced-only select, .slopscale-advanced-only textarea, .slopscale-advanced-only button').forEach(el => { el.disabled = !enabled; });
+  }
   function refreshForHostSettingChange() { if (!activeBundle) return; syncHighwaySettings(activeBundle); drawOnce(); const summary = $('slopscale-summary'); if (summary && summary.textContent.includes('Highway inverted:')) summary.textContent = summarize({ session:readConfig(), chart:{ notes:activeBundle.notes || [], chords:activeBundle.chords || [], chordTemplates:activeBundle.chordTemplates || [], handShapes:activeBundle.handShapes || [], beats:activeBundle.beats || [], duration:activeBundle.songInfo?.duration || 0 } }); }
   function bind() {
     const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1';
-    const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]');
+    const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'), advancedToggle = $('slopscale-advanced-toggle');
     instrument?.addEventListener('change', () => { if (!setup) return; setup.value = instrument.value === 'bass' ? 'bass_4_standard' : 'guitar_6_standard'; if (activeBundle) onGenerate(); });
     setup?.addEventListener('change', syncStringSetupControls); syncStringSetupControls();
+    advancedToggle?.addEventListener('change', syncAdvancedMode); syncAdvancedMode();
     $('slopscale-generate').addEventListener('click', onGenerate); $('slopscale-play').addEventListener('click', startPlayback); $('slopscale-stop').addEventListener('click', stopPlayback);
     $('slopscale-save').addEventListener('click', () => savePreset().catch(e => { $('slopscale-summary').textContent += `\n\nPreset save failed: ${e.message || e}`; }));
     $('slopscale-go-library')?.addEventListener('click', () => { stopRenderer(); goScreen('home'); });
     $('slopscale-go-plugins')?.addEventListener('click', () => { stopRenderer(); goScreen('plugins'); });
-    $('slopscale-controls').addEventListener('change', () => { if (activeBundle) onGenerate(); });
+    $('slopscale-controls').addEventListener('change', () => { syncAdvancedMode(); if (activeBundle) onGenerate(); });
     window.addEventListener('storage', (ev) => { if (ev.key === 'invertHighway' || ev.key === 'lefty' || ev.key === 'renderScale') refreshForHostSettingChange(); });
     window.addEventListener('focus', refreshForHostSettingChange);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshForHostSettingChange(); });
@@ -502,6 +573,6 @@
   }
   function boot() { if (bind()) return; let tries = 0; const timer = setInterval(() => { tries += 1; if (bind() || tries > 40) clearInterval(timer); }, 250); }
 
-  window.SlopScale = { generateExercise, makeBundle, resolveRendererFactory };
+  window.SlopScale = { generateExercise, makeBundle, resolveRendererFactory, readConfig };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
