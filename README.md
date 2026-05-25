@@ -1,79 +1,47 @@
 # SlopScale
 
-SlopScale is a standalone Slopsmith practice-tool plugin for generating scale, diatonic arpeggio, and chord-progression drills.
+A Slopsmith plugin that generates scale, arpeggio, and chord-progression practice charts and launches them through Slopsmith's main player. Designed for daily practice — from beginner pentatonics to advanced soloing technique.
 
-SlopScale is **not** a separate rhythm game and should not duplicate Slopsmith's 3D Highway renderer. Its job is to generate temporary Slopsmith-compatible practice material, then launch that material through Slopsmith's normal player so the existing highway, transport, shortcut, visualization, and practice systems remain the source of truth.
+> **Plays through Slopsmith's main player.** SlopScale builds a temporary `.sloppak`, then hands playback to Slopsmith so the existing 3D Highway, transport, shortcuts, and practice systems remain the source of truth. The built-in 2D preview is a debugging surface, not the intended playback path.
 
-## Product direction
+## Features
 
-The intended user flow is:
+### Routine Configuration
+- **Key and scale** — 12 keys across 9 scale families (Major, Natural Minor, Harmonic Minor, Minor Pentatonic, Major Pentatonic, Blues, Dorian, Phrygian, Mixolydian)
+- **Instrument and tuning** — 6-string guitar (Standard or Drop D), 7- and 8-string guitar, 4- and 5-string bass
+- **Fret range** — first/last fret pair defines the position box
+- **BPM and meter** — 30–260 BPM, 4/4, 3/4, 6/8, 7/8 (2+2+3 or 3+2+2), 5/4
+- **Subdivision** — quarter, eighth, sixteenth, triplet, eighth triplet, sixteenth triplet
+- **Practice type** — scale pattern, diatonic arpeggios, or progression arpeggios
 
-```text
-Open SlopScale
-  -> configure a practice routine
-  -> click Launch in Main 3D Player
-  -> SlopScale writes a temporary .sloppak
-  -> Slopsmith opens it in the normal player
-  -> the existing 3D Highway renders the exercise
-  -> Escape returns to the SlopScale menu
-```
+### Advanced Fretboard Logic
+- **Fretboard system** — Position box, 3-notes-per-string, CAGED position, CAGED shape run, single-string, full-neck
+- **CAGED shape family** — C / A / G / E / D button strip; shape is passed into the generated config
+- **Direction** — up-then-down, ascending only, descending only, down-then-up, randomized
+- **Repeat count** — 1–16 repetitions per phrase
 
-Generated practice charts should **not** be permanently added to the user's library unless a later export/save feature explicitly does that.
+### Arpeggios and Harmony
+- **Chord depth** — triads or seventh chords
+- **Common progressions** — diatonic I–ii–iii–IV–V–vi–vii°–I, I–IV–V, I–V–vi–IV, ii–V–I, doo-wop, Pachelbel, diatonic circle, 12-bar blues, quick-change blues, minor i–VI–III–VII, minor ii–V–i, and others
+- **Chord quality override** — force maj / min / dim / maj7 / min7 / dom7 / m7b5 / sus4 / add9
 
-## Current scope
+### Generated Audio
+- **Hear generated notes** — synthesized plucked-string preview at the actual fret and string positions
+- **Metronome click** — accent on beat 1, group accents follow the meter grouping
+- **Harmony backing** — voiced backing chord per progression step, scale- and key-aware
+- **Practice stem** — temp Sloppak ships with a generated WAV (auto-converted to OGG when `ffmpeg` is available) so Slopsmith's transport has a real audio clock
 
-SlopScale generates practice routines from:
-
-- Key
-- Scale
-- Instrument
-- Tuning
-- Fret range / neck position
-- BPM
-- Meter / time signature
-- Subdivision
-- Diatonic arpeggio mode
-- Chord progression mode
-- Chord-quality override
-
-Initial routine types:
-
-- Scale practice
-- Diatonic triads
-- Diatonic seventh-chord arpeggios
-- Common progression arpeggios
-
-Initial scale library:
-
-- Major
-- Natural minor
-- Harmonic minor
-- Minor pentatonic
-- Major pentatonic
-- Blues
-- Dorian
-- Phrygian
-- Mixolydian
-
-Initial meter and rhythm support:
-
-- 4/4
-- 3/4
-- 6/8
-- 7/8 grouped 2+2+3
-- 7/8 grouped 3+2+2
-- 5/4
-- Quarter, eighth, sixteenth, triplet, eighth-triplet, and sixteenth-triplet divisions
+### Persistence
+- **Save Preset** — routine settings stored under `<config>/plugin_data/slopscale/presets.json`
+- **Temporary chart cleanup** — temp Sloppaks under `.slopscale-temp/` are pruned after 24 hours or once 20 entries exist, whichever comes first
 
 ## Architecture
 
 SlopScale has three responsibilities:
 
-1. **Practice generation** — build notes, chords, beats, sections, anchors, chord templates, and hand shapes from the selected routine settings.
+1. **Generation** — build notes, chords, beats, sections, anchors, chord templates, and hand shapes from the selected routine settings.
 2. **Temporary Sloppak writing** — convert generated exercise data into a directory-form `.sloppak` inside the configured Slopsmith DLC folder.
 3. **Native player launch** — call Slopsmith's normal `playSong(filename, arrangement)` path so the main player owns playback and rendering.
-
-Preferred architecture:
 
 ```text
 SlopScale UI
@@ -81,20 +49,35 @@ SlopScale UI
   -> POST /api/plugins/slopscale/temp-sloppak
   -> write <DLC_DIR>/.slopscale-temp/<id>.sloppak/
   -> call playSong(filename, 0)
-  -> Slopsmith main player + existing highway renderer
+  -> Slopsmith main player + existing renderer
 ```
 
-Avoid this:
+Renderer selection is a Slopsmith player concern. SlopScale does not present embedded 3D rendering as a normal playback option — the embedded 2D canvas exists to sanity-check generation output during development.
 
-```text
-SlopScale UI
-  -> custom embedded 3D player
-  -> duplicated renderer / transport / shortcuts
+## Quick Start
+
+### Prerequisites
+- A working Slopsmith install (web/Docker or Desktop)
+- Write access to Slopsmith's `plugins/` directory
+- A configured DLC folder (Slopsmith Settings) so temp Sloppaks have somewhere to land
+
+### Install (Slopsmith web/Docker)
+
+```bash
+cd /path/to/slopsmith/plugins
+git clone https://github.com/ChrisBeWithYou/slopsmith-plugin-slopscale.git slopscale
+docker compose restart
 ```
 
-The built-in preview inside SlopScale is a secondary debugging and quick-check surface. The real playback path should be Slopsmith's normal player.
+### Install (Slopsmith Desktop)
 
-## Temporary Sloppak format
+Clone into the Desktop app's configured plugins directory (visible in Settings → Plugins).
+
+> **Note:** Do not clone directly under `C:\Program Files\Slopsmith`. Windows protects that path; you will hit permission errors unless the shell is elevated. Use the user-writable plugins directory the Desktop app reports in Settings.
+
+After restart, **SlopScale** appears in the plugin navigation.
+
+## Temporary Sloppak Format
 
 SlopScale writes directory-form Sloppaks under the user's configured DLC folder:
 
@@ -105,10 +88,10 @@ SlopScale writes directory-form Sloppaks under the user's configured DLC folder:
     ├── arrangements/
     │   └── lead.json
     └── stems/
-        └── silence.wav
+        └── practice.ogg     (or practice.wav fallback)
 ```
 
-The generated chart is intentionally temporary and should not be indexed into the library.
+Generated charts are intentionally temporary and are not indexed into the library.
 
 ### Minimal manifest
 
@@ -126,11 +109,9 @@ arrangements:
     capo: 0
 stems:
   - id: full
-    file: stems/silence.wav
+    file: stems/practice.ogg
     default: true
 ```
-
-A silent stem is used so Slopsmith has a valid transport clock. A future version may replace this with a generated click/count-in stem.
 
 ### Arrangement JSON
 
@@ -153,99 +134,34 @@ The backend normalizes generated data to Sloppak's on-disk arrangement shape:
 
 Frontend generation may use `chordTemplates` and `handShapes`; the backend writer maps those to Sloppak's `templates` and `handshapes` fields.
 
-## Installation
+## Configuration
 
-Clone this repository into Slopsmith's plugins directory.
+| Setting | Location | Description |
+|---------|----------|-------------|
+| DLC folder | Slopsmith Settings | Required — temp Sloppaks are written under `<DLC_DIR>/.slopscale-temp/` |
+| Presets | `<config>/plugin_data/slopscale/presets.json` | Auto-managed; one JSON file, atomic writes |
+| Plugin assets | `static/slopscale.css` | Served via `/api/plugins/slopscale/assets/slopscale.css` |
 
-```bash
-cd /path/to/slopsmith/plugins
-git clone https://github.com/ChrisBeWithYou/SlopScale.git slopscale
-```
+## Test Routines
 
-Restart Slopsmith.
-
-```bash
-docker compose restart
-```
-
-SlopScale should then appear in Slopsmith's plugin/navigation UI.
-
-### Slopsmith Desktop note
-
-For Slopsmith Desktop, install the plugin into the Desktop app's configured plugins directory rather than cloning into `C:\Program Files\Slopsmith` directly. `Program Files` is normally protected by Windows and will produce permission errors unless the shell is elevated.
-
-## Intended plugin UX
-
-SlopScale should expose one clear primary action:
-
-- **Launch in Main 3D Player** — build a temporary Sloppak and open it through Slopsmith's normal player.
-
-Secondary actions:
-
-- **Generate Preview** — generate the current routine and show it in the lightweight built-in 2D preview.
-- **Play Preview** — play only the local preview.
-- **Stop Preview** — stop only the local preview.
-- **Save Preset** — persist the current routine settings.
-- **Library** — return to Slopsmith's library.
-- **Plugins** — return to the plugin list.
-
-Renderer selection should remain a Slopsmith player concern. SlopScale should not present embedded 3D rendering as a normal playback option.
-
-## Implementation status
-
-Implemented:
-
-- Plugin manifest
-- Core frontend practice-generation logic
-- Built-in 2D preview renderer
-- Preset save/list/delete backend routes
-- Temporary Sloppak backend route at `/api/plugins/slopscale/temp-sloppak`
-- Backend normalization from SlopScale exercise data to Sloppak arrangement JSON
-- Temporary chart cleanup under `.slopscale-temp`
-
-Still needed:
-
-- Add **Launch in Main 3D Player** button to `screen.html`
-- Add `launchInMainPlayer()` to `screen.js`
-- Add SlopScale-only Escape return handling from the player back to `plugin-slopscale`
-- Demote/remove the renderer dropdown from the main plugin UX
-- Test raw vs encoded temp filename handling with `playSong()`
-- Verify the generated silent stem works in Slopsmith Desktop
-
-## Suggested test routine
-
-Start with the simplest scale chart:
+### Simplest scale chart
 
 ```text
-Mode: Scale practice
-Instrument: Guitar
-Tuning: Standard
-Key: C
-Scale: Major
-BPM: 100
-Meter: 4/4
-Division: Eighth
-First fret: 0
-Last fret: 5
-Bars: 4
+Practice type: Scale pattern
+Key: C   Scale: Major
+Instrument: Guitar   Tuning: 6-string standard
+BPM: 100   Meter: 4/4   Division: Eighth
+First fret: 0   Last fret: 5   Bars: 4
 ```
 
-Expected behavior:
+Expected: SlopScale builds a temporary Sloppak, the main player opens, the highway renders a C major exercise across frets 0–5, the generated stem drives the transport, and Escape returns to SlopScale.
 
-- SlopScale builds a temporary Sloppak.
-- The Slopsmith player opens.
-- The selected main-player visualization renders a C major exercise across frets 0-5.
-- Transport runs against the generated silent stem.
-- Pressing Escape returns to SlopScale.
-
-Then test diatonic triads:
+### Diatonic triads
 
 ```text
-Mode: Diatonic arpeggios
-Key: C
-Scale: Major
-Chord depth: Triads
-Fret range: 0-5
+Practice type: Diatonic arpeggios
+Key: C   Scale: Major
+Chord depth: Triads   Fret range: 0-5
 ```
 
 Expected chord sequence:
@@ -254,14 +170,12 @@ Expected chord sequence:
 Cmaj -> Dmin -> Emin -> Fmaj -> Gmaj -> Amin -> Bdim -> Cmaj
 ```
 
-Then test diatonic seventh chords:
+### Diatonic seventh chords
 
 ```text
-Mode: Diatonic arpeggios
-Key: C
-Scale: Major
-Chord depth: Seventh chords
-Fret range: 0-5
+Practice type: Diatonic arpeggios
+Key: C   Scale: Major
+Chord depth: Seventh chords   Fret range: 0-5
 ```
 
 Expected chord sequence:
@@ -270,36 +184,62 @@ Expected chord sequence:
 Cmaj7 -> Dmin7 -> Emin7 -> Fmaj7 -> G7 -> Amin7 -> Bm7b5 -> Cmaj7
 ```
 
-## Development notes
+## Implementation Status
 
-Primary files:
+**Implemented**
+- Plugin manifest, screen UI, settings panel
+- Core practice generation: scales, diatonic arpeggios, progression arpeggios
+- Built-in 2D canvas preview renderer
+- Generated preview audio: notes, metronome, harmony backing
+- Preset save / list / delete backend routes
+- Temporary Sloppak backend route at `POST /api/plugins/slopscale/temp-sloppak`
+- Backend normalization from SlopScale exercise data to Sloppak arrangement JSON
+- Generated audio stem (WAV; OGG via `ffmpeg` when present)
+- Temporary chart cleanup under `.slopscale-temp` (24-hour TTL, capped at 20 entries)
+- Advanced controls toggle
+- Fretboard system selector (position, 3NPS, CAGED, single-string, full-neck)
+- CAGED shape family selector (C / A / G / E / D)
 
-- `plugin.json` — Slopsmith plugin manifest
-- `screen.html` — plugin UI
-- `screen.js` — practice generator, preview renderer, and player-launch frontend
-- `routes.py` — preset persistence and temporary Sloppak generation
-- `settings.html` — lightweight plugin settings/info panel
-- `docs/architecture.md` — integration design and Slopsmith-native architecture notes
-- `docs/exercise-schema.md` — internal generated exercise schema
+**Still needed**
+- CAGED position-aware fret generation (selector exists; generator currently falls through to position-box logic)
+- 3NPS-aware scale path
+- Picking metadata (alternate / economy / sweep)
+- Sequence patterns (ascending 3s, 4s, diatonic sequences)
+- **Launch in Main 3D Player** button on `screen.html` and `launchInMainPlayer()` in `screen.js`
+- SlopScale-only Escape return handling from the player back to the plugin
+- Demote or remove the renderer dropdown from the main plugin UX
+- Test raw vs URL-encoded temp filename handling with `playSong()`
+- Verify generated stem playback against Slopsmith Desktop
+
+## File Layout
+
+| File | Purpose |
+|------|---------|
+| `plugin.json` | Slopsmith plugin manifest |
+| `screen.html` | Plugin UI (markup + inline styles + bootstrap scripts) |
+| `screen.js` | Practice generator, preview renderer, player-launch frontend |
+| `routes.py` | Preset persistence and temporary Sloppak generation |
+| `settings.html` | Plugin settings / info panel |
+| `static/slopscale.css` | External stylesheet |
+| `docs/architecture.md` | Integration design notes |
+| `docs/exercise-schema.md` | Internal generated exercise schema |
 
 ## Roadmap
 
-Near term:
-
+**Near term**
 1. Launch generated routines through the native Slopsmith player.
-2. Clean up the plugin UI around routine configuration and one-click launch.
-3. Add a generated click/count-in stem.
-4. Improve preset management.
+2. CAGED position-aware fret generation, driven by the C/A/G/E/D selector.
+3. Picking-style metadata (alternate / economy / sweep) attached to generated note groups.
+4. Sequence patterns (ascending 3s, 4s, diatonic sequences).
+5. Clean up the plugin UI around routine configuration and one-click launch.
+6. Optional generated click / count-in stem.
 
-Later:
-
-1. Named CAGED positions.
-2. 3NPS scale positions.
-3. String-set restrictions.
-4. Position-aware arpeggio paths.
-5. Inversions and shell voicings.
-6. Nearest-note voice leading.
-7. Progression-aware chord-tone targeting.
-8. Import/export routine JSON.
-9. Song-aware mode using the active song's tuning, sections, tempo map, and loop range.
-10. Optional Slopsmith diagnostics contribution for generated routine state.
+**Later**
+- 3NPS scale positions and string-set restrictions
+- Position-aware arpeggio paths
+- Inversions and shell voicings
+- Nearest-note voice leading between progression steps
+- Progression-aware chord-tone targeting
+- Import / export routine JSON
+- Song-aware mode using the active song's tuning, sections, tempo map, and loop range
+- Optional Slopsmith diagnostics contribution for generated routine state
