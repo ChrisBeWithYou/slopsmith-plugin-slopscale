@@ -203,12 +203,13 @@
             <option value="position" selected>Position box / selected fret range</option>
             <option value="three_nps">3-notes-per-string</option>
             <option value="caged">CAGED position</option>
-            <option value="caged_shape_run">CAGED single-shape run up the neck</option>
+            <option value="caged_shape_run">CAGED single shape — strict ascend</option>
+            <option value="caged_shape_follow">CAGED single shape — closest position</option>
             <option value="single_string">Single-string run</option>
             <option value="full_neck">Full-neck map</option>
           </select>
         </label>
-        <!-- CAGED shape family — visible only when caged / caged_shape_run is active -->
+        <!-- CAGED shape family — visible only when any caged_* mode is active -->
         <div class="slopscale-caged-fields slopscale-caged-only">
           <label>CAGED shape family
             <span class="slopscale-help" style="margin-top:2px;">Pick the chord shape that anchors this position on the neck.</span>
@@ -374,7 +375,7 @@
   const hidden    = document.getElementById('slopscale-caged-shape-value');
   const btns      = document.querySelectorAll('.slopscale-caged-shape-btn');
 
-  function isCaged() { const v = sysSelect ? sysSelect.value : ''; return v === 'caged' || v === 'caged_shape_run'; }
+  function isCaged() { const v = sysSelect ? sysSelect.value : ''; return v === 'caged' || v === 'caged_shape_run' || v === 'caged_shape_follow'; }
   function updateCagedVisibility() { if (isCaged()) form.setAttribute('data-fretboard-caged', '1'); else form.removeAttribute('data-fretboard-caged'); }
   function setShape(shape) { if (hidden) hidden.value = shape; btns.forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-shape') === shape)); }
 

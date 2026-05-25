@@ -56,13 +56,43 @@
     position:'Position box / selected fret range',
     three_nps:'3-notes-per-string',
     caged:'CAGED position',
-    caged_shape_run:'CAGED single-shape run up the neck',
+    caged_shape_run:'CAGED single shape — strict ascend',
+    caged_shape_follow:'CAGED single shape — closest position',
     single_string:'Single-string run',
     full_neck:'Full-neck map'
   };
   // which string (0=highE) holds the root, and that string's open pitch class, per CAGED shape
   const CAGED_ROOT_STRING_IDX = { C:4, A:4, G:5, E:5, D:3 };
   const CAGED_OPEN_PC         = { C:9, A:9, G:4, E:4, D:2 };
+  // CAGED shape templates: each entry { s:highE-indexed string, fOff:fret offset from root, iv:interval semitones }
+  // qualityKey maps full chord qualities into one of these template buckets.
+  const CAGED_SHAPE_DEFS = {
+    C: { rootStrHighE:4,
+      maj:[{s:4,fOff:0,iv:0},{s:3,fOff:-1,iv:4},{s:2,fOff:-3,iv:7},{s:1,fOff:-2,iv:0},{s:0,fOff:-3,iv:4}],
+      min:[{s:4,fOff:0,iv:0},{s:3,fOff:-2,iv:3},{s:2,fOff:-3,iv:7},{s:1,fOff:-2,iv:0},{s:0,fOff:-4,iv:3}],
+      dim:[{s:4,fOff:0,iv:0},{s:3,fOff:-2,iv:3},{s:2,fOff:-4,iv:6},{s:1,fOff:-2,iv:0},{s:0,fOff:-4,iv:3}]
+    },
+    A: { rootStrHighE:4,
+      maj:[{s:4,fOff:0,iv:0},{s:3,fOff:2,iv:7},{s:2,fOff:2,iv:0},{s:1,fOff:2,iv:4},{s:0,fOff:0,iv:7}],
+      min:[{s:4,fOff:0,iv:0},{s:3,fOff:2,iv:7},{s:2,fOff:2,iv:0},{s:1,fOff:1,iv:3},{s:0,fOff:0,iv:7}],
+      dim:[{s:4,fOff:0,iv:0},{s:3,fOff:1,iv:6},{s:2,fOff:2,iv:0},{s:1,fOff:1,iv:3},{s:0,fOff:-1,iv:6}]
+    },
+    G: { rootStrHighE:5,
+      maj:[{s:5,fOff:0,iv:0},{s:4,fOff:-1,iv:4},{s:3,fOff:-3,iv:7},{s:2,fOff:-3,iv:0},{s:1,fOff:-3,iv:4},{s:0,fOff:0,iv:0}],
+      min:[{s:5,fOff:0,iv:0},{s:4,fOff:-2,iv:3},{s:3,fOff:-3,iv:7},{s:2,fOff:-3,iv:0},{s:1,fOff:-4,iv:3},{s:0,fOff:0,iv:0}],
+      dim:[{s:5,fOff:0,iv:0},{s:4,fOff:-2,iv:3},{s:3,fOff:-4,iv:6},{s:2,fOff:-3,iv:0},{s:1,fOff:-4,iv:3},{s:0,fOff:0,iv:0}]
+    },
+    E: { rootStrHighE:5,
+      maj:[{s:5,fOff:0,iv:0},{s:4,fOff:2,iv:7},{s:3,fOff:2,iv:0},{s:2,fOff:1,iv:4},{s:1,fOff:0,iv:7},{s:0,fOff:0,iv:0}],
+      min:[{s:5,fOff:0,iv:0},{s:4,fOff:2,iv:7},{s:3,fOff:2,iv:0},{s:2,fOff:0,iv:3},{s:1,fOff:0,iv:7},{s:0,fOff:0,iv:0}],
+      dim:[{s:5,fOff:0,iv:0},{s:4,fOff:1,iv:6},{s:3,fOff:2,iv:0},{s:2,fOff:0,iv:3},{s:1,fOff:-1,iv:6},{s:0,fOff:0,iv:0}]
+    },
+    D: { rootStrHighE:3,
+      maj:[{s:3,fOff:0,iv:0},{s:2,fOff:2,iv:7},{s:1,fOff:3,iv:0},{s:0,fOff:2,iv:4}],
+      min:[{s:3,fOff:0,iv:0},{s:2,fOff:2,iv:7},{s:1,fOff:3,iv:0},{s:0,fOff:1,iv:3}],
+      dim:[{s:3,fOff:0,iv:0},{s:2,fOff:1,iv:6},{s:1,fOff:3,iv:0},{s:0,fOff:1,iv:3}]
+    }
+  };
   const SEQUENCE_PATTERNS = {
     none:null,
     fours:[0,1,2,3],
@@ -218,13 +248,70 @@
     return ((keyPc - openPc) + 12) % 12;
   }
   function fretRangeForSystem(system, shape, keyPc) {
-    if (system !== 'caged' && system !== 'caged_shape_run') return null;
+    if (system !== 'caged' && system !== 'caged_shape_run' && system !== 'caged_shape_follow') return null;
     const root = cagedRootFret(shape, keyPc);
     const fMin = Math.max(0, root - 1);
-    const fMax = system === 'caged_shape_run'
-      ? Math.min(24, root + 16)
-      : Math.min(24, root + 5);
+    const isShapeRun = system === 'caged_shape_run' || system === 'caged_shape_follow';
+    const fMax = isShapeRun ? Math.min(24, root + 16) : Math.min(24, root + 5);
     return { fretMin:fMin, fretMax:fMax };
+  }
+
+  function cagedShapeQualityKey(quality) {
+    if (quality === 'min' || quality === 'min7' || quality === 'min_maj7') return 'min';
+    if (quality === 'dim' || quality === 'dim7' || quality === 'm7b5') return 'dim';
+    return 'maj';
+  }
+
+  function cagedShapeNotesForChord(cfg, shape, quality, rootFret) {
+    const def = CAGED_SHAPE_DEFS[shape];
+    if (!def) return null;
+    const tmpl = def[cagedShapeQualityKey(quality)];
+    if (!tmpl) return null;
+    const opens = openMidisForConfig(cfg);
+    const out = [];
+    for (const note of tmpl) {
+      const sLowE = cfg.stringCount - 1 - note.s;
+      if (sLowE < 0 || sLowE >= cfg.stringCount) continue;
+      const f = rootFret + note.fOff;
+      if (f < 0 || f > 24) continue;
+      const midi = opens[sLowE] + f;
+      out.push({ s:sLowE, f, midi, pc:midi % 12, interval:note.iv });
+    }
+    out.sort((a, b) => a.midi - b.midi || a.s - b.s);
+    return out;
+  }
+
+  function pickShapeRootFret(cfg, shape, rootPc, prevRootFret, mode) {
+    const def = CAGED_SHAPE_DEFS[shape];
+    if (!def) return null;
+    const sLowE = cfg.stringCount - 1 - def.rootStrHighE;
+    if (sLowE < 0 || sLowE >= cfg.stringCount) return null;
+    const opens = openMidisForConfig(cfg);
+    const anchorPc = ((opens[sLowE] % 12) + 12) % 12;
+    const baseFret = (((rootPc - anchorPc) % 12) + 12) % 12;
+    // Generate candidate frets across the neck (baseFret + 0/12, plus -12/+24 for headroom)
+    const options = [];
+    for (let octShift = -1; octShift <= 2; octShift++) {
+      const f = baseFret + octShift * 12;
+      // Leave ~4 frets of headroom at the top so the shape extension fits
+      if (f >= 0 && f <= 20) options.push(f);
+    }
+    if (!options.length) return baseFret;
+    if (prevRootFret == null || prevRootFret < 0) {
+      // First chord: lowest valid fret (matches user's example: C in C-shape starts at fret 3)
+      return Math.min.apply(null, options);
+    }
+    if (mode === 'ascend') {
+      const above = options.filter(f => f > prevRootFret);
+      if (above.length) return Math.min.apply(null, above);
+      // Ran out of neck — fall back to closest as a safety net
+    }
+    let best = options[0], bestDist = Math.abs(options[0] - prevRootFret);
+    for (let i = 1; i < options.length; i++) {
+      const d = Math.abs(options[i] - prevRootFret);
+      if (d < bestDist) { best = options[i]; bestDist = d; }
+    }
+    return best;
   }
 
   function shuffleCopy(items) {
@@ -348,6 +435,7 @@
       case 'single_string': return singleStringScalePositions(cfg);
       case 'full_neck': return everyScalePosition(Object.assign({}, cfg, { fretMin:0, fretMax:24 }));
       case 'caged_shape_run':
+      case 'caged_shape_follow':
         return startAtRootPc(everyScalePosition(cfg), cfg);
       case 'caged':
         return startAtRootPc(allScalePositions(cfg), cfg);
@@ -607,24 +695,40 @@
   function buildArpeggioExercise(cfg, degrees) {
     const step = secondsPerDivision(cfg), mLen = measureSeconds(cfg);
     const chordTemplates = [], chords = [], handShapes = [], notes = [], sections = [];
-    const isShapeRun = cfg.fretboardSystem === 'caged_shape_run';
+    const isShapeRunStrict = cfg.fretboardSystem === 'caged_shape_run';
+    const isShapeRunFollow = cfg.fretboardSystem === 'caged_shape_follow';
+    const isShapeRun = isShapeRunStrict || isShapeRunFollow;
+    const shapeRunMode = isShapeRunStrict ? 'ascend' : 'closest';
     const shapeRunAnchors = isShapeRun ? [] : null;
+    let prevRootFret = null;
     let t = 0;
     degrees.forEach(degree => {
       const rootPc = chordRootForDegree(cfg, degree);
       const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride);
-      // For caged_shape_run: narrow the fret window to this chord's root position in the chosen shape,
-      // so each chord is played in the same shape geometry as it moves up the neck.
+      let displayPositions = null;
       let chordCfg = cfg;
+      // CAGED single-shape modes: play the literal shape geometry, transposed to this chord's root
+      // on the shape's anchor string. Strict mode marches monotonically up the neck; follow mode
+      // picks the closest fret to the previous chord (lets the shape go up AND down the neck).
       if (isShapeRun) {
-        const chordRoot = cagedRootFret(cfg.cagedShape, rootPc);
-        const fMin = Math.max(0, chordRoot - 1);
-        const fMax = Math.min(24, chordRoot + 5);
-        chordCfg = Object.assign({}, cfg, { fretMin:fMin, fretMax:fMax });
-        shapeRunAnchors.push({ time:Number(t.toFixed(6)), fret:fMin, width:fMax - fMin + 1 });
+        const rootFret = pickShapeRootFret(cfg, cfg.cagedShape, rootPc, prevRootFret, shapeRunMode);
+        if (rootFret != null) {
+          const shapeNotes = cagedShapeNotesForChord(cfg, cfg.cagedShape, quality, rootFret);
+          if (shapeNotes && shapeNotes.length) {
+            displayPositions = shapeNotes;
+            prevRootFret = rootFret;
+            const winLo = Math.max(0, rootFret - 4);
+            const winHi = Math.min(24, rootFret + 4);
+            chordCfg = Object.assign({}, cfg, { fretMin:winLo, fretMax:winHi });
+            shapeRunAnchors.push({ time:Number(t.toFixed(6)), fret:winLo, width:winHi - winLo + 1 });
+          }
+        }
       }
-      const positionTones = chordTonePositionsInPosition(chordCfg, rootPc, quality);
-      const displayPositions = positionTones.length ? positionTones : pickChordPositions(chordCfg, rootPc, quality);
+      // Fallback for non-shape-run modes, or when a shape template isn't available for this quality
+      if (!displayPositions || !displayPositions.length) {
+        const positionTones = chordTonePositionsInPosition(chordCfg, rootPc, quality);
+        displayPositions = positionTones.length ? positionTones : pickChordPositions(chordCfg, rootPc, quality);
+      }
       if (!displayPositions.length) return;
       const name = chordName(rootPc, quality), templateId = chordTemplates.length;
       chordTemplates.push(templateFromPositions(name, displayPositions, chordCfg, true));
@@ -1276,7 +1380,7 @@
       `Practice type: ${cfg.mode}`,
       `Advanced controls: ${cfg.advancedMode ? 'on' : 'off'}`,
       `Fretboard system: ${fretboardSystemLabel(cfg.fretboardSystem)}`,
-      ...(cfg.fretboardSystem === 'caged' || cfg.fretboardSystem === 'caged_shape_run' ? [`CAGED shape: ${cfg.cagedShape}`] : []),
+      ...(cfg.fretboardSystem === 'caged' || cfg.fretboardSystem === 'caged_shape_run' || cfg.fretboardSystem === 'caged_shape_follow' ? [`CAGED shape: ${cfg.cagedShape}`] : []),
       `Direction/repeats: ${cfg.direction}, ${cfg.repeatCount}x`,
       ...(cfg.sequence && cfg.sequence !== 'none' ? [`Sequence: ${SEQUENCE_LABELS[cfg.sequence] || cfg.sequence}`] : []),
       `Pattern: ${cfg.mode === 'scale' ? fretboardSystemLabel(cfg.fretboardSystem) : 'full chord-tone arpeggios across one position'}`,
@@ -1322,7 +1426,8 @@
     }
     const sysSelect = $('slopscale-fretboard-system'), form = $('slopscale-controls');
     if (sysSelect && form) {
-      const isCaged = sysSelect.value === 'caged' || sysSelect.value === 'caged_shape_run';
+      const v = sysSelect.value;
+      const isCaged = v === 'caged' || v === 'caged_shape_run' || v === 'caged_shape_follow';
       if (isCaged) form.setAttribute('data-fretboard-caged', '1');
       else form.removeAttribute('data-fretboard-caged');
     }
