@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import math
 import os
 import shutil
 import tempfile
@@ -25,6 +26,7 @@ from pydantic import BaseModel, Field
 PLUGIN_ID = "slopscale"
 SCHEMA_VERSION = 1
 TEMP_ROOT_NAME = ".slopscale-temp"
+SAMPLE_RATE = 44100
 
 
 class PresetPayload(BaseModel):
@@ -80,8 +82,6 @@ def _model_dump(model: Any) -> dict[str, Any]:
 
 
 def _get_dlc_dir_from_server(context: dict) -> Path | None:
-    # Same process as server.py. Prefer the actual helper so desktop and Docker
-    # both follow the user's active Slopsmith config.
     try:
         server = importlib.import_module("server")
         getter = getattr(server, "_get_dlc_dir", None)
@@ -92,7 +92,6 @@ def _get_dlc_dir_from_server(context: dict) -> Path | None:
     except Exception:
         pass
 
-    # Fallback for tests/dev environments where importing server is unavailable.
     cfg_path = Path(context["config_dir"]) / "config.json"
     cfg = _read_json(cfg_path, {}) if cfg_path.exists() else {}
     for key in ("dlc_dir", "dlc_path", "dlc", "library_dir", "library_path"):
@@ -178,25 +177,22 @@ def _normalise_chart(exercise: dict[str, Any]) -> tuple[dict[str, Any], dict[str
 
     anchors = []
     for a in chart.get("anchors", []) or []:
-        if not isinstance(a, dict):
-            continue
-        anchors.append({"time": float(a.get("time", 0) or 0), "fret": int(a.get("fret", 1) or 1), "width": int(a.get("width", 4) or 4)})
+        if isinstance(a, dict):
+            anchors.append({"time": float(a.get("time", 0) or 0), "fret": int(a.get("fret", 1) or 1), "width": int(a.get("width", 4) or 4)})
     if not anchors:
         anchors = [{"time": 0.0, "fret": int(session.get("fretMin", 0) or 0), "width": 4}]
 
     beats = []
     for b in chart.get("beats", []) or []:
-        if not isinstance(b, dict):
-            continue
-        beats.append({"time": float(b.get("time", 0) or 0), "measure": int(b.get("measure", -1) or -1)})
+        if isinstance(b, dict):
+            beats.append({"time": float(b.get("time", 0) or 0), "measure": int(b.get("measure", -1) or -1)})
     if not beats:
         beats = [{"time": 0.0, "measure": 1}]
 
     sections = []
     for i, s in enumerate(chart.get("sections", []) or []):
-        if not isinstance(s, dict):
-            continue
-        sections.append({"name": str(s.get("name") or "practice"), "number": int(s.get("number", i + 1) or i + 1), "time": float(s.get("time", 0) or 0)})
+        if isinstance(s, dict):
+            sections.append({"name": str(s.get("name") or "practice"), "number": int(s.get("number", i + 1) or i + 1), "time": float(s.get("time", 0) or 0)})
     if not sections:
         sections = [{"name": "practice", "number": 1, "time": 0.0}]
 
@@ -207,9 +203,10 @@ def _normalise_chart(exercise: dict[str, Any]) -> tuple[dict[str, Any], dict[str
         duration = max(8.0, max_note, max_chord) + 2.0
     duration = max(1.0, min(duration, 900.0))
 
+    string_count = int(session.get("stringCount", 6) or 6)
     arranged = {
-        "name": "Lead",
-        "tuning": list(session.get("tuning") or ([0, 0, 0, 0] if int(session.get("stringCount", 6) or 6) == 4 else [0, 0, 0, 0, 0, 0])),
+        "name": "Lead" if string_count != 4 else "Bass",
+        "tuning": list(session.get("tuning") or ([0, 0, 0, 0] if string_count == 4 else [0, 0, 0, 0, 0, 0])),
         "capo": 0,
         "notes": notes,
         "chords": chords,
@@ -224,14 +221,13 @@ def _normalise_chart(exercise: dict[str, Any]) -> tuple[dict[str, Any], dict[str
 
 def _write_silence_wav(path: Path, duration: float) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    sample_rate = 44100
-    frames_total = int(max(1.0, duration) * sample_rate)
-    chunk_frames = sample_rate
+    frames_total = int(max(1.0, duration) * SAMPLE_RATE)
+    chunk_frames = SAMPLE_RATE
     silence = b"\x00\x00" * chunk_frames
     with wave.open(str(path), "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
-        wf.setframerate(sample_rate)
+        wf.setframerate(SAMPLE_RATE)
         remaining = frames_total
         while remaining > 0:
             n = min(chunk_frames, remaining)
@@ -239,13 +235,107 @@ def _write_silence_wav(path: Path, duration: float) -> None:
             remaining -= n
 
 
+def _midi_to_freq(midi: int) -> float:
+    return 440.0 * (2.0 ** ((midi - 69) / 12.0))
+
+
+def _open_midis(session: dict[str, Any]) -> list[int]:
+    string_count = int(session.get("stringCount", 6) or 6)
+    tuning_id = str(session.get("tuningId") or "standard")
+    if string_count == 4 or tuning_id == "bass_standard":
+        return [28, 33, 38, 43]
+    if tuning_id == "drop_d":
+        return [38, 45, 50, 55, 59, 64]
+    return [40, 45, 50, 55, 59, 64]
+
+
+def _add_decayed_sine(buffer: list[float], start_time: float, duration: float, freq: float, amp: float, decay: float = 5.0) -> None:
+    start = max(0, int(start_time * SAMPLE_RATE))
+    frames = max(1, int(duration * SAMPLE_RATE))
+    end = min(len(buffer), start + frames)
+    if start >= len(buffer):
+        return
+    attack_frames = max(1, int(0.006 * SAMPLE_RATE))
+    release_frames = max(1, int(0.035 * SAMPLE_RATE))
+    two_pi = 2.0 * math.pi
+    for i in range(start, end):
+        local = i - start
+        t = local / SAMPLE_RATE
+        attack = min(1.0, local / attack_frames)
+        release = min(1.0, max(0, end - i) / release_frames)
+        env = attack * release * math.exp(-decay * t)
+        value = math.sin(two_pi * freq * t) + 0.35 * math.sin(two_pi * freq * 2.0 * t)
+        buffer[i] += amp * env * value
+
+
+def _add_click(buffer: list[float], start_time: float, accent: bool) -> None:
+    freq = 1760.0 if accent else 1120.0
+    amp = 0.42 if accent else 0.28
+    _add_decayed_sine(buffer, start_time, 0.055 if accent else 0.04, freq, amp, decay=42.0)
+
+
+def _write_practice_audio_wav(path: Path, session: dict[str, Any], arranged: dict[str, Any], duration: float) -> None:
+    audio = session.get("audio") if isinstance(session.get("audio"), dict) else {}
+    include_notes = bool(audio.get("notes", session.get("audioNotes", False)))
+    include_metronome = bool(audio.get("metronome", session.get("audioMetronome", False)))
+    if not include_notes and not include_metronome:
+        _write_silence_wav(path, duration)
+        return
+
+    frame_count = int((duration + 0.75) * SAMPLE_RATE)
+    buffer = [0.0] * max(SAMPLE_RATE, frame_count)
+
+    if include_notes:
+        opens = _open_midis(session)
+        string_count = len(opens)
+        for note in arranged.get("notes", []):
+            try:
+                s = int(note.get("s", 0))
+                f = int(note.get("f", 0))
+                start = float(note.get("t", 0.0))
+                sus = float(note.get("sus", 0.0) or 0.0)
+            except Exception:
+                continue
+            if s < 0 or s >= string_count or f < 0:
+                continue
+            midi = opens[s] + f
+            note_len = max(0.12, min(0.85, sus if sus > 0 else 0.22))
+            amp = 0.16 if string_count == 6 else 0.18
+            _add_decayed_sine(buffer, start, note_len, _midi_to_freq(midi), amp, decay=4.8)
+
+    if include_metronome:
+        for beat in arranged.get("beats", []):
+            try:
+                start = float(beat.get("time", 0.0))
+                accent = int(beat.get("measure", -1)) >= 0
+            except Exception:
+                continue
+            _add_click(buffer, start, accent)
+
+    peak = max((abs(x) for x in buffer), default=0.0)
+    gain = 0.92 / peak if peak > 0.98 else 1.0
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(SAMPLE_RATE)
+        chunk = bytearray()
+        for value in buffer:
+            sample = int(max(-1.0, min(1.0, value * gain)) * 32767)
+            chunk += sample.to_bytes(2, byteorder="little", signed=True)
+            if len(chunk) >= 65536:
+                wf.writeframes(bytes(chunk))
+                chunk.clear()
+        if chunk:
+            wf.writeframes(bytes(chunk))
+
+
 def _dump_yaml(data: dict[str, Any]) -> str:
     try:
         import yaml  # type: ignore
         return yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
     except Exception:
-        # Minimal manifest fallback. Values are JSON-encoded scalars/lists, which
-        # are valid YAML for this simple structure.
         lines = []
         for key in ("title", "artist", "album", "year", "duration"):
             lines.append(f"{key}: {json.dumps(data.get(key))}")
@@ -383,7 +473,7 @@ def setup(app: FastAPI, context: dict) -> None:
                 json.dumps(arranged, indent=2, sort_keys=False) + "\n",
                 encoding="utf-8",
             )
-            _write_silence_wav(work_dir / "stems" / "silence.wav", duration)
+            _write_practice_audio_wav(work_dir / "stems" / "practice.wav", session, arranged, duration)
 
             manifest = {
                 "title": title,
@@ -393,12 +483,12 @@ def setup(app: FastAPI, context: dict) -> None:
                 "duration": duration,
                 "arrangements": [{
                     "id": "lead",
-                    "name": "Lead",
+                    "name": arranged.get("name", "Lead"),
                     "file": "arrangements/lead.json",
                     "tuning": arranged.get("tuning", [0, 0, 0, 0, 0, 0]),
                     "capo": 0,
                 }],
-                "stems": [{"id": "full", "file": "stems/silence.wav", "default": True}],
+                "stems": [{"id": "full", "file": "stems/practice.wav", "default": True}],
                 "slopscale": {"version": SCHEMA_VERSION, "generated": True, "session": session},
             }
             (work_dir / "manifest.yaml").write_text(_dump_yaml(manifest), encoding="utf-8")
@@ -407,7 +497,17 @@ def setup(app: FastAPI, context: dict) -> None:
                 shutil.rmtree(sloppak_dir, ignore_errors=True)
             shutil.move(str(work_dir), str(sloppak_dir))
             rel = sloppak_dir.relative_to(dlc_dir).as_posix()
-            return {"ok": True, "filename": rel, "title": title, "duration": duration}
+            audio = session.get("audio") if isinstance(session.get("audio"), dict) else {}
+            return {
+                "ok": True,
+                "filename": rel,
+                "title": title,
+                "duration": duration,
+                "audio": {
+                    "notes": bool(audio.get("notes", session.get("audioNotes", False))),
+                    "metronome": bool(audio.get("metronome", session.get("audioMetronome", False))),
+                },
+            }
         except HTTPException:
             raise
         except Exception as exc:
