@@ -60,6 +60,9 @@
     single_string:'Single-string run',
     full_neck:'Full-neck map'
   };
+  // which string (0=highE) holds the root, and that string's open pitch class, per CAGED shape
+  const CAGED_ROOT_STRING_IDX = { C:4, A:4, G:5, E:5, D:3 };
+  const CAGED_OPEN_PC         = { C:9, A:9, G:4, E:4, D:2 };
   const SEQUENCE_PATTERNS = {
     none:null,
     fours:[0,1,2,3],
@@ -128,9 +131,9 @@
     },
     sweep_primer: {
       label:'Sweep Arpeggio Primer',
-      goal:'One chord tone per string, swept up and down. Start slow, build tempo. Mode-of-the-moment chord shapes across the diatonic progression.',
-      base:{ practiceType:'sweep_arpeggios', scale:'major', chordDepth:'triad', chordOverride:'auto', progression:'diatonic', meter:'4/4', subdivision:'sixteenth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d' },
-      vary:[ { key:'A', scale:'natural_minor', fretMin:5, fretMax:12 }, { key:'E', scale:'natural_minor', fretMin:7, fretMax:14 }, { key:'C', scale:'major', fretMin:3, fretMax:10 }, { key:'G', scale:'major', fretMin:5, fretMax:12 }, { key:'D', scale:'major', fretMin:7, fretMax:14 } ]
+      goal:'One chord tone per string, swept low-to-high with a hammer-on/pull-off turnaround at the apex, then swept back down. Root anchors the bass string. Start slow — sweeps reward cleanliness over speed.',
+      base:{ practiceType:'sweep_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'I-IV-V', meter:'4/4', subdivision:'sixteenth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', cagedShape:'E' },
+      vary:[ { key:'A', fretMin:5, fretMax:12 }, { key:'E', fretMin:7, fretMax:14 }, { key:'C', scale:'major', fretMin:3, fretMax:10 }, { key:'G', scale:'major', fretMin:5, fretMax:12 }, { key:'D', scale:'major', fretMin:7, fretMax:14 } ]
     }
   };
   const PATHWAY_STORAGE_KEY = 'slopscale.lastPathway';
@@ -210,6 +213,19 @@
   function secondsPerDivision(cfg) { const q = 60 / cfg.bpm; return ({ quarter:q, eighth:q/2, sixteenth:q/4, triplet:q/3, eighth_triplet:q/3, sixteenth_triplet:q/6 })[cfg.subdivision] || q/2; }
   function measureSeconds(cfg) { return (60 / cfg.bpm) * (4 / cfg.meter.denominator) * cfg.meter.numerator; }
   function fretboardSystemLabel(value) { return FRETBOARD_SYSTEM_LABELS[value] || FRETBOARD_SYSTEM_LABELS.position; }
+  function cagedRootFret(shape, keyPc) {
+    const openPc = CAGED_OPEN_PC[shape] ?? 4;
+    return ((keyPc - openPc) + 12) % 12;
+  }
+  function fretRangeForSystem(system, shape, keyPc) {
+    if (system !== 'caged' && system !== 'caged_shape_run') return null;
+    const root = cagedRootFret(shape, keyPc);
+    const fMin = Math.max(0, root - 1);
+    const fMax = system === 'caged_shape_run'
+      ? Math.min(24, root + 16)
+      : Math.min(24, root + 5);
+    return { fretMin:fMin, fretMax:fMax };
+  }
 
   function shuffleCopy(items) {
     const out = items.slice();
@@ -321,13 +337,21 @@
     return best.sort((a,b) => a.midi - b.midi || a.f - b.f);
   }
 
+  function startAtRootPc(positions, cfg) {
+    const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+    const idx = positions.findIndex(p => p.pc === keyPc);
+    return idx > 0 ? positions.slice(idx).concat(positions.slice(0, idx)) : positions;
+  }
+
   function scalePositionsForSystem(cfg) {
     switch (cfg.fretboardSystem) {
       case 'single_string': return singleStringScalePositions(cfg);
       case 'full_neck': return everyScalePosition(Object.assign({}, cfg, { fretMin:0, fretMax:24 }));
-      case 'three_nps':
-      case 'caged':
       case 'caged_shape_run':
+        return startAtRootPc(everyScalePosition(cfg), cfg);
+      case 'caged':
+        return startAtRootPc(allScalePositions(cfg), cfg);
+      case 'three_nps':
       case 'position':
       default: return allScalePositions(cfg);
     }
@@ -501,27 +525,60 @@
 
   function sweepArpeggioPositions(cfg, rootPc, quality, anchorFret) {
     const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj;
-    const intervalPcs = new Set(formula.intervals.map(iv => (rootPc + iv) % 12));
+    const intervalPcSet = new Set(formula.intervals.map(iv => (rootPc + iv) % 12));
     const opens = openMidisForConfig(cfg), out = [];
     const fLo = Math.max(0, cfg.fretMin), fHi = Math.min(24, cfg.fretMax);
+    const bassStr = cfg.stringCount - 1; // low E in 0=highE convention = highest s index
     for (let s = 0; s < cfg.stringCount; s++) {
-      let best = null, bestDist = 999;
+      let best = null, bestScore = Infinity;
       for (let f = fLo; f <= fHi; f++) {
         const midi = opens[s] + f, pc = midi % 12;
-        if (!intervalPcs.has(pc)) continue;
+        if (!intervalPcSet.has(pc)) continue;
         const dist = Math.abs(f - anchorFret);
-        if (dist < bestDist) { best = { s, f, midi, pc }; bestDist = dist; }
+        // On the bass string, strongly prefer the root to anchor the sweep correctly
+        const rootPenalty = (s === bassStr && pc !== rootPc) ? 30 : 0;
+        const score = dist + rootPenalty;
+        if (score < bestScore) { best = { s, f, midi, pc }; bestScore = score; }
       }
       if (best) out.push(best);
     }
     return out;
   }
 
+  function sweepTurnaroundNotes(apexPos, cfg, rootPc, quality) {
+    const opens = openMidisForConfig(cfg);
+    const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj;
+    const intervalPcSet = new Set(formula.intervals.map(iv => (rootPc + iv) % 12));
+    for (let f = apexPos.f + 1; f <= Math.min(24, apexPos.f + 5); f++) {
+      const pc = (opens[apexPos.s] + f) % 12;
+      if (intervalPcSet.has(pc)) {
+        return [
+          { s:apexPos.s, f, midi:opens[apexPos.s] + f, pc, ho:true },
+          { s:apexPos.s, f:apexPos.f, midi:opens[apexPos.s] + apexPos.f, pc:apexPos.pc, po:true }
+        ];
+      }
+    }
+    return [];
+  }
+
+  function buildSweepPathWithHopo(positions, cfg, rootPc, quality) {
+    // positions[0]=s0 (high e), positions[last]=s5 (low E)
+    // Ascending sweep: low E → high e = positions reversed
+    const ascending = positions.slice().reverse();
+    const apexPos = ascending[ascending.length - 1]; // s=0, high e
+    const turnaround = apexPos ? sweepTurnaroundNotes(apexPos, cfg, rootPc, quality) : [];
+    // Descending: from s=1 back down to s=stringCount-1 (skip apex — HO/PO handles it)
+    const descending = ascending.slice(0, -1).reverse();
+    if (turnaround.length) {
+      return [...ascending, ...turnaround, ...descending];
+    }
+    return [...ascending, ...descending.slice(1)];
+  }
+
   function buildSweepArpeggioExercise(cfg) {
     const degrees = progressionDegreesForConfig(cfg);
     const mLen = measureSeconds(cfg), step = secondsPerDivision(cfg);
     const totalBars = Math.max(1, cfg.bars), duration = totalBars * mLen;
-    const notesPerBar = Math.max(1, Math.round(mLen / step));
     const anchorFret = Math.floor((cfg.fretMin + cfg.fretMax) / 2);
     const notes = [], chordTemplates = [], chords = [], handShapes = [], sections = [];
     for (let bar = 0; bar < totalBars; bar++) {
@@ -530,7 +587,7 @@
       const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride);
       const positions = sweepArpeggioPositions(cfg, rootPc, quality, anchorFret);
       if (!positions.length) continue;
-      const path = directedPath(positions, cfg.direction, cfg.repeatCount);
+      const path = buildSweepPathWithHopo(positions, cfg, rootPc, quality);
       if (!path.length) continue;
       const barStart = bar * mLen;
       const name = chordName(rootPc, quality), templateId = chordTemplates.length;
@@ -538,10 +595,10 @@
       chords.push({ t:Number(barStart.toFixed(6)), id:templateId, hd:false, notes:positions.map(p => noteDefaults({ s:p.s, f:p.f, sus:0 })) });
       handShapes.push({ chord_id:templateId, start_time:Number(barStart.toFixed(6)), end_time:Number((barStart + mLen).toFixed(6)), arp:true });
       sections.push({ name, number:templateId + 1, time:Number(barStart.toFixed(6)) });
-      const limit = Math.min(notesPerBar, path.length);
+      const limit = Math.min(Math.floor(mLen / step), path.length);
       for (let i = 0; i < limit; i++) {
         const p = path[i];
-        notes.push(noteDefaults({ t:Number((barStart + i * step).toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * 0.6), ac:i === 0 }));
+        notes.push(noteDefaults({ t:Number((barStart + i * step).toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * 0.6), ac:i === 0, ho:!!p.ho, po:!!p.po }));
       }
     }
     return { notes, chords, chordTemplates, handShapes, sections:sections.length ? sections : [{ name:'sweep-arpeggios', number:1, time:0 }], duration };
@@ -772,6 +829,22 @@
       else form.removeAttribute('data-fretboard-caged');
     }
   }
+  function syncFretRangeForSystem() {
+    const form = $('slopscale-controls'); if (!form) return;
+    const sysEl = $('slopscale-fretboard-system');
+    const keyEl = form.querySelector('[name="key"]');
+    const cagedEl = $('slopscale-caged-shape-value');
+    const fMinEl = form.querySelector('[name="fretMin"]');
+    const fMaxEl = form.querySelector('[name="fretMax"]');
+    if (!sysEl || !keyEl || !fMinEl || !fMaxEl) return;
+    const system = sysEl.value, shape = (cagedEl && cagedEl.value) || 'E';
+    const keyPc = NOTE_ALIASES[keyEl.value] ?? 0;
+    const range = fretRangeForSystem(system, shape, keyPc);
+    if (!range) return;
+    fMinEl.value = String(range.fretMin);
+    fMaxEl.value = String(range.fretMax);
+  }
+
   function applyPathwayConfig(config) {
     if (!config) return;
     if (Object.prototype.hasOwnProperty.call(config, 'advancedMode')) setFieldSilent('advancedMode', config.advancedMode);
@@ -841,6 +914,9 @@
     $('slopscale-go-library')?.addEventListener('click', () => { stopRenderer(); goScreen('home'); });
     $('slopscale-go-plugins')?.addEventListener('click', () => { stopRenderer(); goScreen('plugins'); });
     $('slopscale-controls').addEventListener('change', () => { syncAdvancedMode(); if (activeBundle) onGenerate(); });
+    $('slopscale-fretboard-system')?.addEventListener('change', syncFretRangeForSystem);
+    $('slopscale-controls')?.querySelector('[name="key"]')?.addEventListener('change', syncFretRangeForSystem);
+    document.querySelectorAll('.slopscale-caged-shape-btn').forEach(btn => btn.addEventListener('click', () => setTimeout(syncFretRangeForSystem, 0)));
     const pathwaySelect = $('slopscale-pathway');
     pathwaySelect?.addEventListener('change', () => {
       applyPathwayById(pathwaySelect.value);
