@@ -59,6 +59,22 @@
     single_string:'Single-string run',
     full_neck:'Full-neck map'
   };
+  const SEQUENCE_PATTERNS = {
+    none:null,
+    fours:[0,1,2,3],
+    triplets:[0,1,2],
+    thirds:[0,2],
+    broken_triads:[0,2,4],
+    yngwie_sixes:[0,1,2,3,2,1]
+  };
+  const SEQUENCE_LABELS = {
+    none:'straight',
+    fours:'fours (1-2-3-4)',
+    triplets:'triplets (1-2-3)',
+    thirds:'diatonic thirds',
+    broken_triads:'broken triads (1-3-5)',
+    yngwie_sixes:'sixes (1-2-3-4-3-2)'
+  };
 
   let renderer = null, activeBundle = null, rafId = null;
   let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
@@ -115,6 +131,7 @@
       subdivision: data.get('subdivision') || 'eighth',
       direction: advancedMode ? (data.get('direction') || 'up_down') : 'up_down',
       repeatCount: advancedMode ? Math.max(1, Math.min(16, parseInt(data.get('repeatCount') || '1', 10))) : 1,
+      sequence: advancedMode ? (data.get('sequence') || 'none') : 'none',
       fretMin,
       fretMax,
       bars: Math.max(1, Math.min(32, parseInt(data.get('bars') || '4', 10))),
@@ -140,6 +157,18 @@
       [out[i], out[j]] = [out[j], out[i]];
     }
     return out;
+  }
+
+  function applySequencePattern(positions, pattern) {
+    const offsets = SEQUENCE_PATTERNS[pattern];
+    if (!offsets || !offsets.length || positions.length < 2) return positions;
+    const maxOffset = Math.max.apply(null, offsets);
+    if (positions.length <= maxOffset) return positions;
+    const out = [];
+    for (let i = 0; i + maxOffset < positions.length; i++) {
+      for (const offset of offsets) out.push(positions[i + offset]);
+    }
+    return out.length ? out : positions;
   }
 
   function directedPath(items, direction, repeatCount) {
@@ -342,8 +371,9 @@
   function buildScaleExercise(cfg) {
     const positions = scalePositionsForSystem(cfg);
     if (!positions.length) throw new Error('No scale notes found inside this fret range.');
+    const sequenced = applySequencePattern(positions, cfg.sequence);
     const step = secondsPerDivision(cfg), minDuration = cfg.bars * measureSeconds(cfg);
-    const path = directedPath(positions, cfg.direction, cfg.repeatCount);
+    const path = directedPath(sequenced, cfg.direction, cfg.repeatCount);
     const duration = Math.max(minDuration, path.length * step);
     const totalEvents = Math.max(path.length, Math.floor(duration / step));
     const notes = [];
@@ -527,6 +557,7 @@
       `Fretboard system: ${fretboardSystemLabel(cfg.fretboardSystem)}`,
       ...(cfg.fretboardSystem === 'caged' || cfg.fretboardSystem === 'caged_shape_run' ? [`CAGED shape: ${cfg.cagedShape}`] : []),
       `Direction/repeats: ${cfg.direction}, ${cfg.repeatCount}x`,
+      ...(cfg.sequence && cfg.sequence !== 'none' ? [`Sequence: ${SEQUENCE_LABELS[cfg.sequence] || cfg.sequence}`] : []),
       `Pattern: ${cfg.mode === 'scale' ? fretboardSystemLabel(cfg.fretboardSystem) : 'full chord-tone arpeggios across one position'}`,
       `Instrument: ${cfg.setupLabel}`,
       `Highway inverted: ${readHighwayInverted() ? 'on' : 'off'}`,

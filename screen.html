@@ -192,7 +192,19 @@
             <input name="repeatCount" type="number" min="1" max="16" step="1" value="1">
           </label>
         </div>
-        <div class="slopscale-help">Fretboard system and CAGED shape are passed into the generated exercise config. Full CAGED/3NPS pattern logic is built up in subsequent passes.</div>
+        <label>Sequence pattern
+          <select name="sequence">
+            <option value="none" selected>None — straight scale</option>
+            <option value="fours">Fours — 1-2-3-4, 2-3-4-5…</option>
+            <option value="triplets">Triplets — 1-2-3, 2-3-4…</option>
+            <option value="thirds">Diatonic thirds — 1-3, 2-4…</option>
+            <option value="broken_triads">Broken triads — 1-3-5, 2-4-6…</option>
+            <option value="yngwie_sixes">Sixes — 1-2-3-4-3-2…</option>
+          </select>
+          <span class="slopscale-help" style="margin-top:2px;">Patterns the scale walk into common practice sequences. Direction still applies.</span>
+        </label>
+
+        <div class="slopscale-help">Fretboard system, CAGED shape, and sequence pattern are passed into the generated exercise config. Full CAGED/3NPS pattern logic is built up in subsequent passes.</div>
       </div>
 
       <div class="slopscale-grid-2">
