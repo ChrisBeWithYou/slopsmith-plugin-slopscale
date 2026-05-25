@@ -95,12 +95,11 @@
   <section class="slopscale-panel slopscale-header">
     <div>
       <h1>SlopScale</h1>
-      <p>Scale, arpeggio, and progression practice using Slopsmith-compatible chart data. Choose a visual layout, generate a routine, then play it directly in the plugin preview. The temp main-player launch remains available as a secondary option.</p>
+      <p>Scale, arpeggio, and progression practice using Slopsmith-compatible chart data. Choose a visual layout, generate a routine, then play it directly in the plugin preview.</p>
     </div>
     <div class="slopscale-status">
       <span id="slopscale-renderer-status">Renderer: not initialized</span>
       <span id="slopscale-chart-status">Chart: not generated</span>
-      <span id="slopscale-launch-status">Launch: optional</span>
       <div class="slopscale-top-actions">
         <button type="button" class="slopscale-button secondary" id="slopscale-go-library">Library</button>
         <button type="button" class="slopscale-button secondary" id="slopscale-go-plugins">Plugins</button>
@@ -121,8 +120,8 @@
 
       <label>Visual layout
         <select name="renderer">
-          <option value="builtin_2d">Built-in 2D practice highway</option>
           <option value="highway_3d" selected>Existing 3D Highway</option>
+          <option value="builtin_2d">Built-in 2D practice highway</option>
           <option value="tab_2d">Existing 2D/tab renderer when available</option>
         </select>
       </label>
@@ -169,7 +168,7 @@
         <label class="slopscale-toggle"><input name="audioNotes" type="checkbox" checked> Hear generated notes</label>
         <label class="slopscale-toggle"><input name="audioMetronome" type="checkbox" checked> Metronome click</label>
       </div>
-      <div class="slopscale-help">These toggles affect preview playback and generated temp Sloppak audio.</div>
+      <div class="slopscale-help">These toggles affect preview playback.</div>
 
       <div class="slopscale-grid-3">
         <label>First fret <input name="fretMin" type="number" min="0" max="20" step="1" value="0"></label>
@@ -193,7 +192,6 @@
         <button type="button" id="slopscale-play" class="primary">Play Preview</button>
         <button type="button" id="slopscale-stop">Stop</button>
         <button type="button" id="slopscale-save" class="secondary">Save Preset</button>
-        <button type="button" id="slopscale-launch-main" class="secondary">Launch in Main Player</button>
       </div>
     </form>
 
