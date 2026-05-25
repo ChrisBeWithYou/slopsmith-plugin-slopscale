@@ -53,6 +53,15 @@
     border-radius: 12px;
     background: rgba(15, 23, 42, 0.86);
   }
+  .slopscale-advanced-card {
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 12px;
+    padding: 10px;
+    background: rgba(2, 6, 23, 0.28);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
   .slopscale-controls label.slopscale-toggle {
     flex-direction: row;
     align-items: center;
@@ -66,6 +75,7 @@
     margin: 0;
     accent-color: #60a5fa;
   }
+  .slopscale-root:not(.slopscale-advanced) .slopscale-advanced-only { display: none !important; }
   .slopscale-help { color: #9ca3af; font-size: 12px; line-height: 1.35; margin-top: -6px; }
   .slopscale-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
   .slopscale-button, .slopscale-actions button {
@@ -86,7 +96,6 @@
   .slopscale-render-host { position: relative; flex: 1; min-height: 560px; overflow: hidden; background: #050711; }
   #slopscale-canvas { display: block; width: 100%; height: 100%; }
   .slopscale-summary { border-top: 1px solid rgba(75, 85, 99, 0.55); padding: 12px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; color: #cbd5e1; background: rgba(2, 6, 23, 0.72); font-size: 12px; line-height: 1.45; }
-  .slopscale-warning { color: #fbbf24; font-size: 12px; line-height: 1.35; margin-top: -4px; }
   @media (max-width: 1100px) { .slopscale-layout { grid-template-columns: 1fr; } .slopscale-header { flex-direction: column; } .slopscale-controls { max-height: none; } }
   @media (max-width: 720px) { .slopscale-grid-2, .slopscale-grid-3, .slopscale-audio-options { grid-template-columns: 1fr; } }
 </style>
@@ -95,7 +104,7 @@
   <section class="slopscale-panel slopscale-header">
     <div>
       <h1>SlopScale</h1>
-      <p>Scale, arpeggio, and progression practice using Slopsmith-compatible chart data. Choose a practice type, generate a routine, then play it directly in the plugin preview.</p>
+      <p>Scale, arpeggio, and progression practice using Slopsmith-compatible chart data. Keep it simple for basic scale work, or enable Advanced for fretboard systems and deeper harmony options.</p>
     </div>
     <div class="slopscale-status">
       <span id="slopscale-renderer-status">Renderer: not initialized</span>
@@ -110,6 +119,8 @@
   <section class="slopscale-layout">
     <form id="slopscale-controls" class="slopscale-panel slopscale-controls">
       <div class="slopscale-group-title">Routine</div>
+      <label class="slopscale-toggle"><input name="advancedMode" id="slopscale-advanced-toggle" type="checkbox"> Advanced controls</label>
+
       <label>Practice type
         <select name="practiceType">
           <option value="scale" selected>Scale pattern</option>
@@ -126,19 +137,33 @@
         </select>
       </label>
 
-      <div class="slopscale-grid-2">
-        <label>Direction
-          <select name="direction">
-            <option value="up_down" selected>Up then down</option>
-            <option value="ascending">Ascending only</option>
-            <option value="descending">Descending only</option>
-            <option value="down_up">Down then up</option>
-            <option value="random">Randomized order</option>
+      <div class="slopscale-advanced-card slopscale-advanced-only">
+        <div class="slopscale-group-title">Advanced fretboard logic</div>
+        <label>Fretboard system
+          <select name="fretboardSystem">
+            <option value="position" selected>Position box / selected fret range</option>
+            <option value="three_nps">3-notes-per-string</option>
+            <option value="caged">CAGED position</option>
+            <option value="caged_shape_run">CAGED single-shape run up the neck</option>
+            <option value="single_string">Single-string run</option>
+            <option value="full_neck">Full-neck map</option>
           </select>
         </label>
-        <label>Repeat count
-          <input name="repeatCount" type="number" min="1" max="16" step="1" value="1">
-        </label>
+        <div class="slopscale-grid-2">
+          <label>Direction
+            <select name="direction">
+              <option value="up_down" selected>Up then down</option>
+              <option value="ascending">Ascending only</option>
+              <option value="descending">Descending only</option>
+              <option value="down_up">Down then up</option>
+              <option value="random">Randomized order</option>
+            </select>
+          </label>
+          <label>Repeat count
+            <input name="repeatCount" type="number" min="1" max="16" step="1" value="1">
+          </label>
+        </div>
+        <div class="slopscale-help">Fretboard system is stored in the generated config now; CAGED/3NPS-specific behavior will be expanded in the next pass.</div>
       </div>
 
       <div class="slopscale-grid-2">
@@ -187,7 +212,7 @@
         <label class="slopscale-toggle"><input name="audioMetronome" type="checkbox" checked> Metronome click</label>
         <label class="slopscale-toggle"><input name="audioHarmony" type="checkbox" checked> Harmony backing</label>
       </div>
-      <div class="slopscale-help">These toggles affect preview playback. Harmony backing is generated from the selected key, scale, and progression.</div>
+      <div class="slopscale-help">Harmony backing is generated from the selected key, scale, and progression.</div>
 
       <div class="slopscale-grid-3">
         <label>First fret <input name="fretMin" type="number" min="0" max="20" step="1" value="0"></label>
@@ -195,16 +220,37 @@
         <label>Bars <input name="bars" type="number" min="1" max="32" step="1" value="4"></label>
       </div>
 
-      <div class="slopscale-group-title">Arpeggios and harmony</div>
-      <label>Chord depth
-        <select name="chordDepth"><option value="triad">Triads</option><option value="seventh">Seventh chords</option></select>
-      </label>
-      <label>Common progression
-        <select name="progression"><option value="diatonic">Diatonic: I–ii–iii–IV–V–vi–vii°–I</option><option value="I-IV-V">I–IV–V</option><option value="I-V-vi-IV">I–V–vi–IV</option><option value="ii-V-I">ii–V–I</option><option value="vi-IV-I-V">vi–IV–I–V</option><option value="12_bar_blues">12-bar blues</option><option value="i-VI-III-VII">Minor: i–VI–III–VII</option></select>
-      </label>
-      <label>Chord quality override
-        <select name="chordOverride"><option value="auto">Auto diatonic</option><option value="maj">Major</option><option value="min">Minor</option><option value="dim">Diminished</option><option value="maj7">Maj7</option><option value="min7">Min7</option><option value="dom7">Dominant 7</option><option value="min7b5">m7b5 / half-diminished</option><option value="sus4">Sus4</option><option value="add9">Add9</option></select>
-      </label>
+      <div class="slopscale-advanced-card slopscale-advanced-only">
+        <div class="slopscale-group-title">Arpeggios and harmony</div>
+        <label>Chord depth
+          <select name="chordDepth"><option value="triad">Triads</option><option value="seventh">Seventh chords</option></select>
+        </label>
+        <label>Common progression
+          <select name="progression">
+            <option value="diatonic">Diatonic: I–ii–iii–IV–V–vi–vii°–I</option>
+            <option value="I-IV-V">I–IV–V</option>
+            <option value="I-V-vi-IV">I–V–vi–IV</option>
+            <option value="I-vi-IV-V">I–vi–IV–V / doo-wop</option>
+            <option value="I-vi-ii-V">I–vi–ii–V turnaround</option>
+            <option value="ii-V-I">ii–V–I</option>
+            <option value="vi-ii-V-I">vi–ii–V–I</option>
+            <option value="I-iii-IV-V">I–iii–IV–V</option>
+            <option value="I-IV-vi-V">I–IV–vi–V</option>
+            <option value="I-ii-IV-V">I–ii–IV–V</option>
+            <option value="vi-IV-I-V">vi–IV–I–V</option>
+            <option value="pachelbel">Pachelbel: I–V–vi–iii–IV–I–IV–V</option>
+            <option value="circle_diatonic">Circle: I–IV–vii°–iii–vi–ii–V–I</option>
+            <option value="12_bar_blues">12-bar blues</option>
+            <option value="quick_change_blues">Quick-change 12-bar blues</option>
+            <option value="i-VI-III-VII">Minor: i–VI–III–VII</option>
+            <option value="i-VII-VI-VII">Minor: i–VII–VI–VII</option>
+            <option value="minor_ii_V_i">Minor ii–V–i</option>
+          </select>
+        </label>
+        <label>Chord quality override
+          <select name="chordOverride"><option value="auto">Auto diatonic</option><option value="maj">Major</option><option value="min">Minor</option><option value="dim">Diminished</option><option value="maj7">Maj7</option><option value="min7">Min7</option><option value="dom7">Dominant 7</option><option value="min7b5">m7b5 / half-diminished</option><option value="sus4">Sus4</option><option value="add9">Add9</option></select>
+        </label>
+      </div>
 
       <div class="slopscale-actions">
         <button type="button" id="slopscale-generate" class="primary">Generate</button>
