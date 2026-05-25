@@ -506,11 +506,11 @@
   }
   function scheduleHarmonyPad(ctx, when, midis, dur, instrument) {
     if (!midis.length) return;
-    const master = ctx.createGain(), filter = ctx.createBiquadFilter(), comp = ctx.createDynamicsCompressor();
+    const master = ctx.createGain(), filter = ctx.createBiquadFilter();
     filter.type = 'lowpass'; filter.frequency.setValueAtTime(instrument === 'bass' ? 1150 : 1900, when); filter.Q.setValueAtTime(0.7, when);
-    master.gain.setValueAtTime(0.0001, when); master.gain.linearRampToValueAtTime(0.24, when + 0.035); master.gain.linearRampToValueAtTime(0.18, when + Math.max(0.08, dur - 0.16)); master.gain.linearRampToValueAtTime(0.0001, when + dur);
-    filter.connect(comp); comp.connect(master); master.connect(ctx.destination);
-    audioNodes.push(filter, comp, master);
+    master.gain.setValueAtTime(0.0001, when); master.gain.exponentialRampToValueAtTime(0.24, when + 0.012); master.gain.linearRampToValueAtTime(0.18, when + Math.max(0.08, dur - 0.16)); master.gain.linearRampToValueAtTime(0.0001, when + dur);
+    filter.connect(master); master.connect(ctx.destination);
+    audioNodes.push(filter, master);
     midis.slice(0, 5).forEach((midi, i) => {
       const osc = ctx.createOscillator();
       const g = ctx.createGain();
