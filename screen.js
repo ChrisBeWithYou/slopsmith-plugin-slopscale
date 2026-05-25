@@ -397,6 +397,7 @@
     const strategy = cfg.chordScaleStrategy || 'mode_of_moment';
     const keyParent = strategy === 'chord_tone_emphasis' ? scalePositionsForSystem(cfg) : null;
     const notes = [], chordTemplates = [], chords = [], handShapes = [], sections = [];
+    let cursor = 0;
     for (let bar = 0; bar < totalBars; bar++) {
       const degree = degrees[bar % degrees.length];
       const rootPc = chordRootForDegree(cfg, degree);
@@ -415,12 +416,16 @@
       chords.push({ t:Number(barStart.toFixed(6)), id:templateId, hd:false, notes:displayTones.map(p => noteDefaults({ s:p.s, f:p.f, sus:0 })) });
       handShapes.push({ chord_id:templateId, start_time:Number(barStart.toFixed(6)), end_time:Number((barStart + mLen).toFixed(6)), arp:false });
       sections.push({ name, number:templateId + 1, time:Number(barStart.toFixed(6)) });
+      let startIdx = 0;
+      if (strategy === 'chord_tone_emphasis') startIdx = cursor;
+      else for (let k = 0; k < path.length; k++) if (path[k].pc === rootPc) { startIdx = k; break; }
       for (let i = 0; i < notesPerBar; i++) {
-        const p = path[i % path.length];
+        const p = path[(startIdx + i) % path.length];
         const onBeat = i % Math.max(1, cfg.meter.numerator) === 0;
         const isChordTone = strategy === 'chord_tone_emphasis' && chordPcs.has(p.pc);
         notes.push(noteDefaults({ t:Number((barStart + i * step).toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * 0.78), ac:onBeat || isChordTone }));
       }
+      if (strategy === 'chord_tone_emphasis') cursor += notesPerBar;
     }
     return { notes, chords, chordTemplates, handShapes, sections:sections.length ? sections : [{ name:'chord-scales', number:1, time:0 }], duration };
   }
