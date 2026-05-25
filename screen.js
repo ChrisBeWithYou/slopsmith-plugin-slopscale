@@ -646,7 +646,7 @@
       songInfo:{ title:`SlopScale ${cfg.mode}`, artist:'SlopScale', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'slopscale-practice', fretboardSystem:cfg.fretboardSystem },
       isReady:true, notes:c.notes, chords:c.chords, anchors:c.anchors, beats:c.beats, sections:c.sections, chordTemplates:c.chordTemplates, handShapes:c.handShapes,
       backingEvents:buildBackingEvents(cfg, c.duration),
-      stringCount:cfg.stringCount, tuning:tuningOffsetsForConfig(cfg), capo:0,
+      stringCount:cfg.stringCount, tuning:tuningOffsetsForConfig(cfg), openMidis:openMidisForConfig(cfg), capo:0,
       lyrics:[], toneChanges:[], toneBase:'', drumTab:null, mastery:1, hasPhraseData:false,
       inverted:readHighwayInverted(), lefty:readLefty(), renderScale:readRenderScale(), lyricsVisible:false, project:null, fretX:null,
       getNoteState:function(){return null;}, getNoteStateProvider:function(){return null;}
@@ -655,37 +655,520 @@
     return bundle;
   }
 
+  // Label for each open-string MIDI: shows tuning instead of "S1..Sn"
+  function stringLabelForMidi(midi) {
+    const pc = ((midi % 12) + 12) % 12;
+    // High e and low E share the name "E" — caller decides case via string index
+    return NOTE_NAMES[pc];
+  }
+
   function makeBuiltin2DRenderer() {
     let canvas = null, ctx = null, W = 0, H = 0;
-    function resize() { if (!canvas) return; const r = canvas.parentElement.getBoundingClientRect(); W = Math.max(640, Math.round(r.width || 1280)); H = Math.max(420, Math.round(r.height || 720)); canvas.width = W; canvas.height = H; }
-    function laneY(s, count, inverted) { const top = 95, bottom = H - 58; const visualIndex = inverted ? s : (count - 1 - s); return bottom - (visualIndex * ((bottom - top) / Math.max(1, count - 1))); }
-    function draw(bundle) {
-      if (!ctx || !bundle) return; resize();
-      const now = bundle.currentTime || 0, ahead = 8, behind = 1.5, nStr = Math.max(1, bundle.stringCount || 6), inverted = !!bundle.inverted;
-      ctx.fillStyle = '#050711'; ctx.fillRect(0, 0, W, H);
-      const grad = ctx.createLinearGradient(0, 0, 0, H); grad.addColorStop(0, '#08111f'); grad.addColorStop(1, '#050711'); ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
-      ctx.strokeStyle = 'rgba(148,163,184,0.25)'; ctx.lineWidth = 1;
-      for (let s = 0; s < nStr; s++) { const y = laneY(s, nStr, inverted); ctx.beginPath(); ctx.moveTo(54, y); ctx.lineTo(W - 32, y); ctx.stroke(); ctx.fillStyle = STRING_COLORS[s] || '#94a3b8'; ctx.font = '700 12px system-ui'; ctx.fillText(`S${s + 1}`, 18, y + 4); }
-      for (const b of bundle.beats || []) { const dt = b.time - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); ctx.strokeStyle = b.measure >= 0 ? 'rgba(96,165,250,0.55)' : 'rgba(148,163,184,0.18)'; ctx.beginPath(); ctx.moveTo(x, 72); ctx.lineTo(x, H - 36); ctx.stroke(); if (b.measure >= 0) { ctx.fillStyle = '#93c5fd'; ctx.font = '11px system-ui'; ctx.fillText(String(b.measure), x + 4, 66); } }
-      ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 2; const playX = 90 + behind / (ahead + behind) * (W - 150); ctx.beginPath(); ctx.moveTo(playX, 60); ctx.lineTo(playX, H - 36); ctx.stroke();
-      for (const ev of bundle.backingEvents || []) { const dt = ev.t - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); ctx.fillStyle = 'rgba(250,204,21,0.12)'; ctx.fillRect(x - 40, 22, 80, 24); ctx.strokeStyle = 'rgba(250,204,21,0.4)'; ctx.strokeRect(x - 40, 22, 80, 24); ctx.fillStyle = '#fde68a'; ctx.font = '700 12px system-ui'; ctx.textAlign = 'center'; ctx.fillText(ev.name, x, 38); ctx.textAlign = 'left'; }
-      for (const ch of bundle.chords || []) { const dt = ch.t - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); const name = bundle.chordTemplates?.[ch.id]?.displayName || bundle.chordTemplates?.[ch.id]?.name || ''; ctx.fillStyle = 'rgba(168,85,247,0.18)'; ctx.fillRect(x - 38, 50, 76, 24); ctx.strokeStyle = 'rgba(168,85,247,0.75)'; ctx.strokeRect(x - 38, 50, 76, 24); ctx.fillStyle = '#e9d5ff'; ctx.font = '700 12px system-ui'; ctx.textAlign = 'center'; ctx.fillText(name, x, 66); ctx.textAlign = 'left'; }
-      for (const n of bundle.notes || []) { const dt = n.t - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); const y = laneY(n.s, nStr, inverted); const col = STRING_COLORS[n.s] || '#94a3b8'; if ((n.sus || 0) > 0) { const x2 = 90 + (dt + n.sus + behind) / (ahead + behind) * (W - 150); ctx.strokeStyle = col; ctx.globalAlpha = 0.38; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(Math.min(W - 30, x2), y); ctx.stroke(); ctx.globalAlpha = 1; } ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(x - 16, y - 12, 32, 24, 6); ctx.fill(); ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = n.ac ? 3 : 1; ctx.stroke(); ctx.fillStyle = '#020617'; ctx.font = '800 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(String(n.f), x, y + 5); ctx.textAlign = 'left'; }
-      ctx.fillStyle = '#e5e7eb'; ctx.font = '700 14px system-ui'; ctx.fillText(bundle.songInfo?.title || 'SlopScale', 18, 28); ctx.fillStyle = '#94a3b8'; ctx.font = '12px system-ui'; ctx.fillText(`${now.toFixed(2)}s / ${(bundle.songInfo?.duration || 0).toFixed(2)}s`, 18, 48);
+    const LEFT_PAD = 64, RIGHT_PAD = 28, TOP_PAD = 96, BOTTOM_PAD = 52;
+    const AHEAD = 8, BEHIND = 1.5;
+
+    function resize() {
+      if (!canvas) return;
+      const r = canvas.parentElement.getBoundingClientRect();
+      W = Math.max(640, Math.round(r.width || 1280));
+      H = Math.max(420, Math.round(r.height || 720));
+      canvas.width = W;
+      canvas.height = H;
     }
-    return { init(c) { canvas = c; ctx = c.getContext('2d'); resize(); window.addEventListener('resize', resize); }, draw, resize, destroy() { window.removeEventListener('resize', resize); canvas = null; ctx = null; } };
+    function laneY(s, count, inverted) {
+      const top = TOP_PAD, bottom = H - BOTTOM_PAD;
+      const visualIndex = inverted ? s : (count - 1 - s);
+      return bottom - (visualIndex * ((bottom - top) / Math.max(1, count - 1)));
+    }
+    function xForDt(dt) {
+      return LEFT_PAD + ((dt + BEHIND) / (AHEAD + BEHIND)) * (W - LEFT_PAD - RIGHT_PAD);
+    }
+    function inWindow(t, now) { const dt = t - now; return dt >= -BEHIND && dt <= AHEAD; }
+
+    function drawBackground() {
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, '#08111f'); grad.addColorStop(1, '#050711');
+      ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+    }
+
+    function drawAnchorZones(bundle, now) {
+      // Anchor zones: subtle highlighted vertical bands showing the current fret window
+      const anchors = bundle.anchors || [];
+      for (let i = 0; i < anchors.length; i++) {
+        const a = anchors[i], next = anchors[i + 1];
+        const aStart = a.time, aEnd = next ? next.time : (bundle.songInfo?.duration || aStart + 1);
+        if (aEnd < now - BEHIND || aStart > now + AHEAD) continue;
+        const x1 = xForDt(Math.max(-BEHIND, aStart - now));
+        const x2 = xForDt(Math.min(AHEAD, aEnd - now));
+        ctx.fillStyle = 'rgba(96,165,250,0.04)';
+        ctx.fillRect(x1, TOP_PAD - 6, Math.max(2, x2 - x1), H - TOP_PAD - BOTTOM_PAD + 12);
+      }
+    }
+
+    function drawStringLanes(nStr, inverted, openMidis) {
+      ctx.lineWidth = 1;
+      for (let s = 0; s < nStr; s++) {
+        const y = laneY(s, nStr, inverted);
+        ctx.strokeStyle = 'rgba(148,163,184,0.25)';
+        ctx.beginPath(); ctx.moveTo(LEFT_PAD - 4, y); ctx.lineTo(W - RIGHT_PAD, y); ctx.stroke();
+        const col = STRING_COLORS[s] || '#94a3b8';
+        ctx.fillStyle = col;
+        ctx.font = '700 13px system-ui';
+        const label = openMidis ? stringLabelForMidi(openMidis[s]) : `S${s + 1}`;
+        // lowercase for high e and high b to match conventional notation
+        const display = (s <= 1 && (label === 'E' || label === 'B')) ? label.toLowerCase() : label;
+        ctx.fillText(display, 14, y + 5);
+      }
+    }
+
+    function drawBeatsAndPlayhead(bundle, now) {
+      for (const b of bundle.beats || []) {
+        const dt = b.time - now;
+        if (dt < -BEHIND || dt > AHEAD) continue;
+        const x = xForDt(dt);
+        ctx.strokeStyle = b.measure >= 0 ? 'rgba(96,165,250,0.55)' : 'rgba(148,163,184,0.18)';
+        ctx.lineWidth = b.measure >= 0 ? 1.4 : 1;
+        ctx.beginPath(); ctx.moveTo(x, TOP_PAD - 24); ctx.lineTo(x, H - BOTTOM_PAD + 6); ctx.stroke();
+        if (b.measure >= 0) {
+          ctx.fillStyle = '#93c5fd';
+          ctx.font = '11px system-ui';
+          ctx.fillText(String(b.measure), x + 4, TOP_PAD - 30);
+        }
+      }
+      const playX = xForDt(0);
+      ctx.strokeStyle = '#f8fafc';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(playX, TOP_PAD - 36); ctx.lineTo(playX, H - BOTTOM_PAD + 6); ctx.stroke();
+      // Playhead triangle
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.moveTo(playX - 6, TOP_PAD - 38);
+      ctx.lineTo(playX + 6, TOP_PAD - 38);
+      ctx.lineTo(playX, TOP_PAD - 30);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawBackingChords(bundle, now) {
+      for (const ev of bundle.backingEvents || []) {
+        const dt = ev.t - now;
+        if (dt < -BEHIND || dt > AHEAD) continue;
+        const x = xForDt(dt);
+        ctx.fillStyle = 'rgba(250,204,21,0.12)';
+        ctx.fillRect(x - 42, 22, 84, 26);
+        ctx.strokeStyle = 'rgba(250,204,21,0.45)';
+        ctx.strokeRect(x - 42, 22, 84, 26);
+        ctx.fillStyle = '#fde68a';
+        ctx.font = '700 12px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText(ev.name, x, 39);
+        ctx.textAlign = 'left';
+      }
+    }
+
+    function drawChordTiles(bundle, now) {
+      for (const ch of bundle.chords || []) {
+        const dt = ch.t - now;
+        if (dt < -BEHIND || dt > AHEAD) continue;
+        const x = xForDt(dt);
+        const name = bundle.chordTemplates?.[ch.id]?.displayName || bundle.chordTemplates?.[ch.id]?.name || '';
+        ctx.fillStyle = 'rgba(168,85,247,0.18)';
+        ctx.fillRect(x - 38, 52, 76, 22);
+        ctx.strokeStyle = 'rgba(168,85,247,0.75)';
+        ctx.strokeRect(x - 38, 52, 76, 22);
+        ctx.fillStyle = '#e9d5ff';
+        ctx.font = '700 12px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText(name, x, 68);
+        ctx.textAlign = 'left';
+      }
+    }
+
+    function drawSectionMarkers(bundle, now) {
+      for (const sec of bundle.sections || []) {
+        const dt = sec.time - now;
+        if (dt < -BEHIND || dt > AHEAD) continue;
+        const x = xForDt(dt);
+        ctx.strokeStyle = 'rgba(244,114,182,0.7)';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x, H - BOTTOM_PAD + 8); ctx.lineTo(x, H - BOTTOM_PAD + 22); ctx.stroke();
+        ctx.fillStyle = '#fbcfe8';
+        ctx.font = '700 10px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText(sec.name || '·', x, H - BOTTOM_PAD + 36);
+        ctx.textAlign = 'left';
+      }
+    }
+
+    function techniqueGlyph(n) {
+      if (n.ho) return 'h';
+      if (n.po) return 'p';
+      if (n.hm) return '◇'; // harmonic
+      if (n.pm) return 'PM';
+      if (n.mt) return 'x'; // dead/muted
+      if (n.tr) return '~~';
+      if (n.vb) return '~';
+      if (n.tp) return 'T';
+      if ((n.sl || -1) >= 0) return '/';
+      if ((n.bn || 0) > 0) return `b${n.bn}`;
+      return '';
+    }
+
+    function drawNotes(bundle, now, nStr, inverted) {
+      for (const n of bundle.notes || []) {
+        const dt = n.t - now;
+        if (dt < -BEHIND || dt > AHEAD) continue;
+        const x = xForDt(dt);
+        const y = laneY(n.s, nStr, inverted);
+        const col = STRING_COLORS[n.s] || '#94a3b8';
+
+        // sustain bar
+        if ((n.sus || 0) > 0) {
+          const x2 = xForDt(dt + n.sus);
+          ctx.strokeStyle = col;
+          ctx.globalAlpha = 0.4;
+          ctx.lineWidth = 9;
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(Math.min(W - RIGHT_PAD, x2), y); ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+
+        // accent halo
+        if (n.ac) {
+          ctx.fillStyle = col;
+          ctx.globalAlpha = 0.18;
+          ctx.beginPath(); ctx.arc(x, y, 22, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+
+        // dead note: hollow X instead of fret-number tile
+        if (n.mt) {
+          ctx.strokeStyle = col;
+          ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(x - 10, y - 10); ctx.lineTo(x + 10, y + 10); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(x + 10, y - 10); ctx.lineTo(x - 10, y + 10); ctx.stroke();
+        } else {
+          // note tile
+          ctx.fillStyle = col;
+          ctx.beginPath(); ctx.roundRect(x - 17, y - 13, 34, 26, 7); ctx.fill();
+          ctx.strokeStyle = n.ac ? '#f8fafc' : 'rgba(248,250,252,0.5)';
+          ctx.lineWidth = n.ac ? 3 : 1.2;
+          ctx.stroke();
+          ctx.fillStyle = '#020617';
+          ctx.font = '800 14px system-ui';
+          ctx.textAlign = 'center';
+          ctx.fillText(String(n.f), x, y + 5);
+        }
+
+        // palm mute under-bracket
+        if (n.pm) {
+          ctx.strokeStyle = 'rgba(248,250,252,0.6)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(x - 12, y + 18); ctx.lineTo(x - 12, y + 14); ctx.lineTo(x + 12, y + 14); ctx.lineTo(x + 12, y + 18); ctx.stroke();
+        }
+
+        // technique glyph above the note
+        const glyph = techniqueGlyph(n);
+        if (glyph) {
+          ctx.fillStyle = '#fde68a';
+          ctx.font = '700 11px system-ui';
+          ctx.textAlign = 'center';
+          ctx.fillText(glyph, x, y - 18);
+        }
+        ctx.textAlign = 'left';
+      }
+    }
+
+    function drawHud(bundle, now) {
+      ctx.fillStyle = '#e5e7eb';
+      ctx.font = '700 14px system-ui';
+      ctx.fillText(bundle.songInfo?.title || 'SlopScale', 14, 22);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '12px system-ui';
+      const dur = bundle.songInfo?.duration || 0;
+      ctx.fillText(`${now.toFixed(2)}s / ${dur.toFixed(2)}s`, 14, 42);
+    }
+
+    function draw(bundle) {
+      if (!ctx || !bundle) return;
+      resize();
+      const now = bundle.currentTime || 0;
+      const nStr = Math.max(1, bundle.stringCount || 6);
+      const inverted = !!bundle.inverted;
+      const openMidis = bundle.openMidis || null;
+
+      drawBackground();
+      drawAnchorZones(bundle, now);
+      drawStringLanes(nStr, inverted, openMidis);
+      drawBeatsAndPlayhead(bundle, now);
+      drawBackingChords(bundle, now);
+      drawChordTiles(bundle, now);
+      drawSectionMarkers(bundle, now);
+      drawNotes(bundle, now, nStr, inverted);
+      drawHud(bundle, now);
+    }
+
+    return {
+      init(c) { canvas = c; ctx = c.getContext('2d'); resize(); window.addEventListener('resize', resize); },
+      draw,
+      resize,
+      destroy() { window.removeEventListener('resize', resize); canvas = null; ctx = null; }
+    };
+  }
+
+  function makeBuiltin2DTabRenderer() {
+    // Guitar Pro / Ultimate Guitar-style horizontal tab staff.
+    // Strings stacked top-to-bottom; fret numbers sit ON the string lines.
+    // Time scrolls right-to-left through a fixed playhead.
+    let canvas = null, ctx = null, W = 0, H = 0;
+    const LEFT_PAD = 56, RIGHT_PAD = 28, TOP_PAD = 70, BOTTOM_PAD = 56;
+    const AHEAD = 6, BEHIND = 1.2;
+
+    function resize() {
+      if (!canvas) return;
+      const r = canvas.parentElement.getBoundingClientRect();
+      W = Math.max(640, Math.round(r.width || 1280));
+      H = Math.max(360, Math.round(r.height || 640));
+      canvas.width = W;
+      canvas.height = H;
+    }
+    function laneY(s, count, inverted) {
+      // In Guitar Pro tab, the HIGH e is on TOP, LOW E on BOTTOM. With s=0=highE,
+      // string index 0 maps to the top lane. "inverted" flips the layout.
+      const top = TOP_PAD, bottom = H - BOTTOM_PAD;
+      const visualIndex = inverted ? (count - 1 - s) : s;
+      const step = (bottom - top) / Math.max(1, count - 1);
+      return top + visualIndex * step;
+    }
+    function xForDt(dt) {
+      return LEFT_PAD + ((dt + BEHIND) / (AHEAD + BEHIND)) * (W - LEFT_PAD - RIGHT_PAD);
+    }
+
+    function drawBackground() {
+      ctx.fillStyle = '#f5f1e6'; // warm parchment for staff
+      ctx.fillRect(0, 0, W, H);
+      // tab-staff backing band
+      ctx.fillStyle = '#fbf8ee';
+      ctx.fillRect(LEFT_PAD - 8, TOP_PAD - 8, W - LEFT_PAD - RIGHT_PAD + 12, H - TOP_PAD - BOTTOM_PAD + 16);
+      ctx.strokeStyle = '#c8c0aa';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(LEFT_PAD - 8, TOP_PAD - 8, W - LEFT_PAD - RIGHT_PAD + 12, H - TOP_PAD - BOTTOM_PAD + 16);
+    }
+
+    function drawStaff(nStr, inverted, openMidis) {
+      ctx.strokeStyle = '#5c5340';
+      ctx.lineWidth = 1;
+      for (let s = 0; s < nStr; s++) {
+        const y = laneY(s, nStr, inverted);
+        ctx.beginPath(); ctx.moveTo(LEFT_PAD, y); ctx.lineTo(W - RIGHT_PAD, y); ctx.stroke();
+        ctx.fillStyle = '#3a3528';
+        ctx.font = '700 12px ui-monospace, Menlo, Consolas, monospace';
+        const label = openMidis ? stringLabelForMidi(openMidis[s]) : `${s + 1}`;
+        const display = (s <= 1 && (label === 'E' || label === 'B')) ? label.toLowerCase() : label;
+        ctx.textAlign = 'right';
+        ctx.fillText(display, LEFT_PAD - 10, y + 4);
+        ctx.textAlign = 'left';
+      }
+    }
+
+    function drawBarLines(bundle, now) {
+      for (const b of bundle.beats || []) {
+        if (b.measure < 0) continue; // only bar starts
+        const dt = b.time - now;
+        if (dt < -BEHIND || dt > AHEAD) continue;
+        const x = xForDt(dt);
+        ctx.strokeStyle = '#7a6f55';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(x, TOP_PAD - 6);
+        ctx.lineTo(x, H - BOTTOM_PAD + 6);
+        ctx.stroke();
+        ctx.fillStyle = '#7a6f55';
+        ctx.font = '700 10px ui-monospace, monospace';
+        ctx.fillText(String(b.measure), x + 4, TOP_PAD - 12);
+      }
+      // beat ticks (very subtle)
+      for (const b of bundle.beats || []) {
+        if (b.measure >= 0) continue;
+        const dt = b.time - now;
+        if (dt < -BEHIND || dt > AHEAD) continue;
+        const x = xForDt(dt);
+        ctx.strokeStyle = 'rgba(122,111,85,0.25)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, TOP_PAD - 2);
+        ctx.lineTo(x, TOP_PAD + 4);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x, H - BOTTOM_PAD - 4);
+        ctx.lineTo(x, H - BOTTOM_PAD + 2);
+        ctx.stroke();
+      }
+    }
+
+    function drawPlayhead() {
+      const x = xForDt(0);
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x, TOP_PAD - 24);
+      ctx.lineTo(x, H - BOTTOM_PAD + 8);
+      ctx.stroke();
+      ctx.fillStyle = '#dc2626';
+      ctx.beginPath();
+      ctx.moveTo(x - 6, TOP_PAD - 26);
+      ctx.lineTo(x + 6, TOP_PAD - 26);
+      ctx.lineTo(x, TOP_PAD - 18);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawChordNames(bundle, now) {
+      for (const ch of bundle.chords || []) {
+        const dt = ch.t - now;
+        if (dt < -BEHIND || dt > AHEAD) continue;
+        const x = xForDt(dt);
+        const name = bundle.chordTemplates?.[ch.id]?.displayName || bundle.chordTemplates?.[ch.id]?.name || '';
+        if (!name) continue;
+        ctx.fillStyle = '#7c2d12';
+        ctx.font = '700 13px ui-monospace, Menlo, Consolas, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(name, x, TOP_PAD - 30);
+        ctx.textAlign = 'left';
+      }
+    }
+
+    function drawBackingChordRow(bundle, now) {
+      // Roman-numeral-ish chord row above the staff (uses backing event names)
+      for (const ev of bundle.backingEvents || []) {
+        const dt = ev.t - now;
+        if (dt < -BEHIND || dt > AHEAD) continue;
+        const x = xForDt(dt);
+        ctx.fillStyle = 'rgba(146,64,14,0.08)';
+        ctx.fillRect(x - 32, 12, 64, 22);
+        ctx.fillStyle = '#92400e';
+        ctx.font = '700 11px ui-monospace, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(ev.name, x, 27);
+        ctx.textAlign = 'left';
+      }
+    }
+
+    function techniqueGlyphTab(n) {
+      // Single-character form preferred — tab convention
+      if (n.ho) return 'h';
+      if (n.po) return 'p';
+      if (n.hm) return '◇';
+      if (n.pm) return 'pm';
+      if (n.mt) return 'x';
+      if (n.tr) return '≈';
+      if (n.vb) return '~';
+      if (n.tp) return 'T';
+      if ((n.sl || -1) >= 0) return '/';
+      if ((n.bn || 0) > 0) return `b${n.bn}`;
+      return '';
+    }
+
+    function drawSectionMarkers(bundle, now) {
+      for (const sec of bundle.sections || []) {
+        const dt = sec.time - now;
+        if (dt < -BEHIND || dt > AHEAD) continue;
+        const x = xForDt(dt);
+        ctx.fillStyle = '#7e22ce';
+        ctx.font = '700 10px ui-monospace, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(sec.name || '·', x, H - BOTTOM_PAD + 28);
+        ctx.textAlign = 'left';
+      }
+    }
+
+    function drawNotes(bundle, now, nStr, inverted) {
+      // First pass: sustains and dead-note Xs
+      for (const n of bundle.notes || []) {
+        const dt = n.t - now;
+        if (dt < -BEHIND || dt > AHEAD) continue;
+        const x = xForDt(dt);
+        const y = laneY(n.s, nStr, inverted);
+        if ((n.sus || 0) > 0) {
+          const x2 = xForDt(dt + n.sus);
+          ctx.strokeStyle = 'rgba(120,53,15,0.35)';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(x + 8, y); ctx.lineTo(Math.min(W - RIGHT_PAD, x2), y); ctx.stroke();
+        }
+      }
+      // Second pass: fret numbers and glyphs
+      for (const n of bundle.notes || []) {
+        const dt = n.t - now;
+        if (dt < -BEHIND || dt > AHEAD) continue;
+        const x = xForDt(dt);
+        const y = laneY(n.s, nStr, inverted);
+        // Erase the staff line behind the fret number so it stays readable
+        const fretText = n.mt ? 'x' : String(n.f);
+        const padW = Math.max(14, fretText.length * 8 + 4);
+        ctx.fillStyle = '#fbf8ee';
+        ctx.fillRect(x - padW / 2, y - 8, padW, 16);
+        ctx.fillStyle = n.ac ? '#dc2626' : '#0f172a';
+        ctx.font = `${n.ac ? '800' : '700'} 14px ui-monospace, Menlo, Consolas, monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(fretText, x, y + 5);
+        // technique glyph
+        const glyph = techniqueGlyphTab(n);
+        if (glyph) {
+          ctx.fillStyle = '#7c2d12';
+          ctx.font = '700 10px ui-monospace, monospace';
+          ctx.fillText(glyph, x + padW / 2 + 6, y + 4);
+        }
+        ctx.textAlign = 'left';
+      }
+    }
+
+    function drawHud(bundle, now) {
+      ctx.fillStyle = '#3a3528';
+      ctx.font = '700 13px ui-monospace, Menlo, Consolas, monospace';
+      ctx.fillText(bundle.songInfo?.title || 'SlopScale', 14, 22);
+      ctx.fillStyle = '#7a6f55';
+      ctx.font = '11px ui-monospace, monospace';
+      const dur = bundle.songInfo?.duration || 0;
+      ctx.fillText(`${now.toFixed(2)}s / ${dur.toFixed(2)}s`, 14, 42);
+    }
+
+    function draw(bundle) {
+      if (!ctx || !bundle) return;
+      resize();
+      const now = bundle.currentTime || 0;
+      const nStr = Math.max(1, bundle.stringCount || 6);
+      const inverted = !!bundle.inverted;
+      const openMidis = bundle.openMidis || null;
+
+      drawBackground();
+      drawStaff(nStr, inverted, openMidis);
+      drawBarLines(bundle, now);
+      drawBackingChordRow(bundle, now);
+      drawChordNames(bundle, now);
+      drawNotes(bundle, now, nStr, inverted);
+      drawSectionMarkers(bundle, now);
+      drawPlayhead();
+      drawHud(bundle, now);
+    }
+
+    return {
+      init(c) { canvas = c; ctx = c.getContext('2d'); resize(); window.addEventListener('resize', resize); },
+      draw,
+      resize,
+      destroy() { window.removeEventListener('resize', resize); canvas = null; ctx = null; }
+    };
   }
 
   function loadScriptOnce(id, src) { return new Promise((resolve, reject) => { if (document.getElementById(id)) return resolve(); const s = document.createElement('script'); s.id = id; s.src = src; s.onload = () => resolve(); s.onerror = () => reject(new Error(`Failed to load ${src}`)); document.head.appendChild(s); }); }
   async function resolveRendererFactory(kind) {
-    if (kind === 'builtin_2d') return { factory:makeBuiltin2DRenderer, label:'Built-in 2D practice highway' };
+    if (kind === 'builtin_2d') return { factory:makeBuiltin2DRenderer, label:'2D Highway' };
+    if (kind === 'tab_2d') return { factory:makeBuiltin2DTabRenderer, label:'2D Tablature' };
     if (kind === 'highway_3d') {
       if (!window.slopsmithViz_highway_3d) await loadScriptOnce('slopscale-highway-3d-loader', '/api/plugins/highway_3d/screen.js');
-      if (typeof window.slopsmithViz_highway_3d === 'function') return { factory:window.slopsmithViz_highway_3d, label:'Existing 3D Highway' };
-      throw new Error('3D Highway renderer factory was not found.');
+      if (typeof window.slopsmithViz_highway_3d === 'function') return { factory:window.slopsmithViz_highway_3d, label:'3D Note Highway' };
+      // Fall back to the built-in 2D highway if the 3D one isn't available
+      return { factory:makeBuiltin2DRenderer, label:'2D Highway (fallback — 3D renderer not found)' };
     }
-    for (const [globalName, label] of [['slopsmithViz_tab_2d','Existing 2D tab renderer'], ['slopsmithViz_highway_2d','Existing 2D highway renderer'], ['slopsmithViz_classic_2d','Existing classic 2D renderer']]) if (typeof window[globalName] === 'function') return { factory:window[globalName], label };
-    throw new Error('No compatible 2D/tab renderer factory is currently exposed by Slopsmith.');
+    return { factory:makeBuiltin2DRenderer, label:'2D Highway (default)' };
   }
 
   function replaceCanvas() { const host = $('slopscale-render-host'), old = $('slopscale-canvas'), canvas = document.createElement('canvas'); canvas.id = 'slopscale-canvas'; canvas.style.width = '100%'; canvas.style.height = '100%'; if (old) old.replaceWith(canvas); else host.appendChild(canvas); const rect = host.getBoundingClientRect(); canvas.width = Math.max(640, Math.round(rect.width || 1280)); canvas.height = Math.max(420, Math.round(rect.height || 720)); return canvas; }
