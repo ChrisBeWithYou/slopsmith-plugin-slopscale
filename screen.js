@@ -195,6 +195,38 @@
     return { name, displayName:name, arp:!!arp, fingers, frets };
   }
   function chordName(rootPc, quality) { const f = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj; return pcName(rootPc) + (f.symbol === 'maj' ? 'maj' : f.symbol); }
+  function progressionDegreesForConfig(cfg) {
+    if (cfg.mode === 'diatonic_arpeggios') return COMMON_PROGRESSIONS.diatonic;
+    return COMMON_PROGRESSIONS[cfg.progression] || COMMON_PROGRESSIONS['I-V-vi-IV'];
+  }
+  function voiceBackingChord(rootPc, intervals, instrument) {
+    const bassMin = instrument === 'bass' ? 23 : 36;
+    const bassMax = instrument === 'bass' ? 38 : 48;
+    let bass = rootPc;
+    while (bass < bassMin) bass += 12;
+    while (bass > bassMax) bass -= 12;
+    const midis = [bass];
+    for (const interval of intervals.slice(0, 4)) {
+      let midi = rootPc + interval;
+      while (midi < 48) midi += 12;
+      while (midi > 67) midi -= 12;
+      if (!midis.includes(midi)) midis.push(midi);
+    }
+    return midis.sort((a,b) => a - b);
+  }
+  function buildBackingEvents(cfg, duration) {
+    const degrees = progressionDegreesForConfig(cfg);
+    const slot = Math.max(measureSeconds(cfg), duration / Math.max(1, degrees.length));
+    const events = [];
+    for (let t = 0, i = 0; t < duration - 0.001; t += slot, i++) {
+      const degree = degrees[i % degrees.length];
+      const rootPc = chordRootForDegree(cfg, degree);
+      const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride);
+      const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj;
+      events.push({ t:Number(t.toFixed(6)), end:Number(Math.min(duration, t + slot).toFixed(6)), name:chordName(rootPc, quality), midis:voiceBackingChord(rootPc, formula.intervals, cfg.instrument) });
+    }
+    return events;
+  }
 
   function buildScaleExercise(cfg) {
     const positions = allScalePositions(cfg);
@@ -233,7 +265,7 @@
   function generateExercise(cfg) {
     const chart = cfg.mode === 'scale'
       ? buildScaleExercise(cfg)
-      : buildArpeggioExercise(cfg, cfg.mode === 'diatonic_arpeggios' ? COMMON_PROGRESSIONS.diatonic : (COMMON_PROGRESSIONS[cfg.progression] || COMMON_PROGRESSIONS['I-V-vi-IV']));
+      : buildArpeggioExercise(cfg, progressionDegreesForConfig(cfg));
     const duration = Math.max(chart.duration || 0, cfg.bars * measureSeconds(cfg));
     return { version:1, session:cfg, chart:Object.assign({}, chart, { beats:buildBeats(cfg, duration), anchors:buildAnchors(cfg, duration), duration }) };
   }
@@ -244,6 +276,7 @@
       currentTime:0,
       songInfo:{ title:`SlopScale ${cfg.mode}`, artist:'SlopScale', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'slopscale-practice' },
       isReady:true, notes:c.notes, chords:c.chords, anchors:c.anchors, beats:c.beats, sections:c.sections, chordTemplates:c.chordTemplates, handShapes:c.handShapes,
+      backingEvents:buildBackingEvents(cfg, c.duration),
       stringCount:cfg.stringCount, tuning:tuningOffsetsForConfig(cfg), capo:0,
       lyrics:[], toneChanges:[], toneBase:'', drumTab:null, mastery:1, hasPhraseData:false,
       inverted:readHighwayInverted(), lefty:readLefty(), renderScale:readRenderScale(), lyricsVisible:false, project:null, fretX:null,
@@ -271,7 +304,8 @@
       for (let s = 0; s < nStr; s++) { const y = laneY(s, nStr, inverted); ctx.beginPath(); ctx.moveTo(54, y); ctx.lineTo(W - 32, y); ctx.stroke(); ctx.fillStyle = STRING_COLORS[s] || '#94a3b8'; ctx.font = '700 12px system-ui'; ctx.fillText(`S${s + 1}`, 18, y + 4); }
       for (const b of bundle.beats || []) { const dt = b.time - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); ctx.strokeStyle = b.measure >= 0 ? 'rgba(96,165,250,0.55)' : 'rgba(148,163,184,0.18)'; ctx.beginPath(); ctx.moveTo(x, 72); ctx.lineTo(x, H - 36); ctx.stroke(); if (b.measure >= 0) { ctx.fillStyle = '#93c5fd'; ctx.font = '11px system-ui'; ctx.fillText(String(b.measure), x + 4, 66); } }
       ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 2; const playX = 90 + behind / (ahead + behind) * (W - 150); ctx.beginPath(); ctx.moveTo(playX, 60); ctx.lineTo(playX, H - 36); ctx.stroke();
-      for (const ch of bundle.chords || []) { const dt = ch.t - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); const name = bundle.chordTemplates?.[ch.id]?.displayName || bundle.chordTemplates?.[ch.id]?.name || ''; ctx.fillStyle = 'rgba(168,85,247,0.18)'; ctx.fillRect(x - 38, 24, 76, 28); ctx.strokeStyle = 'rgba(168,85,247,0.75)'; ctx.strokeRect(x - 38, 24, 76, 28); ctx.fillStyle = '#e9d5ff'; ctx.font = '700 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(name, x, 43); ctx.textAlign = 'left'; }
+      for (const ev of bundle.backingEvents || []) { const dt = ev.t - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); ctx.fillStyle = 'rgba(250,204,21,0.12)'; ctx.fillRect(x - 40, 22, 80, 24); ctx.strokeStyle = 'rgba(250,204,21,0.4)'; ctx.strokeRect(x - 40, 22, 80, 24); ctx.fillStyle = '#fde68a'; ctx.font = '700 12px system-ui'; ctx.textAlign = 'center'; ctx.fillText(ev.name, x, 38); ctx.textAlign = 'left'; }
+      for (const ch of bundle.chords || []) { const dt = ch.t - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); const name = bundle.chordTemplates?.[ch.id]?.displayName || bundle.chordTemplates?.[ch.id]?.name || ''; ctx.fillStyle = 'rgba(168,85,247,0.18)'; ctx.fillRect(x - 38, 50, 76, 24); ctx.strokeStyle = 'rgba(168,85,247,0.75)'; ctx.strokeRect(x - 38, 50, 76, 24); ctx.fillStyle = '#e9d5ff'; ctx.font = '700 12px system-ui'; ctx.textAlign = 'center'; ctx.fillText(name, x, 66); ctx.textAlign = 'left'; }
       for (const n of bundle.notes || []) { const dt = n.t - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); const y = laneY(n.s, nStr, inverted); const col = STRING_COLORS[n.s] || '#94a3b8'; if ((n.sus || 0) > 0) { const x2 = 90 + (dt + n.sus + behind) / (ahead + behind) * (W - 150); ctx.strokeStyle = col; ctx.globalAlpha = 0.38; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(Math.min(W - 30, x2), y); ctx.stroke(); ctx.globalAlpha = 1; } ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(x - 16, y - 12, 32, 24, 6); ctx.fill(); ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = n.ac ? 3 : 1; ctx.stroke(); ctx.fillStyle = '#020617'; ctx.font = '800 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(String(n.f), x, y + 5); ctx.textAlign = 'left'; }
       ctx.fillStyle = '#e5e7eb'; ctx.font = '700 14px system-ui'; ctx.fillText(bundle.songInfo?.title || 'SlopScale', 18, 28); ctx.fillStyle = '#94a3b8'; ctx.font = '12px system-ui'; ctx.fillText(`${now.toFixed(2)}s / ${(bundle.songInfo?.duration || 0).toFixed(2)}s`, 18, 48);
     }
@@ -329,20 +363,20 @@
     osc1.connect(filter); osc2.connect(filter); filter.connect(shaper); shaper.connect(gain); gain.connect(ctx.destination);
     osc1.start(when); osc2.start(when); const stopAt = when + Math.max(0.14, dur) + 0.03; osc1.stop(stopAt); osc2.stop(stopAt); audioNodes.push(osc1, osc2, filter, shaper, gain);
   }
-  function scheduleHarmonyPad(ctx, when, freqs, dur, instrument) {
-    if (!freqs.length) return;
+  function scheduleHarmonyPad(ctx, when, midis, dur, instrument) {
+    if (!midis.length) return;
     const master = ctx.createGain(), filter = ctx.createBiquadFilter(), comp = ctx.createDynamicsCompressor();
-    filter.type = 'lowpass'; filter.frequency.setValueAtTime(instrument === 'bass' ? 900 : 1600, when); filter.Q.setValueAtTime(0.55, when);
-    master.gain.setValueAtTime(0.0001, when); master.gain.linearRampToValueAtTime(0.105, when + 0.045); master.gain.linearRampToValueAtTime(0.075, when + Math.max(0.08, dur - 0.18)); master.gain.linearRampToValueAtTime(0.0001, when + dur);
+    filter.type = 'lowpass'; filter.frequency.setValueAtTime(instrument === 'bass' ? 1150 : 1900, when); filter.Q.setValueAtTime(0.7, when);
+    master.gain.setValueAtTime(0.0001, when); master.gain.linearRampToValueAtTime(0.24, when + 0.035); master.gain.linearRampToValueAtTime(0.18, when + Math.max(0.08, dur - 0.16)); master.gain.linearRampToValueAtTime(0.0001, when + dur);
     filter.connect(comp); comp.connect(master); master.connect(ctx.destination);
     audioNodes.push(filter, comp, master);
-    freqs.slice(0, 4).forEach((freq, i) => {
+    midis.slice(0, 5).forEach((midi, i) => {
       const osc = ctx.createOscillator();
       const g = ctx.createGain();
-      osc.type = instrument === 'bass' ? 'triangle' : 'sawtooth';
-      osc.frequency.setValueAtTime(freq, when);
-      osc.detune.setValueAtTime((i - 1.5) * 4, when);
-      g.gain.setValueAtTime(1 / Math.max(2, freqs.length), when);
+      osc.type = i === 0 ? 'triangle' : 'sawtooth';
+      osc.frequency.setValueAtTime(midiToFreq(midi), when);
+      osc.detune.setValueAtTime((i - 2) * 3, when);
+      g.gain.setValueAtTime(i === 0 ? 0.48 : 0.22, when);
       osc.connect(g); g.connect(filter); osc.start(when); osc.stop(when + dur + 0.05); audioNodes.push(osc, g);
     });
   }
@@ -361,11 +395,21 @@
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
     const ctx = audioCtx, base = ctx.currentTime + (Number.isFinite(delaySeconds) ? delaySeconds : AUDIO_LOOKAHEAD_SECONDS), startFrom = fromTime || 0, opens = openMidisForConfig(cfg), duration = bundle.songInfo?.duration || 0;
     if (cfg.audio.harmony) {
-      (bundle.chords || []).forEach((ch, i) => {
-        if (ch.t < startFrom || ch.t > duration + 0.1) return;
-        const end = Math.min(nextChordTime(bundle, i, duration), duration);
-        scheduleHarmonyPad(ctx, base + (ch.t - startFrom), chordFrequencies(ch, opens), Math.max(0.25, end - ch.t), cfg.instrument);
-      });
+      if ((bundle.backingEvents || []).length) {
+        for (const ev of bundle.backingEvents || []) {
+          if (ev.end < startFrom || ev.t > duration + 0.1) continue;
+          const start = Math.max(ev.t, startFrom), end = Math.min(ev.end, duration);
+          scheduleHarmonyPad(ctx, base + (start - startFrom), ev.midis || [], Math.max(0.2, end - start), cfg.instrument);
+        }
+      } else {
+        (bundle.chords || []).forEach((ch, i) => {
+          if (ch.t < startFrom || ch.t > duration + 0.1) return;
+          const end = Math.min(nextChordTime(bundle, i, duration), duration);
+          const freqs = chordFrequencies(ch, opens);
+          const midis = freqs.map(freq => Math.round(69 + 12 * Math.log2(freq / 440)));
+          scheduleHarmonyPad(ctx, base + (ch.t - startFrom), midis, Math.max(0.25, end - ch.t), cfg.instrument);
+        });
+      }
     }
     if (cfg.audio.notes) {
       for (const n of bundle.notes || []) {
@@ -381,6 +425,7 @@
 
   function summarize(exercise) {
     const cfg = exercise.session, c = exercise.chart, meter = `${cfg.meter.numerator}/${cfg.meter.denominator}`;
+    const backingCount = buildBackingEvents(cfg, c.duration).length;
     return [
       `Mode: ${cfg.mode}`,
       `Pattern: ${cfg.mode === 'scale' ? '3-notes-per-string default' : 'position-constrained arpeggio sequence'}`,
@@ -389,8 +434,8 @@
       `Key/scale: ${cfg.key} ${cfg.scale}`,
       `BPM/meter/division: ${cfg.bpm} BPM, ${meter}, ${cfg.subdivision}`,
       `Position: frets ${cfg.fretMin}-${cfg.fretMax}`,
-      `Audio: notes ${cfg.audio.notes ? 'on' : 'off'}, metronome ${cfg.audio.metronome ? 'on' : 'off'}, harmony ${cfg.audio.harmony ? 'on' : 'off'}`,
-      `Generated: ${c.notes.length} notes, ${c.chords.length} chords, ${c.chordTemplates.length} templates, ${c.handShapes.length} hand shapes, ${c.beats.length} beats`,
+      `Audio: notes ${cfg.audio.notes ? 'on' : 'off'}, metronome ${cfg.audio.metronome ? 'on' : 'off'}, harmony ${cfg.audio.harmony ? 'on' : 'off'} (${backingCount} backing chords)`,
+      `Generated: ${c.notes.length} notes, ${c.chords.length} visible chords, ${c.chordTemplates.length} templates, ${c.handShapes.length} hand shapes, ${c.beats.length} beats`,
       `Duration: ${c.duration.toFixed(2)}s`
     ].join('\n');
   }
