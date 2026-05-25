@@ -1,0 +1,93 @@
+<div id="slopscale-root" class="slopscale-root">
+  <section class="slopscale-panel slopscale-header">
+    <div>
+      <h1>SlopScale</h1>
+      <p>Scale, arpeggio, and progression practice using Slopsmith-compatible highway renderers.</p>
+    </div>
+    <div class="slopscale-status">
+      <span id="slopscale-renderer-status">Renderer: not initialized</span>
+      <span id="slopscale-chart-status">Chart: not generated</span>
+    </div>
+  </section>
+
+  <section class="slopscale-layout">
+    <form id="slopscale-controls" class="slopscale-panel slopscale-controls">
+      <label>Mode
+        <select name="mode">
+          <option value="scale">Scale practice</option>
+          <option value="diatonic_arpeggios">Diatonic arpeggios</option>
+          <option value="progression_arpeggios">Progression arpeggios</option>
+        </select>
+      </label>
+
+      <label>Renderer
+        <select name="renderer">
+          <option value="highway_3d">Existing 3D Highway</option>
+          <option value="tab_2d">Existing 2D/tab renderer when available</option>
+        </select>
+      </label>
+
+      <div class="slopscale-grid-2">
+        <label>Instrument
+          <select name="instrument">
+            <option value="guitar">Guitar</option>
+            <option value="bass">Bass</option>
+          </select>
+        </label>
+        <label>Tuning
+          <select name="tuning">
+            <option value="standard">Standard</option>
+            <option value="drop_d">Drop D</option>
+            <option value="bass_standard">Bass standard</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="slopscale-grid-2">
+        <label>Key
+          <select name="key"><option>C</option><option>C#</option><option>D</option><option>D#</option><option>E</option><option>F</option><option>F#</option><option>G</option><option>G#</option><option>A</option><option>A#</option><option>B</option></select>
+        </label>
+        <label>Scale
+          <select name="scale">
+            <option value="major">Major</option><option value="natural_minor">Natural minor</option><option value="minor_pentatonic">Minor pentatonic</option><option value="major_pentatonic">Major pentatonic</option><option value="blues">Blues</option><option value="harmonic_minor">Harmonic minor</option><option value="dorian">Dorian</option><option value="phrygian">Phrygian</option><option value="mixolydian">Mixolydian</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="slopscale-grid-3">
+        <label>BPM <input name="bpm" type="number" min="30" max="260" step="1" value="100"></label>
+        <label>Meter
+          <select name="meter"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="6/8">6/8</option><option value="7/8:2+2+3">7/8 — 2+2+3</option><option value="7/8:3+2+2">7/8 — 3+2+2</option><option value="5/4">5/4</option></select>
+        </label>
+        <label>Division
+          <select name="subdivision"><option value="quarter">Quarter</option><option value="eighth" selected>Eighth</option><option value="sixteenth">Sixteenth</option><option value="triplet">Triplet</option><option value="eighth_triplet">Eighth triplet</option><option value="sixteenth_triplet">Sixteenth triplet</option></select>
+        </label>
+      </div>
+
+      <div class="slopscale-grid-3">
+        <label>First fret <input name="fretMin" type="number" min="0" max="20" step="1" value="0"></label>
+        <label>Last fret <input name="fretMax" type="number" min="3" max="24" step="1" value="5"></label>
+        <label>Bars <input name="bars" type="number" min="1" max="32" step="1" value="4"></label>
+      </div>
+
+      <label>Chord depth
+        <select name="chordDepth"><option value="triad">Triads</option><option value="seventh">Seventh chords</option></select>
+      </label>
+      <label>Common progression
+        <select name="progression"><option value="diatonic">Diatonic: I–ii–iii–IV–V–vi–vii°–I</option><option value="I-IV-V">I–IV–V</option><option value="I-V-vi-IV">I–V–vi–IV</option><option value="ii-V-I">ii–V–I</option><option value="vi-IV-I-V">vi–IV–I–V</option><option value="12_bar_blues">12-bar blues</option><option value="i-VI-III-VII">Minor: i–VI–III–VII</option></select>
+      </label>
+      <label>Chord quality override
+        <select name="chordOverride"><option value="auto">Auto diatonic</option><option value="maj">Major</option><option value="min">Minor</option><option value="dim">Diminished</option><option value="maj7">Maj7</option><option value="min7">Min7</option><option value="dom7">Dominant 7</option><option value="min7b5">m7b5 / half-diminished</option><option value="sus4">Sus4</option><option value="add9">Add9</option></select>
+      </label>
+
+      <div class="slopscale-actions">
+        <button type="button" id="slopscale-generate">Generate</button><button type="button" id="slopscale-play">Play</button><button type="button" id="slopscale-stop">Stop</button><button type="button" id="slopscale-save">Save preset</button>
+      </div>
+    </form>
+
+    <section class="slopscale-panel slopscale-stage">
+      <div id="slopscale-render-host" class="slopscale-render-host"><canvas id="slopscale-canvas"></canvas></div>
+      <div id="slopscale-summary" class="slopscale-summary">Generate a practice chart to preview notes, chords, and timing.</div>
+    </section>
+  </section>
+</div>
