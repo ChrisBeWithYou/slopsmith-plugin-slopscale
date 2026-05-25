@@ -95,7 +95,7 @@
   <section class="slopscale-panel slopscale-header">
     <div>
       <h1>SlopScale</h1>
-      <p>Scale, arpeggio, and progression practice using Slopsmith-compatible chart data. Choose a visual layout, generate a routine, then play it directly in the plugin preview.</p>
+      <p>Scale, arpeggio, and progression practice using Slopsmith-compatible chart data. Choose a practice type, generate a routine, then play it directly in the plugin preview.</p>
     </div>
     <div class="slopscale-status">
       <span id="slopscale-renderer-status">Renderer: not initialized</span>
@@ -110,9 +110,9 @@
   <section class="slopscale-layout">
     <form id="slopscale-controls" class="slopscale-panel slopscale-controls">
       <div class="slopscale-group-title">Routine</div>
-      <label>Mode
-        <select name="mode">
-          <option value="scale">Scale practice</option>
+      <label>Practice type
+        <select name="practiceType">
+          <option value="scale" selected>Scale pattern</option>
           <option value="diatonic_arpeggios">Diatonic arpeggios</option>
           <option value="progression_arpeggios">Progression arpeggios</option>
         </select>
@@ -125,6 +125,21 @@
           <option value="tab_2d">Existing 2D/tab renderer when available</option>
         </select>
       </label>
+
+      <div class="slopscale-grid-2">
+        <label>Direction
+          <select name="direction">
+            <option value="up_down" selected>Up then down</option>
+            <option value="ascending">Ascending only</option>
+            <option value="descending">Descending only</option>
+            <option value="down_up">Down then up</option>
+            <option value="random">Randomized order</option>
+          </select>
+        </label>
+        <label>Repeat count
+          <input name="repeatCount" type="number" min="1" max="16" step="1" value="1">
+        </label>
+      </div>
 
       <div class="slopscale-grid-2">
         <label>Key
@@ -172,7 +187,7 @@
         <label class="slopscale-toggle"><input name="audioMetronome" type="checkbox" checked> Metronome click</label>
         <label class="slopscale-toggle"><input name="audioHarmony" type="checkbox" checked> Harmony backing</label>
       </div>
-      <div class="slopscale-help">These toggles affect preview playback. Harmony backing is active when the routine generates chords.</div>
+      <div class="slopscale-help">These toggles affect preview playback. Harmony backing is generated from the selected key, scale, and progression.</div>
 
       <div class="slopscale-grid-3">
         <label>First fret <input name="fretMin" type="number" min="0" max="20" step="1" value="0"></label>
@@ -180,7 +195,7 @@
         <label>Bars <input name="bars" type="number" min="1" max="32" step="1" value="4"></label>
       </div>
 
-      <div class="slopscale-group-title">Arpeggios</div>
+      <div class="slopscale-group-title">Arpeggios and harmony</div>
       <label>Chord depth
         <select name="chordDepth"><option value="triad">Triads</option><option value="seventh">Seventh chords</option></select>
       </label>
