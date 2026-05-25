@@ -817,13 +817,16 @@
   function applyInitialPathway() {
     const select = $('slopscale-pathway'); if (!select) return;
     let stored = null; try { stored = localStorage.getItem(PATHWAY_STORAGE_KEY); } catch (_) {}
-    const initial = stored || PATHWAY_FIRST_VISIT_DEFAULT;
+    // 'custom' means the user opted out of any pathway; treat it as a non-choice
+    // on plugin open so beginners always land on a real exercise. The user can
+    // re-select Custom mid-session from the dropdown.
+    const useStored = stored && stored !== 'custom' && Array.from(select.options).some(o => o.value === stored);
+    const initial = useStored ? stored : PATHWAY_FIRST_VISIT_DEFAULT;
     if (!initial) return;
-    const optionExists = Array.from(select.options).some(o => o.value === initial);
-    if (!optionExists) return;
+    if (!Array.from(select.options).some(o => o.value === initial)) return;
     select.value = initial;
     applyPathwayById(initial);
-    if (!stored) { try { localStorage.setItem(PATHWAY_STORAGE_KEY, initial); } catch (_) {} }
+    try { localStorage.setItem(PATHWAY_STORAGE_KEY, initial); } catch (_) {}
   }
 
   function refreshForHostSettingChange() { if (!activeBundle) return; syncHighwaySettings(activeBundle); drawOnce(); const summary = $('slopscale-summary'); if (summary && summary.textContent.includes('Highway inverted:')) summary.textContent = summarize({ session:readConfig(), chart:{ notes:activeBundle.notes || [], chords:activeBundle.chords || [], chordTemplates:activeBundle.chordTemplates || [], handShapes:activeBundle.handShapes || [], beats:activeBundle.beats || [], duration:activeBundle.songInfo?.duration || 0 } }); }
@@ -852,7 +855,12 @@
     window.addEventListener('storage', (ev) => { if (ev.key === 'invertHighway' || ev.key === 'lefty' || ev.key === 'renderScale') refreshForHostSettingChange(); });
     window.addEventListener('focus', refreshForHostSettingChange);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshForHostSettingChange(); });
-    onGenerate(); return true;
+    // Defer the initial generate so plugin layout (canvas dimensions, screen
+    // visibility) has settled. Without this, the first attachRenderer can
+    // bind to a 0x0 canvas and nothing visible draws until the user clicks
+    // Generate manually.
+    requestAnimationFrame(() => requestAnimationFrame(() => onGenerate()));
+    return true;
   }
   function boot() { if (bind()) return; let tries = 0; const timer = setInterval(() => { tries += 1; if (bind() || tries > 40) clearInterval(timer); }, 250); }
 
