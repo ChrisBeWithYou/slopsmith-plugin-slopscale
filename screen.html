@@ -136,9 +136,18 @@
       <div class="slopscale-group-title">Pathway</div>
       <label>Practice pathway
         <select name="pathway" id="slopscale-pathway">
-          <option value="custom" selected="selected">Custom — full control</option>
-          <optgroup label="Curated" id="slopscale-pathway-curated"></optgroup>
-          <optgroup label="Favorites" id="slopscale-pathway-favorites" hidden=""></optgroup>
+          <option value="custom">Custom — full control</option>
+          <optgroup label="Curated">
+            <option value="pent_foundation" selected="selected">Pentatonic Foundation</option>
+            <option value="chord_tone_targeting">Chord Tone Targeting</option>
+            <option value="modal_awareness">Modal Awareness</option>
+            <option value="diatonic_triad_drill">Diatonic Triad Drill</option>
+            <option value="seventh_vocab">Seventh Chord Vocabulary</option>
+            <option value="ii_V_I_workout">ii–V–I Workout</option>
+            <option value="harmonic_minor_exotic">Harmonic Minor Exotic</option>
+            <option value="sweep_primer">Sweep Arpeggio Primer</option>
+          </optgroup>
+          <optgroup label="Favorites" hidden=""></optgroup>
         </select>
         <span class="slopscale-help" id="slopscale-pathway-goal" style="margin-top:2px;">Pick a focused routine, or stay on Custom for full control. Saved presets appear under Favorites.</span>
       </label>
@@ -336,10 +345,11 @@
    overlay it on base so the same pathway doesn't generate the same exercise
    twice. Favorites are loaded from /api/plugins/slopscale/presets. */
 (function initSlopScalePathways() {
+  const STORAGE_KEY = 'slopscale.lastPathway';
+  const FIRST_VISIT_DEFAULT = 'pent_foundation';
   const form          = document.getElementById('slopscale-controls');
   const select        = document.getElementById('slopscale-pathway');
-  const curatedGroup  = document.getElementById('slopscale-pathway-curated');
-  const favoritesGroup= document.getElementById('slopscale-pathway-favorites');
+  const favoritesGroup= select ? select.querySelector('optgroup[label="Favorites"]') : null;
   const goalCaption   = document.getElementById('slopscale-pathway-goal');
   if (!form || !select) return;
 
@@ -451,14 +461,6 @@
     }
   };
 
-  // Populate the curated optgroup once.
-  Object.keys(PATHWAYS).forEach(id => {
-    const opt = document.createElement('option');
-    opt.value = id;
-    opt.textContent = PATHWAYS[id].label;
-    curatedGroup.appendChild(opt);
-  });
-
   function setField(name, value) {
     const field = form.querySelector('[name="' + name + '"]');
     if (!field) return;
@@ -497,10 +499,14 @@
     }
   }
 
-  select.addEventListener('change', () => applyPathway(select.value));
+  select.addEventListener('change', () => {
+    applyPathway(select.value);
+    try { localStorage.setItem(STORAGE_KEY, select.value); } catch (_) { /* private mode etc. */ }
+  });
 
   // Load favorites (saved presets) asynchronously and populate the optgroup.
   (function loadFavorites() {
+    if (!favoritesGroup) return;
     fetch('/api/plugins/slopscale/presets')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -518,6 +524,23 @@
         if (favoritesGroup.children.length) favoritesGroup.hidden = false;
       })
       .catch(() => { /* presets API not reachable; favorites stay hidden */ });
+  })();
+
+  // First-visit / restored-visit pathway selection. On a fresh load we apply
+  // Pentatonic Foundation as a friendly starting point; on return visits we
+  // restore the last pathway the user had selected.
+  (function applyInitialPathway() {
+    let stored = null;
+    try { stored = localStorage.getItem(STORAGE_KEY); } catch (_) {}
+    const initial = stored || FIRST_VISIT_DEFAULT;
+    if (!initial) return;
+    const optionExists = Array.from(select.options).some(o => o.value === initial);
+    if (!optionExists) return; // stored favorite that no longer exists, etc.
+    select.value = initial;
+    applyPathway(initial);
+    if (!stored) {
+      try { localStorage.setItem(STORAGE_KEY, initial); } catch (_) {}
+    }
   })();
 })();
 
