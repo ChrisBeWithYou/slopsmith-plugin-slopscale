@@ -263,6 +263,8 @@
   }
 
   function cagedShapeNotesForChord(cfg, shape, quality, rootFret) {
+    // Shape templates are designed for 6-string guitar; skip for other string counts
+    if (cfg.stringCount !== 6) return null;
     const def = CAGED_SHAPE_DEFS[shape];
     if (!def) return null;
     const tmpl = def[cagedShapeQualityKey(quality)];
@@ -713,10 +715,10 @@
       if (isShapeRun) {
         const rootFret = pickShapeRootFret(cfg, cfg.cagedShape, rootPc, prevRootFret, shapeRunMode);
         if (rootFret != null) {
+          prevRootFret = rootFret; // always advance so next chord ascends from the right position
           const shapeNotes = cagedShapeNotesForChord(cfg, cfg.cagedShape, quality, rootFret);
           if (shapeNotes && shapeNotes.length) {
             displayPositions = shapeNotes;
-            prevRootFret = rootFret;
             const winLo = Math.max(0, rootFret - 4);
             const winHi = Math.min(24, rootFret + 4);
             chordCfg = Object.assign({}, cfg, { fretMin:winLo, fretMax:winHi });

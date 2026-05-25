@@ -6,7 +6,7 @@ A Slopsmith plugin that generates scale, arpeggio, and sweep-arpeggio practice r
 
 - **Pathway selector** — curated routines (Pentatonic Foundation, Chord-Tone Targeting, Modal Awareness, Diatonic Triad Drill, Seventh Vocabulary, ii–V–I Workout, Harmonic Minor Exotic, **Sweep Arpeggio Primer**) plus full Custom mode
 - **Standard sweep shapes** — Sweep Arpeggio Primer builds proper one-note-per-string sweeps, anchored to the root on the bass string, with a hammer-on / pull-off turnaround at the apex
-- **Smart fret range** — selecting a CAGED shape + key auto-sets First Fret / Last Fret to the correct position window; CAGED single-shape run spans two octaves up the neck
+- **Smart fret range** — selecting a CAGED shape + key auto-sets First Fret / Last Fret to the correct position window
 - **Three render modes** — 3D Note Highway, 2D Highway, 2D Tablature
 - **Generated audio** — synthesised notes, metronome with grouped accents, harmony backing voiced from the progression
 
@@ -37,7 +37,8 @@ A Slopsmith plugin that generates scale, arpeggio, and sweep-arpeggio practice r
 - **Position box** — manual First/Last fret pair
 - **3-notes-per-string**
 - **CAGED position** — auto-computes the position window for the selected key + CAGED shape (C/A/G/E/D)
-- **CAGED single-shape run** — same starting position, extended range so the same shape runs up the neck through its next octave
+- **CAGED single shape — strict ascend** — literal CAGED fingering geometry transposed per chord, marching up the neck (e.g. diatonic I–ii–iii–IV–V–vi–vii°–I ascends the A string fret by fret in the C shape)
+- **CAGED single shape — closest position** — same literal shape, but each chord picks the nearest fret to the previous chord so the hand moves both up and down the neck
 - **Single-string run** — pick a single string and walk the scale along it
 - **Full-neck map** — every scale note from fret 0–24
 
@@ -113,11 +114,12 @@ Expected: pathway auto-fills A natural minor (or one of the variants), 70 BPM 4/
 ### CAGED single-shape run
 ```text
 Pathway:          Custom
-Fretboard system: CAGED single-shape run up the neck
-CAGED shape:      E
-Key:              G   Scale: Major
+Practice type:    Diatonic arpeggios
+Fretboard system: CAGED single shape — strict ascend
+CAGED shape:      C
+Key:              C   Scale: Major
 ```
-Expected: First Fret / Last Fret auto-populate around fret 2–19 (E-shape root for G is fret 3, plus two positions up). Scale notes ascend through the run starting on G.
+Expected: diatonic triads (I–ii–iii–IV–V–vi–vii°–I) arpeggiated in the C shape up the A string — C at fret 3, Dm at fret 5, Em at fret 7, F at fret 8, G at fret 10, Am at fret 12, Bdim at fret 14, C at fret 15. The highway anchor scrolls with each chord.
 
 ## File layout
 
@@ -140,7 +142,7 @@ Expected: First Fret / Last Fret auto-populate around fret 2–19 (E-shape root 
 - Pathway selector with 8 curated routines + Custom
 - Scale, chord-scale (mode-of-moment + chord-tone-emphasis), diatonic arpeggio, progression arpeggio, and sweep arpeggio generators
 - Sweep arpeggio primer: standard shapes, root-anchored bass string, HOPO turnaround on apex string
-- Fretboard systems: Position, 3NPS, CAGED position, CAGED single-shape run, single-string, full-neck
+- Fretboard systems: Position, 3NPS, CAGED position, CAGED single-shape strict ascend, CAGED single-shape closest position, single-string, full-neck
 - CAGED-aware fret range auto-computation per key + shape
 - Root-note-first ordering for CAGED systems
 - Three renderers: 3D Note Highway (delegated to host), built-in 2D Highway, built-in 2D Tablature
