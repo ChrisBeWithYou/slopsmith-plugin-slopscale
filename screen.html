@@ -205,3 +205,47 @@
     </section>
   </section>
 </div>
+
+<script>
+(function installSlopScaleHostSettingsWatcher() {
+  if (window.__slopscaleHostSettingsWatcherInstalled) return;
+  window.__slopscaleHostSettingsWatcherInstalled = true;
+
+  function settingValue(key, fallback) {
+    try {
+      const value = localStorage.getItem(key);
+      return value === null ? fallback : value;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function signature() {
+    return [
+      settingValue('invertHighway', 'false'),
+      settingValue('lefty', '0'),
+      settingValue('renderScale', '1')
+    ].join('|');
+  }
+
+  let lastSignature = signature();
+  let pending = false;
+
+  function requestRendererRefresh() {
+    if (pending) return;
+    pending = true;
+    setTimeout(function () {
+      pending = false;
+      const generate = document.getElementById('slopscale-generate');
+      if (generate) generate.click();
+    }, 50);
+  }
+
+  setInterval(function () {
+    const nextSignature = signature();
+    if (nextSignature === lastSignature) return;
+    lastSignature = nextSignature;
+    requestRendererRefresh();
+  }, 150);
+})();
+</script>
