@@ -5,7 +5,17 @@
   const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   const NOTE_ALIASES = { C:0, 'B#':0, 'C#':1, Db:1, D:2, 'D#':3, Eb:3, E:4, Fb:4, F:5, 'E#':5, 'F#':6, Gb:6, G:7, 'G#':8, Ab:8, A:9, 'A#':10, Bb:10, B:11, Cb:11 };
   const STRING_COLORS = ['#ef4444', '#eab308', '#3b82f6', '#f97316', '#22c55e', '#a855f7', '#ec4899', '#14b8a6'];
-  const STANDARD_OPEN_MIDI = { guitar:[40,45,50,55,59,64], drop_d:[38,45,50,55,59,64], bass:[28,33,38,43] };
+  const AUDIO_LOOKAHEAD_SECONDS = 0.035;
+
+  const STRING_SETUPS = {
+    guitar_6_standard: { label:'6-string guitar — standard', instrument:'guitar', openMidis:[40,45,50,55,59,64], tuning:[0,0,0,0,0,0] },
+    guitar_6_drop_d: { label:'6-string guitar — Drop D', instrument:'guitar', openMidis:[38,45,50,55,59,64], tuning:[-2,0,0,0,0,0] },
+    guitar_7_standard: { label:'7-string guitar — standard', instrument:'guitar', openMidis:[35,40,45,50,55,59,64], tuning:[0,0,0,0,0,0,0] },
+    guitar_8_standard: { label:'8-string guitar — standard', instrument:'guitar', openMidis:[30,35,40,45,50,55,59,64], tuning:[0,0,0,0,0,0,0,0] },
+    bass_4_standard: { label:'4-string bass — standard', instrument:'bass', openMidis:[28,33,38,43], tuning:[0,0,0,0] },
+    bass_5_standard: { label:'5-string bass — standard low B', instrument:'bass', openMidis:[23,28,33,38,43], tuning:[0,0,0,0,0] }
+  };
+
   const SCALE_INTERVALS = {
     major:[0,2,4,5,7,9,11], natural_minor:[0,2,3,5,7,8,10], harmonic_minor:[0,2,3,5,7,8,11],
     minor_pentatonic:[0,3,5,7,10], major_pentatonic:[0,2,4,7,9], blues:[0,3,5,6,7,10],
@@ -56,17 +66,27 @@
     return { numerator, denominator, grouping: grouping.length ? grouping : [numerator] };
   }
 
+  function legacySetupFromForm(data) {
+    const instrument = data.get('instrument') || 'guitar';
+    const tuning = data.get('tuning') || 'standard';
+    if (instrument === 'bass' || tuning === 'bass_standard') return 'bass_4_standard';
+    if (tuning === 'drop_d') return 'guitar_6_drop_d';
+    return 'guitar_6_standard';
+  }
+
   function readConfig() {
     const data = new FormData($('slopscale-controls'));
-    const instrument = data.get('instrument') || 'guitar';
-    const tuningId = data.get('tuning') || 'standard';
-    const stringCount = instrument === 'bass' || tuningId === 'bass_standard' ? 4 : 6;
+    const stringSetup = data.get('stringSetup') || legacySetupFromForm(data);
+    const setup = STRING_SETUPS[stringSetup] || STRING_SETUPS.guitar_6_standard;
     const fretMin = Math.max(0, parseInt(data.get('fretMin') || '0', 10));
     const fretMax = Math.max(fretMin + 1, parseInt(data.get('fretMax') || '5', 10));
     return {
       mode: data.get('mode') || 'scale',
       renderer: data.get('renderer') || 'highway_3d',
-      instrument, tuningId, stringCount,
+      instrument: setup.instrument,
+      stringSetup,
+      setupLabel: setup.label,
+      stringCount: setup.openMidis.length,
       key: data.get('key') || 'C',
       scale: data.get('scale') || 'major',
       bpm: Math.max(30, Math.min(260, parseFloat(data.get('bpm') || '100'))),
@@ -82,12 +102,10 @@
   }
 
   function openMidisForConfig(cfg) {
-    if (cfg.stringCount === 4) return STANDARD_OPEN_MIDI.bass.slice();
-    return cfg.tuningId === 'drop_d' ? STANDARD_OPEN_MIDI.drop_d.slice() : STANDARD_OPEN_MIDI.guitar.slice();
+    return (STRING_SETUPS[cfg.stringSetup] || STRING_SETUPS.guitar_6_standard).openMidis.slice();
   }
   function tuningOffsetsForConfig(cfg) {
-    if (cfg.stringCount === 4) return [0,0,0,0,0,0];
-    return cfg.tuningId === 'drop_d' ? [-2,0,0,0,0,0] : [0,0,0,0,0,0];
+    return (STRING_SETUPS[cfg.stringSetup] || STRING_SETUPS.guitar_6_standard).tuning.slice();
   }
   function noteDefaults(extra) {
     return Object.assign({ t:0, s:0, f:0, sus:0, sl:-1, slu:-1, bn:0, ho:false, po:false, hm:false, hp:false, pm:false, mt:false, vb:false, tr:false, ac:false, tp:false }, extra || {});
@@ -447,39 +465,100 @@
   function tick(nowMs) {
     if (!renderer || !activeBundle) return;
     if (playing) {
-      currentPracticeTime = playAnchorChartTime + (nowMs - playAnchorMs) / 1000;
+      const elapsedMs = Math.max(0, nowMs - playAnchorMs);
+      currentPracticeTime = playAnchorChartTime + elapsedMs / 1000;
       const duration = activeBundle.songInfo.duration || 1;
       if (currentPracticeTime > duration) {
         currentPracticeTime = 0;
         playAnchorChartTime = 0;
-        playAnchorMs = nowMs;
+        playAnchorMs = nowMs + AUDIO_LOOKAHEAD_SECONDS * 1000;
         stopAudio();
-        schedulePreviewAudio(activeBundle, currentPracticeTime);
+        schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS);
       }
     }
     drawOnce();
     rafId = requestAnimationFrame(tick);
   }
 
-  function scheduleTone(ctx, when, freq, dur, amp, type) {
+  function makeDistortionCurve(amount) {
+    const samples = 256;
+    const curve = new Float32Array(samples);
+    const k = amount || 18;
+    for (let i = 0; i < samples; i++) {
+      const x = i * 2 / samples - 1;
+      curve[i] = ((3 + k) * x * 20 * Math.PI / 180) / (Math.PI + k * Math.abs(x));
+    }
+    return curve;
+  }
+
+  function schedulePluckedString(ctx, when, freq, dur, instrument) {
+    const isBass = instrument === 'bass';
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    const shaper = ctx.createWaveShaper();
+
+    osc1.type = isBass ? 'triangle' : 'sawtooth';
+    osc2.type = isBass ? 'sine' : 'triangle';
+    osc1.frequency.setValueAtTime(freq, when);
+    osc2.frequency.setValueAtTime(isBass ? Math.max(25, freq * 0.5) : freq * 2, when);
+    osc2.detune.setValueAtTime(isBass ? 0 : 5, when);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(isBass ? 1200 : 2600, when);
+    filter.frequency.exponentialRampToValueAtTime(isBass ? 450 : 900, when + Math.max(0.08, dur));
+    filter.Q.setValueAtTime(isBass ? 0.7 : 1.1, when);
+
+    shaper.curve = makeDistortionCurve(isBass ? 8 : 14);
+    shaper.oversample = '2x';
+
+    const amp = isBass ? 0.28 : 0.24;
+    gain.gain.setValueAtTime(0.0001, when);
+    gain.gain.exponentialRampToValueAtTime(amp, when + 0.004);
+    gain.gain.exponentialRampToValueAtTime(amp * 0.45, when + 0.055);
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + Math.max(0.12, dur));
+
+    osc1.connect(filter);
+    osc2.connect(filter);
+    filter.connect(shaper);
+    shaper.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc1.start(when);
+    osc2.start(when);
+    const stopAt = when + Math.max(0.14, dur) + 0.03;
+    osc1.stop(stopAt);
+    osc2.stop(stopAt);
+    audioNodes.push(osc1, osc2, filter, shaper, gain);
+  }
+
+  function scheduleClick(ctx, when, accent) {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = type || 'triangle';
-    osc.frequency.value = freq;
+    const filter = ctx.createBiquadFilter();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(accent ? 1760 : 1120, when);
+    filter.type = 'highpass';
+    filter.frequency.setValueAtTime(650, when);
     gain.gain.setValueAtTime(0.0001, when);
-    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, amp), when + 0.008);
-    gain.gain.exponentialRampToValueAtTime(0.0001, when + Math.max(0.04, dur));
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(when); osc.stop(when + Math.max(0.05, dur) + 0.03);
-    audioNodes.push(osc, gain);
+    gain.gain.exponentialRampToValueAtTime(accent ? 0.14 : 0.09, when + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + (accent ? 0.055 : 0.04));
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(when);
+    osc.stop(when + 0.07);
+    audioNodes.push(osc, filter, gain);
   }
-  function schedulePreviewAudio(bundle, fromTime) {
+
+  function schedulePreviewAudio(bundle, fromTime, delaySeconds) {
     const cfg = readConfig();
     if (!cfg.audio.notes && !cfg.audio.metronome) return;
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
     const ctx = audioCtx;
-    const base = ctx.currentTime + 0.035;
+    const base = ctx.currentTime + (Number.isFinite(delaySeconds) ? delaySeconds : AUDIO_LOOKAHEAD_SECONDS);
     const startFrom = fromTime || 0;
     const opens = openMidisForConfig(cfg);
     const duration = bundle.songInfo?.duration || 0;
@@ -487,14 +566,14 @@
       for (const n of bundle.notes || []) {
         if (n.t < startFrom || n.t > duration + 0.1) continue;
         if (n.s < 0 || n.s >= opens.length || n.f < 0) continue;
-        scheduleTone(ctx, base + (n.t - startFrom), midiToFreq(opens[n.s] + n.f), Math.max(0.08, Math.min(0.75, n.sus || 0.2)), 0.08, 'triangle');
+        const len = Math.max(0.10, Math.min(0.85, n.sus || 0.24));
+        schedulePluckedString(ctx, base + (n.t - startFrom), midiToFreq(opens[n.s] + n.f), len, cfg.instrument);
       }
     }
     if (cfg.audio.metronome) {
       for (const b of bundle.beats || []) {
         if (b.time < startFrom || b.time > duration + 0.1) continue;
-        const accent = (b.measure || -1) >= 0;
-        scheduleTone(ctx, base + (b.time - startFrom), accent ? 1760 : 1120, accent ? 0.055 : 0.04, accent ? 0.18 : 0.12, 'square');
+        scheduleClick(ctx, base + (b.time - startFrom), (b.measure || -1) >= 0);
       }
     }
   }
@@ -503,8 +582,8 @@
     stopAudio();
     playing = true;
     playAnchorChartTime = currentPracticeTime;
-    playAnchorMs = performance.now();
-    schedulePreviewAudio(activeBundle, currentPracticeTime);
+    playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
+    schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS);
     if (!rafId) rafId = requestAnimationFrame(tick);
   }
   function stopPlayback() {
@@ -523,6 +602,7 @@
     return [
       `Mode: ${cfg.mode}`,
       `Pattern: 3-notes-per-string default`,
+      `Instrument: ${cfg.setupLabel}`,
       `Key/scale: ${cfg.key} ${cfg.scale}`,
       `BPM/meter/division: ${cfg.bpm} BPM, ${meter}, ${cfg.subdivision}`,
       `Position: frets ${cfg.fretMin}-${cfg.fretMax}`,
@@ -548,17 +628,34 @@
 
   async function savePreset() {
     const cfg = readConfig();
-    const name = `${cfg.key} ${cfg.scale} ${cfg.mode}`;
+    const name = `${cfg.key} ${cfg.scale} ${cfg.setupLabel} ${cfg.mode}`;
     const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
     const res = await fetch('/api/plugins/slopscale/presets', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ id, name, kind:cfg.mode, config:cfg }) });
     if (!res.ok) throw new Error(await res.text());
     $('slopscale-summary').textContent += `\n\nSaved preset: ${name}`;
   }
 
+  function syncStringSetupControls() {
+    const instrument = document.querySelector('[name="instrument"]');
+    const setup = document.querySelector('[name="stringSetup"]');
+    if (!instrument || !setup) return;
+    const current = STRING_SETUPS[setup.value] || STRING_SETUPS.guitar_6_standard;
+    instrument.value = current.instrument;
+  }
+
   function bind() {
     const root = $('slopscale-root');
     if (!root || root.dataset.slopscaleInit === '1') return false;
     root.dataset.slopscaleInit = '1';
+    const instrument = document.querySelector('[name="instrument"]');
+    const setup = document.querySelector('[name="stringSetup"]');
+    instrument?.addEventListener('change', () => {
+      if (!setup) return;
+      setup.value = instrument.value === 'bass' ? 'bass_4_standard' : 'guitar_6_standard';
+      if (activeBundle) onGenerate();
+    });
+    setup?.addEventListener('change', syncStringSetupControls);
+    syncStringSetupControls();
     $('slopscale-generate').addEventListener('click', onGenerate);
     $('slopscale-play').addEventListener('click', startPlayback);
     $('slopscale-stop').addEventListener('click', stopPlayback);
