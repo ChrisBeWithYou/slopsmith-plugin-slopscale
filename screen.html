@@ -62,6 +62,20 @@
     flex-direction: column;
     gap: 10px;
   }
+  /* ── CAGED shape selector ── */
+  .slopscale-caged-fields { display: flex; flex-direction: column; gap: 10px; }
+  .slopscale-controls:not([data-fretboard-caged]) .slopscale-caged-only { display: none !important; }
+  .slopscale-caged-shapes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .slopscale-caged-shape-btn {
+    min-height: 36px; border: 1px solid #475569; border-radius: 8px;
+    background: #111827; color: #94a3b8; font-size: 15px; font-weight: 800;
+    cursor: pointer; letter-spacing: 0.04em;
+    transition: background 0.1s, color 0.1s, border-color 0.1s;
+  }
+  .slopscale-caged-shape-btn:hover { background: #1e293b; color: #e2e8f0; }
+  .slopscale-caged-shape-btn.active { background: linear-gradient(180deg, #1e40af, #1d4ed8); border-color: #60a5fa; color: #f8fafc; }
+  #slopscale-caged-shape-value { display: none; }
+
   .slopscale-controls label.slopscale-toggle {
     flex-direction: row;
     align-items: center;
@@ -140,7 +154,7 @@
       <div class="slopscale-advanced-card slopscale-advanced-only">
         <div class="slopscale-group-title">Advanced fretboard logic</div>
         <label>Fretboard system
-          <select name="fretboardSystem">
+          <select name="fretboardSystem" id="slopscale-fretboard-system">
             <option value="position" selected>Position box / selected fret range</option>
             <option value="three_nps">3-notes-per-string</option>
             <option value="caged">CAGED position</option>
@@ -149,6 +163,21 @@
             <option value="full_neck">Full-neck map</option>
           </select>
         </label>
+        <!-- CAGED shape family — visible only when caged / caged_shape_run is active -->
+        <div class="slopscale-caged-fields slopscale-caged-only">
+          <label>CAGED shape family
+            <span class="slopscale-help" style="margin-top:2px;">Pick the chord shape that anchors this position on the neck.</span>
+          </label>
+          <div class="slopscale-caged-shapes" role="group" aria-label="CAGED shape">
+            <button type="button" class="slopscale-caged-shape-btn active" data-shape="C" title="C shape — root on 5th string">C</button>
+            <button type="button" class="slopscale-caged-shape-btn" data-shape="A" title="A shape — root on 5th string">A</button>
+            <button type="button" class="slopscale-caged-shape-btn" data-shape="G" title="G shape — root on 6th string">G</button>
+            <button type="button" class="slopscale-caged-shape-btn" data-shape="E" title="E shape — root on 6th string">E</button>
+            <button type="button" class="slopscale-caged-shape-btn" data-shape="D" title="D shape — root on 4th string">D</button>
+          </div>
+          <input type="hidden" name="cagedShape" id="slopscale-caged-shape-value" value="C">
+        </div>
+
         <div class="slopscale-grid-2">
           <label>Direction
             <select name="direction">
@@ -163,7 +192,7 @@
             <input name="repeatCount" type="number" min="1" max="16" step="1" value="1">
           </label>
         </div>
-        <div class="slopscale-help">Fretboard system is stored in the generated config now; CAGED/3NPS-specific behavior will be expanded in the next pass.</div>
+        <div class="slopscale-help">Fretboard system and CAGED shape are passed into the generated exercise config. Full CAGED/3NPS pattern logic is built up in subsequent passes.</div>
       </div>
 
       <div class="slopscale-grid-2">
@@ -268,6 +297,20 @@
 </div>
 
 <script>
+(function initCagedShapeButtons() {
+  const form      = document.getElementById('slopscale-controls');
+  const sysSelect = document.getElementById('slopscale-fretboard-system');
+  const hidden    = document.getElementById('slopscale-caged-shape-value');
+  const btns      = document.querySelectorAll('.slopscale-caged-shape-btn');
+
+  function isCaged() { const v = sysSelect ? sysSelect.value : ''; return v === 'caged' || v === 'caged_shape_run'; }
+  function updateCagedVisibility() { if (isCaged()) form.setAttribute('data-fretboard-caged', '1'); else form.removeAttribute('data-fretboard-caged'); }
+  function setShape(shape) { if (hidden) hidden.value = shape; btns.forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-shape') === shape)); }
+
+  btns.forEach(btn => btn.addEventListener('click', () => setShape(btn.getAttribute('data-shape'))));
+  if (sysSelect) { sysSelect.addEventListener('change', updateCagedVisibility); updateCagedVisibility(); }
+})();
+
 (function installSlopScaleHostSettingsWatcher() {
   if (window.__slopscaleHostSettingsWatcherInstalled) return;
   window.__slopscaleHostSettingsWatcherInstalled = true;
