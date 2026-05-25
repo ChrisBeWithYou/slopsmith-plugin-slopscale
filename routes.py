@@ -12,6 +12,7 @@ import json
 import math
 import os
 import shutil
+import subprocess
 import tempfile
 import time
 import uuid
@@ -331,6 +332,46 @@ def _write_practice_audio_wav(path: Path, session: dict[str, Any], arranged: dic
             wf.writeframes(bytes(chunk))
 
 
+def _try_encode_ogg(wav_path: Path, ogg_path: Path) -> bool:
+    """Encode a generated WAV to OGG/Vorbis when ffmpeg is available.
+
+    Slopsmith's sloppak documentation and examples use OGG stems. Directory-form
+    sloppaks can technically point at any manifest-indexed file, but using OGG
+    keeps generated practice charts aligned with normal Slopsmith packages.
+    """
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return False
+    commands = [
+        [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-i", str(wav_path), "-c:a", "libvorbis", "-q:a", "4", str(ogg_path)],
+        [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-i", str(wav_path), "-c:a", "vorbis", "-q:a", "4", str(ogg_path)],
+    ]
+    for cmd in commands:
+        try:
+            subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=90)
+            return ogg_path.exists() and ogg_path.stat().st_size > 0
+        except Exception:
+            try:
+                ogg_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+    return False
+
+
+def _write_practice_audio_stem(stems_dir: Path, session: dict[str, Any], arranged: dict[str, Any], duration: float) -> str:
+    stems_dir.mkdir(parents=True, exist_ok=True)
+    wav_path = stems_dir / "practice.wav"
+    ogg_path = stems_dir / "practice.ogg"
+    _write_practice_audio_wav(wav_path, session, arranged, duration)
+    if _try_encode_ogg(wav_path, ogg_path):
+        try:
+            wav_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return "stems/practice.ogg"
+    return "stems/practice.wav"
+
+
 def _dump_yaml(data: dict[str, Any]) -> str:
     try:
         import yaml  # type: ignore
@@ -468,12 +509,13 @@ def setup(app: FastAPI, context: dict) -> None:
         work_dir = Path(tempfile.mkdtemp(prefix="slopscale-work-", dir=str(data_dir)))
         try:
             (work_dir / "arrangements").mkdir(parents=True, exist_ok=True)
-            (work_dir / "stems").mkdir(parents=True, exist_ok=True)
+            stems_dir = work_dir / "stems"
+            stems_dir.mkdir(parents=True, exist_ok=True)
             (work_dir / "arrangements" / "lead.json").write_text(
                 json.dumps(arranged, indent=2, sort_keys=False) + "\n",
                 encoding="utf-8",
             )
-            _write_practice_audio_wav(work_dir / "stems" / "practice.wav", session, arranged, duration)
+            stem_file = _write_practice_audio_stem(stems_dir, session, arranged, duration)
 
             manifest = {
                 "title": title,
@@ -488,7 +530,7 @@ def setup(app: FastAPI, context: dict) -> None:
                     "tuning": arranged.get("tuning", [0, 0, 0, 0, 0, 0]),
                     "capo": 0,
                 }],
-                "stems": [{"id": "full", "file": "stems/practice.wav", "default": True}],
+                "stems": [{"id": "full", "file": stem_file, "default": True}],
                 "slopscale": {"version": SCHEMA_VERSION, "generated": True, "session": session},
             }
             (work_dir / "manifest.yaml").write_text(_dump_yaml(manifest), encoding="utf-8")
@@ -503,6 +545,7 @@ def setup(app: FastAPI, context: dict) -> None:
                 "filename": rel,
                 "title": title,
                 "duration": duration,
+                "stem_file": stem_file,
                 "audio": {
                     "notes": bool(audio.get("notes", session.get("audioNotes", False))),
                     "metronome": bool(audio.get("metronome", session.get("audioMetronome", False))),
