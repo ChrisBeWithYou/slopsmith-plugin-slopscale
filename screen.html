@@ -138,6 +138,7 @@
       <label>Practice type
         <select name="practiceType">
           <option value="scale" selected>Scale pattern</option>
+          <option value="chord_scales">Scales over changes</option>
           <option value="diatonic_arpeggios">Diatonic arpeggios</option>
           <option value="progression_arpeggios">Progression arpeggios</option>
         </select>
@@ -288,6 +289,14 @@
             <option value="minor_ii_V_i">Minor ii–V–i</option>
           </select>
         </label>
+        <label>Chord-scale strategy
+          <select name="chordScaleStrategy">
+            <option value="mode_of_moment" selected="selected">Mode of the moment — scale follows chord</option>
+            <option value="chord_tone_emphasis">Chord-tone emphasis — parent scale, chord tones accented</option>
+          </select>
+          <span class="slopscale-help" style="margin-top:2px;">Applies to "Scales over changes". Mode-of-the-moment switches scale per chord. Chord-tone emphasis keeps the key's scale but accents chord tones.</span>
+        </label>
+
         <label>Chord quality override
           <select name="chordOverride"><option value="auto">Auto diatonic</option><option value="maj">Major</option><option value="min">Minor</option><option value="dim">Diminished</option><option value="maj7">Maj7</option><option value="min7">Min7</option><option value="dom7">Dominant 7</option><option value="min7b5">m7b5 / half-diminished</option><option value="sus4">Sus4</option><option value="add9">Add9</option></select>
         </label>

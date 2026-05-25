@@ -19,7 +19,8 @@
   const SCALE_INTERVALS = {
     major:[0,2,4,5,7,9,11], natural_minor:[0,2,3,5,7,8,10], harmonic_minor:[0,2,3,5,7,8,11],
     minor_pentatonic:[0,3,5,7,10], major_pentatonic:[0,2,4,7,9], blues:[0,3,5,6,7,10],
-    dorian:[0,2,3,5,7,9,10], phrygian:[0,1,3,5,7,8,10], mixolydian:[0,2,4,5,7,9,10]
+    dorian:[0,2,3,5,7,9,10], phrygian:[0,1,3,5,7,8,10], mixolydian:[0,2,4,5,7,9,10],
+    lydian:[0,2,4,6,7,9,11], locrian:[0,1,3,5,6,8,10]
   };
   const CHORD_FORMULAS = {
     maj:{symbol:'maj', intervals:[0,4,7]}, min:{symbol:'min', intervals:[0,3,7]}, dim:{symbol:'dim', intervals:[0,3,6]}, aug:{symbol:'aug', intervals:[0,4,8]},
@@ -74,6 +75,13 @@
     thirds:'diatonic thirds',
     broken_triads:'broken triads (1-3-5)',
     yngwie_sixes:'sixes (1-2-3-4-3-2)'
+  };
+  const MODE_FOR_QUALITY = {
+    maj:'major', maj7:'major',
+    min:'dorian', min7:'dorian',
+    dom7:'mixolydian',
+    dim:'locrian', min7b5:'locrian', dim7:'locrian',
+    aug:'major', sus4:'mixolydian', add9:'major'
   };
 
   let renderer = null, activeBundle = null, rafId = null;
@@ -132,6 +140,7 @@
       direction: advancedMode ? (data.get('direction') || 'up_down') : 'up_down',
       repeatCount: advancedMode ? Math.max(1, Math.min(16, parseInt(data.get('repeatCount') || '1', 10))) : 1,
       sequence: advancedMode ? (data.get('sequence') || 'none') : 'none',
+      chordScaleStrategy: advancedMode ? (data.get('chordScaleStrategy') || 'mode_of_moment') : 'mode_of_moment',
       fretMin,
       fretMax,
       bars: Math.max(1, Math.min(32, parseInt(data.get('bars') || '4', 10))),
@@ -368,6 +377,54 @@
     return events;
   }
 
+  function chordScalePositions(cfg, rootPc, quality) {
+    const scaleName = MODE_FOR_QUALITY[quality] || 'major';
+    const intervals = SCALE_INTERVALS[scaleName] || SCALE_INTERVALS.major;
+    const pcs = new Set(intervals.map(i => (rootPc + i) % 12));
+    const opens = openMidisForConfig(cfg), out = [];
+    for (let s = 0; s < cfg.stringCount; s++) for (let f = cfg.fretMin; f <= cfg.fretMax; f++) {
+      const midi = opens[s] + f, pc = midi % 12;
+      if (pcs.has(pc)) out.push({ s, f, midi, pc });
+    }
+    return out.sort((a,b) => a.midi - b.midi || a.s - b.s || a.f - b.f);
+  }
+
+  function buildChordScaleExercise(cfg) {
+    const degrees = progressionDegreesForConfig(cfg);
+    const mLen = measureSeconds(cfg), step = secondsPerDivision(cfg);
+    const totalBars = Math.max(1, cfg.bars), duration = totalBars * mLen;
+    const notesPerBar = Math.max(1, Math.round(mLen / step));
+    const strategy = cfg.chordScaleStrategy || 'mode_of_moment';
+    const keyParent = strategy === 'chord_tone_emphasis' ? scalePositionsForSystem(cfg) : null;
+    const notes = [], chordTemplates = [], chords = [], handShapes = [], sections = [];
+    for (let bar = 0; bar < totalBars; bar++) {
+      const degree = degrees[bar % degrees.length];
+      const rootPc = chordRootForDegree(cfg, degree);
+      const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride);
+      const positions = strategy === 'chord_tone_emphasis' ? keyParent : chordScalePositions(cfg, rootPc, quality);
+      if (!positions || !positions.length) continue;
+      const sequenced = applySequencePattern(positions, cfg.sequence);
+      const path = directedPath(sequenced, cfg.direction, cfg.repeatCount);
+      if (!path.length) continue;
+      const barStart = bar * mLen;
+      const name = chordName(rootPc, quality), templateId = chordTemplates.length;
+      const tones = chordTonePositionsInPosition(cfg, rootPc, quality);
+      const displayTones = tones.length ? tones : pickChordPositions(cfg, rootPc, quality);
+      const chordPcs = new Set((CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj).intervals.map(iv => (rootPc + iv) % 12));
+      chordTemplates.push(templateFromPositions(name, displayTones, cfg, false));
+      chords.push({ t:Number(barStart.toFixed(6)), id:templateId, hd:false, notes:displayTones.map(p => noteDefaults({ s:p.s, f:p.f, sus:0 })) });
+      handShapes.push({ chord_id:templateId, start_time:Number(barStart.toFixed(6)), end_time:Number((barStart + mLen).toFixed(6)), arp:false });
+      sections.push({ name, number:templateId + 1, time:Number(barStart.toFixed(6)) });
+      for (let i = 0; i < notesPerBar; i++) {
+        const p = path[i % path.length];
+        const onBeat = i % Math.max(1, cfg.meter.numerator) === 0;
+        const isChordTone = strategy === 'chord_tone_emphasis' && chordPcs.has(p.pc);
+        notes.push(noteDefaults({ t:Number((barStart + i * step).toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * 0.78), ac:onBeat || isChordTone }));
+      }
+    }
+    return { notes, chords, chordTemplates, handShapes, sections:sections.length ? sections : [{ name:'chord-scales', number:1, time:0 }], duration };
+  }
+
   function buildScaleExercise(cfg) {
     const positions = scalePositionsForSystem(cfg);
     if (!positions.length) throw new Error('No scale notes found inside this fret range.');
@@ -412,7 +469,9 @@
   }
 
   function generateExercise(cfg) {
-    const chart = cfg.mode === 'scale' ? buildScaleExercise(cfg) : buildArpeggioExercise(cfg, progressionDegreesForConfig(cfg));
+    const chart = cfg.mode === 'scale' ? buildScaleExercise(cfg)
+      : cfg.mode === 'chord_scales' ? buildChordScaleExercise(cfg)
+      : buildArpeggioExercise(cfg, progressionDegreesForConfig(cfg));
     const duration = Math.max(chart.duration || 0, cfg.bars * measureSeconds(cfg));
     return { version:1, session:cfg, chart:Object.assign({}, chart, { beats:buildBeats(cfg, duration), anchors:buildAnchors(cfg, duration), duration }) };
   }
@@ -562,7 +621,7 @@
       `Pattern: ${cfg.mode === 'scale' ? fretboardSystemLabel(cfg.fretboardSystem) : 'full chord-tone arpeggios across one position'}`,
       `Instrument: ${cfg.setupLabel}`,
       `Highway inverted: ${readHighwayInverted() ? 'on' : 'off'}`,
-      `Key/scale: ${cfg.key} ${cfg.scale}`,
+      `Key/scale: ${cfg.key} ${cfg.scale}${cfg.mode === 'chord_scales' ? ` (chord-scale: ${(cfg.chordScaleStrategy || 'mode_of_moment').replace(/_/g, ' ')})` : ''}`,
       `BPM/meter/division: ${cfg.bpm} BPM, ${meter}, ${cfg.subdivision}`,
       `Position: frets ${cfg.fretMin}-${cfg.fretMax}`,
       `Audio: notes ${cfg.audio.notes ? 'on' : 'off'}, metronome ${cfg.audio.metronome ? 'on' : 'off'}, harmony ${cfg.audio.harmony ? 'on' : 'off'} (${backingCount} backing chords)`,
