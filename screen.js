@@ -356,7 +356,7 @@
   }
   function buildBackingEvents(cfg, duration) {
     const degrees = progressionDegreesForConfig(cfg);
-    const slot = Math.max(measureSeconds(cfg), duration / Math.max(1, degrees.length));
+    const slot = measureSeconds(cfg);
     const events = [];
     for (let t = 0, i = 0; t < duration - 0.001; t += slot, i++) {
       const degree = degrees[i % degrees.length];
