@@ -607,15 +607,27 @@
   function buildArpeggioExercise(cfg, degrees) {
     const step = secondsPerDivision(cfg), mLen = measureSeconds(cfg);
     const chordTemplates = [], chords = [], handShapes = [], notes = [], sections = [];
+    const isShapeRun = cfg.fretboardSystem === 'caged_shape_run';
+    const shapeRunAnchors = isShapeRun ? [] : null;
     let t = 0;
     degrees.forEach(degree => {
       const rootPc = chordRootForDegree(cfg, degree);
       const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride);
-      const positionTones = chordTonePositionsInPosition(cfg, rootPc, quality);
-      const displayPositions = positionTones.length ? positionTones : pickChordPositions(cfg, rootPc, quality);
+      // For caged_shape_run: narrow the fret window to this chord's root position in the chosen shape,
+      // so each chord is played in the same shape geometry as it moves up the neck.
+      let chordCfg = cfg;
+      if (isShapeRun) {
+        const chordRoot = cagedRootFret(cfg.cagedShape, rootPc);
+        const fMin = Math.max(0, chordRoot - 1);
+        const fMax = Math.min(24, chordRoot + 5);
+        chordCfg = Object.assign({}, cfg, { fretMin:fMin, fretMax:fMax });
+        shapeRunAnchors.push({ time:Number(t.toFixed(6)), fret:fMin, width:fMax - fMin + 1 });
+      }
+      const positionTones = chordTonePositionsInPosition(chordCfg, rootPc, quality);
+      const displayPositions = positionTones.length ? positionTones : pickChordPositions(chordCfg, rootPc, quality);
       if (!displayPositions.length) return;
       const name = chordName(rootPc, quality), templateId = chordTemplates.length;
-      chordTemplates.push(templateFromPositions(name, displayPositions, cfg, true));
+      chordTemplates.push(templateFromPositions(name, displayPositions, chordCfg, true));
       chords.push({ t:Number(t.toFixed(6)), id:templateId, hd:false, notes:displayPositions.map(p => noteDefaults({ s:p.s, f:p.f, sus:0 })) });
       sections.push({ name, number:templateId + 1, time:Number(t.toFixed(6)) });
       const path = directedPath(displayPositions, cfg.direction, cfg.repeatCount);
@@ -627,7 +639,9 @@
       }
       t += chordSlot;
     });
-    return { notes, chords, chordTemplates, handShapes, sections:sections.length ? sections : [{ name:'arpeggios', number:1, time:0 }], duration:Math.max(t, cfg.bars * mLen) };
+    const result = { notes, chords, chordTemplates, handShapes, sections:sections.length ? sections : [{ name:'arpeggios', number:1, time:0 }], duration:Math.max(t, cfg.bars * mLen) };
+    if (shapeRunAnchors) result.anchors = shapeRunAnchors;
+    return result;
   }
 
   function generateExercise(cfg) {
@@ -636,7 +650,8 @@
       : cfg.mode === 'sweep_arpeggios' ? buildSweepArpeggioExercise(cfg)
       : buildArpeggioExercise(cfg, progressionDegreesForConfig(cfg));
     const duration = Math.max(chart.duration || 0, cfg.bars * measureSeconds(cfg));
-    return { version:1, session:cfg, chart:Object.assign({}, chart, { beats:buildBeats(cfg, duration), anchors:buildAnchors(cfg, duration), duration }) };
+    const anchors = chart.anchors || buildAnchors(cfg, duration);
+    return { version:1, session:cfg, chart:Object.assign({}, chart, { beats:buildBeats(cfg, duration), anchors, duration }) };
   }
 
   function makeBundle(exercise) {
