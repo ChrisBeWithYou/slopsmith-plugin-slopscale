@@ -372,9 +372,10 @@
     const positions = scalePositionsForSystem(cfg);
     if (!positions.length) throw new Error('No scale notes found inside this fret range.');
     const sequenced = applySequencePattern(positions, cfg.sequence);
-    const step = secondsPerDivision(cfg), minDuration = cfg.bars * measureSeconds(cfg);
+    const step = secondsPerDivision(cfg), mLen = measureSeconds(cfg), minDuration = cfg.bars * mLen;
     const path = directedPath(sequenced, cfg.direction, cfg.repeatCount);
-    const duration = Math.max(minDuration, path.length * step);
+    const rawDuration = Math.max(minDuration, path.length * step);
+    const duration = Math.ceil(rawDuration / mLen - 1e-6) * mLen;
     const totalEvents = Math.max(path.length, Math.floor(duration / step));
     const notes = [];
     for (let i = 0; i < totalEvents; i++) {
@@ -565,7 +566,7 @@
       `BPM/meter/division: ${cfg.bpm} BPM, ${meter}, ${cfg.subdivision}`,
       `Position: frets ${cfg.fretMin}-${cfg.fretMax}`,
       `Audio: notes ${cfg.audio.notes ? 'on' : 'off'}, metronome ${cfg.audio.metronome ? 'on' : 'off'}, harmony ${cfg.audio.harmony ? 'on' : 'off'} (${backingCount} backing chords)`,
-      `Generated: ${c.notes.length} notes, ${c.chords.length} visible chords, ${c.chordTemplates.length} templates, ${c.handShapes.length} hand shapes, ${c.beats.length} beats`,
+      `Generated: ${c.notes.length} notes, ${c.chords.length} visible chords, ${c.chordTemplates.length} templates, ${c.handShapes.length} hand shapes, ${c.beats.length} beats, ${Math.round(c.duration / measureSeconds(cfg))} bars`,
       `Duration: ${c.duration.toFixed(2)}s`
     ].join('\n');
   }
