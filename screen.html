@@ -111,6 +111,33 @@
   .slopscale-summary { border-top: 1px solid rgba(75, 85, 99, 0.55); padding: 12px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; color: #cbd5e1; background: rgba(2, 6, 23, 0.72); font-size: 12px; line-height: 1.45; }
   @media (max-width: 1100px) { .slopscale-layout { grid-template-columns: 1fr; } .slopscale-controls { max-height: none; } }
   @media (max-width: 720px) { .slopscale-grid-2, .slopscale-grid-3, .slopscale-audio-options { grid-template-columns: 1fr; } }
+
+  /* Ultrawide: cap the render stage to a sane width (3D highway perspective
+     looks stretched past ~1700px) and expand the controls panel into a
+     2-column grid so it stops feeling cramped and scrollable. */
+  @media (min-width: 1800px) {
+    .slopscale-layout {
+      grid-template-columns: minmax(660px, 800px) minmax(0, 1700px);
+      justify-content: center;
+    }
+    .slopscale-controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px 18px;
+      align-content: start;
+    }
+    /* Section headers, advanced cards, audio toggles, helper text, and the
+       button row span both columns so they keep their visual weight. */
+    .slopscale-controls > .slopscale-group-title,
+    .slopscale-controls > .slopscale-audio-options,
+    .slopscale-controls > .slopscale-actions,
+    .slopscale-controls > .slopscale-help,
+    .slopscale-controls > .slopscale-advanced-card {
+      grid-column: 1 / -1;
+    }
+    /* Fit all four action buttons on one row when there's room. */
+    .slopscale-actions { grid-template-columns: repeat(4, 1fr); }
+  }
 </style>
 
 <div id="slopscale-root" class="slopscale-root">

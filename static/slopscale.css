@@ -138,3 +138,25 @@
   .slopscale-layout { grid-template-columns: 1fr; }
   .slopscale-header { flex-direction: column; }
 }
+
+/* Ultrawide: cap render stage and use a 2-column controls grid */
+@media (min-width: 1800px) {
+  .slopscale-layout {
+    grid-template-columns: minmax(660px, 800px) minmax(0, 1700px);
+    justify-content: center;
+  }
+  .slopscale-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 18px;
+    align-content: start;
+  }
+  .slopscale-controls > .slopscale-group-title,
+  .slopscale-controls > .slopscale-audio-options,
+  .slopscale-controls > .slopscale-actions,
+  .slopscale-controls > .slopscale-help,
+  .slopscale-controls > .slopscale-advanced-card {
+    grid-column: 1 / -1;
+  }
+  .slopscale-actions { grid-template-columns: repeat(4, 1fr); }
+}
