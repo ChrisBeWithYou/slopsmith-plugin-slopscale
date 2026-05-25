@@ -1,4 +1,4 @@
-// SlopScale — Slopsmith practice chart generator + native player launcher.
+// SlopScale — Slopsmith practice chart generator + renderer adapter.
 (function () {
   'use strict';
 
@@ -7,6 +7,7 @@
   const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   const NOTE_ALIASES = { C:0, 'B#':0, 'C#':1, Db:1, D:2, 'D#':3, Eb:3, E:4, Fb:4, F:5, 'E#':5, 'F#':6, Gb:6, G:7, 'G#':8, Ab:8, A:9, 'A#':10, Bb:10, B:11, Cb:11 };
   const STRING_COLORS = ['#ef4444', '#eab308', '#3b82f6', '#f97316', '#22c55e', '#a855f7', '#ec4899', '#14b8a6'];
+  const STANDARD_OPEN_MIDI = { guitar:[40,45,50,55,59,64], drop_d:[38,45,50,55,59,64], bass:[28,33,38,43] };
 
   const SCALE_INTERVALS = {
     major: [0,2,4,5,7,9,11], natural_minor: [0,2,3,5,7,8,10], harmonic_minor: [0,2,3,5,7,8,11],
@@ -27,13 +28,14 @@
     diatonic:[1,2,3,4,5,6,7,1], 'I-IV-V':[1,4,5,1], 'I-V-vi-IV':[1,5,6,4], 'ii-V-I':[2,5,1,1],
     'vi-IV-I-V':[6,4,1,5], '12_bar_blues':[1,1,1,1,4,4,1,1,5,4,1,5], 'i-VI-III-VII':[1,6,3,7]
   };
-  const STANDARD_OPEN_MIDI = { guitar:[40,45,50,55,59,64], drop_d:[38,45,50,55,59,64], bass:[28,33,38,43] };
 
   let renderer = null, activeBundle = null, rafId = null;
   let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
+  let audioCtx = null, audioNodes = [];
 
   function $(id) { return document.getElementById(id); }
   function pcName(pc) { return NOTE_NAMES[((pc % 12) + 12) % 12]; }
+  function midiToFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
 
   function goScreen(id) {
     if (window.slopsmith && typeof window.slopsmith.navigate === 'function') { window.slopsmith.navigate(id); return; }
@@ -53,14 +55,15 @@
   }
 
   function readConfig() {
-    const data = new FormData($('slopscale-controls'));
+    const form = $('slopscale-controls');
+    const data = new FormData(form);
     const instrument = data.get('instrument') || 'guitar';
     const tuningId = data.get('tuning') || 'standard';
     const stringCount = instrument === 'bass' || tuningId === 'bass_standard' ? 4 : 6;
     const fretMin = Math.max(0, parseInt(data.get('fretMin') || '0', 10));
     const fretMax = Math.max(fretMin + 1, parseInt(data.get('fretMax') || '5', 10));
     return {
-      mode: data.get('mode') || 'scale', renderer: 'builtin_2d', instrument, tuningId, stringCount,
+      mode: data.get('mode') || 'scale', renderer: data.get('renderer') || 'highway_3d', instrument, tuningId, stringCount,
       key: data.get('key') || 'C', scale: data.get('scale') || 'major', bpm: Math.max(30, Math.min(260, parseFloat(data.get('bpm') || '100'))),
       meter: parseMeter(data.get('meter')), subdivision: data.get('subdivision') || 'eighth', fretMin, fretMax,
       bars: Math.max(1, Math.min(32, parseInt(data.get('bars') || '4', 10))), chordDepth: data.get('chordDepth') || 'triad',
@@ -181,7 +184,7 @@
       ctx.strokeStyle = 'rgba(148,163,184,0.25)'; ctx.lineWidth = 1;
       for (let s = 0; s < nStr; s++) { const y = laneY(s, nStr); ctx.beginPath(); ctx.moveTo(54, y); ctx.lineTo(W - 32, y); ctx.stroke(); ctx.fillStyle = STRING_COLORS[s] || '#94a3b8'; ctx.font = '700 12px system-ui'; ctx.fillText(`S${s + 1}`, 18, y + 4); }
       for (const b of bundle.beats || []) { const dt = b.time - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); ctx.strokeStyle = b.measure >= 0 ? 'rgba(96,165,250,0.55)' : 'rgba(148,163,184,0.18)'; ctx.beginPath(); ctx.moveTo(x, 72); ctx.lineTo(x, H - 36); ctx.stroke(); if (b.measure >= 0) { ctx.fillStyle = '#93c5fd'; ctx.font = '11px system-ui'; ctx.fillText(String(b.measure), x + 4, 66); } }
-      ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 2; ctx.beginPath(); const playX = 90 + behind / (ahead + behind) * (W - 150); ctx.moveTo(playX, 60); ctx.lineTo(playX, H - 36); ctx.stroke();
+      ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 2; const playX = 90 + behind / (ahead + behind) * (W - 150); ctx.beginPath(); ctx.moveTo(playX, 60); ctx.lineTo(playX, H - 36); ctx.stroke();
       for (const ch of bundle.chords || []) { const dt = ch.t - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); const name = bundle.chordTemplates?.[ch.id]?.displayName || bundle.chordTemplates?.[ch.id]?.name || ''; ctx.fillStyle = 'rgba(168,85,247,0.18)'; ctx.fillRect(x - 38, 24, 76, 28); ctx.strokeStyle = 'rgba(168,85,247,0.75)'; ctx.strokeRect(x - 38, 24, 76, 28); ctx.fillStyle = '#e9d5ff'; ctx.font = '700 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(name, x, 43); ctx.textAlign = 'left'; }
       for (const n of bundle.notes || []) { const dt = n.t - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); const y = laneY(n.s, nStr); const col = STRING_COLORS[n.s] || '#94a3b8'; if ((n.sus || 0) > 0) { const x2 = 90 + (dt + n.sus + behind) / (ahead + behind) * (W - 150); ctx.strokeStyle = col; ctx.globalAlpha = 0.38; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(Math.min(W - 30, x2), y); ctx.stroke(); ctx.globalAlpha = 1; } ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(x - 16, y - 12, 32, 24, 6); ctx.fill(); ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = n.ac ? 3 : 1; ctx.stroke(); ctx.fillStyle = '#020617'; ctx.font = '800 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(String(n.f), x, y + 5); ctx.textAlign = 'left'; }
       ctx.fillStyle = '#e5e7eb'; ctx.font = '700 14px system-ui'; ctx.fillText(bundle.songInfo?.title || 'SlopScale', 18, 28); ctx.fillStyle = '#94a3b8'; ctx.font = '12px system-ui'; ctx.fillText(`${now.toFixed(2)}s / ${(bundle.songInfo?.duration || 0).toFixed(2)}s`, 18, 48);
@@ -189,87 +192,98 @@
     return { init(c) { canvas = c; ctx = c.getContext('2d'); resize(); window.addEventListener('resize', resize); }, draw, resize, destroy() { window.removeEventListener('resize', resize); canvas = null; ctx = null; } };
   }
 
-  async function resolveRendererFactory() { return { factory:makeBuiltin2DRenderer, label:'Built-in 2D preview' }; }
+  function loadScriptOnce(id, src) { return new Promise((resolve, reject) => { if (document.getElementById(id)) return resolve(); const s = document.createElement('script'); s.id = id; s.src = src; s.onload = () => resolve(); s.onerror = () => reject(new Error(`Failed to load ${src}`)); document.head.appendChild(s); }); }
+  async function resolveRendererFactory(kind) {
+    if (kind === 'builtin_2d') return { factory:makeBuiltin2DRenderer, label:'Built-in 2D practice highway' };
+    if (kind === 'highway_3d') {
+      if (!window.slopsmithViz_highway_3d) await loadScriptOnce('slopscale-highway-3d-loader', '/api/plugins/highway_3d/screen.js');
+      if (typeof window.slopsmithViz_highway_3d === 'function') return { factory:window.slopsmithViz_highway_3d, label:'Existing 3D Highway' };
+      throw new Error('3D Highway renderer factory was not found.');
+    }
+    for (const [globalName, label] of [['slopsmithViz_tab_2d','Existing 2D tab renderer'], ['slopsmithViz_highway_2d','Existing 2D highway renderer'], ['slopsmithViz_classic_2d','Existing classic 2D renderer']]) if (typeof window[globalName] === 'function') return { factory:window[globalName], label };
+    throw new Error('No compatible 2D/tab renderer factory is currently exposed by Slopsmith.');
+  }
+
   function replaceCanvas() { const host = $('slopscale-render-host'), old = $('slopscale-canvas'), canvas = document.createElement('canvas'); canvas.id = 'slopscale-canvas'; canvas.style.width = '100%'; canvas.style.height = '100%'; if (old) old.replaceWith(canvas); else host.appendChild(canvas); const rect = host.getBoundingClientRect(); canvas.width = Math.max(640, Math.round(rect.width || 1280)); canvas.height = Math.max(420, Math.round(rect.height || 720)); return canvas; }
-  function stopRenderer() { playing = false; if (rafId) { cancelAnimationFrame(rafId); rafId = null; } if (renderer && typeof renderer.destroy === 'function') { try { renderer.destroy(); } catch (e) { console.warn('[SlopScale] renderer destroy failed', e); } } renderer = null; }
+  function stopAudio() { for (const n of audioNodes) { try { n.stop && n.stop(0); } catch {} try { n.disconnect && n.disconnect(); } catch {} } audioNodes = []; }
+  function stopRenderer() { playing = false; stopAudio(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } if (renderer && typeof renderer.destroy === 'function') { try { renderer.destroy(); } catch (e) { console.warn('[SlopScale] renderer destroy failed', e); } } renderer = null; }
+
   async function attachRenderer(exercise) {
-    stopRenderer(); activeBundle = makeBundle(exercise); currentPracticeTime = 0;
-    const canvas = replaceCanvas(), resolved = await resolveRendererFactory(); renderer = resolved.factory();
-    if (!renderer || typeof renderer.draw !== 'function') throw new Error('Preview renderer did not return a compatible object.');
-    if (typeof renderer.init === 'function') renderer.init(canvas, activeBundle);
+    const cfg = exercise.session; stopRenderer(); activeBundle = makeBundle(exercise); currentPracticeTime = 0;
+    const canvas = replaceCanvas(), resolved = await resolveRendererFactory(cfg.renderer); renderer = resolved.factory();
+    if (!renderer || typeof renderer.draw !== 'function') throw new Error('Selected renderer did not return a Slopsmith-compatible renderer object.');
+    if (typeof renderer.init === 'function') { renderer.init(canvas, activeBundle); if (renderer.readyPromise && typeof renderer.readyPromise.then === 'function') await renderer.readyPromise; }
     const rect = canvas.parentElement.getBoundingClientRect(); if (typeof renderer.resize === 'function') renderer.resize(Math.round(rect.width || canvas.width), Math.round(rect.height || canvas.height));
-    $('slopscale-renderer-status').textContent = `Preview: ${resolved.label}`; drawOnce();
+    $('slopscale-renderer-status').textContent = `Renderer: ${resolved.label}`; drawOnce();
   }
   function drawOnce() { if (!renderer || !activeBundle) return; activeBundle.currentTime = currentPracticeTime; renderer.draw(activeBundle); }
-  function tick(nowMs) { if (!renderer || !activeBundle) return; if (playing) { currentPracticeTime = playAnchorChartTime + (nowMs - playAnchorMs) / 1000; const duration = activeBundle.songInfo.duration || 1; if (currentPracticeTime > duration) { currentPracticeTime = 0; playAnchorChartTime = 0; playAnchorMs = nowMs; } } drawOnce(); rafId = requestAnimationFrame(tick); }
-  function startPlayback() { if (!activeBundle) return; playing = true; playAnchorChartTime = currentPracticeTime; playAnchorMs = performance.now(); if (!rafId) rafId = requestAnimationFrame(tick); }
-  function stopPlayback() { playing = false; currentPracticeTime = 0; playAnchorChartTime = 0; if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); }
+  function tick(nowMs) { if (!renderer || !activeBundle) return; if (playing) { currentPracticeTime = playAnchorChartTime + (nowMs - playAnchorMs) / 1000; const duration = activeBundle.songInfo.duration || 1; if (currentPracticeTime > duration) { currentPracticeTime = 0; playAnchorChartTime = 0; playAnchorMs = nowMs; stopAudio(); schedulePreviewAudio(activeBundle, currentPracticeTime); } } drawOnce(); rafId = requestAnimationFrame(tick); }
+
+  function scheduleTone(ctx, when, freq, dur, amp, type) {
+    const osc = ctx.createOscillator(); const gain = ctx.createGain();
+    osc.type = type || 'triangle'; osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, when);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, amp), when + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + Math.max(0.04, dur));
+    osc.connect(gain); gain.connect(ctx.destination); osc.start(when); osc.stop(when + Math.max(0.05, dur) + 0.03);
+    audioNodes.push(osc, gain);
+  }
+  function schedulePreviewAudio(bundle, fromTime) {
+    const cfg = readConfig();
+    if (!cfg.audio.notes && !cfg.audio.metronome) return;
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    const ctx = audioCtx, base = ctx.currentTime + 0.035, startFrom = fromTime || 0, opens = openMidisForConfig(cfg);
+    const duration = bundle.songInfo?.duration || 0;
+    if (cfg.audio.notes) {
+      for (const n of bundle.notes || []) {
+        if (n.t < startFrom || n.t > duration + 0.1) continue;
+        if (n.s < 0 || n.s >= opens.length || n.f < 0) continue;
+        const when = base + (n.t - startFrom);
+        const len = Math.max(0.08, Math.min(0.75, n.sus || 0.2));
+        scheduleTone(ctx, when, midiToFreq(opens[n.s] + n.f), len, 0.08, 'triangle');
+      }
+    }
+    if (cfg.audio.metronome) {
+      for (const b of bundle.beats || []) {
+        if (b.time < startFrom || b.time > duration + 0.1) continue;
+        const accent = (b.measure || -1) >= 0;
+        scheduleTone(ctx, base + (b.time - startFrom), accent ? 1760 : 1120, accent ? 0.055 : 0.04, accent ? 0.18 : 0.12, 'square');
+      }
+    }
+  }
+  function startPlayback() { if (!activeBundle) return; stopAudio(); playing = true; playAnchorChartTime = currentPracticeTime; playAnchorMs = performance.now(); schedulePreviewAudio(activeBundle, currentPracticeTime); if (!rafId) rafId = requestAnimationFrame(tick); }
+  function stopPlayback() { playing = false; currentPracticeTime = 0; playAnchorChartTime = 0; stopAudio(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); }
+
   function summarize(exercise) { const cfg = exercise.session, c = exercise.chart, meter = `${cfg.meter.numerator}/${cfg.meter.denominator}`; return [`Mode: ${cfg.mode}`, `Key/scale: ${cfg.key} ${cfg.scale}`, `BPM/meter/division: ${cfg.bpm} BPM, ${meter}, ${cfg.subdivision}`, `Position: frets ${cfg.fretMin}-${cfg.fretMax}`, `Audio: notes ${cfg.audio.notes ? 'on' : 'off'}, metronome ${cfg.audio.metronome ? 'on' : 'off'}`, `Generated: ${c.notes.length} notes, ${c.chords.length} chords, ${c.chordTemplates.length} templates, ${c.handShapes.length} hand shapes, ${c.beats.length} beats`, `Duration: ${c.duration.toFixed(2)}s`].join('\n'); }
   async function onGenerate() { const status = $('slopscale-chart-status'), summary = $('slopscale-summary'); try { const exercise = generateExercise(readConfig()); status.textContent = 'Chart: generated'; summary.textContent = summarize(exercise); await attachRenderer(exercise); } catch (e) { status.textContent = 'Chart: error'; summary.textContent = `Error: ${e.message || e}`; console.error('[SlopScale] generate failed', e); } }
 
   async function launchInMainPlayer() {
-    const launchStatus = $('slopscale-launch-status');
-    const summary = $('slopscale-summary');
+    const launchStatus = $('slopscale-launch-status'); const summary = $('slopscale-summary');
     try {
-      const exercise = generateExercise(readConfig());
-      launchStatus.textContent = 'Launch: building temporary chart...';
-      summary.textContent = summarize(exercise) + '\n\nBuilding temporary Sloppak...';
-
-      const response = await fetch(`/api/plugins/${PLUGIN_ID}/temp-sloppak`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ exercise })
-      });
+      const exercise = generateExercise(readConfig()); launchStatus.textContent = 'Launch: building temporary chart...'; summary.textContent = summarize(exercise) + '\n\nBuilding temporary Sloppak...';
+      const response = await fetch(`/api/plugins/${PLUGIN_ID}/temp-sloppak`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ exercise }) });
       if (!response.ok) throw new Error(await response.text());
-      const data = await response.json();
-
-      try { sessionStorage.setItem(RETURN_KEY, '1'); } catch {}
-      try { localStorage.setItem('vizSelection', 'highway_3d'); localStorage.setItem('viz', 'highway_3d'); } catch {}
-      if (typeof window.setViz === 'function') { try { window.setViz('highway_3d'); } catch {} }
-
-      stopRenderer();
-      launchStatus.textContent = `Launch: opening ${data.title || 'practice chart'}`;
-      const filename = data.filename;
-      if (typeof window.playSong === 'function') {
-        try {
-          await window.playSong(filename, 0);
-        } catch (rawErr) {
-          await window.playSong(encodeURIComponent(filename), 0);
-        }
-        return;
-      }
-      throw new Error('Slopsmith playSong() is not available to SlopScale.');
-    } catch (e) {
-      try { sessionStorage.removeItem(RETURN_KEY); } catch {}
-      launchStatus.textContent = 'Launch: error';
-      summary.textContent += `\n\nLaunch failed: ${e.message || e}`;
-      console.error('[SlopScale] launch failed', e);
-    }
+      const data = await response.json(); try { sessionStorage.setItem(RETURN_KEY, '1'); } catch {}
+      stopRenderer(); launchStatus.textContent = `Launch: opening ${data.title || 'practice chart'}`;
+      if (typeof window.playSong !== 'function') throw new Error('Slopsmith playSong() is not available.');
+      try { await window.playSong(data.filename, 0); } catch { await window.playSong(encodeURIComponent(data.filename), 0); }
+    } catch (e) { try { sessionStorage.removeItem(RETURN_KEY); } catch {} launchStatus.textContent = 'Launch: unavailable'; summary.textContent += `\n\nLaunch failed: ${e.message || e}\n\nPreview playback still works. If this says Not Found, Slopsmith did not load the SlopScale backend routes; restart Slopsmith Desktop after updating the plugin.`; console.error('[SlopScale] launch failed', e); }
   }
-
   async function savePreset() { const cfg = readConfig(), name = `${cfg.key} ${cfg.scale} ${cfg.mode}`, id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36); const res = await fetch(`/api/plugins/${PLUGIN_ID}/presets`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ id, name, kind:cfg.mode, config:cfg }) }); if (!res.ok) throw new Error(await res.text()); $('slopscale-summary').textContent += `\n\nSaved preset: ${name}`; }
 
   function installEscapeReturnHandler() {
-    if (window.__slopscaleEscapeReturnInstalled) return;
-    window.__slopscaleEscapeReturnInstalled = true;
+    if (window.__slopscaleEscapeReturnInstalled) return; window.__slopscaleEscapeReturnInstalled = true;
     document.addEventListener('keydown', (event) => {
-      if (event.key !== 'Escape') return;
-      let shouldReturn = false;
-      try { shouldReturn = sessionStorage.getItem(RETURN_KEY) === '1'; } catch {}
-      if (!shouldReturn) return;
-      const active = document.querySelector('.screen.active');
-      if (!active || active.id !== 'player') return;
-      event.preventDefault();
-      event.stopPropagation();
-      try { sessionStorage.removeItem(RETURN_KEY); } catch {}
+      if (event.key !== 'Escape') return; let shouldReturn = false; try { shouldReturn = sessionStorage.getItem(RETURN_KEY) === '1'; } catch {}
+      if (!shouldReturn) return; const active = document.querySelector('.screen.active'); if (!active || active.id !== 'player') return;
+      event.preventDefault(); event.stopPropagation(); try { sessionStorage.removeItem(RETURN_KEY); } catch {}
       if (window.highway && typeof window.highway.stop === 'function') { try { window.highway.stop(); } catch {} }
-      goScreen('plugin-slopscale');
+      goScreen('slopscale');
     }, true);
   }
-
   function bind() {
-    const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1';
-    installEscapeReturnHandler();
+    const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1'; installEscapeReturnHandler();
     $('slopscale-launch-main')?.addEventListener('click', launchInMainPlayer);
     $('slopscale-generate').addEventListener('click', onGenerate); $('slopscale-play').addEventListener('click', startPlayback); $('slopscale-stop').addEventListener('click', stopPlayback);
     $('slopscale-save').addEventListener('click', () => savePreset().catch(e => { $('slopscale-summary').textContent += `\n\nPreset save failed: ${e.message || e}`; }));
