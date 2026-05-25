@@ -447,6 +447,54 @@
     return { notes, chords:[], chordTemplates:[], handShapes:[], sections:[{ name:`scale-${cfg.fretboardSystem || 'position'}`, number:1, time:0 }], duration };
   }
 
+  function sweepArpeggioPositions(cfg, rootPc, quality, anchorFret) {
+    const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj;
+    const intervalPcs = new Set(formula.intervals.map(iv => (rootPc + iv) % 12));
+    const opens = openMidisForConfig(cfg), out = [];
+    const fLo = Math.max(0, cfg.fretMin), fHi = Math.min(24, cfg.fretMax);
+    for (let s = 0; s < cfg.stringCount; s++) {
+      let best = null, bestDist = 999;
+      for (let f = fLo; f <= fHi; f++) {
+        const midi = opens[s] + f, pc = midi % 12;
+        if (!intervalPcs.has(pc)) continue;
+        const dist = Math.abs(f - anchorFret);
+        if (dist < bestDist) { best = { s, f, midi, pc }; bestDist = dist; }
+      }
+      if (best) out.push(best);
+    }
+    return out;
+  }
+
+  function buildSweepArpeggioExercise(cfg) {
+    const degrees = progressionDegreesForConfig(cfg);
+    const mLen = measureSeconds(cfg), step = secondsPerDivision(cfg);
+    const totalBars = Math.max(1, cfg.bars), duration = totalBars * mLen;
+    const notesPerBar = Math.max(1, Math.round(mLen / step));
+    const anchorFret = Math.floor((cfg.fretMin + cfg.fretMax) / 2);
+    const notes = [], chordTemplates = [], chords = [], handShapes = [], sections = [];
+    for (let bar = 0; bar < totalBars; bar++) {
+      const degree = degrees[bar % degrees.length];
+      const rootPc = chordRootForDegree(cfg, degree);
+      const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride);
+      const positions = sweepArpeggioPositions(cfg, rootPc, quality, anchorFret);
+      if (!positions.length) continue;
+      const path = directedPath(positions, cfg.direction, cfg.repeatCount);
+      if (!path.length) continue;
+      const barStart = bar * mLen;
+      const name = chordName(rootPc, quality), templateId = chordTemplates.length;
+      chordTemplates.push(templateFromPositions(name, positions, cfg, true));
+      chords.push({ t:Number(barStart.toFixed(6)), id:templateId, hd:false, notes:positions.map(p => noteDefaults({ s:p.s, f:p.f, sus:0 })) });
+      handShapes.push({ chord_id:templateId, start_time:Number(barStart.toFixed(6)), end_time:Number((barStart + mLen).toFixed(6)), arp:true });
+      sections.push({ name, number:templateId + 1, time:Number(barStart.toFixed(6)) });
+      const limit = Math.min(notesPerBar, path.length);
+      for (let i = 0; i < limit; i++) {
+        const p = path[i];
+        notes.push(noteDefaults({ t:Number((barStart + i * step).toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * 0.6), ac:i === 0 }));
+      }
+    }
+    return { notes, chords, chordTemplates, handShapes, sections:sections.length ? sections : [{ name:'sweep-arpeggios', number:1, time:0 }], duration };
+  }
+
   function buildArpeggioExercise(cfg, degrees) {
     const step = secondsPerDivision(cfg), mLen = measureSeconds(cfg);
     const chordTemplates = [], chords = [], handShapes = [], notes = [], sections = [];
@@ -476,6 +524,7 @@
   function generateExercise(cfg) {
     const chart = cfg.mode === 'scale' ? buildScaleExercise(cfg)
       : cfg.mode === 'chord_scales' ? buildChordScaleExercise(cfg)
+      : cfg.mode === 'sweep_arpeggios' ? buildSweepArpeggioExercise(cfg)
       : buildArpeggioExercise(cfg, progressionDegreesForConfig(cfg));
     const duration = Math.max(chart.duration || 0, cfg.bars * measureSeconds(cfg));
     return { version:1, session:cfg, chart:Object.assign({}, chart, { beats:buildBeats(cfg, duration), anchors:buildAnchors(cfg, duration), duration }) };

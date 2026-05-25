@@ -132,6 +132,17 @@
 
   <section class="slopscale-layout">
     <form id="slopscale-controls" class="slopscale-panel slopscale-controls">
+
+      <div class="slopscale-group-title">Pathway</div>
+      <label>Practice pathway
+        <select name="pathway" id="slopscale-pathway">
+          <option value="custom" selected="selected">Custom — full control</option>
+          <optgroup label="Curated" id="slopscale-pathway-curated"></optgroup>
+          <optgroup label="Favorites" id="slopscale-pathway-favorites" hidden=""></optgroup>
+        </select>
+        <span class="slopscale-help" id="slopscale-pathway-goal" style="margin-top:2px;">Pick a focused routine, or stay on Custom for full control. Saved presets appear under Favorites.</span>
+      </label>
+
       <div class="slopscale-group-title">Routine</div>
       <label class="slopscale-toggle"><input name="advancedMode" id="slopscale-advanced-toggle" type="checkbox"> Advanced controls</label>
 
@@ -141,6 +152,7 @@
           <option value="chord_scales">Scales over changes</option>
           <option value="diatonic_arpeggios">Diatonic arpeggios</option>
           <option value="progression_arpeggios">Progression arpeggios</option>
+          <option value="sweep_arpeggios">Sweep arpeggios</option>
         </select>
       </label>
 
@@ -318,6 +330,197 @@
 </div>
 
 <script>
+/* ── Practice Pathways ──
+   Curated routines that pre-fill the form. Each pathway has a base config and
+   an optional vary[] list; on selection we pick one vary entry at random and
+   overlay it on base so the same pathway doesn't generate the same exercise
+   twice. Favorites are loaded from /api/plugins/slopscale/presets. */
+(function initSlopScalePathways() {
+  const form          = document.getElementById('slopscale-controls');
+  const select        = document.getElementById('slopscale-pathway');
+  const curatedGroup  = document.getElementById('slopscale-pathway-curated');
+  const favoritesGroup= document.getElementById('slopscale-pathway-favorites');
+  const goalCaption   = document.getElementById('slopscale-pathway-goal');
+  if (!form || !select) return;
+
+  const PATHWAYS = {
+    pent_foundation: {
+      label: 'Pentatonic Foundation',
+      goal: 'Build muscle memory in minor pentatonic box 1 — the universal rock/blues vocabulary.',
+      base: { practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth',
+              bpm:80, bars:4, direction:'up_down', sequence:'none', advancedMode:true,
+              fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d' },
+      vary: [
+        { key:'A', fretMin:5,  fretMax:8  },
+        { key:'E', fretMin:0,  fretMax:3  },
+        { key:'D', fretMin:10, fretMax:13 },
+        { key:'G', fretMin:3,  fretMax:6  },
+        { key:'C', fretMin:8,  fretMax:11 }
+      ]
+    },
+    chord_tone_targeting: {
+      label: 'Chord Tone Targeting',
+      goal: 'Keep the key\'s scale, but watch the accents shift to chord tones as the progression moves. Trains chord-tone awareness inside familiar scale shapes.',
+      base: { practiceType:'chord_scales', chordScaleStrategy:'chord_tone_emphasis',
+              scale:'major', chordDepth:'seventh', chordOverride:'auto',
+              meter:'4/4', subdivision:'eighth', bpm:90, bars:8,
+              direction:'ascending', sequence:'fours', advancedMode:true,
+              fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d',
+              fretMin:0, fretMax:7 },
+      vary: [
+        { key:'C', progression:'diatonic'  },
+        { key:'C', progression:'I-IV-V'    },
+        { key:'G', progression:'I-V-vi-IV' },
+        { key:'D', progression:'I-vi-IV-V' },
+        { key:'A', progression:'vi-IV-I-V' }
+      ]
+    },
+    modal_awareness: {
+      label: 'Modal Awareness',
+      goal: 'Each chord gets its own mode. Uses dom7 override so the scale audibly shifts per chord — bar 1 has Bb, bar 2 has F#, etc.',
+      base: { practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment',
+              scale:'major', chordDepth:'seventh', chordOverride:'dom7',
+              progression:'diatonic', meter:'4/4', subdivision:'eighth',
+              bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true,
+              fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d',
+              fretMin:0, fretMax:7 },
+      vary: [ { key:'C' }, { key:'G' }, { key:'D' }, { key:'A' }, { key:'F' } ]
+    },
+    diatonic_triad_drill: {
+      label: 'Diatonic Triad Drill',
+      goal: 'Triad arpeggio of every diatonic chord, in order. The 7-chord lap.',
+      base: { practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'triad',
+              chordOverride:'auto', meter:'4/4', subdivision:'eighth',
+              bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true,
+              fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d',
+              fretMin:0, fretMax:7 },
+      vary: [ { key:'C' }, { key:'G' }, { key:'D' }, { key:'A' }, { key:'E' }, { key:'F' } ]
+    },
+    seventh_vocab: {
+      label: 'Seventh Chord Vocabulary',
+      goal: 'Diatonic seventh arpeggios. The jazz starter — maj7, m7, m7, maj7, dom7, m7, m7b5.',
+      base: { practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'seventh',
+              chordOverride:'auto', meter:'4/4', subdivision:'eighth',
+              bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true,
+              fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d',
+              fretMin:0, fretMax:7 },
+      vary: [ { key:'C' }, { key:'F' }, { key:'Bb' }, { key:'G' }, { key:'D' } ]
+    },
+    ii_V_I_workout: {
+      label: 'ii–V–I Workout',
+      goal: 'The most common jazz cadence, run as scales over the changes. Mode-of-the-moment so Dorian / Mixolydian / Ionian land audibly.',
+      base: { practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment',
+              scale:'major', chordDepth:'seventh', chordOverride:'auto',
+              progression:'ii-V-I', meter:'4/4', subdivision:'eighth',
+              bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true,
+              fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d',
+              fretMin:0, fretMax:7 },
+      vary: [ { key:'C' }, { key:'F' }, { key:'Bb' }, { key:'G' }, { key:'D' }, { key:'A' } ]
+    },
+    harmonic_minor_exotic: {
+      label: 'Harmonic Minor Exotic',
+      goal: 'Yngwie / flamenco flavor. Harmonic-minor scale, mode-of-the-moment, every chord is dom7 so each bar lands the raised 7th outside the key.',
+      base: { practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment',
+              scale:'harmonic_minor', chordDepth:'seventh', chordOverride:'dom7',
+              progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth',
+              bpm:110, bars:8, direction:'up_down', sequence:'fours', advancedMode:true,
+              fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d',
+              fretMin:5, fretMax:12 },
+      vary: [
+        { key:'A', fretMin:5,  fretMax:12 },
+        { key:'E', fretMin:7,  fretMax:14 },
+        { key:'D', fretMin:5,  fretMax:12 },
+        { key:'B', fretMin:7,  fretMax:14 }
+      ]
+    },
+    sweep_primer: {
+      label: 'Sweep Arpeggio Primer',
+      goal: 'One chord tone per string, swept up and down. Start slow, build tempo. Mode-of-the-moment chord shapes across the diatonic progression.',
+      base: { practiceType:'sweep_arpeggios', scale:'major', chordDepth:'triad',
+              chordOverride:'auto', progression:'diatonic',
+              meter:'4/4', subdivision:'sixteenth', bpm:90, bars:8,
+              direction:'up_down', sequence:'none', advancedMode:true,
+              fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d' },
+      vary: [
+        { key:'A', scale:'natural_minor', fretMin:5,  fretMax:12 },
+        { key:'E', scale:'natural_minor', fretMin:7,  fretMax:14 },
+        { key:'C', scale:'major',         fretMin:3,  fretMax:10 },
+        { key:'G', scale:'major',         fretMin:5,  fretMax:12 },
+        { key:'D', scale:'major',         fretMin:7,  fretMax:14 }
+      ]
+    }
+  };
+
+  // Populate the curated optgroup once.
+  Object.keys(PATHWAYS).forEach(id => {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = PATHWAYS[id].label;
+    curatedGroup.appendChild(opt);
+  });
+
+  function setField(name, value) {
+    const field = form.querySelector('[name="' + name + '"]');
+    if (!field) return;
+    if (field.type === 'checkbox') field.checked = !!value;
+    else field.value = String(value);
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+    field.dispatchEvent(new Event('input',  { bubbles: true }));
+  }
+
+  function applyConfig(config) {
+    if (!config) return;
+    // Apply advancedMode first so dependent fields are mounted/visible when set.
+    if (Object.prototype.hasOwnProperty.call(config, 'advancedMode')) {
+      setField('advancedMode', config.advancedMode);
+    }
+    Object.keys(config).forEach(k => { if (k !== 'advancedMode') setField(k, config[k]); });
+  }
+
+  function applyPathway(id) {
+    if (id === 'custom') {
+      goalCaption.textContent = 'Pick a focused routine, or stay on Custom for full control.';
+      return;
+    }
+    const pw = PATHWAYS[id];
+    if (pw && pw.base) {
+      const variation = pw.vary && pw.vary.length ? pw.vary[Math.floor(Math.random() * pw.vary.length)] : {};
+      applyConfig(Object.assign({}, pw.base, variation));
+      goalCaption.textContent = 'Goal: ' + pw.goal;
+      return;
+    }
+    // Favorite preset
+    const preset = window.__slopscaleFavorites && window.__slopscaleFavorites[id];
+    if (preset && preset.config) {
+      applyConfig(preset.config);
+      goalCaption.textContent = 'Favorite: ' + (preset.name || preset.id);
+    }
+  }
+
+  select.addEventListener('change', () => applyPathway(select.value));
+
+  // Load favorites (saved presets) asynchronously and populate the optgroup.
+  (function loadFavorites() {
+    fetch('/api/plugins/slopscale/presets')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const presets = (data && Array.isArray(data.presets)) ? data.presets : [];
+        if (!presets.length) return;
+        window.__slopscaleFavorites = {};
+        presets.forEach(p => {
+          if (!p || !p.id) return;
+          window.__slopscaleFavorites['fav__' + p.id] = p;
+          const opt = document.createElement('option');
+          opt.value = 'fav__' + p.id;
+          opt.textContent = p.name || p.id;
+          favoritesGroup.appendChild(opt);
+        });
+        if (favoritesGroup.children.length) favoritesGroup.hidden = false;
+      })
+      .catch(() => { /* presets API not reachable; favorites stay hidden */ });
+  })();
+})();
+
 (function initCagedShapeButtons() {
   const form      = document.getElementById('slopscale-controls');
   const sysSelect = document.getElementById('slopscale-fretboard-system');
