@@ -43,6 +43,16 @@
   function $(id) { return document.getElementById(id); }
   function pcName(pc) { return NOTE_NAMES[((pc % 12) + 12) % 12]; }
   function midiToFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
+  function localStorageValue(key, fallback) { try { const v = localStorage.getItem(key); return v === null ? fallback : v; } catch { return fallback; } }
+  function readHighwayInverted() { return localStorageValue('invertHighway', 'false') === 'true'; }
+  function readLefty() { return localStorageValue('lefty', '0') === '1'; }
+  function readRenderScale() { const n = parseFloat(localStorageValue('renderScale', '1')); return Number.isFinite(n) && n > 0 ? n : 1; }
+  function syncHighwaySettings(bundle) {
+    if (!bundle) return;
+    bundle.inverted = readHighwayInverted();
+    bundle.lefty = readLefty();
+    bundle.renderScale = readRenderScale();
+  }
 
   function goScreen(id) {
     if (window.slopsmith && typeof window.slopsmith.navigate === 'function') { window.slopsmith.navigate(id); return; }
@@ -230,33 +240,39 @@
 
   function makeBundle(exercise) {
     const cfg = exercise.session, c = exercise.chart;
-    return {
+    const bundle = {
       currentTime:0,
       songInfo:{ title:`SlopScale ${cfg.mode}`, artist:'SlopScale', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'slopscale-practice' },
       isReady:true, notes:c.notes, chords:c.chords, anchors:c.anchors, beats:c.beats, sections:c.sections, chordTemplates:c.chordTemplates, handShapes:c.handShapes,
       stringCount:cfg.stringCount, tuning:tuningOffsetsForConfig(cfg), capo:0,
       lyrics:[], toneChanges:[], toneBase:'', drumTab:null, mastery:1, hasPhraseData:false,
-      inverted:false, lefty:false, renderScale:1, lyricsVisible:false, project:null, fretX:null,
+      inverted:readHighwayInverted(), lefty:readLefty(), renderScale:readRenderScale(), lyricsVisible:false, project:null, fretX:null,
       getNoteState:function(){return null;}, getNoteStateProvider:function(){return null;}
     };
+    syncHighwaySettings(bundle);
+    return bundle;
   }
 
   function makeBuiltin2DRenderer() {
     let canvas = null, ctx = null, W = 0, H = 0;
     function resize() { if (!canvas) return; const r = canvas.parentElement.getBoundingClientRect(); W = Math.max(640, Math.round(r.width || 1280)); H = Math.max(420, Math.round(r.height || 720)); canvas.width = W; canvas.height = H; }
-    function laneY(s, count) { const top = 95, bottom = H - 58; return bottom - (s * ((bottom - top) / Math.max(1, count - 1))); }
+    function laneY(s, count, inverted) {
+      const top = 95, bottom = H - 58;
+      const visualIndex = inverted ? s : (count - 1 - s);
+      return bottom - (visualIndex * ((bottom - top) / Math.max(1, count - 1)));
+    }
     function draw(bundle) {
       if (!ctx || !bundle) return;
       resize();
-      const now = bundle.currentTime || 0, ahead = 8, behind = 1.5, nStr = Math.max(1, bundle.stringCount || 6);
+      const now = bundle.currentTime || 0, ahead = 8, behind = 1.5, nStr = Math.max(1, bundle.stringCount || 6), inverted = !!bundle.inverted;
       ctx.fillStyle = '#050711'; ctx.fillRect(0, 0, W, H);
       const grad = ctx.createLinearGradient(0, 0, 0, H); grad.addColorStop(0, '#08111f'); grad.addColorStop(1, '#050711'); ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
       ctx.strokeStyle = 'rgba(148,163,184,0.25)'; ctx.lineWidth = 1;
-      for (let s = 0; s < nStr; s++) { const y = laneY(s, nStr); ctx.beginPath(); ctx.moveTo(54, y); ctx.lineTo(W - 32, y); ctx.stroke(); ctx.fillStyle = STRING_COLORS[s] || '#94a3b8'; ctx.font = '700 12px system-ui'; ctx.fillText(`S${s + 1}`, 18, y + 4); }
+      for (let s = 0; s < nStr; s++) { const y = laneY(s, nStr, inverted); ctx.beginPath(); ctx.moveTo(54, y); ctx.lineTo(W - 32, y); ctx.stroke(); ctx.fillStyle = STRING_COLORS[s] || '#94a3b8'; ctx.font = '700 12px system-ui'; ctx.fillText(`S${s + 1}`, 18, y + 4); }
       for (const b of bundle.beats || []) { const dt = b.time - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); ctx.strokeStyle = b.measure >= 0 ? 'rgba(96,165,250,0.55)' : 'rgba(148,163,184,0.18)'; ctx.beginPath(); ctx.moveTo(x, 72); ctx.lineTo(x, H - 36); ctx.stroke(); if (b.measure >= 0) { ctx.fillStyle = '#93c5fd'; ctx.font = '11px system-ui'; ctx.fillText(String(b.measure), x + 4, 66); } }
       ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 2; const playX = 90 + behind / (ahead + behind) * (W - 150); ctx.beginPath(); ctx.moveTo(playX, 60); ctx.lineTo(playX, H - 36); ctx.stroke();
       for (const ch of bundle.chords || []) { const dt = ch.t - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); const name = bundle.chordTemplates?.[ch.id]?.displayName || bundle.chordTemplates?.[ch.id]?.name || ''; ctx.fillStyle = 'rgba(168,85,247,0.18)'; ctx.fillRect(x - 38, 24, 76, 28); ctx.strokeStyle = 'rgba(168,85,247,0.75)'; ctx.strokeRect(x - 38, 24, 76, 28); ctx.fillStyle = '#e9d5ff'; ctx.font = '700 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(name, x, 43); ctx.textAlign = 'left'; }
-      for (const n of bundle.notes || []) { const dt = n.t - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); const y = laneY(n.s, nStr); const col = STRING_COLORS[n.s] || '#94a3b8'; if ((n.sus || 0) > 0) { const x2 = 90 + (dt + n.sus + behind) / (ahead + behind) * (W - 150); ctx.strokeStyle = col; ctx.globalAlpha = 0.38; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(Math.min(W - 30, x2), y); ctx.stroke(); ctx.globalAlpha = 1; } ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(x - 16, y - 12, 32, 24, 6); ctx.fill(); ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = n.ac ? 3 : 1; ctx.stroke(); ctx.fillStyle = '#020617'; ctx.font = '800 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(String(n.f), x, y + 5); ctx.textAlign = 'left'; }
+      for (const n of bundle.notes || []) { const dt = n.t - now; if (dt < -behind || dt > ahead) continue; const x = 90 + (dt + behind) / (ahead + behind) * (W - 150); const y = laneY(n.s, nStr, inverted); const col = STRING_COLORS[n.s] || '#94a3b8'; if ((n.sus || 0) > 0) { const x2 = 90 + (dt + n.sus + behind) / (ahead + behind) * (W - 150); ctx.strokeStyle = col; ctx.globalAlpha = 0.38; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(Math.min(W - 30, x2), y); ctx.stroke(); ctx.globalAlpha = 1; } ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(x - 16, y - 12, 32, 24, 6); ctx.fill(); ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = n.ac ? 3 : 1; ctx.stroke(); ctx.fillStyle = '#020617'; ctx.font = '800 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(String(n.f), x, y + 5); ctx.textAlign = 'left'; }
       ctx.fillStyle = '#e5e7eb'; ctx.font = '700 14px system-ui'; ctx.fillText(bundle.songInfo?.title || 'SlopScale', 18, 28); ctx.fillStyle = '#94a3b8'; ctx.font = '12px system-ui'; ctx.fillText(`${now.toFixed(2)}s / ${(bundle.songInfo?.duration || 0).toFixed(2)}s`, 18, 48);
     }
     return { init(c) { canvas = c; ctx = c.getContext('2d'); resize(); window.addEventListener('resize', resize); }, draw, resize, destroy() { window.removeEventListener('resize', resize); canvas = null; ctx = null; } };
@@ -289,7 +305,7 @@
     if (typeof renderer.resize === 'function') renderer.resize(Math.round(rect.width || canvas.width), Math.round(rect.height || canvas.height));
     $('slopscale-renderer-status').textContent = `Renderer: ${resolved.label}`; drawOnce();
   }
-  function drawOnce() { if (!renderer || !activeBundle) return; activeBundle.currentTime = currentPracticeTime; renderer.draw(activeBundle); }
+  function drawOnce() { if (!renderer || !activeBundle) return; syncHighwaySettings(activeBundle); activeBundle.currentTime = currentPracticeTime; renderer.draw(activeBundle); }
   function tick(nowMs) {
     if (!renderer || !activeBundle) return;
     if (playing) {
@@ -336,15 +352,8 @@
     gain.gain.setValueAtTime(0.0001, when); gain.gain.exponentialRampToValueAtTime(accent ? 0.14 : 0.09, when + 0.002); gain.gain.exponentialRampToValueAtTime(0.0001, when + (accent ? 0.055 : 0.04));
     osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination); osc.start(when); osc.stop(when + 0.07); audioNodes.push(osc, filter, gain);
   }
-  function chordFrequencies(chord, opens) {
-    const out = [];
-    for (const n of chord.notes || []) if (n.s >= 0 && n.s < opens.length && n.f >= 0) out.push(midiToFreq(opens[n.s] + n.f));
-    return out.sort((a,b) => a - b);
-  }
-  function nextChordTime(bundle, index, fallback) {
-    const next = (bundle.chords || [])[index + 1];
-    return next ? next.t : fallback;
-  }
+  function chordFrequencies(chord, opens) { const out = []; for (const n of chord.notes || []) if (n.s >= 0 && n.s < opens.length && n.f >= 0) out.push(midiToFreq(opens[n.s] + n.f)); return out.sort((a,b) => a - b); }
+  function nextChordTime(bundle, index, fallback) { const next = (bundle.chords || [])[index + 1]; return next ? next.t : fallback; }
   function schedulePreviewAudio(bundle, fromTime, delaySeconds) {
     const cfg = readConfig();
     if (!cfg.audio.notes && !cfg.audio.metronome && !cfg.audio.harmony) return;
@@ -367,7 +376,7 @@
     }
     if (cfg.audio.metronome) for (const b of bundle.beats || []) { if (b.time < startFrom || b.time > duration + 0.1) continue; scheduleClick(ctx, base + (b.time - startFrom), (b.measure || -1) >= 0); }
   }
-  function startPlayback() { if (!activeBundle) return; stopAudio(); playing = true; playAnchorChartTime = currentPracticeTime; playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000; schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS); if (!rafId) rafId = requestAnimationFrame(tick); }
+  function startPlayback() { if (!activeBundle) return; stopAudio(); syncHighwaySettings(activeBundle); playing = true; playAnchorChartTime = currentPracticeTime; playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000; schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS); if (!rafId) rafId = requestAnimationFrame(tick); }
   function stopPlayback() { playing = false; currentPracticeTime = 0; playAnchorChartTime = 0; stopAudio(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); }
 
   function summarize(exercise) {
@@ -376,6 +385,7 @@
       `Mode: ${cfg.mode}`,
       `Pattern: ${cfg.mode === 'scale' ? '3-notes-per-string default' : 'position-constrained arpeggio sequence'}`,
       `Instrument: ${cfg.setupLabel}`,
+      `Highway inverted: ${readHighwayInverted() ? 'on' : 'off'}`,
       `Key/scale: ${cfg.key} ${cfg.scale}`,
       `BPM/meter/division: ${cfg.bpm} BPM, ${meter}, ${cfg.subdivision}`,
       `Position: frets ${cfg.fretMin}-${cfg.fretMax}`,
@@ -396,6 +406,7 @@
     $('slopscale-summary').textContent += `\n\nSaved preset: ${name}`;
   }
   function syncStringSetupControls() { const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'); if (!instrument || !setup) return; const current = STRING_SETUPS[setup.value] || STRING_SETUPS.guitar_6_standard; instrument.value = current.instrument; }
+  function refreshForHostSettingChange() { if (!activeBundle) return; syncHighwaySettings(activeBundle); drawOnce(); const summary = $('slopscale-summary'); if (summary && summary.textContent.includes('Highway inverted:')) summary.textContent = summarize({ session:readConfig(), chart:{ notes:activeBundle.notes || [], chords:activeBundle.chords || [], chordTemplates:activeBundle.chordTemplates || [], handShapes:activeBundle.handShapes || [], beats:activeBundle.beats || [], duration:activeBundle.songInfo?.duration || 0 } }); }
   function bind() {
     const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1';
     const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]');
@@ -406,6 +417,9 @@
     $('slopscale-go-library')?.addEventListener('click', () => { stopRenderer(); goScreen('home'); });
     $('slopscale-go-plugins')?.addEventListener('click', () => { stopRenderer(); goScreen('plugins'); });
     $('slopscale-controls').addEventListener('change', () => { if (activeBundle) onGenerate(); });
+    window.addEventListener('storage', (ev) => { if (ev.key === 'invertHighway' || ev.key === 'lefty' || ev.key === 'renderScale') refreshForHostSettingChange(); });
+    window.addEventListener('focus', refreshForHostSettingChange);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshForHostSettingChange(); });
     onGenerate(); return true;
   }
   function boot() { if (bind()) return; let tries = 0; const timer = setInterval(() => { tries += 1; if (bind() || tries > 40) clearInterval(timer); }, 250); }
