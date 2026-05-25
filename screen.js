@@ -83,6 +83,58 @@
     dim:'locrian', min7b5:'locrian', dim7:'locrian',
     aug:'major', sus4:'mixolydian', add9:'major'
   };
+  const PATHWAYS = {
+    pent_foundation: {
+      label:'Pentatonic Foundation',
+      goal:'Build muscle memory in minor pentatonic box 1 — the universal rock/blues vocabulary.',
+      base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:80, bars:4, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d' },
+      vary:[ { key:'A', fretMin:5, fretMax:8 }, { key:'E', fretMin:0, fretMax:3 }, { key:'D', fretMin:10, fretMax:13 }, { key:'G', fretMin:3, fretMax:6 }, { key:'C', fretMin:8, fretMax:11 } ]
+    },
+    chord_tone_targeting: {
+      label:'Chord Tone Targeting',
+      goal:"Keep the key's scale, but watch the accents shift to chord tones as the progression moves. Trains chord-tone awareness inside familiar scale shapes.",
+      base:{ practiceType:'chord_scales', chordScaleStrategy:'chord_tone_emphasis', scale:'major', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'ascending', sequence:'fours', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
+      vary:[ { key:'C', progression:'diatonic' }, { key:'C', progression:'I-IV-V' }, { key:'G', progression:'I-V-vi-IV' }, { key:'D', progression:'I-vi-IV-V' }, { key:'A', progression:'vi-IV-I-V' } ]
+    },
+    modal_awareness: {
+      label:'Modal Awareness',
+      goal:'Each chord gets its own mode. Uses dom7 override so the scale audibly shifts per chord — bar 1 has Bb, bar 2 has F#, etc.',
+      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', chordDepth:'seventh', chordOverride:'dom7', progression:'diatonic', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
+      vary:[ { key:'C' }, { key:'G' }, { key:'D' }, { key:'A' }, { key:'F' } ]
+    },
+    diatonic_triad_drill: {
+      label:'Diatonic Triad Drill',
+      goal:'Triad arpeggio of every diatonic chord, in order. The 7-chord lap.',
+      base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'triad', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
+      vary:[ { key:'C' }, { key:'G' }, { key:'D' }, { key:'A' }, { key:'E' }, { key:'F' } ]
+    },
+    seventh_vocab: {
+      label:'Seventh Chord Vocabulary',
+      goal:'Diatonic seventh arpeggios. The jazz starter — maj7, m7, m7, maj7, dom7, m7, m7b5.',
+      base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
+      vary:[ { key:'C' }, { key:'F' }, { key:'Bb' }, { key:'G' }, { key:'D' } ]
+    },
+    ii_V_I_workout: {
+      label:'ii–V–I Workout',
+      goal:'The most common jazz cadence, run as scales over the changes. Mode-of-the-moment so Dorian / Mixolydian / Ionian land audibly.',
+      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', chordDepth:'seventh', chordOverride:'auto', progression:'ii-V-I', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
+      vary:[ { key:'C' }, { key:'F' }, { key:'Bb' }, { key:'G' }, { key:'D' }, { key:'A' } ]
+    },
+    harmonic_minor_exotic: {
+      label:'Harmonic Minor Exotic',
+      goal:'Yngwie / flamenco flavor. Harmonic-minor scale, mode-of-the-moment, every chord is dom7 so each bar lands the raised 7th outside the key.',
+      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'harmonic_minor', chordDepth:'seventh', chordOverride:'dom7', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:110, bars:8, direction:'up_down', sequence:'fours', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:5, fretMax:12 },
+      vary:[ { key:'A', fretMin:5, fretMax:12 }, { key:'E', fretMin:7, fretMax:14 }, { key:'D', fretMin:5, fretMax:12 }, { key:'B', fretMin:7, fretMax:14 } ]
+    },
+    sweep_primer: {
+      label:'Sweep Arpeggio Primer',
+      goal:'One chord tone per string, swept up and down. Start slow, build tempo. Mode-of-the-moment chord shapes across the diatonic progression.',
+      base:{ practiceType:'sweep_arpeggios', scale:'major', chordDepth:'triad', chordOverride:'auto', progression:'diatonic', meter:'4/4', subdivision:'sixteenth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d' },
+      vary:[ { key:'A', scale:'natural_minor', fretMin:5, fretMax:12 }, { key:'E', scale:'natural_minor', fretMin:7, fretMax:14 }, { key:'C', scale:'major', fretMin:3, fretMax:10 }, { key:'G', scale:'major', fretMin:5, fretMax:12 }, { key:'D', scale:'major', fretMin:7, fretMax:14 } ]
+    }
+  };
+  const PATHWAY_STORAGE_KEY = 'slopscale.lastPathway';
+  const PATHWAY_FIRST_VISIT_DEFAULT = 'pent_foundation';
 
   let renderer = null, activeBundle = null, rafId = null;
   let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
@@ -701,6 +753,79 @@
     root?.classList.toggle('slopscale-advanced', enabled);
     document.querySelectorAll('.slopscale-advanced-only input, .slopscale-advanced-only select, .slopscale-advanced-only textarea, .slopscale-advanced-only button').forEach(el => { el.disabled = !enabled; });
   }
+  function setFieldSilent(name, value) {
+    const field = document.querySelector('#slopscale-controls [name="' + name + '"]');
+    if (!field) return;
+    if (field.type === 'checkbox') field.checked = !!value;
+    else field.value = String(value);
+  }
+  function syncCagedButtonStrip() {
+    const hidden = $('slopscale-caged-shape-value');
+    if (hidden) {
+      const shape = hidden.value;
+      document.querySelectorAll('.slopscale-caged-shape-btn').forEach(btn => { btn.classList.toggle('active', btn.getAttribute('data-shape') === shape); });
+    }
+    const sysSelect = $('slopscale-fretboard-system'), form = $('slopscale-controls');
+    if (sysSelect && form) {
+      const isCaged = sysSelect.value === 'caged' || sysSelect.value === 'caged_shape_run';
+      if (isCaged) form.setAttribute('data-fretboard-caged', '1');
+      else form.removeAttribute('data-fretboard-caged');
+    }
+  }
+  function applyPathwayConfig(config) {
+    if (!config) return;
+    if (Object.prototype.hasOwnProperty.call(config, 'advancedMode')) setFieldSilent('advancedMode', config.advancedMode);
+    syncAdvancedMode();
+    Object.keys(config).forEach(k => { if (k !== 'advancedMode') setFieldSilent(k, config[k]); });
+    syncStringSetupControls();
+    syncCagedButtonStrip();
+  }
+  function applyPathwayById(id) {
+    const caption = $('slopscale-pathway-goal');
+    if (id === 'custom') { if (caption) caption.textContent = 'Pick a focused routine, or stay on Custom for full control.'; return; }
+    const pw = PATHWAYS[id];
+    if (pw && pw.base) {
+      const variation = pw.vary && pw.vary.length ? pw.vary[Math.floor(Math.random() * pw.vary.length)] : {};
+      applyPathwayConfig(Object.assign({}, pw.base, variation));
+      if (caption) caption.textContent = 'Goal: ' + pw.goal;
+      return;
+    }
+    const preset = window.__slopscaleFavorites && window.__slopscaleFavorites[id];
+    if (preset && preset.config) {
+      applyPathwayConfig(preset.config);
+      if (caption) caption.textContent = 'Favorite: ' + (preset.name || preset.id);
+    }
+  }
+  function loadPathwayFavorites() {
+    const select = $('slopscale-pathway'); if (!select) return;
+    const favoritesGroup = select.querySelector('optgroup[label="Favorites"]'); if (!favoritesGroup) return;
+    fetch('/api/plugins/slopscale/presets').then(r => r.ok ? r.json() : null).then(data => {
+      const presets = (data && Array.isArray(data.presets)) ? data.presets : [];
+      if (!presets.length) return;
+      window.__slopscaleFavorites = window.__slopscaleFavorites || {};
+      presets.forEach(p => {
+        if (!p || !p.id) return;
+        const key = 'fav__' + p.id;
+        window.__slopscaleFavorites[key] = p;
+        if (favoritesGroup.querySelector('option[value="' + key + '"]')) return;
+        const opt = document.createElement('option'); opt.value = key; opt.textContent = p.name || p.id;
+        favoritesGroup.appendChild(opt);
+      });
+      if (favoritesGroup.children.length) favoritesGroup.hidden = false;
+    }).catch(() => {});
+  }
+  function applyInitialPathway() {
+    const select = $('slopscale-pathway'); if (!select) return;
+    let stored = null; try { stored = localStorage.getItem(PATHWAY_STORAGE_KEY); } catch (_) {}
+    const initial = stored || PATHWAY_FIRST_VISIT_DEFAULT;
+    if (!initial) return;
+    const optionExists = Array.from(select.options).some(o => o.value === initial);
+    if (!optionExists) return;
+    select.value = initial;
+    applyPathwayById(initial);
+    if (!stored) { try { localStorage.setItem(PATHWAY_STORAGE_KEY, initial); } catch (_) {} }
+  }
+
   function refreshForHostSettingChange() { if (!activeBundle) return; syncHighwaySettings(activeBundle); drawOnce(); const summary = $('slopscale-summary'); if (summary && summary.textContent.includes('Highway inverted:')) summary.textContent = summarize({ session:readConfig(), chart:{ notes:activeBundle.notes || [], chords:activeBundle.chords || [], chordTemplates:activeBundle.chordTemplates || [], handShapes:activeBundle.handShapes || [], beats:activeBundle.beats || [], duration:activeBundle.songInfo?.duration || 0 } }); }
   function bind() {
     const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1';
@@ -713,6 +838,17 @@
     $('slopscale-go-library')?.addEventListener('click', () => { stopRenderer(); goScreen('home'); });
     $('slopscale-go-plugins')?.addEventListener('click', () => { stopRenderer(); goScreen('plugins'); });
     $('slopscale-controls').addEventListener('change', () => { syncAdvancedMode(); if (activeBundle) onGenerate(); });
+    const pathwaySelect = $('slopscale-pathway');
+    pathwaySelect?.addEventListener('change', () => {
+      applyPathwayById(pathwaySelect.value);
+      try { localStorage.setItem(PATHWAY_STORAGE_KEY, pathwaySelect.value); } catch (_) {}
+      // The form-change listener above will pick up the silent field updates
+      // on its own next tick, but kick a generate now so the initial pick
+      // does not feel sluggish.
+      if (activeBundle) onGenerate();
+    });
+    loadPathwayFavorites();
+    applyInitialPathway();
     window.addEventListener('storage', (ev) => { if (ev.key === 'invertHighway' || ev.key === 'lefty' || ev.key === 'renderScale') refreshForHostSettingChange(); });
     window.addEventListener('focus', refreshForHostSettingChange);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshForHostSettingChange(); });
