@@ -86,8 +86,8 @@
   const PATHWAYS = {
     pent_foundation: {
       label:'Pentatonic Foundation',
-      goal:'Build muscle memory in minor pentatonic box 1 — the universal rock/blues vocabulary.',
-      base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:80, bars:4, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d' },
+      goal:'Play minor pentatonic box 1 over a 12-bar blues. The single most useful guitar drill — every rock and blues solo lives in this combination.',
+      base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7' },
       vary:[ { key:'A', fretMin:5, fretMax:8 }, { key:'E', fretMin:0, fretMax:3 }, { key:'D', fretMin:10, fretMax:13 }, { key:'G', fretMin:3, fretMax:6 }, { key:'C', fretMin:8, fretMax:11 } ]
     },
     chord_tone_targeting: {
@@ -855,11 +855,26 @@
     window.addEventListener('storage', (ev) => { if (ev.key === 'invertHighway' || ev.key === 'lefty' || ev.key === 'renderScale') refreshForHostSettingChange(); });
     window.addEventListener('focus', refreshForHostSettingChange);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshForHostSettingChange(); });
-    // Defer the initial generate so plugin layout (canvas dimensions, screen
-    // visibility) has settled. Without this, the first attachRenderer can
-    // bind to a 0x0 canvas and nothing visible draws until the user clicks
-    // Generate manually.
-    requestAnimationFrame(() => requestAnimationFrame(() => onGenerate()));
+    // Wait until the render host has real dimensions before firing the
+    // initial generate. The host may be 0x0 while the plugin screen is
+    // still being laid out; if attachRenderer runs against a 0x0 canvas,
+    // nothing visible draws. A double-rAF wasn't enough on its own.
+    (function fireInitialGenerateWhenLaidOut() {
+      const host = $('slopscale-render-host');
+      if (!host || typeof ResizeObserver === 'undefined') { onGenerate(); return; }
+      let fired = false;
+      const fire = () => { if (fired) return; fired = true; try { ro.disconnect(); } catch (_) {} onGenerate(); };
+      const ro = new ResizeObserver(entries => {
+        for (const entry of entries) {
+          const w = entry.contentRect.width, h = entry.contentRect.height;
+          if (w > 0 && h > 0) { fire(); return; }
+        }
+      });
+      ro.observe(host);
+      // Failsafe in case the observer never reports non-zero (e.g. plugin
+      // screen mounted hidden for a long time).
+      setTimeout(fire, 1000);
+    })();
     return true;
   }
   function boot() { if (bind()) return; let tries = 0; const timer = setInterval(() => { tries += 1; if (bind() || tries > 40) clearInterval(timer); }, 250); }
