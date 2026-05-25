@@ -215,6 +215,28 @@
     }
     return picked.sort((a,b) => a.midi - b.midi || a.s - b.s);
   }
+
+  function chordTonePositionsInPosition(cfg, rootPc, quality) {
+    const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj;
+    const intervalPcs = formula.intervals.map(interval => ({ interval, pc:(rootPc + interval) % 12 }));
+    const chordPcs = new Set(intervalPcs.map(x => x.pc));
+    const opens = openMidisForConfig(cfg);
+    const out = [];
+    const usedMidi = new Set();
+    for (let s = 0; s < cfg.stringCount; s++) {
+      for (let f = cfg.fretMin; f <= cfg.fretMax; f++) {
+        const midi = opens[s] + f, pc = midi % 12;
+        if (!chordPcs.has(pc) || usedMidi.has(midi)) continue;
+        const match = intervalPcs.find(x => x.pc === pc) || { interval:0 };
+        out.push({ s, f, midi, pc, interval:match.interval });
+        usedMidi.add(midi);
+      }
+    }
+    out.sort((a,b) => a.midi - b.midi || a.s - b.s || a.f - b.f);
+    if (out.length) return out;
+    return pickChordPositions(cfg, rootPc, quality);
+  }
+
   function templateFromPositions(name, positions, cfg, arp) {
     const frets = new Array(cfg.stringCount).fill(-1), fingers = new Array(cfg.stringCount).fill(-1);
     for (const p of positions) {
@@ -271,15 +293,19 @@
 
   function buildArpeggioExercise(cfg, degrees) {
     const step = secondsPerDivision(cfg), mLen = measureSeconds(cfg);
-    const chordTemplates = [], chords = [], handShapes = [], notes = [];
+    const chordTemplates = [], chords = [], handShapes = [], notes = [], sections = [];
     let t = 0;
     degrees.forEach(degree => {
-      const rootPc = chordRootForDegree(cfg, degree), quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride), positions = pickChordPositions(cfg, rootPc, quality);
-      if (!positions.length) return;
+      const rootPc = chordRootForDegree(cfg, degree);
+      const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride);
+      const positionTones = chordTonePositionsInPosition(cfg, rootPc, quality);
+      const displayPositions = positionTones.length ? positionTones : pickChordPositions(cfg, rootPc, quality);
+      if (!displayPositions.length) return;
       const name = chordName(rootPc, quality), templateId = chordTemplates.length;
-      chordTemplates.push(templateFromPositions(name, positions, cfg, true));
-      chords.push({ t:Number(t.toFixed(6)), id:templateId, hd:false, notes:positions.map(p => noteDefaults({ s:p.s, f:p.f, sus:0 })) });
-      const path = directedPath(positions, cfg.direction, cfg.repeatCount);
+      chordTemplates.push(templateFromPositions(name, displayPositions, cfg, true));
+      chords.push({ t:Number(t.toFixed(6)), id:templateId, hd:false, notes:displayPositions.map(p => noteDefaults({ s:p.s, f:p.f, sus:0 })) });
+      sections.push({ name, number:templateId + 1, time:Number(t.toFixed(6)) });
+      const path = directedPath(displayPositions, cfg.direction, cfg.repeatCount);
       const chordSlot = Math.max(mLen, path.length * step);
       handShapes.push({ chord_id:templateId, start_time:Number(t.toFixed(6)), end_time:Number((t + chordSlot).toFixed(6)), arp:true });
       for (let i = 0; i < path.length; i++) {
@@ -288,7 +314,7 @@
       }
       t += chordSlot;
     });
-    return { notes, chords, chordTemplates, handShapes, sections:[{ name:'arpeggios', number:1, time:0 }], duration:Math.max(t, cfg.bars * mLen) };
+    return { notes, chords, chordTemplates, handShapes, sections:sections.length ? sections : [{ name:'arpeggios', number:1, time:0 }], duration:Math.max(t, cfg.bars * mLen) };
   }
 
   function generateExercise(cfg) {
@@ -435,7 +461,7 @@
     return [
       `Practice type: ${cfg.mode}`,
       `Direction/repeats: ${cfg.direction}, ${cfg.repeatCount}x`,
-      `Pattern: ${cfg.mode === 'scale' ? '3-notes-per-string default' : 'position-constrained arpeggio sequence'}`,
+      `Pattern: ${cfg.mode === 'scale' ? '3-notes-per-string default' : 'full chord-tone arpeggios across one position'}`,
       `Instrument: ${cfg.setupLabel}`,
       `Highway inverted: ${readHighwayInverted() ? 'on' : 'off'}`,
       `Key/scale: ${cfg.key} ${cfg.scale}`,
