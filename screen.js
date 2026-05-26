@@ -239,13 +239,16 @@
   // Named position presets drive the pathway-mode "Position" dropdown. The
   // pathway sets fretMin/fretMax directly; this map lets the user shift the
   // position without thinking in raw fret numbers.
+  // Standard 4-fret hand positions — one finger per fret, anchored at the
+  // 1st-finger fret. "Open position" includes open strings + frets 1–3.
+  // The position is named after the lowest fret the index finger covers.
   const POSITION_PRESETS = {
-    open:  { fretMin: 0,  fretMax: 5  },
-    '3rd': { fretMin: 3,  fretMax: 7  },
-    '5th': { fretMin: 5,  fretMax: 9  },
-    '7th': { fretMin: 7,  fretMax: 12 },
-    '9th': { fretMin: 9,  fretMax: 14 },
-    '12th':{ fretMin: 12, fretMax: 16 }
+    open:  { fretMin: 0,  fretMax: 3  },
+    '3rd': { fretMin: 3,  fretMax: 6  },
+    '5th': { fretMin: 5,  fretMax: 8  },
+    '7th': { fretMin: 7,  fretMax: 10 },
+    '9th': { fretMin: 9,  fretMax: 12 },
+    '12th':{ fretMin: 12, fretMax: 15 }
   };
   const POSITION_ORDER = ['open', '3rd', '5th', '7th', '9th', '12th'];
 
@@ -666,12 +669,7 @@
       const tones = chordTonePositionsInPosition(cfg, rootPc, quality);
       const displayTones = tones.length ? tones : pickChordPositions(cfg, rootPc, quality);
       const chordPcs = new Set((CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj).intervals.map(iv => (rootPc + iv) % 12));
-      const scaleName = strategy === 'mode_of_moment'
-        ? (MODE_FOR_QUALITY[quality] || cfg.scale)
-        : cfg.scale;
-      chordTemplates.push(Object.assign(
-        templateFromPositions(name, displayTones, cfg, false),
-        { allPositions: positions, scaleName }));
+      chordTemplates.push(templateFromPositions(name, displayTones, cfg, false));
       chords.push({ t:Number(barStart.toFixed(6)), id:templateId, hd:false, notes:displayTones.map(p => noteDefaults({ s:p.s, f:p.f, sus:0 })) });
       handShapes.push({ chord_id:templateId, start_time:Number(barStart.toFixed(6)), end_time:Number((barStart + mLen).toFixed(6)), arp:false });
       sections.push({ name, number:templateId + 1, time:Number(barStart.toFixed(6)) });
@@ -944,115 +942,11 @@
       getNoteState:function(){return null;}, getNoteStateProvider:function(){return null;}
     };
     syncHighwaySettings(bundle);
-    // Scale diagram metadata — read by renderInitialScaleDiagram / updateScaleDiagramIfNeeded
-    if (cfg.mode === 'scale') {
-      bundle._diagramStatic = true;
-      bundle._diagramPositions = scalePositionsForSystem(cfg);
-      bundle._diagramLabel = `${cfg.key} ${String(cfg.scale || 'major').replace(/_/g, ' ')}`;
-    } else if (cfg.mode === 'chord_scales') {
-      const isStatic = (cfg.chordScaleStrategy || 'mode_of_moment') !== 'mode_of_moment';
-      bundle._diagramStatic = isStatic;
-      if (isStatic) {
-        bundle._diagramPositions = scalePositionsForSystem(cfg);
-        bundle._diagramLabel = `${cfg.key} ${String(cfg.scale || 'major').replace(/_/g, ' ')}`;
-      }
-    } else {
-      bundle._diagramStatic = null;
-    }
-    bundle._diagramFretMin = cfg.fretMin;
-    bundle._diagramFretMax = cfg.fretMax;
-    bundle._lastDiagramChordId = -2;
+    // Don't project arpeggio/chord shapes onto the note highway — handShapes
+    // drive the highway_3d overlay box. Chord names still appear via `chords`
+    // events and the chord-preview thumbnail still renders from chordTemplates.
+    bundle.handShapes = [];
     return bundle;
-  }
-
-  function drawScaleDiagramSVG(container, positions, label, numStrings, fretMin, fretMax) {
-    if (!container) return;
-    if (!positions || !positions.length) {
-      container.classList.remove('visible');
-      container.innerHTML = '';
-      return;
-    }
-    const fretNums = positions.map(p => p.f);
-    const lo = Math.min(...fretNums);
-    const hi = Math.max(...fretNums);
-    const numLines = hi - lo + 1;
-    const CW = 42, CH = 26, LP = 28, TP = 18, RP = 24, BP = 22;
-    const W = LP + (numLines > 1 ? (numLines - 1) * CW : CW) + RP;
-    const H = TP + (numStrings - 1) * CH + BP;
-    const parts = [];
-    parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block">`);
-    // Fret numbers above first and last positions
-    parts.push(`<text x="${LP}" y="${TP - 4}" text-anchor="middle" fill="#64748b" font-size="9" font-family="ui-monospace,monospace">${lo}</text>`);
-    if (numLines > 1) parts.push(`<text x="${LP + (numLines - 1) * CW}" y="${TP - 4}" text-anchor="middle" fill="#64748b" font-size="9" font-family="ui-monospace,monospace">${hi}</text>`);
-    // String lines
-    for (let s = 0; s < numStrings; s++) {
-      const y = TP + s * CH;
-      const lineW = (s === 0 || s === numStrings - 1) ? 2 : 1.2;
-      parts.push(`<line x1="${LP}" y1="${y}" x2="${LP + (numLines - 1) * CW}" y2="${y}" stroke="#334155" stroke-width="${lineW}"/>`);
-    }
-    // Fret lines
-    for (let c = 0; c < numLines; c++) {
-      const x = LP + c * CW;
-      const isNut = lo === 0 && c === 0;
-      parts.push(`<line x1="${x}" y1="${TP}" x2="${x}" y2="${TP + (numStrings - 1) * CH}" stroke="${isNut ? '#94a3b8' : '#1e3a5f'}" stroke-width="${isNut ? 3 : 1}"/>`);
-    }
-    // Scale dots at fret-line intersections
-    for (const p of positions) {
-      if (p.s < 0 || p.s >= numStrings || p.f < lo || p.f > hi) continue;
-      const x = LP + (p.f - lo) * CW;
-      const y = TP + p.s * CH;
-      parts.push(`<circle cx="${x}" cy="${y}" r="9" fill="#dc2626"/>`);
-      parts.push(`<circle cx="${x}" cy="${y}" r="9" fill="none" stroke="rgba(252,165,165,0.45)" stroke-width="1.5"/>`);
-    }
-    // Label
-    const safeLabel = String(label).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    parts.push(`<text x="${W / 2}" y="${H - 5}" text-anchor="middle" fill="#64748b" font-size="10" font-weight="700" font-family="system-ui,sans-serif" letter-spacing="0.1em">${safeLabel.toUpperCase()}</text>`);
-    parts.push('</svg>');
-    container.innerHTML = parts.join('');
-    container.classList.add('visible');
-  }
-
-  function renderInitialScaleDiagram(bundle) {
-    const container = $('slopscale-scale-diagram');
-    if (!container || !bundle) return;
-    if (bundle._diagramStatic === null || bundle._diagramStatic === undefined) {
-      container.classList.remove('visible');
-      container.innerHTML = '';
-      return;
-    }
-    if (bundle._diagramStatic) {
-      drawScaleDiagramSVG(container, bundle._diagramPositions, bundle._diagramLabel,
-        bundle.stringCount, bundle._diagramFretMin, bundle._diagramFretMax);
-    } else {
-      const tpl = bundle.chordTemplates && bundle.chordTemplates[0];
-      if (tpl && tpl.allPositions) {
-        const sn = tpl.scaleName ? String(tpl.scaleName).replace(/_/g, ' ') : '';
-        const lbl = sn ? `${tpl.displayName} — ${sn}` : tpl.displayName;
-        drawScaleDiagramSVG(container, tpl.allPositions, lbl,
-          bundle.stringCount, bundle._diagramFretMin, bundle._diagramFretMax);
-        bundle._lastDiagramChordId = 0;
-      } else {
-        container.classList.remove('visible');
-        container.innerHTML = '';
-      }
-    }
-  }
-
-  function updateScaleDiagramIfNeeded(bundle, now) {
-    if (!bundle || bundle._diagramStatic !== false) return;
-    const chords = bundle.chords || [];
-    if (!chords.length) return;
-    let activeId = chords[0].id;
-    for (const ch of chords) { if (ch.t <= now + 0.01) activeId = ch.id; else break; }
-    if (activeId === bundle._lastDiagramChordId) return;
-    bundle._lastDiagramChordId = activeId;
-    const container = $('slopscale-scale-diagram');
-    const tpl = bundle.chordTemplates && bundle.chordTemplates[activeId];
-    if (!tpl || !tpl.allPositions) return;
-    const sn = tpl.scaleName ? String(tpl.scaleName).replace(/_/g, ' ') : '';
-    const lbl = sn ? `${tpl.displayName} — ${sn}` : tpl.displayName;
-    drawScaleDiagramSVG(container, tpl.allPositions, lbl,
-      bundle.stringCount, bundle._diagramFretMin, bundle._diagramFretMax);
   }
 
   // Label for each open-string MIDI: shows tuning instead of "S1..Sn"
@@ -1584,7 +1478,7 @@
     if (typeof renderer.init === 'function') { renderer.init(canvas, activeBundle); if (renderer.readyPromise && typeof renderer.readyPromise.then === 'function') await renderer.readyPromise; }
     const rect = canvas.parentElement.getBoundingClientRect();
     if (typeof renderer.resize === 'function') renderer.resize(Math.round(rect.width || canvas.width), Math.round(rect.height || canvas.height));
-    const rendererStatus = $('slopscale-renderer-status'); if (rendererStatus) rendererStatus.textContent = resolved.label; drawOnce(); renderInitialScaleDiagram(activeBundle);
+    const rendererStatus = $('slopscale-renderer-status'); if (rendererStatus) rendererStatus.textContent = resolved.label; drawOnce();
   }
 
   function syncPlayButton() {
@@ -1602,7 +1496,7 @@
       const duration = activeBundle.songInfo.duration || 1;
       if (currentPracticeTime > duration) { currentPracticeTime = 0; playAnchorChartTime = 0; playAnchorMs = nowMs + AUDIO_LOOKAHEAD_SECONDS * 1000; stopAudio(); schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS); }
     }
-    drawOnce(); updateScaleDiagramIfNeeded(activeBundle, currentPracticeTime); rafId = requestAnimationFrame(tick);
+    drawOnce(); rafId = requestAnimationFrame(tick);
   }
 
   function makeDistortionCurve(amount) { const samples = 256, curve = new Float32Array(samples), k = amount || 18; for (let i = 0; i < samples; i++) { const x = i * 2 / samples - 1; curve[i] = ((3 + k) * x * 20 * Math.PI / 180) / (Math.PI + k * Math.abs(x)); } return curve; }
@@ -1869,11 +1763,14 @@
       applyPathwayConfig(tieredConfig);
       setPathwayModeClass(true);
       updatePathwayGoalCard(id, false);
-      // Match Position dropdown to whatever fret range the variation chose so
-      // the dropdown reads as the source of truth for fret position.
+      // Match Position dropdown to whatever fret range the variation chose,
+      // then re-apply the dropdown's preset so the position is the source of
+      // truth — pathways can suggest a starting position, but the actual fret
+      // window comes from the standard 4-fret position preset.
       const posEl = $('slopscale-position');
       const fretMin = variation.fretMin != null ? variation.fretMin : pw.base.fretMin;
       if (posEl && fretMin != null) posEl.value = nearestPositionId(fretMin);
+      syncPositionToFretRange();
       syncTempoTierButtons();
       syncScaleDropdown(id);
       return;

@@ -136,8 +136,6 @@
   .slopscale-actions button.primary.is-playing { background: linear-gradient(180deg, #b91c1c, #991b1b); border-color: #f87171; }
   .slopscale-actions button.primary.is-playing:hover { background: linear-gradient(180deg, #991b1b, #7f1d1d); }
   .slopscale-stage { overflow: hidden; min-height: 620px; display: flex; flex-direction: column; }
-  .slopscale-scale-diagram { flex-shrink: 0; padding: 8px 16px 6px; background: rgba(2, 6, 23, 0.9); border-bottom: 1px solid rgba(75, 85, 99, 0.3); overflow-x: auto; display: none; line-height: 0; }
-  .slopscale-scale-diagram.visible { display: block; }
   .slopscale-render-host { position: relative; flex: 1; min-height: 560px; overflow: hidden; background: #050711; }
   #slopscale-canvas { display: block; width: 100%; height: 100%; }
   .slopscale-summary { border-top: 1px solid rgba(75, 85, 99, 0.55); padding: 12px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; color: #cbd5e1; background: rgba(2, 6, 23, 0.72); font-size: 12px; line-height: 1.45; }
@@ -335,12 +333,12 @@
         </label>
         <label class="slopscale-pathway-only">Position
           <select name="position" id="slopscale-position">
-            <option value="open">Open position (0–5)</option>
-            <option value="3rd">3rd fret (3–7)</option>
-            <option value="5th" selected>5th fret (5–9)</option>
-            <option value="7th">7th fret (7–12)</option>
-            <option value="9th">9th fret (9–14)</option>
-            <option value="12th">12th fret (12–16)</option>
+            <option value="open">Open position (0–3)</option>
+            <option value="3rd">3rd position (3–6)</option>
+            <option value="5th" selected>5th position (5–8)</option>
+            <option value="7th">7th position (7–10)</option>
+            <option value="9th">9th position (9–12)</option>
+            <option value="12th">12th position (12–15)</option>
           </select>
         </label>
         <label class="slopscale-custom-only" style="grid-column: span 2">Scale
@@ -482,7 +480,6 @@
     </form>
 
     <section class="slopscale-panel slopscale-stage">
-      <div id="slopscale-scale-diagram" class="slopscale-scale-diagram"></div>
       <div id="slopscale-render-host" class="slopscale-render-host"><canvas id="slopscale-canvas"></canvas></div>
       <div id="slopscale-summary" class="slopscale-summary">Generate a practice chart to preview notes, chords, timing, and audio.</div>
     </section>
