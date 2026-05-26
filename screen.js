@@ -157,6 +157,20 @@
       base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7' },
       vary:[ { key:'A', fretMin:5, fretMax:8 }, { key:'E', fretMin:0, fretMax:3 }, { key:'D', fretMin:10, fretMax:13 }, { key:'G', fretMin:3, fretMax:6 }, { key:'C', fretMin:8, fretMax:11 } ]
     },
+    major_pent_country: {
+      label:'Major Pentatonic Country',
+      goal:'Country and southern rock vocabulary. Major pentatonic sits over the chord so every note is a chord tone or a step away — nothing clashes. Target the 2nd and 6th for the Nashville twang. G is the classic country key; I-IV-V keeps it honest.',
+      tempoTiers:[70, 95, 115, 140],
+      base:{ practiceType:'scale', scale:'major_pentatonic', meter:'4/4', subdivision:'eighth', bpm:95, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'I-IV-V', chordDepth:'triad', chordOverride:'auto', key:'G', fretMin:3, fretMax:7 },
+      vary:[ { key:'G', fretMin:3, fretMax:7 }, { key:'A', fretMin:5, fretMax:9 }, { key:'D', fretMin:2, fretMax:7 }, { key:'E', fretMin:0, fretMax:4 }, { key:'C', fretMin:0, fretMax:5 } ]
+    },
+    dorian_groove: {
+      label:'Dorian Groove',
+      goal:'Natural minor with a raised 6th — that one note gives it a brighter, jazzier feel than straight Aeolian. The raised 6th is the money note; resolve to it over the i chord. Santana, Robben Ford, and funk-era Miles Davis all live in Dorian.',
+      tempoTiers:[65, 85, 105, 125],
+      base:{ practiceType:'scale', scale:'dorian', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'i-VII-VI-VII', chordDepth:'seventh', chordOverride:'auto', key:'A', fretMin:5, fretMax:9 },
+      vary:[ { key:'A', fretMin:5, fretMax:9 }, { key:'D', fretMin:5, fretMax:9 }, { key:'E', fretMin:7, fretMax:11 }, { key:'G', fretMin:3, fretMax:7 }, { key:'C', fretMin:8, fretMax:12 } ]
+    },
     chord_tone_targeting: {
       label:'Chord Tone Targeting',
       goal:"Keep the key's scale, but watch the accents shift to chord tones as the progression moves. Trains chord-tone awareness inside familiar scale shapes.",
