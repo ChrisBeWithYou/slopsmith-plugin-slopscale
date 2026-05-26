@@ -413,6 +413,18 @@
         <label>Last fret <input name="fretMax" type="number" min="3" max="24" step="1" value="5"></label>
         <label>Bars <input name="bars" type="number" min="1" max="32" step="1" value="4"></label>
       </div>
+      <div class="slopscale-grid-2 slopscale-custom-only">
+        <label>Key cycle
+          <select name="keyCycle">
+            <option value="none">Off</option>
+            <option value="circle_of_fourths">Circle of fourths</option>
+            <option value="circle_of_fifths">Circle of fifths</option>
+            <option value="chromatic">Chromatic</option>
+          </select>
+        </label>
+        <label>Keys to cycle <input name="keyCycleLength" type="number" min="2" max="12" step="1" value="4"></label>
+      </div>
+      <div class="slopscale-help slopscale-custom-only" id="slopscale-keycycle-help" style="display:none">Generates one section per key, concatenated into a single chart. Starting key is set by the Key selector above.</div>
 
       <div class="slopscale-advanced-card slopscale-advanced-only slopscale-custom-only">
         <div class="slopscale-group-title">Arpeggios and harmony</div>

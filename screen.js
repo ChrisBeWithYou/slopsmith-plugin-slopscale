@@ -306,6 +306,8 @@
       progression: advancedMode ? (data.get('progression') || 'diatonic') : 'diatonic',
       chordOverride: advancedMode ? (data.get('chordOverride') || 'auto') : 'auto',
       chromaticPattern: data.get('chromaticPattern') || '1234',
+      keyCycle: data.get('keyCycle') || 'none',
+      keyCycleLength: Math.max(2, Math.min(12, parseInt(data.get('keyCycleLength') || '4', 10))),
       audio: { notes: data.get('audioNotes') === 'on', metronome: data.get('audioMetronome') === 'on', harmony: data.get('audioHarmony') === 'on' }
     };
   }
@@ -865,14 +867,50 @@
     return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration };
   }
 
-  function generateExercise(cfg) {
-    const chart = cfg.mode === 'scale' ? buildScaleExercise(cfg)
+  const CYCLE_KEY_ORDERS = {
+    circle_of_fourths: ['C','F','Bb','Eb','Ab','Db','Gb','B','E','A','D','G'],
+    circle_of_fifths:  ['C','G','D','A','E','B','Gb','Db','Ab','Eb','Bb','F'],
+    chromatic:         ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'],
+  };
+
+  function buildSingleChart(cfg) {
+    return cfg.mode === 'scale' ? buildScaleExercise(cfg)
       : cfg.mode === 'chord_scales' ? buildChordScaleExercise(cfg)
       : cfg.mode === 'sweep_arpeggios' ? buildSweepArpeggioExercise(cfg)
       : cfg.mode === 'chromatic' ? buildChromaticExercise(cfg)
       : buildArpeggioExercise(cfg, progressionDegreesForConfig(cfg));
+  }
+
+  function buildKeyCycleChart(cfg) {
+    const order = CYCLE_KEY_ORDERS[cfg.keyCycle];
+    if (!order) return buildSingleChart(cfg);
+    const startIdx = Math.max(0, order.indexOf(cfg.key));
+    const count = Math.max(2, Math.min(12, cfg.keyCycleLength || 4));
+    const keys = Array.from({ length: count }, (_, i) => order[(startIdx + i) % order.length]);
+    const notes = [], chords = [], chordTemplates = [], handShapes = [], sections = [], anchors = [];
+    let t = 0, tplOffset = 0;
+    for (const key of keys) {
+      const kCfg = Object.assign({}, cfg, { key, keyCycle: 'none' });
+      const chart = buildSingleChart(kCfg);
+      const dur = Math.max(chart.duration || 0, cfg.bars * measureSeconds(kCfg));
+      sections.push({ name: key, number: sections.length + 1, time: Number(t.toFixed(6)) });
+      chart.notes.forEach(n => notes.push(Object.assign({}, n, { t: Number((n.t + t).toFixed(6)) })));
+      chart.chords.forEach(c => chords.push(Object.assign({}, c, { t: Number((c.t + t).toFixed(6)), id: c.id + tplOffset })));
+      chart.chordTemplates.forEach(ct => chordTemplates.push(ct));
+      chart.handShapes.forEach(hs => handShapes.push(Object.assign({}, hs, { chord_id: hs.chord_id + tplOffset, start_time: Number((hs.start_time + t).toFixed(6)), end_time: Number((hs.end_time + t).toFixed(6)) })));
+      (chart.anchors || []).forEach(a => anchors.push(Object.assign({}, a, { time: Number((a.time + t).toFixed(6)) })));
+      tplOffset += chart.chordTemplates.length;
+      t += dur;
+    }
+    return { notes, chords, chordTemplates, handShapes, sections, anchors, duration: t };
+  }
+
+  function generateExercise(cfg) {
+    const chart = cfg.keyCycle && cfg.keyCycle !== 'none'
+      ? buildKeyCycleChart(cfg)
+      : buildSingleChart(cfg);
     const duration = Math.max(chart.duration || 0, cfg.bars * measureSeconds(cfg));
-    const anchors = chart.anchors || buildAnchors(cfg, duration);
+    const anchors = chart.anchors && chart.anchors.length ? chart.anchors : buildAnchors(cfg, duration);
     return { version:1, session:cfg, chart:Object.assign({}, chart, { beats:buildBeats(cfg, duration), anchors, duration }) };
   }
 
@@ -1813,6 +1851,7 @@
       // Position selector drives fretMin/fretMax silently in pathway mode.
       if (name === 'position') syncPositionToFretRange();
       if (name === 'practiceType') syncChromaticVisibility();
+      if (name === 'keyCycle') { const h = $('slopscale-keycycle-help'); if (h) h.style.display = ev.target.value !== 'none' ? '' : 'none'; }
       syncAdvancedMode();
       markPathwayModifiedIfApplicable(name);
       if (activeBundle) onGenerate();
