@@ -132,6 +132,7 @@
     chromatic_warmup: {
       label:'Chromatic Warmup',
       goal:'One finger per fret — 1-2-3-4 across all six strings. Builds fretting-hand synchronization, finger independence, and positional awareness. The universal warmup every method teaches. Start slow; speed comes from clean reps, not rushed ones.',
+      scales:[],
       tempoTiers:[60, 80, 100, 120],
       base:{ practiceType:'chromatic', chromaticPattern:'1234', meter:'4/4', subdivision:'sixteenth', bpm:60, bars:8, direction:'up_down', advancedMode:false, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:1, fretMax:4 },
       vary:[
@@ -146,6 +147,7 @@
     blues_foundation: {
       label:'Blues Scale Foundation',
       goal:'Minor pentatonic with the flat-5 blue note added. That one extra note is what separates a scale run from a blues lick. Play it over a 12-bar blues and land on the b5 for tension — resolve it up to the 5th.',
+      scales:['blues','minor_pentatonic'],
       tempoTiers:[60, 80, 100, 120],
       base:{ practiceType:'scale', scale:'blues', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'min7' },
       vary:[ { key:'A', fretMin:5, fretMax:8 }, { key:'E', fretMin:0, fretMax:3 }, { key:'D', fretMin:10, fretMax:13 }, { key:'G', fretMin:3, fretMax:6 }, { key:'C', fretMin:8, fretMax:11 } ]
@@ -153,6 +155,7 @@
     pent_foundation: {
       label:'Pentatonic Foundation',
       goal:'Play minor pentatonic box 1 over a 12-bar blues. The single most useful guitar drill — every rock and blues solo lives in this combination.',
+      scales:['minor_pentatonic','blues','major_pentatonic'],
       tempoTiers:[60, 80, 100, 120],
       base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7' },
       vary:[ { key:'A', fretMin:5, fretMax:8 }, { key:'E', fretMin:0, fretMax:3 }, { key:'D', fretMin:10, fretMax:13 }, { key:'G', fretMin:3, fretMax:6 }, { key:'C', fretMin:8, fretMax:11 } ]
@@ -160,6 +163,7 @@
     major_pent_country: {
       label:'Major Pentatonic Country',
       goal:'Country and southern rock vocabulary. Major pentatonic sits over the chord so every note is a chord tone or a step away — nothing clashes. Target the 2nd and 6th for the Nashville twang. G is the classic country key; I-IV-V keeps it honest.',
+      scales:['major_pentatonic','major','blues'],
       tempoTiers:[70, 95, 115, 140],
       base:{ practiceType:'scale', scale:'major_pentatonic', meter:'4/4', subdivision:'eighth', bpm:95, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'I-IV-V', chordDepth:'triad', chordOverride:'auto', key:'G', fretMin:3, fretMax:7 },
       vary:[ { key:'G', fretMin:3, fretMax:7 }, { key:'A', fretMin:5, fretMax:9 }, { key:'D', fretMin:2, fretMax:7 }, { key:'E', fretMin:0, fretMax:4 }, { key:'C', fretMin:0, fretMax:5 } ]
@@ -167,6 +171,7 @@
     dorian_groove: {
       label:'Dorian Groove',
       goal:'Natural minor with a raised 6th — that one note gives it a brighter, jazzier feel than straight Aeolian. The raised 6th is the money note; resolve to it over the i chord. Santana, Robben Ford, and funk-era Miles Davis all live in Dorian.',
+      scales:['dorian','natural_minor','minor_pentatonic'],
       tempoTiers:[65, 85, 105, 125],
       base:{ practiceType:'scale', scale:'dorian', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'i-VII-VI-VII', chordDepth:'seventh', chordOverride:'min7', key:'A', fretMin:5, fretMax:9 },
       vary:[ { key:'A', fretMin:5, fretMax:9 }, { key:'D', fretMin:5, fretMax:9 }, { key:'E', fretMin:7, fretMax:11 }, { key:'G', fretMin:3, fretMax:7 }, { key:'C', fretMin:8, fretMax:12 } ]
@@ -174,6 +179,7 @@
     chord_tone_targeting: {
       label:'Chord Tone Targeting',
       goal:"Keep the key's scale, but watch the accents shift to chord tones as the progression moves. Trains chord-tone awareness inside familiar scale shapes.",
+      scales:['major','natural_minor','dorian','mixolydian'],
       tempoTiers:[65, 90, 110, 130],
       base:{ practiceType:'chord_scales', chordScaleStrategy:'chord_tone_emphasis', scale:'major', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'ascending', sequence:'fours', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
       vary:[ { key:'C', progression:'diatonic' }, { key:'C', progression:'I-IV-V' }, { key:'G', progression:'I-V-vi-IV' }, { key:'D', progression:'I-vi-IV-V' }, { key:'A', progression:'vi-IV-I-V' } ]
@@ -181,6 +187,7 @@
     modal_awareness: {
       label:'Modal Awareness',
       goal:'Each chord gets its own mode. Uses dom7 override so the scale audibly shifts per chord — bar 1 has Bb, bar 2 has F#, etc.',
+      scales:['major','dorian','phrygian','lydian','mixolydian','natural_minor','locrian'],
       tempoTiers:[60, 85, 105, 125],
       base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', chordDepth:'seventh', chordOverride:'dom7', progression:'diatonic', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
       vary:[ { key:'C' }, { key:'G' }, { key:'D' }, { key:'A' }, { key:'F' } ]
@@ -188,6 +195,7 @@
     diatonic_triad_drill: {
       label:'Diatonic Triad Drill',
       goal:'Triad arpeggio of every diatonic chord, in order. The 7-chord lap.',
+      scales:['major','natural_minor','harmonic_minor','melodic_minor'],
       tempoTiers:[70, 100, 120, 144],
       base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'triad', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
       vary:[ { key:'C' }, { key:'G' }, { key:'D' }, { key:'A' }, { key:'E' }, { key:'F' } ]
@@ -195,6 +203,7 @@
     seventh_vocab: {
       label:'Seventh Chord Vocabulary',
       goal:'Diatonic seventh arpeggios. The jazz starter — maj7, m7, m7, maj7, dom7, m7, m7b5.',
+      scales:['major','natural_minor','dorian','harmonic_minor'],
       tempoTiers:[65, 90, 110, 130],
       base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
       vary:[ { key:'C' }, { key:'F' }, { key:'Bb' }, { key:'G' }, { key:'D' } ]
@@ -202,6 +211,7 @@
     ii_V_I_workout: {
       label:'ii–V–I Workout',
       goal:'The most common jazz cadence, run as scales over the changes. Mode-of-the-moment so Dorian / Mixolydian / Ionian land audibly.',
+      scales:['major','dorian','mixolydian','melodic_minor','bebop_major','bebop_dominant'],
       tempoTiers:[70, 100, 120, 144],
       base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', chordDepth:'seventh', chordOverride:'auto', progression:'ii-V-I', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
       vary:[ { key:'C' }, { key:'F' }, { key:'Bb' }, { key:'G' }, { key:'D' }, { key:'A' } ]
@@ -209,6 +219,7 @@
     harmonic_minor_exotic: {
       label:'Harmonic Minor Exotic',
       goal:'Yngwie / flamenco flavor. Harmonic-minor scale, mode-of-the-moment, every chord is dom7 so each bar lands the raised 7th outside the key.',
+      scales:['harmonic_minor','phrygian_dominant','natural_minor'],
       tempoTiers:[70, 95, 115, 140],
       base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'harmonic_minor', chordDepth:'seventh', chordOverride:'dom7', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:110, bars:8, direction:'up_down', sequence:'fours', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:5, fretMax:12 },
       vary:[ { key:'A', fretMin:5, fretMax:12 }, { key:'E', fretMin:7, fretMax:14 }, { key:'D', fretMin:5, fretMax:12 }, { key:'B', fretMin:7, fretMax:14 } ]
@@ -216,6 +227,7 @@
     sweep_primer: {
       label:'Sweep Arpeggio Primer',
       goal:'One chord tone per string, swept low-to-high with a hammer-on/pull-off turnaround at the apex, then swept back down. Root anchors the bass string. Start slow — sweeps reward cleanliness over speed.',
+      scales:['natural_minor','harmonic_minor','major'],
       tempoTiers:[50, 65, 80, 100],
       base:{ practiceType:'sweep_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', cagedShape:'A', key:'A', fretMin:5, fretMax:12 },
       vary:[ { key:'A', fretMin:5, fretMax:12 }, { key:'A', fretMin:9, fretMax:16 }, { key:'D', fretMin:5, fretMax:12 }, { key:'E', fretMin:7, fretMax:14 }, { key:'G', fretMin:3, fretMax:10 } ]
@@ -1750,6 +1762,7 @@
       const fretMin = variation.fretMin != null ? variation.fretMin : pw.base.fretMin;
       if (posEl && fretMin != null) posEl.value = nearestPositionId(fretMin);
       syncTempoTierButtons();
+      syncScaleDropdown(id);
       return;
     }
     const preset = window.__slopscaleFavorites && window.__slopscaleFavorites[id];
@@ -1825,6 +1838,35 @@
     });
   }
 
+  function syncScaleDropdown(pathwayId) {
+    const el = $('slopscale-pathway-scale');
+    const wrap = $('slopscale-pathway-scale-wrap');
+    if (!el) return;
+    const pw = pathwayId && pathwayId !== 'custom' ? PATHWAYS[pathwayId] : null;
+    const scales = pw && pw.scales ? pw.scales : [];
+    if (!scales.length) { if (wrap) wrap.style.display = 'none'; return; }
+    if (wrap) wrap.style.display = '';
+    // Pull human-readable labels from the existing custom scale select
+    const sourceOpts = document.querySelectorAll('[name="scale"] option');
+    const labelMap = {};
+    sourceOpts.forEach(o => { labelMap[o.value] = o.textContent; });
+    // Rebuild options
+    el.innerHTML = '';
+    const currentScale = document.querySelector('[name="scale"]')?.value || '';
+    scales.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = labelMap[s] || s;
+      if (s === currentScale) opt.selected = true;
+      el.appendChild(opt);
+    });
+    // If current scale isn't in the list, snap to first
+    if (!scales.includes(currentScale)) {
+      el.value = scales[0];
+      setFieldSilent('scale', scales[0]);
+    }
+  }
+
   function syncChromaticVisibility() {
     const practiceTypeEl = document.querySelector('[name="practiceType"]');
     const mode = practiceTypeEl ? practiceTypeEl.value : '';
@@ -1840,6 +1882,7 @@
     instrument?.addEventListener('change', () => { if (!setup) return; setup.value = instrument.value === 'bass' ? 'bass_4_standard' : 'guitar_6_standard'; if (activeBundle) onGenerate(); });
     setup?.addEventListener('change', syncStringSetupControls); syncStringSetupControls();
     advancedToggle?.addEventListener('change', syncAdvancedMode); syncAdvancedMode(); syncChromaticVisibility();
+    $('slopscale-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', ev.target.value); if (activeBundle) onGenerate(); });
     $('slopscale-play').addEventListener('click', onPlayToggle);
     $('slopscale-regenerate')?.addEventListener('click', onGenerate);
     $('slopscale-next-variation')?.addEventListener('click', rotateToNextVariation);

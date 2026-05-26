@@ -324,9 +324,12 @@
       </div>
 
       <div class="slopscale-group-title">Key</div>
-      <div class="slopscale-grid-2">
+      <div class="slopscale-grid-3">
         <label>Key
           <select name="key"><option>C</option><option>C#</option><option>D</option><option>D#</option><option>E</option><option>F</option><option>F#</option><option>G</option><option>G#</option><option>A</option><option>A#</option><option>B</option></select>
+        </label>
+        <label class="slopscale-pathway-only" id="slopscale-pathway-scale-wrap">Scale
+          <select id="slopscale-pathway-scale"><!-- populated by syncScaleDropdown() --></select>
         </label>
         <label class="slopscale-pathway-only">Position
           <select name="position" id="slopscale-position">
@@ -338,7 +341,7 @@
             <option value="12th">12th fret (12–16)</option>
           </select>
         </label>
-        <label class="slopscale-custom-only">Scale
+        <label class="slopscale-custom-only" style="grid-column: span 2">Scale
           <select name="scale">
             <optgroup label="Pentatonic / Blues">
               <option value="minor_pentatonic">Minor pentatonic</option>
