@@ -136,6 +136,8 @@
   .slopscale-actions button.primary.is-playing { background: linear-gradient(180deg, #b91c1c, #991b1b); border-color: #f87171; }
   .slopscale-actions button.primary.is-playing:hover { background: linear-gradient(180deg, #991b1b, #7f1d1d); }
   .slopscale-stage { overflow: hidden; min-height: 620px; display: flex; flex-direction: column; }
+  .slopscale-scale-diagram { flex-shrink: 0; padding: 8px 16px 6px; background: rgba(2, 6, 23, 0.9); border-bottom: 1px solid rgba(75, 85, 99, 0.3); overflow-x: auto; display: none; line-height: 0; }
+  .slopscale-scale-diagram.visible { display: block; }
   .slopscale-render-host { position: relative; flex: 1; min-height: 560px; overflow: hidden; background: #050711; }
   #slopscale-canvas { display: block; width: 100%; height: 100%; }
   .slopscale-summary { border-top: 1px solid rgba(75, 85, 99, 0.55); padding: 12px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; color: #cbd5e1; background: rgba(2, 6, 23, 0.72); font-size: 12px; line-height: 1.45; }
@@ -480,6 +482,7 @@
     </form>
 
     <section class="slopscale-panel slopscale-stage">
+      <div id="slopscale-scale-diagram" class="slopscale-scale-diagram"></div>
       <div id="slopscale-render-host" class="slopscale-render-host"><canvas id="slopscale-canvas"></canvas></div>
       <div id="slopscale-summary" class="slopscale-summary">Generate a practice chart to preview notes, chords, timing, and audio.</div>
     </section>
