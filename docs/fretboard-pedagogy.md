@@ -4,7 +4,7 @@ This document is the authoritative reference for how SlopScale should think abou
 
 Every position/shape decision in SlopScale should be traceable back to a principle in this doc. If it isn't, we're making it up.
 
-Sources synthesized: Jimmy Bruno Guitar Institute (5-Shape system, arpeggio extraction, ii-V-I / I-vi-ii-V line creation), Frank Gambale (Modes: No More Mysteries, full-neck modal maps), Barrett Tagliarino (Fretboard Workbook, CAGED), Joe Pass (chord vocabulary, string-group voicings).
+Sources synthesized: the **CAGED system** (the canonical 5-shape major-scale fingering taught across nearly every modern method — Justin Guitar, Applied Guitar Theory, Hal Leonard, Mel Bay, Jens Larsen, etc.), the **3-notes-per-string (3NPS) system** (Frank Gambale, Paul Gilbert, modern rock/fusion pedagogy), Gambale's full-neck modal maps (*Modes: No More Mysteries*), Barrett Tagliarino's *Guitar Fretboard Workbook*, Joe Pass's chord vocabulary and string-group voicings, and the Jimmy Bruno Guitar Institute's I-vi-ii-V / ii-V-I line-creation method.
 
 ---
 
@@ -20,111 +20,117 @@ This is the fix for SlopScale's current bug: the Position dropdown drove `fretMi
 
 ### 2. Multiple shapes share each root anchor
 
-For C major with the root on the 3rd fret of the 6th string (G... wait — C root on the 6th string is fret 8, not 3. Let me restate):
-
 For C major with the root on the **3rd fret of the 5th string** (a low C), the player has *at least three* canonical fingering choices:
 
 | Shape | Fret window | Style |
 | --- | --- | --- |
-| **Open / 1st position** | 0–3 | Mixes open strings with fretted notes; uses C natural minor fingering convention. Good for folk/rock vocabulary. |
-| **C-shape CAGED scale** | 2–5 | Hand sits across frets 2–5, root on 5th string fret 3. Classic "low Position 1" scale shape. |
-| **3-notes-per-string starting on 5th string fret 3** | 3–8 | Index at fret 3, spans up to fret 8 across all 6 strings. 18 notes total. Standard rock/fusion shape. |
+| **Open position fingering** | 0–3 | Mixes open strings with fretted notes. Good for folk/rock vocabulary. |
+| **C-shape (CAGED)** | 2–5 | Hand sits across frets 2–5, root on 5th string fret 3. Anchored on the open-C chord shape moved into position. |
+| **3NPS Position 1 (Ionian)** | 3–8 | Index at fret 3, spans up to fret 8 across all 6 strings. 18 notes total. Standard rock/fusion 3-notes-per-string fingering. |
 
 These are all **C major in the same key** anchored on the **same root note** — but they imply different fret windows and different fingerings. SlopScale should expose all three (or however many the chosen system defines).
 
-This is why the user's feedback was: *"that note anchor on the 3rd fret of the A string should facilitate multiple scale shapes"* — yes, exactly.
+This is what the user meant by: *"that note anchor on the 3rd fret of the A string should facilitate multiple scale shapes."* Exactly right.
 
 ---
 
-## The major fretboard systems
+## The fretboard systems
 
-There are three serious systems in circulation. SlopScale should support them as user-selectable options, not pick one. Each is internally consistent; mixing them in the same exercise tends to confuse beginners.
+There are three systems SlopScale will support. Each is internally consistent; mixing them in the same exercise tends to confuse beginners.
 
-### System A — CAGED
+### System A — CAGED (the default)
 
-**Premise:** The 5 open-position chord shapes (C, A, G, E, D) can be barred and shifted up the neck to play any major chord. The scale that fits *around* each shifted chord shape becomes a 5-fret scale box.
+**Premise:** The 5 open-position major chord shapes (C, A, G, E, D) can be barred and shifted up the neck to play any major chord. The scale that fits *around* each shifted chord shape becomes a 4–5-fret scale box.
 
-**Shapes:** C, A, G, E, D — named after the open chord they derive from. The hand position is wherever the shape's root sits.
+**Shapes:** Five shapes named after the underlying open chord they derive from:
 
-**Span:** Each shape spans roughly 4–5 frets. The 5 shapes tile the neck — there is no fret on the neck not covered by at least one CAGED shape.
+- **C-shape** — root on the 5th string, fingered with the open-C chord geometry shifted up the neck.
+- **A-shape** — root on the 5th string, A-chord geometry (often barred).
+- **G-shape** — root on the 6th string, G-chord geometry.
+- **E-shape** — root on the 6th string, E-chord geometry (the classic barre chord).
+- **D-shape** — root on the 4th string, D-chord geometry.
 
-**Why 5, not 7?** There are only 5 unique chord shapes available in open position (C, A, G, E, D — the others like B and F overlap with these as bar variants). The "missing" two scale shapes are absorbed by adjacent ones because of the half-steps in the major scale (3→4 and 7→1).
+**Cyclic ordering on the neck:** The 5 shapes always appear in the cyclic order **C → A → G → E → D → C → …** as you ascend. The "first" shape in any given key (the one closest to the nut) depends on which chord shape is closest to open position for that key.
 
-**Best for:** Linking scales to chord shapes. A player who knows "this is the A-shape position" has both a chord they can comp and a scale they can solo over, anchored on the same root.
+For example:
+- In C major: order from low to high is C → A → G → E → D → C. The C-shape sits at the nut.
+- In A major: A → G → E → D → C → A. The A-shape sits at the nut.
+- In G major: G → E → D → C → A → G. The G-shape sits at the nut.
 
-### System B — Bruno 5-Shape
+**Span:** Each shape spans roughly 4–5 frets. The five shapes tile the neck — there is no fret on the neck not covered by at least one CAGED shape, and adjacent shapes always share at least one fret of overlap.
 
-**Premise:** Same idea as CAGED (5 overlapping major-scale boxes tile the neck), but renamed by the scale degree on the low E string and fingered as **3-notes-per-string wherever possible**.
+**Why 5, not 7?** There are only 5 unique chord shapes available in open position (C, A, G, E, D). The "missing" two scale shapes are absorbed by adjacent ones because of the half-step intervals in the major scale (3→4 and 7→1) — adjacent positions collapse into one shape rather than two.
 
-**Shapes:** 2, 3, 5, 6, 7 — named after the scale degree of the lowest note on the 6th string. No "Shape 1" or "Shape 4" because the half-step gaps in the scale (B→C and E→F) cause the would-be 1 and 4 shapes to collapse into adjacent shapes (same collapse logic as CAGED).
+**Fingering note:** Real-world CAGED scale fingerings often mix 2-notes-per-string and 3-notes-per-string strings within the same shape, depending on which is more comfortable. SlopScale will lean toward 3-NPS where possible for picking consistency, but won't force it if the result is an awkward stretch.
 
-**Cyclic ordering:** Shapes always appear on the neck in the order **5 → 6 → 7 → 2 → 3 → (back to 5)** as you climb up. The starting shape (lowest on the neck) depends on the key:
+**Best for:** The default SlopScale system. Players who want a tight, position-based scale vocabulary with chord-shape anchors. Maps cleanly to both rhythm/comping (the underlying chord) and lead (the scale around it). Chord-tone arpeggios extract cleanly from each shape.
 
-| Key | Lowest shape | Lowest shape starts at low-E fret |
-| --- | --- | --- |
-| C | Shape 5 | 3 |
-| F | Shape 2 | 3 |
-| Bb | Shape 6 | 3 |
-| Eb | Shape 3 | 3 |
-| Ab | Shape 7 | 3 |
-| Db / C# | Shape 3 | 1 |
-| Gb / F# | Shape 7 | 1 |
-| B | Shape 5 | 2 |
-| E | Shape 2 | 2 |
-| A | Shape 6 | 2 |
-| D | Shape 3 | 2 |
-| G | Shape 7 | 2 |
-
-So "Shape 5 in C" sits at frets 2–7; "Shape 5 in G" sits at frets 9–14. Shape numbers are **portable across keys** — they describe the shape's *interval relationship to the root*, not its absolute fret.
-
-**Span:** Each Bruno shape spans 4–6 frets and uses 3 notes per string on most strings (occasional 2-NPS strings where the fingering is more comfortable).
-
-**Best for:** Players who want a tight, modern, 3NPS-friendly fingering vocabulary without committing to strict 3NPS pedagogy. Especially good for jazz/fusion because chord-tone arpeggios extract cleanly from each shape (see "Arpeggio extraction" below).
-
-### System C — Three Notes Per String (3NPS)
+### System B — Three Notes Per String (3NPS)
 
 **Premise:** Every string gets exactly 3 notes. The 7-note major scale fits in 6 strings × 3 notes = 18 notes per shape. There are **7 distinct 3NPS shapes** — one starting on each scale degree on the low E string.
 
-**Shapes:** Numbered 1 through 7 by the scale degree the shape starts on (low E). Unlike Bruno's 5-shape system, 3NPS keeps all 7 because the strict-3NPS constraint prevents the half-step collapse.
+**Shapes:** Seven shapes, named by the mode each begins on (because each starts on a different scale degree of the parent scale):
+
+1. **Position 1 (Ionian)** — starts on the root (1) on the low E string.
+2. **Position 2 (Dorian)** — starts on the 2nd degree.
+3. **Position 3 (Phrygian)** — starts on the 3rd degree.
+4. **Position 4 (Lydian)** — starts on the 4th degree.
+5. **Position 5 (Mixolydian)** — starts on the 5th degree.
+6. **Position 6 (Aeolian)** — starts on the 6th degree.
+7. **Position 7 (Locrian)** — starts on the 7th degree.
+
+(These mode labels reflect the lowest note of the shape, not a re-tonicization — the scale is still the parent major scale. The labels just happen to be useful mnemonics because each position's lowest note matches the tonic of a mode.)
+
+Unlike CAGED, 3NPS keeps all 7 shapes because the strict-3NPS constraint prevents the half-step collapse.
 
 **Span:** Each 3NPS shape spans 5–6 frets. Shapes share considerable overlap with each other.
 
-**Best for:** Speed players, alternate picking, modal soloing, rock/metal. The uniform fingering (3 notes per string, always) makes sequences (fours, sixes, thirds) much easier to pattern across strings.
+**Best for:** Speed players, alternate picking, modal soloing, rock/metal/fusion. The uniform fingering (3 notes per string, always) makes sequences (fours, sixes, thirds) much easier to pattern across strings. Same parent scale as CAGED — just a different way to organize the hand.
+
+### System C — Open
+
+**Premise:** Use open strings combined with fretted notes in the lowest few frets. This is *not* a movable system — it's key-specific. Some keys (C, G, D, A, E, F, Am, Em, Dm) have natural open-position fingerings; others (Eb, Ab, Bb, F#) don't and the option won't be useful.
+
+**Shapes:** One per supported key. SlopScale knows which keys have a sensible open-position fingering and offers it only there.
+
+**Span:** Frets 0–3 (occasionally to fret 4 for stretches like F# on the D string in G major).
+
+**Best for:** Folk, country, classic rock vocabulary. Beginners. Anything that benefits from the ringing/sustain character of open strings.
 
 ### Three systems — same scale, different framings
 
 For any given key, all three systems describe the *same* notes on the *same* neck. They differ only in how the player's hand is asked to organize those notes. The user's choice between them is a fingering preference, not a music-theory difference.
 
-**Implication for SlopScale:** the fretboard-system selector is real and load-bearing. Picking CAGED vs Bruno vs 3NPS for the same key+scale produces different exercises with different fret windows and different fingerings.
+**Implication for SlopScale:** the fretboard-system selector is real and load-bearing. Picking CAGED vs 3NPS vs Open for the same key+scale produces different exercises with different fret windows and different fingerings.
 
 ### Gambale's full-neck map (not a 4th system)
 
 Frank Gambale's *Modes: No More Mysteries* shows each mode as a single full-neck diagram with every scale note labeled by scale degree (1, 2, 3, etc.). This is **not a competing position system** — it's a different *view* of the same fretboard. The position systems are partitions of this map.
 
 SlopScale should support both views:
-- **Position view** — one shape highlighted at a time (CAGED / Bruno / 3NPS).
+- **Position view** — one shape highlighted at a time (CAGED / 3NPS / Open).
 - **Full-neck view** — every scale note across the whole neck, labeled by degree. Useful for understanding before drilling.
 
 ---
 
 ## How arpeggios live inside shapes
 
-A key Bruno insight (Lesson 12 of his Improv Revealed Level 1): an arpeggio is *the chord tones of a scale, restricted to one shape's fret window.*
+An arpeggio is *the chord tones of a scale, restricted to one shape's fret window.* This is the same insight whether you're working in CAGED, 3NPS, or open position.
 
-For the D-7 arpeggio (D, F, A, C) in C major, played inside Shape 5 (frets 2–7):
+For the D-7 arpeggio (D, F, A, C) in C major, played inside the **G-shape CAGED scale position** (which sits around frets 2–5 in C major):
 
 - 6th string: A at fret 5
 - 5th string: C at fret 3, D at fret 5
-- 4th string: F at fret 3, A at fret 7 (the 7 is at the high edge of the shape)
+- 4th string: F at fret 3
 - 3rd string: A at fret 2, C at fret 5
-- 2nd string: D at fret 3, F at fret 6
+- 2nd string: D at fret 3
 - 1st string: A at fret 5
 
-The same Dm7 arpeggio in Shape 6 (frets 5–8) uses different notes — same chord tones, but different octaves and string locations, fingered with the Shape-6 hand position.
+The same Dm7 arpeggio in the **E-shape position** (around frets 7–10 in C major) uses different notes — same chord tones, different octaves and string locations, fingered with the E-shape hand position.
 
 **Implication for SlopScale's arpeggio generator:**
 - Take the chord tones (1, 3, 5, 7 — with quality modifiers like b3 for minor).
-- Restrict to notes inside the chosen shape's fret window.
+- Restrict to notes inside the chosen shape's note set.
 - Render those notes in scale order, ascending then descending.
 
 The current SlopScale `chordTonePositionsInPosition` does something close to this but driven by a rectangular `fretMin`/`fretMax`. Once shapes anchor on a root, it should restrict to shape membership instead.
@@ -139,9 +145,9 @@ This is the most important section for SlopScale, because the current "Chord Ton
 
 ### Diatonic progressions: parent scale + chord-tone emphasis
 
-When all chords come from one key (a I-vi-ii-V or ii-V-I in C major: Cmaj7, A-7, D-7, G7), Bruno's lessons (#23, #32, etc.) show that **the line stays in the parent C major scale the whole time**. The shape stays put for several bars. The change as the chord moves is *which notes get emphasized as targets*, not *which scale is being used*.
+When all chords come from one key (a I-vi-ii-V or ii-V-I in C major: Cmaj7, A-7, D-7, G7), good pedagogy keeps the line **in the parent C major scale the whole time**. The shape stays put for several bars. The change as the chord moves is *which notes get emphasized as targets*, not *which scale is being used*.
 
-A line over Cmaj7 → A-7 → D-7 → G7 in Shape 5 might use the same 18 notes of C major throughout, but land on:
+A line over Cmaj7 → A-7 → D-7 → G7 in the G-shape position might use the same 18 notes of C major throughout, but land on:
 - C, E, G, B (Cmaj7 chord tones) during the Cmaj7 bar
 - A, C, E, G (A-7 chord tones) during the A-7 bar
 - D, F, A, C (D-7 chord tones) during the D-7 bar
@@ -164,7 +170,7 @@ But for ii-V-I in C, mode-of-the-moment is wrong: D Dorian, G Mixolydian, and C 
 
 ### Shifting between shapes
 
-Bruno shows explicit "Shifting" exercises (Lesson 23, bars 49–52) that climb up the neck through adjacent shapes — Shape 5 → Shape 6 → Shape 7 etc. — as a separate drill, not as the default mode of playing.
+Many methods include explicit shifting exercises that climb up the neck through adjacent shapes — C-shape → A-shape → G-shape etc. — as a separate drill, not as the default mode of playing.
 
 A good practice progression:
 1. Build vocabulary in **one shape**.
@@ -197,7 +203,7 @@ For jazz comping, the same chord (e.g. Dmaj7) can be voiced on any of these grou
 
 Translating the above into concrete code-design decisions:
 
-### `Position` is wrong. Use `Anchor` + `Shape`.
+### `Position` is wrong. Use `System` + `Shape`.
 
 Current SlopScale model:
 ```
@@ -207,40 +213,62 @@ position: 'open' | '3rd' | '5th' | '7th' | '9th' | '12th'
 
 Proposed model:
 ```
-fretboardSystem: 'caged' | 'bruno5' | '3nps' | 'open' | 'fullNeck'
-shape: depends on system (C/A/G/E/D for CAGED; 2/3/5/6/7 for Bruno; 1-7 for 3NPS)
+fretboardSystem: 'caged' | '3nps' | 'open' | 'fullNeck'
+shape: depends on system
 key: NoteName
-rootAnchorString: 5 | 6  (which string the root sits on for this shape)
 ```
 
-The fret window is **derived** from `(key, fretboardSystem, shape, rootAnchorString)`, not user-specified.
+Where `shape` is:
+- For CAGED: `'C' | 'A' | 'G' | 'E' | 'D'`
+- For 3NPS: `1 | 2 | 3 | 4 | 5 | 6 | 7` (or labeled by mode: Ionian / Dorian / …)
+- For Open: implicit (one shape per supported key)
+- For Full Neck: no shape needed
 
-Example resolution:
-- `(C major, Bruno5, Shape 5)` → low-E root anchor on G (degree 5) at fret 3 → fret window 2–7.
-- `(C major, Bruno5, Shape 6)` → low-E root anchor on A (degree 6) at fret 5 → fret window 5–9.
-- `(G major, Bruno5, Shape 5)` → low-E root anchor on D at fret 10 → fret window 9–14.
+The fret window is **derived** from `(key, fretboardSystem, shape)`, not user-specified.
+
+Example resolutions:
+- `(C major, CAGED, C-shape)` → fret window 0–5, root C at 5th string fret 3.
+- `(C major, CAGED, A-shape)` → fret window 2–5, root C at 5th string fret 3 (same root, different fingering geometry).
+- `(C major, CAGED, E-shape)` → fret window 7–11, root C at 6th string fret 8.
+- `(G major, CAGED, E-shape)` → fret window 2–6, root G at 6th string fret 3.
+- `(C major, 3NPS, Position 1 / Ionian)` → fret window 7–11, hand at 7th fret on low E (the C root).
+- `(C major, 3NPS, Position 3 / Phrygian)` → fret window 11–15, hand at 11th fret on low E (the E, 3rd degree).
 
 ### Shape ordering on the neck
 
 For any (key, system), there is a deterministic ordering of shapes from low-fret to high-fret. SlopScale should be able to:
-1. List the shapes in that order.
-2. Pick "the lowest shape" by default (the user said *"open position"* for C major, which means the lowest available shape — for Bruno5 in C that's Shape 5).
+1. List the shapes in that order for the current key.
+2. Pick "the lowest shape" by default.
 3. Move to the next shape (or previous) on user request.
 
-### "Open position" is system-dependent
+### Shape dropdown labels
 
-"Open position in C major" means different things depending on the system:
-- CAGED: the C-shape, hand at frets 0–3, uses open strings.
-- Bruno5: Shape 5, hand at frets 2–7 (doesn't use open strings — Bruno5 is fingered-only).
-- 3NPS: Shape 3 (lowest), hand at frets 0–4 (uses open strings).
+Per user feedback, labels should be based on the **shape area** (where the hand sits). Recommended format:
 
-The dropdown should not say "Open position (0–3)" generically. It should say something like "Lowest shape" or, better, name the actual shape ("C-shape" / "Shape 5" / "3NPS Position 3") based on the selected system.
+```
+[shape-identifier] (frets X–Y)
+```
+
+Examples in C major:
+- `C-shape (frets 0–5)`
+- `A-shape (frets 2–5)`
+- `G-shape (frets 7–10)`
+- `E-shape (frets 7–11)`
+- `D-shape (frets 12–17)`
+
+Examples in C major, 3NPS:
+- `Position 1 / Ionian (frets 7–11)`
+- `Position 2 / Dorian (frets 9–13)`
+- `Position 3 / Phrygian (frets 11–15)`
+- ...
+
+The fret range comes after the shape name so the user knows where their hand goes, but the primary identifier is the shape itself.
 
 ### Arpeggios live inside shapes
 
 A `diatonic_arpeggios` exercise needs:
 1. A scale (e.g., C major).
-2. A shape inside that scale (e.g., Bruno Shape 5, fret window 2–7).
+2. A shape inside that scale (e.g., G-shape CAGED).
 3. A chord quality per scale degree (e.g., triads or 7ths).
 
 For each diatonic chord, take its chord tones and intersect with the shape's note set. Render those notes in scale order.
@@ -256,20 +284,24 @@ The `chordScaleStrategy` field should default based on whether the progression i
 
 ## What this means for the immediate SlopScale rework
 
-(The actual rework lives in a separate proposal doc — see [position-system-rework.md](./position-system-rework.md) once written. This section is just the punch list.)
+(The actual rework lives in [position-system-rework.md](./position-system-rework.md). This section is just the punch list.)
 
 1. Replace `POSITION_PRESETS` (fret windows) with a shape-aware system.
 2. Make the fretboard-system selector primary, the shape selector secondary (depends on system).
 3. Derive `fretMin`/`fretMax` from `(key, system, shape)` rather than reading from a dropdown.
-4. Default the Chord Tone Targeting pathway to `chord_tone_emphasis` strategy with a single shape anchor (the user's request from 2026-05-26).
-5. Eventually: add the static scale-diagram panel back, this time driven by the *actual current shape* rather than a raw fret range — it will show 5 dots in a recognizable shape, not a scattered grid.
+4. Default the Chord Tone Targeting pathway to `chord_tone_emphasis` strategy with a single shape anchor.
+5. Eventually: add the static scale-diagram panel back, this time driven by the *actual current shape* rather than a raw fret range — it will show a recognizable shape, not a scattered grid.
 
 ---
 
-## Open questions to revisit with the user
+## User-confirmed design decisions (2026-05-26)
 
-1. **Which system as default for beginners?** Bruno5 is most coherent for the existing jazz-leaning pathways; CAGED is more universal. The skill brief recommends "single position / basic CAGED" for beginners.
-2. **How to expose shape choice in the UI?** A scrolling row of 5 shape buttons? A dropdown? A neck minimap with the active shape highlighted?
-3. **Open-string handling.** Bruno5 doesn't use open strings; CAGED's C-shape and 3NPS's lowest positions do. Should SlopScale offer an "include open strings when available" toggle?
-4. **Position-shift exercises.** Should "shift between adjacent shapes" be its own practice type, or a modifier on existing types?
-5. **3NPS shape naming.** The 3NPS shapes are also sometimes called "modes" (Position 1 = Ionian, Position 2 = Dorian, etc.) because each shape starts on a different scale degree. This is a useful coincidence but can confuse beginners. Should we name 3NPS shapes by number (1–7) or by mode (Ionian/Dorian/…)?
+These were the open questions in the original draft; the user has answered all five:
+
+1. **Default fretboard system:** CAGED (5 shapes). We start there; if it doesn't feel natural in practice we can revisit.
+2. **Shape-dropdown labels:** based on the shape area, with fret range. Format: `[shape-name] (frets X–Y)`.
+3. **3NPS shape naming:** modal names — `Position 1 (Ionian)`, `Position 2 (Dorian)`, etc.
+4. **Open position:** its own system (not a special case of CAGED).
+5. **Next Variation:** cycles shapes within the same key (e.g., C-shape → A-shape → G-shape → E-shape → D-shape, in order).
+
+These decisions are now baked into [position-system-rework.md](./position-system-rework.md).

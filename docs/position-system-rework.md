@@ -1,6 +1,6 @@
 # Position-System Rework Proposal
 
-**Status:** Draft for user review. No code changes shipped yet.
+**Status:** Design locked as of 2026-05-26 (all open questions resolved by user). Ready for implementation in a future code change.
 **Companion doc:** [fretboard-pedagogy.md](./fretboard-pedagogy.md) — the *why*. This doc is the *what*.
 
 ---
@@ -23,8 +23,20 @@ That's pedagogically wrong. The user's feedback:
 
 The user wants:
 - Position chosen by **root anchor**, not fret number.
-- One root anchor implies **multiple valid shapes** (open-position, CAGED, 3NPS, …).
+- One root anchor implies **multiple valid shapes** (open, CAGED, 3NPS, …).
 - The fret window is **derived** from the chosen shape, not the input.
+
+---
+
+## Locked design decisions
+
+The user has reviewed and confirmed:
+
+1. **Default fretboard system:** CAGED (5 shapes). Start there; revisit if it doesn't feel natural.
+2. **Shape labels in the dropdown:** named by the **shape itself** with the **fret area** as a parenthetical. Example: `E-shape (frets 7–11)`.
+3. **3NPS shape names:** modal names — `Position 1 (Ionian)`, `Position 2 (Dorian)`, etc.
+4. **Open position:** its own system, not a special case of CAGED. Available only in keys where it makes sense.
+5. **Next Variation behavior:** cycles shapes within the same key. (C-shape → A-shape → G-shape → E-shape → D-shape, in the order they appear on the neck for that key.)
 
 ---
 
@@ -34,8 +46,8 @@ The user wants:
 
 | Field | Type | Replaces / adds | Notes |
 | --- | --- | --- | --- |
-| `fretboardSystem` | `'caged' \| 'bruno5' \| '3nps' \| 'open' \| 'fullNeck'` | Replaces existing `fretboardSystem` | "open" = open-position-favoring fingering for keys where it works; "fullNeck" = Gambale full-neck map (for visualization, not drilling). |
-| `shape` | depends on system | Replaces `cagedShape` + introduces shape ID for non-CAGED systems | CAGED: `'C'\|'A'\|'G'\|'E'\|'D'`. Bruno5: `2\|3\|5\|6\|7`. 3NPS: `1\|2\|3\|4\|5\|6\|7`. |
+| `fretboardSystem` | `'caged' \| '3nps' \| 'open' \| 'fullNeck'` | Replaces existing `fretboardSystem` | CAGED is default. "open" = open-position-favoring fingering for keys where it works; "fullNeck" = full-neck visualization (not for drilling). |
+| `shape` | depends on system | Replaces `cagedShape` + introduces shape ID for non-CAGED systems | CAGED: `'C'\|'A'\|'G'\|'E'\|'D'`. 3NPS: `1\|2\|3\|4\|5\|6\|7` (labeled by mode). Open: implicit per key. |
 | (removed) `position` | — | Old `'open'\|'3rd'\|'5th'\|…` dropdown | Gone. The user picks system + shape; fret window is derived. |
 | (removed) `fretMin`/`fretMax` as user inputs | — | Still computed internally | They become outputs of `(key, system, shape)`, not inputs. Advanced users could still override with a "custom fret range" escape hatch — but it's no longer the default path. |
 
@@ -49,7 +61,7 @@ function fretWindowForShape(key, system, shape) {
 }
 ```
 
-For Bruno5, this is a lookup table keyed by `(scaleDegreeOnLowE, key)`. For CAGED, it's the chord-shape root location plus the surrounding 4–5 fret scale box. For 3NPS, it's the strict 3-notes-per-string fingering anchored on the starting scale degree.
+For CAGED, this is a lookup keyed by `(chordShape, key)` — find where the underlying chord shape sits in the key, then return the surrounding 4–5-fret scale box. For 3NPS, it's the strict 3-notes-per-string fingering anchored on the starting scale degree. For Open, it's a key-specific shape table (only populated for keys where open position is sensible).
 
 ---
 
@@ -66,24 +78,52 @@ Key      Scale       Position
 Proposed:
 ```
 Key      Scale       Fretboard system    Shape
-[C  ▼]   [Ionian ▼]  [Bruno 5-Shape ▼]   [Shape 5 (open) ▼]
+[C  ▼]   [Ionian ▼]  [CAGED ▼]           [E-shape (frets 7–11) ▼]
 ```
 
-The Shape dropdown is system-dependent:
+### Shape dropdown contents (per system)
 
-| System | Shape dropdown contents |
-| --- | --- |
-| CAGED | C-shape, A-shape, G-shape, E-shape, D-shape — ordered low-to-high by where the shape sits in the current key |
-| Bruno 5-Shape | Shape 5, Shape 6, Shape 7, Shape 2, Shape 3 — ordered low-to-high |
-| 3NPS | Position 1 (Ionian), Position 2 (Dorian), … — ordered low-to-high |
-| Open | (single option — uses open strings, fingering varies by key) |
-| Full Neck | (no shape — full neck active) |
+**CAGED (default):**
 
-Each Shape option's label includes the fret range it produces in the current key, e.g. **"Shape 5 (frets 2–7)"**. This gives the user a quick read of where the hand will sit without removing the conceptual primary (the shape name).
+For C major, in fret order:
+- `C-shape (frets 0–5)`
+- `A-shape (frets 2–5)`
+- `G-shape (frets 7–10)`
+- `E-shape (frets 7–11)`
+- `D-shape (frets 12–17)`
+
+The names stay `C-shape / A-shape / …` across all keys — the fret range changes per key. In G major, the same five names appear but in different cyclic order (G → E → D → C → A from low to high).
+
+**3NPS:**
+
+Seven entries, in fret order from low to high in the current key:
+- `Position 1 / Ionian (frets X–Y)`
+- `Position 2 / Dorian (frets X–Y)`
+- `Position 3 / Phrygian (frets X–Y)`
+- `Position 4 / Lydian (frets X–Y)`
+- `Position 5 / Mixolydian (frets X–Y)`
+- `Position 6 / Aeolian (frets X–Y)`
+- `Position 7 / Locrian (frets X–Y)`
+
+**Open:**
+
+One option in supported keys:
+- `Open position (frets 0–3)` — visible only for keys where it's sensible (C, G, D, A, E, F, Am, Em, Dm).
+
+In unsupported keys, the Open system option is either greyed out or hidden, with a tooltip explaining why.
+
+**Full Neck:**
+
+No shape dropdown — the whole neck is in scope. This is for visualization/recall practice, not drilling.
 
 ### Status bar
 
-`Ready — C major, Bruno Shape 5 (frets 2–7)` — names the system and shape, with fret range as parenthetical.
+Examples:
+- `Ready — C major, CAGED E-shape (frets 7–11)`
+- `Ready — G major, 3NPS Position 1 (frets 3–7)`
+- `Ready — D major, Open position`
+
+The system + shape come first; the fret range is parenthetical context.
 
 ### Pathway behavior
 
@@ -91,13 +131,31 @@ Pathways pick a default `(system, shape)`. When the user changes Key, the pathwa
 
 When the user explicitly changes Shape, the new fret window takes effect; the pathway is marked "modified."
 
+### Next Variation — cycles shapes within a key
+
+The Next Variation button currently rotates `fretMin/fretMax` and sometimes other params. Per user decision, after the rework Next Variation should **cycle through shapes within the same key** in low-to-high fret order. For C major CAGED, the cycle is:
+
+C-shape → A-shape → G-shape → E-shape → D-shape → (back to C-shape)
+
+In G major CAGED:
+
+G-shape → E-shape → D-shape → C-shape → A-shape → (back to G-shape)
+
+(Same cyclic order — CAGED → CAGED → CAGED → CAGED — but starting position differs by key.)
+
+For 3NPS the cycle goes Position 1 → 2 → 3 → … → 7 → 1.
+
+For Open, Next Variation can either:
+- Be a no-op (only one Open shape per key) — recommended.
+- Cycle to the next key in the circle of fourths, keeping the system as Open. (Possible if the user wants quick comparison across open-position-friendly keys.)
+
 ---
 
 ## Generator changes
 
 ### `scalePositionsForSystem(cfg)`
 
-Today walks the user's `fretMin..fretMax` looking for in-key notes. Proposed: drive entirely from `(key, system, shape)`, return exactly the notes that belong to that shape — including their string assignments (which Bruno-Shape pre-determines).
+Today walks the user's `fretMin..fretMax` looking for in-key notes. Proposed: drive entirely from `(key, system, shape)`, return exactly the notes that belong to that shape — including their string assignments (which the shape pre-determines).
 
 This is a real change of authority: today notes happen to fall in a window; tomorrow they're *the shape's notes by definition*.
 
@@ -140,18 +198,19 @@ User can override.
 **Today:** `fretMin: 0, fretMax: 7`, strategy `chord_tone_emphasis`, but the wide fret range lets the arpeggio wander all the way to fret 7 (visible as the messy chord box on the highway).
 
 **Proposed:**
-- Replace `fretMin/fretMax` with `(system: 'bruno5', shape: 5)` as the pathway default.
+- Replace `fretMin/fretMax` with `(system: 'caged', shape: 'C')` as the pathway default — keeps the user near the open position they were testing.
 - Strategy stays `chord_tone_emphasis`.
-- Result: in C major, the line stays inside Shape 5 (frets 2–7) but specifically uses *the Shape-5 note set*, not "every C major note between 2 and 7." Same fret range, different set: the Shape-5 set has consistent 3-NPS fingering; the raw range can include awkward stretches.
+- Result: in C major, the line stays inside the C-shape (frets 0–5), specifically using the C-shape note set — not "every C major note between 0 and 7." The arpeggio for Cmaj7 will sit on real chord-tone positions within the C-shape and stop at fret 5.
 - User can switch shape via the Shape dropdown to drill the same exercise in a different position.
+- Next Variation cycles C-shape → A-shape → G-shape → E-shape → D-shape.
 
 ### Modal Awareness
 
 **Today:** `fretMin: 0, fretMax: 7`, `mode_of_moment`, diatonic progression. Same wide-range issue.
 
 **Proposed:**
-- Default to `(system: 'bruno5', shape: 5)` in C; let user move to other shapes.
-- Strategy: actually this one *should* stay `mode_of_moment` since the pedagogy is "feel each mode's distinct color." Each chord's mode uses whatever notes fall inside the active shape.
+- Default to `(system: 'caged', shape: 'C')` in C; let user move to other shapes.
+- Strategy stays `mode_of_moment` since the pedagogy is "feel each mode's distinct color." Each chord's mode uses whatever notes fall inside the active shape.
 
 ### Diatonic Triad Drill, Seventh Vocabulary, ii-V-I Workout
 
@@ -159,11 +218,11 @@ Same treatment: pick a sensible default shape per pathway, derive fret window fr
 
 ### Pent Foundation, Blues Foundation, Major Pent Country, Dorian Groove
 
-These already use sensible 4-fret ranges; they need light touch-up to convert `fretMin/fretMax` into shape selection, but the practice content stays the same.
+These already use 4-fret-ish ranges; they need light touch-up to convert `fretMin/fretMax` into shape selection, but the practice content stays the same.
 
 ### Sweep Primer
 
-This one needs care — sweep arpeggios specifically target the **A-shape CAGED** geometry for triad sweeps and the **D-shape** for higher arpeggios. The system should be `'caged'` with explicit shape selection. Currently the pathway specifies `cagedShape: 'A'` which is close but not integrated with the fret-window logic.
+This one needs care — sweep arpeggios specifically target the **A-shape CAGED** geometry for triad sweeps and the **D-shape** for higher arpeggios. The pathway already specifies `cagedShape: 'A'` — good. The rework just makes that shape selection load-bearing rather than supplementary.
 
 ---
 
@@ -184,28 +243,17 @@ This rework is mostly UI/data-model. The note highway itself doesn't change. But
 
 ---
 
-## Open questions before implementing
-
-These came out of the source-material research and need user input before code changes:
-
-1. **Default fretboard system for new pathways:** Bruno 5-Shape, CAGED, or 3NPS? My recommendation: **Bruno 5-Shape** as the SlopScale default, since (a) the existing pathways are jazz-leaning and Bruno's system is jazz-native, (b) Bruno shapes give 3-NPS fingering by default which works well for scale runs, and (c) chord-tone arpeggio extraction from a Bruno shape is the cleanest case.
-2. **Naming the dropdown options:** "Shape 5" is opaque if you haven't read Bruno. Should we label it as **"Shape 5 / E-shape area (frets 2–7)"** to bridge Bruno's naming with CAGED-familiar players? Or keep it pure to the chosen system?
-3. **3NPS shape naming convention:** Number them 1–7, or name them by mode (Ionian/Dorian/…)? I lean toward "Position 1 (Ionian)" — number primary, mode parenthetical — since the position number is what most rock/metal players actually use.
-4. **The "Open" system:** Worth its own option, or just a special-case of CAGED's C-shape / Bruno's lowest shape per key? My take: small dedicated path for the actual open-string-rich playing that beginners do (campfire shapes, open-position pentatonic). It's a real pedagogical thing, not a special case.
-5. **Pathway variation rotation:** Right now `Next variation` rotates `fretMin/fretMax`. Once shapes are first-class, should it rotate through shapes within the same key, through keys with the same shape, or both? I'd suggest the variations array becomes shape-specific (e.g. `[{shape: 5}, {shape: 6}, {shape: 7}]`) so "Next variation" cycles you through positions on the same exercise.
-
----
-
 ## Acceptance criteria for the rework
 
 When this is shipped, the user should be able to:
 
-1. Pick "Chord Tone Targeting" + key C + Bruno 5-Shape + Shape 5 → see a clean Gmaj7-arpeggio-style box on a 3-NPS Shape-5 fingering, anchored on the G (degree 5) on low-E fret 3, with notes only inside frets 2–7.
-2. Change Shape to "Shape 6" → same exercise, hand jumps to frets 5–9, same diatonic chord tones, just in the next box up the neck.
-3. Change Key to G → Shape 5 in G now sits at frets 9–14, the practice content adapts automatically.
-4. Switch to CAGED system → Shape dropdown changes to C/A/G/E/D; picking E-shape in C major puts the hand around fret 7–11 area (E-shape root on 6th string fret 8 = C).
-5. Switch to 3NPS → Shape dropdown shows 7 positions; picking Position 3 in C major sits the hand at frets 4–8 with strict 3-notes-per-string fingering.
-6. No more confusion about what "open position" or "3rd position" means — it now says the shape name (e.g. "Bruno Shape 5") and shows the resulting fret range.
+1. Pick "Chord Tone Targeting" + key C + CAGED + C-shape → see a clean arpeggio-style figure anchored on the C major notes within frets 0–5, with the Cmaj7 / Am7 / Dm7 / G7 chord tones being targeted in turn.
+2. Change Shape to "A-shape" → same exercise, hand jumps to frets 2–5, same diatonic chord tones, just in the next position up the neck.
+3. Hit Next Variation → cycles to G-shape, then E-shape, then D-shape, then back to C-shape.
+4. Change Key to G → the active shape stays selected; the fret range adapts. (C-shape in G sits at frets 7–12.)
+5. Switch system to 3NPS → Shape dropdown changes to 7 modal-named positions; picking Position 1 (Ionian) in C major puts the hand at frets 7–11 with strict 3-notes-per-string fingering.
+6. Switch to Open system in C major → single option, frets 0–3, uses open strings naturally. Switch key to Bb → Open system option is hidden/greyed (Bb doesn't have a sensible open-position fingering).
+7. No more confusion about what "open position" or "3rd position" means — it now says the shape name (e.g. "C-shape") and shows the resulting fret range.
 
 ---
 
