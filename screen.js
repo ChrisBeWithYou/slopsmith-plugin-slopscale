@@ -193,8 +193,8 @@
       label:'Sweep Arpeggio Primer',
       goal:'One chord tone per string, swept low-to-high with a hammer-on/pull-off turnaround at the apex, then swept back down. Root anchors the bass string. Start slow — sweeps reward cleanliness over speed.',
       tempoTiers:[50, 65, 80, 100],
-      base:{ practiceType:'sweep_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'I-IV-V', meter:'4/4', subdivision:'sixteenth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', cagedShape:'E' },
-      vary:[ { key:'A', fretMin:5, fretMax:12 }, { key:'E', fretMin:7, fretMax:14 }, { key:'C', scale:'major', fretMin:3, fretMax:10 }, { key:'G', scale:'major', fretMin:5, fretMax:12 }, { key:'D', scale:'major', fretMin:7, fretMax:14 } ]
+      base:{ practiceType:'sweep_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', cagedShape:'A', key:'A', fretMin:5, fretMax:12 },
+      vary:[ { key:'A', fretMin:5, fretMax:12 }, { key:'A', fretMin:9, fretMax:16 }, { key:'D', fretMin:5, fretMax:12 }, { key:'E', fretMin:7, fretMax:14 }, { key:'G', fretMin:3, fretMax:10 } ]
     }
   };
   const PATHWAY_STORAGE_KEY = 'slopscale.lastPathway';
