@@ -19,6 +19,7 @@
   const SCALE_INTERVALS = {
     major:[0,2,4,5,7,9,11], natural_minor:[0,2,3,5,7,8,10], harmonic_minor:[0,2,3,5,7,8,11],
     minor_pentatonic:[0,3,5,7,10], major_pentatonic:[0,2,4,7,9], blues:[0,3,5,6,7,10],
+    bebop_major:[0,2,4,5,7,8,9,11], bebop_dominant:[0,2,4,5,7,9,10,11],
     dorian:[0,2,3,5,7,9,10], phrygian:[0,1,3,5,7,8,10], mixolydian:[0,2,4,5,7,9,10],
     lydian:[0,2,4,6,7,9,11], locrian:[0,1,3,5,6,8,10]
   };
@@ -139,6 +140,13 @@
         { chromaticPattern:'1234', fretMin:5, fretMax:8 },
         { chromaticPattern:'1234', fretMin:9, fretMax:12 }
       ]
+    },
+    blues_foundation: {
+      label:'Blues Scale Foundation',
+      goal:'Minor pentatonic with the flat-5 blue note added. That one extra note is what separates a scale run from a blues lick. Play it over a 12-bar blues and land on the b5 for tension — resolve it up to the 5th.',
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'scale', scale:'blues', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7' },
+      vary:[ { key:'A', fretMin:5, fretMax:8 }, { key:'E', fretMin:0, fretMax:3 }, { key:'D', fretMin:10, fretMax:13 }, { key:'G', fretMin:3, fretMax:6 }, { key:'C', fretMin:8, fretMax:11 } ]
     },
     pent_foundation: {
       label:'Pentatonic Foundation',
