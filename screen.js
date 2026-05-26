@@ -116,52 +116,83 @@
     dim:'locrian', min7b5:'locrian', dim7:'locrian',
     aug:'major', sus4:'mixolydian', add9:'major'
   };
+  const CHROMATIC_PATTERNS = {
+    '1234':[0,1,2,3], '4321':[3,2,1,0], '1324':[0,2,1,3], '1342':[0,2,3,1], '2413':[1,3,0,2]
+  };
+  const CHROMATIC_PATTERN_LABELS = {
+    '1234':'1-2-3-4 (standard)', '4321':'4-3-2-1 (reverse)',
+    '1324':'1-3-2-4 (crossing)', '1342':'1-3-4-2 (spider)', '2413':'2-4-1-3 (advanced)'
+  };
+  // Tempo tier labels — shared by all pathways. Index 0 = Slow.
+  const TIER_LABELS = ['Slow', 'Med', 'Fast', 'Challenge'];
   const PATHWAYS = {
+    chromatic_warmup: {
+      label:'Chromatic Warmup',
+      goal:'One finger per fret — 1-2-3-4 across all six strings. Builds fretting-hand synchronization, finger independence, and positional awareness. The universal warmup every method teaches. Start slow; speed comes from clean reps, not rushed ones.',
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'chromatic', chromaticPattern:'1234', meter:'4/4', subdivision:'sixteenth', bpm:60, bars:8, direction:'up_down', advancedMode:false, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:1, fretMax:4 },
+      vary:[
+        { chromaticPattern:'1234', fretMin:1, fretMax:4 },
+        { chromaticPattern:'4321', fretMin:1, fretMax:4 },
+        { chromaticPattern:'1324', fretMin:1, fretMax:4 },
+        { chromaticPattern:'1342', fretMin:1, fretMax:4 },
+        { chromaticPattern:'1234', fretMin:5, fretMax:8 },
+        { chromaticPattern:'1234', fretMin:9, fretMax:12 }
+      ]
+    },
     pent_foundation: {
       label:'Pentatonic Foundation',
       goal:'Play minor pentatonic box 1 over a 12-bar blues. The single most useful guitar drill — every rock and blues solo lives in this combination.',
+      tempoTiers:[60, 80, 100, 120],
       base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7' },
       vary:[ { key:'A', fretMin:5, fretMax:8 }, { key:'E', fretMin:0, fretMax:3 }, { key:'D', fretMin:10, fretMax:13 }, { key:'G', fretMin:3, fretMax:6 }, { key:'C', fretMin:8, fretMax:11 } ]
     },
     chord_tone_targeting: {
       label:'Chord Tone Targeting',
       goal:"Keep the key's scale, but watch the accents shift to chord tones as the progression moves. Trains chord-tone awareness inside familiar scale shapes.",
+      tempoTiers:[65, 90, 110, 130],
       base:{ practiceType:'chord_scales', chordScaleStrategy:'chord_tone_emphasis', scale:'major', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'ascending', sequence:'fours', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
       vary:[ { key:'C', progression:'diatonic' }, { key:'C', progression:'I-IV-V' }, { key:'G', progression:'I-V-vi-IV' }, { key:'D', progression:'I-vi-IV-V' }, { key:'A', progression:'vi-IV-I-V' } ]
     },
     modal_awareness: {
       label:'Modal Awareness',
       goal:'Each chord gets its own mode. Uses dom7 override so the scale audibly shifts per chord — bar 1 has Bb, bar 2 has F#, etc.',
+      tempoTiers:[60, 85, 105, 125],
       base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', chordDepth:'seventh', chordOverride:'dom7', progression:'diatonic', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
       vary:[ { key:'C' }, { key:'G' }, { key:'D' }, { key:'A' }, { key:'F' } ]
     },
     diatonic_triad_drill: {
       label:'Diatonic Triad Drill',
       goal:'Triad arpeggio of every diatonic chord, in order. The 7-chord lap.',
+      tempoTiers:[70, 100, 120, 144],
       base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'triad', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
       vary:[ { key:'C' }, { key:'G' }, { key:'D' }, { key:'A' }, { key:'E' }, { key:'F' } ]
     },
     seventh_vocab: {
       label:'Seventh Chord Vocabulary',
       goal:'Diatonic seventh arpeggios. The jazz starter — maj7, m7, m7, maj7, dom7, m7, m7b5.',
+      tempoTiers:[65, 90, 110, 130],
       base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
       vary:[ { key:'C' }, { key:'F' }, { key:'Bb' }, { key:'G' }, { key:'D' } ]
     },
     ii_V_I_workout: {
       label:'ii–V–I Workout',
       goal:'The most common jazz cadence, run as scales over the changes. Mode-of-the-moment so Dorian / Mixolydian / Ionian land audibly.',
+      tempoTiers:[70, 100, 120, 144],
       base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', chordDepth:'seventh', chordOverride:'auto', progression:'ii-V-I', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
       vary:[ { key:'C' }, { key:'F' }, { key:'Bb' }, { key:'G' }, { key:'D' }, { key:'A' } ]
     },
     harmonic_minor_exotic: {
       label:'Harmonic Minor Exotic',
       goal:'Yngwie / flamenco flavor. Harmonic-minor scale, mode-of-the-moment, every chord is dom7 so each bar lands the raised 7th outside the key.',
+      tempoTiers:[70, 95, 115, 140],
       base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'harmonic_minor', chordDepth:'seventh', chordOverride:'dom7', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:110, bars:8, direction:'up_down', sequence:'fours', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:5, fretMax:12 },
       vary:[ { key:'A', fretMin:5, fretMax:12 }, { key:'E', fretMin:7, fretMax:14 }, { key:'D', fretMin:5, fretMax:12 }, { key:'B', fretMin:7, fretMax:14 } ]
     },
     sweep_primer: {
       label:'Sweep Arpeggio Primer',
       goal:'One chord tone per string, swept low-to-high with a hammer-on/pull-off turnaround at the apex, then swept back down. Root anchors the bass string. Start slow — sweeps reward cleanliness over speed.',
+      tempoTiers:[50, 65, 80, 100],
       base:{ practiceType:'sweep_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'I-IV-V', meter:'4/4', subdivision:'sixteenth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', cagedShape:'E' },
       vary:[ { key:'A', fretMin:5, fretMax:12 }, { key:'E', fretMin:7, fretMax:14 }, { key:'C', scale:'major', fretMin:3, fretMax:10 }, { key:'G', scale:'major', fretMin:5, fretMax:12 }, { key:'D', scale:'major', fretMin:7, fretMax:14 } ]
     }
@@ -189,6 +220,7 @@
   // index we are on, so Next Variation rotates predictably.
   let activePathwayId = null;
   let activePathwayVariationIdx = 0;
+  let activeTempoTierIdx = 0;
 
   function $(id) { return document.getElementById(id); }
   function pcName(pc) { return NOTE_NAMES[((pc % 12) + 12) % 12]; }
@@ -249,6 +281,7 @@
       chordDepth: advancedMode ? (data.get('chordDepth') || 'triad') : 'triad',
       progression: advancedMode ? (data.get('progression') || 'diatonic') : 'diatonic',
       chordOverride: advancedMode ? (data.get('chordOverride') || 'auto') : 'auto',
+      chromaticPattern: data.get('chromaticPattern') || '1234',
       audio: { notes: data.get('audioNotes') === 'on', metronome: data.get('audioMetronome') === 'on', harmony: data.get('audioHarmony') === 'on' }
     };
   }
@@ -767,10 +800,52 @@
     return result;
   }
 
+  function buildChromaticExercise(cfg) {
+    const opens = openMidisForConfig(cfg);
+    const stringCount = opens.length;
+    const step = secondsPerDivision(cfg);
+    const mLen = measureSeconds(cfg);
+    const totalTime = cfg.bars * mLen;
+    const offsets = CHROMATIC_PATTERNS[cfg.chromaticPattern] || CHROMATIC_PATTERNS['1234'];
+    const fretBase = Math.max(0, cfg.fretMin || 1);
+    const notes = [];
+    const sections = [{ name: `Chromatic ${CHROMATIC_PATTERN_LABELS[cfg.chromaticPattern] || cfg.chromaticPattern}`, number: 1, time: 0 }];
+
+    // Build a repeating unit: one full pass across all strings per direction leg
+    // Direction: 'ascending' = low-E to high-E, 'descending' = reverse,
+    //            'up_down' = ascending then descending (classic warmup)
+    const stringsAsc = Array.from({ length: stringCount }, (_, i) => stringCount - 1 - i); // low E first (high index first in 0=highE convention)
+    const stringsDesc = stringsAsc.slice().reverse();
+    let stringOrder;
+    if (cfg.direction === 'ascending') stringOrder = stringsAsc;
+    else if (cfg.direction === 'descending') stringOrder = stringsDesc;
+    else stringOrder = [...stringsAsc, ...stringsDesc]; // up_down
+
+    // Build the repeating event list for one pass through the pattern
+    const unit = [];
+    for (const s of stringOrder) {
+      for (const offset of offsets) {
+        unit.push({ s, f: fretBase + offset });
+      }
+    }
+
+    let t = 0, unitIdx = 0;
+    while (t < totalTime - 0.001) {
+      const { s, f } = unit[unitIdx % unit.length];
+      notes.push(noteDefaults({ t: Number(t.toFixed(6)), s, f, sus: Math.max(0.04, step * 0.85) }));
+      t += step;
+      unitIdx++;
+    }
+
+    const duration = Math.max(t, totalTime);
+    return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration };
+  }
+
   function generateExercise(cfg) {
     const chart = cfg.mode === 'scale' ? buildScaleExercise(cfg)
       : cfg.mode === 'chord_scales' ? buildChordScaleExercise(cfg)
       : cfg.mode === 'sweep_arpeggios' ? buildSweepArpeggioExercise(cfg)
+      : cfg.mode === 'chromatic' ? buildChromaticExercise(cfg)
       : buildArpeggioExercise(cfg, progressionDegreesForConfig(cfg));
     const duration = Math.max(chart.duration || 0, cfg.bars * measureSeconds(cfg));
     const anchors = chart.anchors || buildAnchors(cfg, duration);
@@ -1411,12 +1486,13 @@
     const backingCount = buildBackingEvents(cfg, c.duration).length;
     return [
       `Practice type: ${cfg.mode}`,
+      ...(cfg.mode === 'chromatic' ? [`Chromatic pattern: ${CHROMATIC_PATTERN_LABELS[cfg.chromaticPattern] || cfg.chromaticPattern}`] : []),
       `Advanced controls: ${cfg.advancedMode ? 'on' : 'off'}`,
       `Fretboard system: ${fretboardSystemLabel(cfg.fretboardSystem)}`,
       ...(cfg.fretboardSystem === 'caged' || cfg.fretboardSystem === 'caged_shape_run' || cfg.fretboardSystem === 'caged_shape_follow' ? [`CAGED shape: ${cfg.cagedShape}`] : []),
       `Direction/repeats: ${cfg.direction}, ${cfg.repeatCount}x`,
       ...(cfg.sequence && cfg.sequence !== 'none' ? [`Sequence: ${SEQUENCE_LABELS[cfg.sequence] || cfg.sequence}`] : []),
-      `Pattern: ${cfg.mode === 'scale' ? fretboardSystemLabel(cfg.fretboardSystem) : 'full chord-tone arpeggios across one position'}`,
+      `Pattern: ${cfg.mode === 'chromatic' ? (CHROMATIC_PATTERN_LABELS[cfg.chromaticPattern] || cfg.chromaticPattern) : cfg.mode === 'scale' ? fretboardSystemLabel(cfg.fretboardSystem) : 'full chord-tone arpeggios across one position'}`,
       `Instrument: ${cfg.setupLabel}`,
       `Highway inverted: ${readHighwayInverted() ? 'on' : 'off'}`,
       `Key/scale: ${cfg.key} ${cfg.scale}${cfg.mode === 'chord_scales' ? ` (chord-scale: ${(cfg.chordScaleStrategy || 'mode_of_moment').replace(/_/g, ' ')})` : ''}`,
@@ -1431,6 +1507,9 @@
   function describeCurrentContent() {
     try {
       const cfg = readConfig();
+      if (cfg.mode === 'chromatic') {
+        return `Chromatic ${CHROMATIC_PATTERN_LABELS[cfg.chromaticPattern] || cfg.chromaticPattern}, frets ${cfg.fretMin}–${cfg.fretMax}`;
+      }
       const scaleLabel = String(cfg.scale || '').replace(/_/g, ' ');
       return `${cfg.key} ${scaleLabel}, frets ${cfg.fretMin}–${cfg.fretMax}`;
     } catch { return ''; }
@@ -1577,6 +1656,7 @@
   }
 
   function applyPathwayById(id, variationIdx) {
+    const isNewPathway = id !== activePathwayId;
     activePathwayId = id;
     if (id === 'custom') {
       setPathwayModeClass(false);
@@ -1592,7 +1672,14 @@
         : Math.floor(Math.random() * len);
       activePathwayVariationIdx = idx;
       const variation = vary[idx] || {};
-      applyPathwayConfig(Object.assign({}, pw.base, variation));
+      // Reset tier to Slow when switching to a different pathway; preserve it on variation rotation
+      if (isNewPathway) activeTempoTierIdx = 0;
+      // Apply tier BPM over the pathway base BPM
+      const tieredConfig = Object.assign({}, pw.base, variation);
+      if (pw.tempoTiers && pw.tempoTiers[activeTempoTierIdx] != null) {
+        tieredConfig.bpm = pw.tempoTiers[activeTempoTierIdx];
+      }
+      applyPathwayConfig(tieredConfig);
       setPathwayModeClass(true);
       updatePathwayGoalCard(id, false);
       // Match Position dropdown to whatever fret range the variation chose so
@@ -1600,6 +1687,7 @@
       const posEl = $('slopscale-position');
       const fretMin = variation.fretMin != null ? variation.fretMin : pw.base.fretMin;
       if (posEl && fretMin != null) posEl.value = nearestPositionId(fretMin);
+      syncTempoTierButtons();
       return;
     }
     const preset = window.__slopscaleFavorites && window.__slopscaleFavorites[id];
@@ -1652,12 +1740,44 @@
   }
 
   function refreshForHostSettingChange() { if (!activeBundle) return; syncHighwaySettings(activeBundle); drawOnce(); const summary = $('slopscale-summary'); if (summary && summary.textContent.includes('Highway inverted:')) summary.textContent = summarize({ session:readConfig(), chart:{ notes:activeBundle.notes || [], chords:activeBundle.chords || [], chordTemplates:activeBundle.chordTemplates || [], handShapes:activeBundle.handShapes || [], beats:activeBundle.beats || [], duration:activeBundle.songInfo?.duration || 0 } }); }
+
+  function syncTempoTierButtons() {
+    const container = $('slopscale-tier-buttons');
+    if (!container) return;
+    container.innerHTML = '';
+    const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
+    const tiers = pw && pw.tempoTiers ? pw.tempoTiers : null;
+    if (!tiers || !tiers.length) return;
+    tiers.forEach((bpm, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'slopscale-tier-btn' + (i === activeTempoTierIdx ? ' active' : '');
+      btn.textContent = `${TIER_LABELS[i] || `T${i+1}`} (${bpm})`;
+      btn.addEventListener('click', () => {
+        activeTempoTierIdx = i;
+        setFieldSilent('bpm', String(bpm));
+        syncTempoTierButtons();
+        onGenerate();
+      });
+      container.appendChild(btn);
+    });
+  }
+
+  function syncChromaticVisibility() {
+    const practiceTypeEl = document.querySelector('[name="practiceType"]');
+    const mode = practiceTypeEl ? practiceTypeEl.value : '';
+    const isChromatic = mode === 'chromatic';
+    document.querySelectorAll('.slopscale-chromatic-only').forEach(el => {
+      el.style.display = isChromatic ? '' : 'none';
+    });
+  }
+
   function bind() {
     const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1';
     const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'), advancedToggle = $('slopscale-advanced-toggle');
     instrument?.addEventListener('change', () => { if (!setup) return; setup.value = instrument.value === 'bass' ? 'bass_4_standard' : 'guitar_6_standard'; if (activeBundle) onGenerate(); });
     setup?.addEventListener('change', syncStringSetupControls); syncStringSetupControls();
-    advancedToggle?.addEventListener('change', syncAdvancedMode); syncAdvancedMode();
+    advancedToggle?.addEventListener('change', syncAdvancedMode); syncAdvancedMode(); syncChromaticVisibility();
     $('slopscale-play').addEventListener('click', onPlayToggle);
     $('slopscale-regenerate')?.addEventListener('click', onGenerate);
     $('slopscale-next-variation')?.addEventListener('click', rotateToNextVariation);
@@ -1668,6 +1788,7 @@
       const name = ev && ev.target ? ev.target.name : '';
       // Position selector drives fretMin/fretMax silently in pathway mode.
       if (name === 'position') syncPositionToFretRange();
+      if (name === 'practiceType') syncChromaticVisibility();
       syncAdvancedMode();
       markPathwayModifiedIfApplicable(name);
       if (activeBundle) onGenerate();

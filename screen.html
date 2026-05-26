@@ -139,6 +139,24 @@
   .slopscale-render-host { position: relative; flex: 1; min-height: 560px; overflow: hidden; background: #050711; }
   #slopscale-canvas { display: block; width: 100%; height: 100%; }
   .slopscale-summary { border-top: 1px solid rgba(75, 85, 99, 0.55); padding: 12px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; color: #cbd5e1; background: rgba(2, 6, 23, 0.72); font-size: 12px; line-height: 1.45; }
+  /* Tempo tier buttons — rendered dynamically by syncTempoTierButtons() */
+  .slopscale-tier-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+  .slopscale-tier-btn {
+    flex: 1 1 60px;
+    min-height: 34px;
+    border: 1px solid #475569;
+    border-radius: 8px;
+    background: #111827;
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0 8px;
+    transition: background 0.1s, color 0.1s, border-color 0.1s;
+  }
+  .slopscale-tier-btn:hover { background: #1e293b; color: #e2e8f0; }
+  .slopscale-tier-btn.active { background: linear-gradient(180deg, #1e40af, #1d4ed8); border-color: #60a5fa; color: #f8fafc; }
+
   @media (max-width: 1100px) { .slopscale-layout { grid-template-columns: 1fr; } .slopscale-controls { max-height: none; } }
   @media (max-width: 720px) { .slopscale-grid-2, .slopscale-grid-3, .slopscale-audio-options { grid-template-columns: 1fr; } }
 
@@ -192,6 +210,7 @@
         <select name="pathway" id="slopscale-pathway">
           <option value="custom">Custom — full control</option>
           <optgroup label="Curated">
+            <option value="chromatic_warmup">Chromatic Warmup</option>
             <option value="pent_foundation" selected="selected">Pentatonic Foundation</option>
             <option value="chord_tone_targeting">Chord Tone Targeting</option>
             <option value="modal_awareness">Modal Awareness</option>
@@ -209,6 +228,9 @@
         <div><span class="pathway-tag" id="slopscale-pathway-tag">Goal</span><span class="pathway-title" id="slopscale-pathway-title">Pentatonic Foundation</span></div>
         <div id="slopscale-pathway-goal" style="margin-top:4px;">Pick a focused routine. Use Custom for full control.</div>
       </div>
+      <div class="slopscale-group-title slopscale-pathway-only">Speed</div>
+      <div class="slopscale-tier-buttons slopscale-pathway-only" id="slopscale-tier-buttons"></div>
+
       <div class="slopscale-help slopscale-custom-only">Custom mode — every control below is yours to set. Saved presets appear under Favorites.</div>
 
       <div class="slopscale-group-title slopscale-custom-only">Routine</div>
@@ -216,11 +238,21 @@
 
       <label class="slopscale-custom-only">Practice type
         <select name="practiceType">
+          <option value="chromatic">Chromatic warmup</option>
           <option value="scale" selected>Scale pattern</option>
           <option value="chord_scales">Scales over changes</option>
           <option value="diatonic_arpeggios">Diatonic arpeggios</option>
           <option value="progression_arpeggios">Progression arpeggios</option>
           <option value="sweep_arpeggios">Sweep arpeggios</option>
+        </select>
+      </label>
+      <label class="slopscale-custom-only slopscale-chromatic-only">Finger pattern
+        <select name="chromaticPattern">
+          <option value="1234">1-2-3-4 (standard)</option>
+          <option value="4321">4-3-2-1 (reverse)</option>
+          <option value="1324">1-3-2-4 (crossing)</option>
+          <option value="1342">1-3-4-2 (spider)</option>
+          <option value="2413">2-4-1-3 (advanced)</option>
         </select>
       </label>
 
