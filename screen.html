@@ -338,7 +338,32 @@
         </label>
         <label class="slopscale-custom-only">Scale
           <select name="scale">
-            <option value="major">Major</option><option value="natural_minor">Natural minor</option><option value="minor_pentatonic">Minor pentatonic</option><option value="major_pentatonic">Major pentatonic</option><option value="blues">Blues</option><option value="harmonic_minor">Harmonic minor</option><option value="dorian">Dorian</option><option value="phrygian">Phrygian</option><option value="mixolydian">Mixolydian</option><option value="bebop_major">Bebop major</option><option value="bebop_dominant">Bebop dominant</option>
+            <optgroup label="Pentatonic / Blues">
+              <option value="minor_pentatonic">Minor pentatonic</option>
+              <option value="major_pentatonic">Major pentatonic</option>
+              <option value="blues">Blues</option>
+            </optgroup>
+            <optgroup label="Major modes">
+              <option value="major">Ionian (major)</option>
+              <option value="dorian">Dorian</option>
+              <option value="phrygian">Phrygian</option>
+              <option value="lydian">Lydian</option>
+              <option value="mixolydian">Mixolydian</option>
+              <option value="natural_minor">Aeolian (natural minor)</option>
+              <option value="locrian">Locrian</option>
+            </optgroup>
+            <optgroup label="Other scales">
+              <option value="harmonic_minor">Harmonic minor</option>
+              <option value="melodic_minor">Melodic minor</option>
+              <option value="phrygian_dominant">Phrygian dominant</option>
+              <option value="lydian_dominant">Lydian dominant</option>
+              <option value="whole_tone">Whole tone</option>
+              <option value="diminished">Diminished (whole-half)</option>
+            </optgroup>
+            <optgroup label="Bebop">
+              <option value="bebop_major">Bebop major</option>
+              <option value="bebop_dominant">Bebop dominant</option>
+            </optgroup>
           </select>
         </label>
       </div>
