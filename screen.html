@@ -89,8 +89,36 @@
     accent-color: #60a5fa;
   }
   .slopscale-root:not(.slopscale-advanced) .slopscale-advanced-only { display: none !important; }
+
+  /* Pathway-mode vs Custom-mode visibility.
+     - Pathway mode: a curated pathway is active; hide controls the pathway owns.
+     - Custom mode: full form, hide the pathway-only helpers (named Position, Next variation). */
+  .slopscale-root.slopscale-pathway-mode .slopscale-custom-only { display: none !important; }
+  .slopscale-root:not(.slopscale-pathway-mode) .slopscale-pathway-only { display: none !important; }
+
+  /* Pathway goal caption gets a little more breathing room and weight when active. */
+  .slopscale-pathway-goal-card {
+    border: 1px solid rgba(96, 165, 250, 0.35);
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: #cbd5e1;
+  }
+  .slopscale-pathway-goal-card.modified { border-color: rgba(250, 204, 21, 0.45); }
+  .slopscale-pathway-goal-card .pathway-tag {
+    display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 0.08em;
+    text-transform: uppercase; color: #93c5fd; margin-right: 6px;
+  }
+  .slopscale-pathway-goal-card.modified .pathway-tag { color: #fbbf24; }
+  .slopscale-pathway-goal-card .pathway-title { color: #f8fafc; font-weight: 700; }
   .slopscale-help { color: #9ca3af; font-size: 12px; line-height: 1.35; margin-top: -6px; }
-  .slopscale-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
+  /* Primary Play button gets its own row and visual weight; the rest sit in a
+     compact secondary row underneath. */
+  .slopscale-actions { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 6px; }
+  .slopscale-actions-secondary { display: flex; flex-wrap: wrap; gap: 8px; }
+  .slopscale-actions-secondary > button { flex: 1 1 140px; }
   .slopscale-button, .slopscale-actions button {
     min-height: 38px;
     border: 1px solid #475569;
@@ -103,8 +131,10 @@
   }
   .slopscale-button:hover, .slopscale-actions button:hover { background: #24324a; }
   .slopscale-button.secondary, .slopscale-actions button.secondary { background: #0f172a; color: #cbd5e1; }
-  .slopscale-actions button.primary { background: linear-gradient(180deg, #2563eb, #1d4ed8); border-color: #60a5fa; }
+  .slopscale-actions button.primary { background: linear-gradient(180deg, #2563eb, #1d4ed8); border-color: #60a5fa; min-height: 48px; font-size: 15px; letter-spacing: 0.02em; }
   .slopscale-actions button.primary:hover { background: linear-gradient(180deg, #1d4ed8, #1e40af); }
+  .slopscale-actions button.primary.is-playing { background: linear-gradient(180deg, #b91c1c, #991b1b); border-color: #f87171; }
+  .slopscale-actions button.primary.is-playing:hover { background: linear-gradient(180deg, #991b1b, #7f1d1d); }
   .slopscale-stage { overflow: hidden; min-height: 620px; display: flex; flex-direction: column; }
   .slopscale-render-host { position: relative; flex: 1; min-height: 560px; overflow: hidden; background: #050711; }
   #slopscale-canvas { display: block; width: 100%; height: 100%; }
@@ -126,28 +156,29 @@
       gap: 12px 18px;
       align-content: start;
     }
-    /* Section headers, advanced cards, audio toggles, helper text, and the
-       button row span both columns so they keep their visual weight. */
+    /* Section headers, advanced cards, audio toggles, helper text, pathway
+       goal card, and the button rows span both columns so they keep their
+       visual weight. */
     .slopscale-controls > .slopscale-group-title,
     .slopscale-controls > .slopscale-audio-options,
     .slopscale-controls > .slopscale-actions,
+    .slopscale-controls > .slopscale-actions-secondary,
+    .slopscale-controls > .slopscale-pathway-goal-card,
     .slopscale-controls > .slopscale-help,
     .slopscale-controls > .slopscale-advanced-card {
       grid-column: 1 / -1;
     }
-    /* Fit all four action buttons on one row when there's room. */
-    .slopscale-actions { grid-template-columns: repeat(4, 1fr); }
   }
 </style>
 
 <div id="slopscale-root" class="slopscale-root">
   <section class="slopscale-panel slopscale-header">
     <h1>SlopScale</h1>
-    <p class="slopscale-tagline">Pathway-driven scale, arpeggio, and progression practice. Pick a pathway, or enable Advanced for full control.</p>
+    <p class="slopscale-tagline">Pathway-driven scale, arpeggio, and progression practice. Pick a pathway, or switch to Custom for full control.</p>
     <div class="slopscale-meta">
-      <span id="slopscale-renderer-status">Renderer: not initialized</span>
+      <span id="slopscale-status">Ready</span>
       <span class="slopscale-meta-sep">·</span>
-      <span id="slopscale-chart-status">Chart: not generated</span>
+      <span id="slopscale-renderer-status" style="opacity:0.7">3D Highway</span>
       <span class="slopscale-meta-sep">·</span>
       <a href="https://github.com/ChrisBeWithYou/slopsmith-plugin-slopscale" target="_blank" rel="noopener noreferrer">GitHub</a>
     </div>
@@ -172,13 +203,18 @@
           </optgroup>
           <optgroup label="Favorites" hidden=""></optgroup>
         </select>
-        <span class="slopscale-help" id="slopscale-pathway-goal" style="margin-top:2px;">Pick a focused routine, or stay on Custom for full control. Saved presets appear under Favorites.</span>
       </label>
 
-      <div class="slopscale-group-title">Routine</div>
-      <label class="slopscale-toggle"><input name="advancedMode" id="slopscale-advanced-toggle" type="checkbox"> Advanced controls</label>
+      <div class="slopscale-pathway-goal-card slopscale-pathway-only" id="slopscale-pathway-goal-card">
+        <div><span class="pathway-tag" id="slopscale-pathway-tag">Goal</span><span class="pathway-title" id="slopscale-pathway-title">Pentatonic Foundation</span></div>
+        <div id="slopscale-pathway-goal" style="margin-top:4px;">Pick a focused routine. Use Custom for full control.</div>
+      </div>
+      <div class="slopscale-help slopscale-custom-only">Custom mode — every control below is yours to set. Saved presets appear under Favorites.</div>
 
-      <label>Practice type
+      <div class="slopscale-group-title slopscale-custom-only">Routine</div>
+      <label class="slopscale-toggle slopscale-custom-only"><input name="advancedMode" id="slopscale-advanced-toggle" type="checkbox"> Advanced controls</label>
+
+      <label class="slopscale-custom-only">Practice type
         <select name="practiceType">
           <option value="scale" selected>Scale pattern</option>
           <option value="chord_scales">Scales over changes</option>
@@ -188,16 +224,15 @@
         </select>
       </label>
 
-      <label>Visual layout
-        <select name="renderer">
-          <option value="highway_3d" selected>3D Note Highway</option>
-          <option value="builtin_2d">2D Highway</option>
-          <option value="tab_2d">2D Tablature</option>
-        </select>
-      </label>
-
-      <div class="slopscale-advanced-card slopscale-advanced-only">
+      <div class="slopscale-advanced-card slopscale-advanced-only slopscale-custom-only">
         <div class="slopscale-group-title">Advanced fretboard logic</div>
+        <label>Visual layout
+          <select name="renderer">
+            <option value="highway_3d" selected>3D Note Highway</option>
+            <option value="builtin_2d">2D Highway</option>
+            <option value="tab_2d">2D Tablature</option>
+          </select>
+        </label>
         <label>Fretboard system
           <select name="fretboardSystem" id="slopscale-fretboard-system">
             <option value="position" selected>Position box / selected fret range</option>
@@ -253,18 +288,30 @@
         <div class="slopscale-help">Fretboard system, CAGED shape, and sequence pattern are passed into the generated exercise config. Full CAGED/3NPS pattern logic is built up in subsequent passes.</div>
       </div>
 
+      <div class="slopscale-group-title">Key</div>
       <div class="slopscale-grid-2">
         <label>Key
           <select name="key"><option>C</option><option>C#</option><option>D</option><option>D#</option><option>E</option><option>F</option><option>F#</option><option>G</option><option>G#</option><option>A</option><option>A#</option><option>B</option></select>
         </label>
-        <label>Scale
+        <label class="slopscale-pathway-only">Position
+          <select name="position" id="slopscale-position">
+            <option value="open">Open position (0–5)</option>
+            <option value="3rd">3rd fret (3–7)</option>
+            <option value="5th" selected>5th fret (5–9)</option>
+            <option value="7th">7th fret (7–12)</option>
+            <option value="9th">9th fret (9–14)</option>
+            <option value="12th">12th fret (12–16)</option>
+          </select>
+        </label>
+        <label class="slopscale-custom-only">Scale
           <select name="scale">
             <option value="major">Major</option><option value="natural_minor">Natural minor</option><option value="minor_pentatonic">Minor pentatonic</option><option value="major_pentatonic">Major pentatonic</option><option value="blues">Blues</option><option value="harmonic_minor">Harmonic minor</option><option value="dorian">Dorian</option><option value="phrygian">Phrygian</option><option value="mixolydian">Mixolydian</option>
           </select>
         </label>
       </div>
 
-      <div class="slopscale-grid-2">
+      <div class="slopscale-group-title slopscale-custom-only">Instrument</div>
+      <div class="slopscale-grid-2 slopscale-custom-only">
         <label>Instrument family
           <select name="instrument">
             <option value="guitar">Guitar</option>
@@ -283,13 +330,13 @@
         </label>
       </div>
 
-      <div class="slopscale-group-title">Timing and audio</div>
+      <div class="slopscale-group-title">Tempo &amp; audio</div>
       <div class="slopscale-grid-3">
         <label>BPM <input name="bpm" type="number" min="30" max="260" step="1" value="100"></label>
-        <label>Meter
+        <label class="slopscale-custom-only">Meter
           <select name="meter"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="6/8">6/8</option><option value="7/8:2+2+3">7/8 — 2+2+3</option><option value="7/8:3+2+2">7/8 — 3+2+2</option><option value="5/4">5/4</option></select>
         </label>
-        <label>Division
+        <label class="slopscale-custom-only">Division
           <select name="subdivision"><option value="quarter">Quarter</option><option value="eighth" selected>Eighth</option><option value="sixteenth">Sixteenth</option><option value="triplet">Triplet</option><option value="eighth_triplet">Eighth triplet</option><option value="sixteenth_triplet">Sixteenth triplet</option></select>
         </label>
       </div>
@@ -299,15 +346,15 @@
         <label class="slopscale-toggle"><input name="audioMetronome" type="checkbox" checked> Metronome click</label>
         <label class="slopscale-toggle"><input name="audioHarmony" type="checkbox" checked> Harmony backing</label>
       </div>
-      <div class="slopscale-help">Harmony backing is generated from the selected key, scale, and progression.</div>
+      <div class="slopscale-help slopscale-custom-only">Harmony backing is generated from the selected key, scale, and progression.</div>
 
-      <div class="slopscale-grid-3">
+      <div class="slopscale-grid-3 slopscale-custom-only">
         <label>First fret <input name="fretMin" type="number" min="0" max="20" step="1" value="0"></label>
         <label>Last fret <input name="fretMax" type="number" min="3" max="24" step="1" value="5"></label>
         <label>Bars <input name="bars" type="number" min="1" max="32" step="1" value="4"></label>
       </div>
 
-      <div class="slopscale-advanced-card slopscale-advanced-only">
+      <div class="slopscale-advanced-card slopscale-advanced-only slopscale-custom-only">
         <div class="slopscale-group-title">Arpeggios and harmony</div>
         <label>Chord depth
           <select name="chordDepth"><option value="triad">Triads</option><option value="seventh">Seventh chords</option></select>
@@ -348,10 +395,12 @@
       </div>
 
       <div class="slopscale-actions">
-        <button type="button" id="slopscale-generate" class="primary">Generate</button>
-        <button type="button" id="slopscale-play" class="primary">Play Preview</button>
-        <button type="button" id="slopscale-stop">Stop</button>
-        <button type="button" id="slopscale-save" class="secondary">Save Preset</button>
+        <button type="button" id="slopscale-play" class="primary">▶ Play</button>
+      </div>
+      <div class="slopscale-actions-secondary">
+        <button type="button" id="slopscale-next-variation" class="slopscale-pathway-only">Next variation</button>
+        <button type="button" id="slopscale-regenerate" class="slopscale-custom-only secondary">Regenerate</button>
+        <button type="button" id="slopscale-save" class="secondary">Save preset</button>
       </div>
     </form>
 
@@ -412,8 +461,11 @@
     pending = true;
     setTimeout(function () {
       pending = false;
-      const generate = document.getElementById('slopscale-generate');
-      if (generate) generate.click();
+      // Click the regenerate button to retrigger the chart. The button is
+      // hidden in pathway mode but its click handler still fires, which is
+      // exactly what we want for a silent settings-driven refresh.
+      const regen = document.getElementById('slopscale-regenerate');
+      if (regen) regen.click();
     }, 50);
   }
 

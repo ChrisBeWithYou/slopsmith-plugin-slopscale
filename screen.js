@@ -169,9 +169,26 @@
   const PATHWAY_STORAGE_KEY = 'slopscale.lastPathway';
   const PATHWAY_FIRST_VISIT_DEFAULT = 'pent_foundation';
 
+  // Named position presets drive the pathway-mode "Position" dropdown. The
+  // pathway sets fretMin/fretMax directly; this map lets the user shift the
+  // position without thinking in raw fret numbers.
+  const POSITION_PRESETS = {
+    open:  { fretMin: 0,  fretMax: 5  },
+    '3rd': { fretMin: 3,  fretMax: 7  },
+    '5th': { fretMin: 5,  fretMax: 9  },
+    '7th': { fretMin: 7,  fretMax: 12 },
+    '9th': { fretMin: 9,  fretMax: 14 },
+    '12th':{ fretMin: 12, fretMax: 16 }
+  };
+  const POSITION_ORDER = ['open', '3rd', '5th', '7th', '9th', '12th'];
+
   let renderer = null, activeBundle = null, rafId = null;
   let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
   let audioCtx = null, audioNodes = [];
+  // Active pathway state — tracks which pathway is showing and which variation
+  // index we are on, so Next Variation rotates predictably.
+  let activePathwayId = null;
+  let activePathwayVariationIdx = 0;
 
   function $(id) { return document.getElementById(id); }
   function pcName(pc) { return NOTE_NAMES[((pc % 12) + 12) % 12]; }
@@ -1305,7 +1322,14 @@
     if (typeof renderer.init === 'function') { renderer.init(canvas, activeBundle); if (renderer.readyPromise && typeof renderer.readyPromise.then === 'function') await renderer.readyPromise; }
     const rect = canvas.parentElement.getBoundingClientRect();
     if (typeof renderer.resize === 'function') renderer.resize(Math.round(rect.width || canvas.width), Math.round(rect.height || canvas.height));
-    $('slopscale-renderer-status').textContent = `Renderer: ${resolved.label}`; drawOnce();
+    const rendererStatus = $('slopscale-renderer-status'); if (rendererStatus) rendererStatus.textContent = resolved.label; drawOnce();
+  }
+
+  function syncPlayButton() {
+    const btn = $('slopscale-play');
+    if (!btn) return;
+    btn.classList.toggle('is-playing', !!playing);
+    btn.textContent = playing ? '■ Stop' : '▶ Play';
   }
   function drawOnce() { if (!renderer || !activeBundle) return; syncHighwaySettings(activeBundle); activeBundle.currentTime = currentPracticeTime; renderer.draw(activeBundle); }
   function tick(nowMs) {
@@ -1372,8 +1396,15 @@
     }
     if (cfg.audio.metronome) for (const b of bundle.beats || []) { if (b.time < startFrom || b.time > duration + 0.1) continue; scheduleClick(ctx, base + (b.time - startFrom), (b.measure || -1) >= 0); }
   }
-  function startPlayback() { if (!activeBundle) return; stopAudio(); syncHighwaySettings(activeBundle); playing = true; playAnchorChartTime = currentPracticeTime; playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000; schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS); if (!rafId) rafId = requestAnimationFrame(tick); }
-  function stopPlayback() { playing = false; currentPracticeTime = 0; playAnchorChartTime = 0; stopAudio(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); }
+  function startPlayback() { if (!activeBundle) return; stopAudio(); syncHighwaySettings(activeBundle); playing = true; playAnchorChartTime = currentPracticeTime; playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000; schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS); if (!rafId) rafId = requestAnimationFrame(tick); syncPlayButton(); refreshStatusFromState(); }
+  function stopPlayback() { playing = false; currentPracticeTime = 0; playAnchorChartTime = 0; stopAudio(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
+  // Toggle for the primary Play/Stop button. If we don't have a chart yet,
+  // generate one first so the very first click always plays something.
+  async function onPlayToggle() {
+    if (playing) { stopPlayback(); return; }
+    if (!activeBundle) { await onGenerate(); }
+    startPlayback();
+  }
 
   function summarize(exercise) {
     const cfg = exercise.session, c = exercise.chart, meter = `${cfg.meter.numerator}/${cfg.meter.denominator}`;
@@ -1396,10 +1427,32 @@
       `Duration: ${c.duration.toFixed(2)}s`
     ].join('\n');
   }
+  function showStatus(text) { const el = $('slopscale-status'); if (el) el.textContent = text; }
+  function describeCurrentContent() {
+    try {
+      const cfg = readConfig();
+      const scaleLabel = String(cfg.scale || '').replace(/_/g, ' ');
+      return `${cfg.key} ${scaleLabel}, frets ${cfg.fretMin}–${cfg.fretMax}`;
+    } catch { return ''; }
+  }
+  function refreshStatusFromState() {
+    if (!activeBundle) { showStatus('Ready'); return; }
+    const desc = describeCurrentContent();
+    showStatus(playing ? `Playing — ${desc}` : `Ready — ${desc}`);
+  }
+
   async function onGenerate() {
-    const status = $('slopscale-chart-status'), summary = $('slopscale-summary');
-    try { const exercise = generateExercise(readConfig()); status.textContent = 'Chart: generated'; summary.textContent = summarize(exercise); await attachRenderer(exercise); }
-    catch (e) { status.textContent = 'Chart: error'; summary.textContent = `Error: ${e.message || e}`; console.error('[SlopScale] generate failed', e); }
+    const summary = $('slopscale-summary');
+    try {
+      const exercise = generateExercise(readConfig());
+      summary.textContent = summarize(exercise);
+      await attachRenderer(exercise);
+      refreshStatusFromState();
+    } catch (e) {
+      showStatus('Error');
+      summary.textContent = `Error: ${e.message || e}`;
+      console.error('[SlopScale] generate failed', e);
+    }
   }
   async function savePreset() {
     const cfg = readConfig(), name = `${cfg.key} ${cfg.scale} ${cfg.setupLabel} ${cfg.mode}`, id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
@@ -1458,21 +1511,112 @@
     syncStringSetupControls();
     syncCagedButtonStrip();
   }
-  function applyPathwayById(id) {
-    const caption = $('slopscale-pathway-goal');
-    if (id === 'custom') { if (caption) caption.textContent = 'Pick a focused routine, or stay on Custom for full control.'; return; }
+
+  function nearestPositionId(fretMin) {
+    let best = '5th', bestDist = Infinity;
+    for (const id of POSITION_ORDER) {
+      const p = POSITION_PRESETS[id];
+      const d = Math.abs(p.fretMin - (fretMin || 0));
+      if (d < bestDist) { best = id; bestDist = d; }
+    }
+    return best;
+  }
+
+  function setPathwayModeClass(isPathway) {
+    const root = $('slopscale-root');
+    if (!root) return;
+    root.classList.toggle('slopscale-pathway-mode', !!isPathway);
+  }
+
+  function updatePathwayGoalCard(pathwayId, modified, favoritePreset) {
+    const card = $('slopscale-pathway-goal-card');
+    const tag = $('slopscale-pathway-tag');
+    const title = $('slopscale-pathway-title');
+    const goal = $('slopscale-pathway-goal');
+    if (!card) return;
+    if (favoritePreset) {
+      if (title) title.textContent = favoritePreset.name || favoritePreset.id || 'Favorite';
+      if (goal) goal.textContent = 'Saved preset.';
+      if (tag) tag.textContent = 'Favorite';
+      card.classList.remove('modified');
+      return;
+    }
+    const pw = pathwayId ? PATHWAYS[pathwayId] : null;
+    if (pw) {
+      if (title) title.textContent = pw.label || pathwayId;
+      if (goal) goal.textContent = pw.goal || '';
+      if (tag) tag.textContent = modified ? 'Modified' : 'Goal';
+      card.classList.toggle('modified', !!modified);
+    }
+  }
+
+  // Translate the named Position dropdown into raw fretMin/fretMax inputs.
+  // Only active in pathway mode — Custom mode lets the user set frets directly.
+  function syncPositionToFretRange() {
+    const root = $('slopscale-root');
+    if (!root || !root.classList.contains('slopscale-pathway-mode')) return;
+    const posEl = $('slopscale-position');
+    if (!posEl) return;
+    const preset = POSITION_PRESETS[posEl.value];
+    if (!preset) return;
+    setFieldSilent('fretMin', preset.fretMin);
+    setFieldSilent('fretMax', preset.fretMax);
+  }
+
+  // Detect divergence from the curated pathway and flag it visually so the
+  // user knows they have drifted off the prescribed exercise. Pathway,
+  // Position, Key, and fret range are all expected to vary; BPM and audio
+  // toggles are personal preference, not exercise content. That leaves
+  // structural changes (scale, progression, etc) as the only true modifiers —
+  // and in pathway mode those controls are hidden anyway.
+  function markPathwayModifiedIfApplicable(targetName) {
+    if (!activePathwayId || activePathwayId === 'custom') return;
+    const ignore = new Set(['pathway', 'position', 'fretMin', 'fretMax', 'key', 'bpm', 'audioNotes', 'audioMetronome', 'audioHarmony']);
+    if (ignore.has(targetName)) return;
+    updatePathwayGoalCard(activePathwayId, true);
+  }
+
+  function applyPathwayById(id, variationIdx) {
+    activePathwayId = id;
+    if (id === 'custom') {
+      setPathwayModeClass(false);
+      // Custom mode hides the goal card via CSS, so no card update needed.
+      return;
+    }
     const pw = PATHWAYS[id];
     if (pw && pw.base) {
-      const variation = pw.vary && pw.vary.length ? pw.vary[Math.floor(Math.random() * pw.vary.length)] : {};
+      const vary = pw.vary && pw.vary.length ? pw.vary : [{}];
+      const len = vary.length;
+      const idx = variationIdx != null
+        ? ((variationIdx % len) + len) % len
+        : Math.floor(Math.random() * len);
+      activePathwayVariationIdx = idx;
+      const variation = vary[idx] || {};
       applyPathwayConfig(Object.assign({}, pw.base, variation));
-      if (caption) caption.textContent = 'Goal: ' + pw.goal;
+      setPathwayModeClass(true);
+      updatePathwayGoalCard(id, false);
+      // Match Position dropdown to whatever fret range the variation chose so
+      // the dropdown reads as the source of truth for fret position.
+      const posEl = $('slopscale-position');
+      const fretMin = variation.fretMin != null ? variation.fretMin : pw.base.fretMin;
+      if (posEl && fretMin != null) posEl.value = nearestPositionId(fretMin);
       return;
     }
     const preset = window.__slopscaleFavorites && window.__slopscaleFavorites[id];
     if (preset && preset.config) {
       applyPathwayConfig(preset.config);
-      if (caption) caption.textContent = 'Favorite: ' + (preset.name || preset.id);
+      setPathwayModeClass(true);
+      updatePathwayGoalCard(null, false, preset);
     }
+  }
+
+  function rotateToNextVariation() {
+    if (!activePathwayId || activePathwayId === 'custom') return;
+    const pw = PATHWAYS[activePathwayId];
+    if (!pw || !pw.vary || !pw.vary.length) return;
+    const nextIdx = (activePathwayVariationIdx + 1) % pw.vary.length;
+    applyPathwayById(activePathwayId, nextIdx);
+    onGenerate();
   }
   function loadPathwayFavorites() {
     const select = $('slopscale-pathway'); if (!select) return;
@@ -1514,11 +1658,20 @@
     instrument?.addEventListener('change', () => { if (!setup) return; setup.value = instrument.value === 'bass' ? 'bass_4_standard' : 'guitar_6_standard'; if (activeBundle) onGenerate(); });
     setup?.addEventListener('change', syncStringSetupControls); syncStringSetupControls();
     advancedToggle?.addEventListener('change', syncAdvancedMode); syncAdvancedMode();
-    $('slopscale-generate').addEventListener('click', onGenerate); $('slopscale-play').addEventListener('click', startPlayback); $('slopscale-stop').addEventListener('click', stopPlayback);
+    $('slopscale-play').addEventListener('click', onPlayToggle);
+    $('slopscale-regenerate')?.addEventListener('click', onGenerate);
+    $('slopscale-next-variation')?.addEventListener('click', rotateToNextVariation);
     $('slopscale-save').addEventListener('click', () => savePreset().catch(e => { $('slopscale-summary').textContent += `\n\nPreset save failed: ${e.message || e}`; }));
     $('slopscale-go-library')?.addEventListener('click', () => { stopRenderer(); goScreen('home'); });
     $('slopscale-go-plugins')?.addEventListener('click', () => { stopRenderer(); goScreen('plugins'); });
-    $('slopscale-controls').addEventListener('change', () => { syncAdvancedMode(); if (activeBundle) onGenerate(); });
+    $('slopscale-controls').addEventListener('change', (ev) => {
+      const name = ev && ev.target ? ev.target.name : '';
+      // Position selector drives fretMin/fretMax silently in pathway mode.
+      if (name === 'position') syncPositionToFretRange();
+      syncAdvancedMode();
+      markPathwayModifiedIfApplicable(name);
+      if (activeBundle) onGenerate();
+    });
     $('slopscale-fretboard-system')?.addEventListener('change', syncFretRangeForSystem);
     $('slopscale-controls')?.querySelector('[name="key"]')?.addEventListener('change', syncFretRangeForSystem);
     document.querySelectorAll('.slopscale-caged-shape-btn').forEach(btn => btn.addEventListener('click', () => setTimeout(syncFretRangeForSystem, 0)));
