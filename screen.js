@@ -258,7 +258,7 @@
       }
     },
     A: {
-      rootStringIdx: 1, displayName: 'A-shape', scaleFretSpanFromRoot: [-1, 4],
+      rootStringIdx: 1, displayName: 'A-shape', scaleFretSpanFromRoot: [-1, 4], pentFretSpanFromRoot: [0, 3],
       chordTemplates: {
         maj: [{s:1,fOff:0,iv:0},{s:2,fOff:2,iv:7},{s:3,fOff:2,iv:0},{s:4,fOff:2,iv:4},{s:5,fOff:0,iv:7}],
         min: [{s:1,fOff:0,iv:0},{s:2,fOff:2,iv:7},{s:3,fOff:2,iv:0},{s:4,fOff:1,iv:3},{s:5,fOff:0,iv:7}],
@@ -274,7 +274,7 @@
       }
     },
     E: {
-      rootStringIdx: 0, displayName: 'E-shape', scaleFretSpanFromRoot: [-1, 4],
+      rootStringIdx: 0, displayName: 'E-shape', scaleFretSpanFromRoot: [-1, 4], pentFretSpanFromRoot: [0, 3],
       chordTemplates: {
         maj: [{s:0,fOff:0,iv:0},{s:1,fOff:2,iv:7},{s:2,fOff:2,iv:0},{s:3,fOff:1,iv:4},{s:4,fOff:0,iv:7},{s:5,fOff:0,iv:0}],
         min: [{s:0,fOff:0,iv:0},{s:1,fOff:2,iv:7},{s:2,fOff:2,iv:0},{s:3,fOff:0,iv:3},{s:4,fOff:0,iv:7},{s:5,fOff:0,iv:0}],
@@ -336,8 +336,10 @@
     if (!def) return null;
     const rootOpenPc = openPcForString(openMidis, def.rootStringIdx);
     const rootFret = lowestFretWithPc(rootOpenPc, keyPc);
-    const fretMin = rootFret + def.scaleFretSpanFromRoot[0];
-    const fretMax = rootFret + def.scaleFretSpanFromRoot[1];
+    const spanDef = (def.pentFretSpanFromRoot && (scale === 'minor_pentatonic' || scale === 'major_pentatonic' || scale === 'blues'))
+      ? def.pentFretSpanFromRoot : def.scaleFretSpanFromRoot;
+    const fretMin = rootFret + spanDef[0];
+    const fretMax = rootFret + spanDef[1];
     const notes = [];
     const numStrings = openMidis.length;
     for (let s = 0; s < numStrings; s++) {
