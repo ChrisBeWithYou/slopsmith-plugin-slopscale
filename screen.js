@@ -56,11 +56,10 @@
     minor_ii_V_i:[2,5,1,1]
   };
   const FRETBOARD_SYSTEM_LABELS = {
-    position:'Position box / selected fret range',
-    three_nps:'3-notes-per-string',
-    caged:'CAGED position',
-    caged_shape_run:'CAGED single shape — strict ascend',
-    caged_shape_follow:'CAGED single shape — closest position',
+    caged:'CAGED (5 shapes)',
+    '3nps':'3 Notes Per String (7 positions)',
+    open:'Open position',
+    position:'Custom fret range',
     single_string:'Single-string run',
     full_neck:'Full-neck map'
   };
@@ -120,7 +119,7 @@
       goal:'Minor pentatonic with the flat-5 blue note added. That one extra note is what separates a scale run from a blues lick. Play it over a 12-bar blues and land on the b5 for tension — resolve it up to the 5th.',
       scales:['blues','minor_pentatonic'],
       tempoTiers:[60, 80, 100, 120],
-      base:{ practiceType:'scale', scale:'blues', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'min7' },
+      base:{ practiceType:'scale', scale:'blues', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'min7' },
       vary:[ { key:'A', fretMin:5, fretMax:8 }, { key:'E', fretMin:0, fretMax:3 }, { key:'D', fretMin:10, fretMax:13 }, { key:'G', fretMin:3, fretMax:6 }, { key:'C', fretMin:8, fretMax:11 } ]
     },
     pent_foundation: {
@@ -128,7 +127,7 @@
       goal:'Play minor pentatonic box 1 over a 12-bar blues. The single most useful guitar drill — every rock and blues solo lives in this combination.',
       scales:['minor_pentatonic','blues','major_pentatonic'],
       tempoTiers:[60, 80, 100, 120],
-      base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7' },
+      base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7' },
       vary:[ { key:'A', fretMin:5, fretMax:8 }, { key:'E', fretMin:0, fretMax:3 }, { key:'D', fretMin:10, fretMax:13 }, { key:'G', fretMin:3, fretMax:6 }, { key:'C', fretMin:8, fretMax:11 } ]
     },
     major_pent_country: {
@@ -136,7 +135,7 @@
       goal:'Country and southern rock vocabulary. Major pentatonic sits over the chord so every note is a chord tone or a step away — nothing clashes. Target the 2nd and 6th for the Nashville twang. G is the classic country key; I-IV-V keeps it honest.',
       scales:['major_pentatonic','major','blues'],
       tempoTiers:[70, 95, 115, 140],
-      base:{ practiceType:'scale', scale:'major_pentatonic', meter:'4/4', subdivision:'eighth', bpm:95, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'I-IV-V', chordDepth:'triad', chordOverride:'auto', key:'G', fretMin:3, fretMax:7 },
+      base:{ practiceType:'scale', scale:'major_pentatonic', meter:'4/4', subdivision:'eighth', bpm:95, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'I-IV-V', chordDepth:'triad', chordOverride:'auto', key:'G', fretMin:3, fretMax:7 },
       vary:[ { key:'G', fretMin:3, fretMax:7 }, { key:'A', fretMin:5, fretMax:9 }, { key:'D', fretMin:2, fretMax:7 }, { key:'E', fretMin:0, fretMax:4 }, { key:'C', fretMin:0, fretMax:5 } ]
     },
     dorian_groove: {
@@ -144,7 +143,7 @@
       goal:'Natural minor with a raised 6th — that one note gives it a brighter, jazzier feel than straight Aeolian. The raised 6th is the money note; resolve to it over the i chord. Santana, Robben Ford, and funk-era Miles Davis all live in Dorian.',
       scales:['dorian','natural_minor','minor_pentatonic'],
       tempoTiers:[65, 85, 105, 125],
-      base:{ practiceType:'scale', scale:'dorian', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'i-VII-VI-VII', chordDepth:'seventh', chordOverride:'min7', key:'A', fretMin:5, fretMax:9 },
+      base:{ practiceType:'scale', scale:'dorian', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'i-VII-VI-VII', chordDepth:'seventh', chordOverride:'min7', key:'A', fretMin:5, fretMax:9 },
       vary:[ { key:'A', fretMin:5, fretMax:9 }, { key:'D', fretMin:5, fretMax:9 }, { key:'E', fretMin:7, fretMax:11 }, { key:'G', fretMin:3, fretMax:7 }, { key:'C', fretMin:8, fretMax:12 } ]
     },
     chord_tone_targeting: {
@@ -152,7 +151,7 @@
       goal:"Keep the key's scale, but watch the accents shift to chord tones as the progression moves. Trains chord-tone awareness inside familiar scale shapes.",
       scales:['major','natural_minor','dorian','mixolydian'],
       tempoTiers:[65, 90, 110, 130],
-      base:{ practiceType:'chord_scales', chordScaleStrategy:'chord_tone_emphasis', scale:'major', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'ascending', sequence:'fours', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
+      base:{ practiceType:'chord_scales', chordScaleStrategy:'chord_tone_emphasis', scale:'major', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'ascending', sequence:'fours', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
       vary:[ { key:'C', progression:'diatonic' }, { key:'C', progression:'I-IV-V' }, { key:'G', progression:'I-V-vi-IV' }, { key:'D', progression:'I-vi-IV-V' }, { key:'A', progression:'vi-IV-I-V' } ]
     },
     modal_awareness: {
@@ -160,7 +159,7 @@
       goal:'Each chord gets its own mode. Uses dom7 override so the scale audibly shifts per chord — bar 1 has Bb, bar 2 has F#, etc.',
       scales:['major','dorian','phrygian','lydian','mixolydian','natural_minor','locrian'],
       tempoTiers:[60, 85, 105, 125],
-      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', chordDepth:'seventh', chordOverride:'dom7', progression:'diatonic', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
+      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', chordDepth:'seventh', chordOverride:'dom7', progression:'diatonic', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
       vary:[ { key:'C' }, { key:'G' }, { key:'D' }, { key:'A' }, { key:'F' } ]
     },
     diatonic_triad_drill: {
@@ -168,7 +167,7 @@
       goal:'Triad arpeggio of every diatonic chord, in order. The 7-chord lap.',
       scales:['major','natural_minor','harmonic_minor','melodic_minor'],
       tempoTiers:[70, 100, 120, 144],
-      base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'triad', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
+      base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'triad', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
       vary:[ { key:'C' }, { key:'G' }, { key:'D' }, { key:'A' }, { key:'E' }, { key:'F' } ]
     },
     seventh_vocab: {
@@ -176,7 +175,7 @@
       goal:'Diatonic seventh arpeggios. The jazz starter — maj7, m7, m7, maj7, dom7, m7, m7b5.',
       scales:['major','natural_minor','dorian','harmonic_minor'],
       tempoTiers:[65, 90, 110, 130],
-      base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
+      base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
       vary:[ { key:'C' }, { key:'F' }, { key:'Bb' }, { key:'G' }, { key:'D' } ]
     },
     ii_V_I_workout: {
@@ -184,7 +183,7 @@
       goal:'The most common jazz cadence, run as scales over the changes. Mode-of-the-moment so Dorian / Mixolydian / Ionian land audibly.',
       scales:['major','dorian','mixolydian','melodic_minor','bebop_major','bebop_dominant'],
       tempoTiers:[70, 100, 120, 144],
-      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', chordDepth:'seventh', chordOverride:'auto', progression:'ii-V-I', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
+      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', chordDepth:'seventh', chordOverride:'auto', progression:'ii-V-I', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
       vary:[ { key:'C' }, { key:'F' }, { key:'Bb' }, { key:'G' }, { key:'D' }, { key:'A' } ]
     },
     harmonic_minor_exotic: {
@@ -192,7 +191,7 @@
       goal:'Yngwie / flamenco flavor. Harmonic-minor scale, mode-of-the-moment, every chord is dom7 so each bar lands the raised 7th outside the key.',
       scales:['harmonic_minor','phrygian_dominant','natural_minor'],
       tempoTiers:[70, 95, 115, 140],
-      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'harmonic_minor', chordDepth:'seventh', chordOverride:'dom7', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:110, bars:8, direction:'up_down', sequence:'fours', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:5, fretMax:12 },
+      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'harmonic_minor', chordDepth:'seventh', chordOverride:'dom7', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:110, bars:8, direction:'up_down', sequence:'fours', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:5, fretMax:12 },
       vary:[ { key:'A', fretMin:5, fretMax:12 }, { key:'E', fretMin:7, fretMax:14 }, { key:'D', fretMin:5, fretMax:12 }, { key:'B', fretMin:7, fretMax:14 } ]
     },
     sweep_primer: {
@@ -200,28 +199,12 @@
       goal:'One chord tone per string, swept low-to-high with a hammer-on/pull-off turnaround at the apex, then swept back down. Root anchors the bass string. Start slow — sweeps reward cleanliness over speed.',
       scales:['natural_minor','harmonic_minor','major'],
       tempoTiers:[50, 65, 80, 100],
-      base:{ practiceType:'sweep_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', cagedShape:'A', key:'A', fretMin:5, fretMax:12 },
+      base:{ practiceType:'sweep_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', cagedShape:'A', key:'A', fretMin:5, fretMax:12 },
       vary:[ { key:'A', fretMin:5, fretMax:12 }, { key:'A', fretMin:9, fretMax:16 }, { key:'D', fretMin:5, fretMax:12 }, { key:'E', fretMin:7, fretMax:14 }, { key:'G', fretMin:3, fretMax:10 } ]
     }
   };
   const PATHWAY_STORAGE_KEY = 'slopscale.lastPathway';
   const PATHWAY_FIRST_VISIT_DEFAULT = 'pent_foundation';
-
-  // Named position presets drive the pathway-mode "Position" dropdown. The
-  // pathway sets fretMin/fretMax directly; this map lets the user shift the
-  // position without thinking in raw fret numbers.
-  // Standard 4-fret hand positions — one finger per fret, anchored at the
-  // 1st-finger fret. "Open position" includes open strings + frets 1–3.
-  // The position is named after the lowest fret the index finger covers.
-  const POSITION_PRESETS = {
-    open:  { fretMin: 0,  fretMax: 3  },
-    '3rd': { fretMin: 3,  fretMax: 6  },
-    '5th': { fretMin: 5,  fretMax: 8  },
-    '7th': { fretMin: 7,  fretMax: 10 },
-    '9th': { fretMin: 9,  fretMax: 12 },
-    '12th':{ fretMin: 12, fretMax: 15 }
-  };
-  const POSITION_ORDER = ['open', '3rd', '5th', '7th', '9th', '12th'];
 
   // === CAGED + 3NPS + Open shape system ===
   //
@@ -501,8 +484,105 @@
     return order[(idx + 1) % order.length];
   }
 
-  // Expose for DevTools inspection and future wiring. Not yet consumed by the
-  // chart generators — see docs/position-system-rework.md for the rollout plan.
+  // Map a fretboardSystem value to its kind. Shape-aware systems flow through
+  // the new resolver functions; the others fall back to the legacy
+  // fretMin/fretMax handling.
+  const SHAPE_AWARE_SYSTEMS = new Set(['caged', '3nps', 'open']);
+  function isShapeAwareSystem(system) { return SHAPE_AWARE_SYSTEMS.has(system); }
+
+  // Sensible default shape for a system + key.
+  function defaultShapeForSystem(system, keyPc, scale, openMidis) {
+    if (system === 'open') return 'open';
+    const order = shapeOrderForKey(keyPc, system, scale, openMidis);
+    if (order && order.length) return order[0];
+    if (system === 'caged') return 'C';
+    if (system === '3nps')  return 1;
+    return null;
+  }
+
+  // Human-facing label for a shape: name + parenthetical fret range.
+  function shapeLabel(system, shape, resolved) {
+    if (!resolved) return String(shape);
+    const range = `(frets ${resolved.fretMin}–${resolved.fretMax})`;
+    if (system === 'caged') return `${resolved.displayName} ${range}`;
+    if (system === '3nps')  return `${resolved.displayName} ${range}`;
+    if (system === 'open')  return `${resolved.displayName} ${range}`;
+    return `${resolved.displayName} ${range}`;
+  }
+
+  // Populate the Shape dropdown for the current key + system. Preserves the
+  // currently-selected shape if it's still valid for the new system.
+  function syncShapeDropdown() {
+    const sel = (typeof document !== 'undefined') ? document.getElementById('slopscale-shape') : null;
+    if (!sel) return;
+    const sysEl = document.getElementById('slopscale-fretboard-system');
+    const keyEl = document.querySelector('#slopscale-controls [name="key"]');
+    const scaleEl = document.querySelector('#slopscale-controls [name="scale"]');
+    const system = sysEl ? sysEl.value : 'caged';
+    const keyPc = keyEl ? (NOTE_ALIASES[keyEl.value] ?? 0) : 0;
+    const scale = scaleEl ? scaleEl.value : 'major';
+    const openMidis = STRING_SETUPS.guitar_6_standard.openMidis;
+
+    // Remember the current selection so we can preserve it across system changes.
+    const prev = sel.value;
+    sel.innerHTML = '';
+
+    if (!isShapeAwareSystem(system)) {
+      // Custom-range / single-string / full-neck — Shape dropdown is hidden by CSS
+      // when the parent label has no contents. Leave the select empty.
+      return;
+    }
+
+    const order = shapeOrderForKey(keyPc, system, scale, openMidis);
+    if (!order.length) {
+      // No valid shapes (e.g., Open in Db major). Leave a single disabled option.
+      const opt = document.createElement('option');
+      opt.value = ''; opt.textContent = '(not available in this key)'; opt.disabled = true;
+      sel.appendChild(opt);
+      return;
+    }
+    for (const shape of order) {
+      const resolved = fretWindowForShape(keyPc, system, shape, scale, openMidis);
+      const opt = document.createElement('option');
+      opt.value = String(shape);
+      opt.textContent = shapeLabel(system, shape, resolved);
+      sel.appendChild(opt);
+    }
+    // Restore the previous selection if still valid; otherwise pick the lowest shape.
+    if (order.map(String).includes(prev)) {
+      sel.value = prev;
+    } else {
+      sel.value = String(order[0]);
+    }
+
+    // Mirror the active shape into the legacy cagedShape hidden input so the
+    // chord-template helpers keep working. Only meaningful when system is CAGED.
+    const cagedHidden = document.getElementById('slopscale-caged-shape-value');
+    if (cagedHidden) {
+      if (system === 'caged') cagedHidden.value = sel.value || 'C';
+      // For 3NPS/Open, leave the hidden value alone — chord-template helpers
+      // aren't called in those shape contexts yet.
+    }
+  }
+
+  // Resolve the shape selected in the form (or default) into fret range +
+  // shape-note set. Called by readConfig. Returns null if the current system
+  // isn't shape-aware (callers should fall back to raw fretMin/fretMax).
+  function resolveCurrentShape(cfg, openMidis) {
+    if (!isShapeAwareSystem(cfg.fretboardSystem)) return null;
+    const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+    let shape = cfg.shape;
+    // Coerce numeric shape ids for 3NPS (form values are strings).
+    if (cfg.fretboardSystem === '3nps') shape = parseInt(shape, 10);
+    if (shape == null || shape === '' || (typeof shape === 'number' && isNaN(shape))) {
+      shape = defaultShapeForSystem(cfg.fretboardSystem, keyPc, cfg.scale, openMidis);
+    }
+    const resolved = fretWindowForShape(keyPc, cfg.fretboardSystem, shape, cfg.scale, openMidis);
+    if (!resolved) return null;
+    return { shape, resolved };
+  }
+
+  // Expose for DevTools inspection and (soon) chart generation.
   if (typeof window !== 'undefined') {
     window.__slopscaleShapes = {
       CAGED_SHAPES,
@@ -516,6 +596,8 @@
       fretWindowForShape,
       shapeOrderForKey,
       nextShapeInCycle,
+      defaultShapeForSystem,
+      isShapeAwareSystem,
       // Helpers
       openPcForString,
       pcOfDegree,
@@ -627,16 +709,35 @@
     const data = new FormData($('slopscale-controls'));
     const stringSetup = data.get('stringSetup') || 'guitar_6_standard';
     const setup = STRING_SETUPS[stringSetup] || STRING_SETUPS.guitar_6_standard;
-    const fretMin = Math.max(0, parseInt(data.get('fretMin') || '0', 10));
-    const fretMax = Math.max(fretMin + 1, parseInt(data.get('fretMax') || '5', 10));
+    let fretMin = Math.max(0, parseInt(data.get('fretMin') || '0', 10));
+    let fretMax = Math.max(fretMin + 1, parseInt(data.get('fretMax') || '5', 10));
     const practiceType = data.get('practiceType') || data.get('mode') || 'scale';
     const advancedMode = data.get('advancedMode') === 'on';
-    const fretboardSystem = advancedMode ? (data.get('fretboardSystem') || 'position') : 'position';
+    // Default fretboard system is CAGED in beginner mode and whatever the user
+    // picks in advanced mode. The shape-aware systems (caged/3nps/open) drive
+    // fretMin/fretMax via the resolved shape; raw fretMin/fretMax inputs only
+    // matter for the 'position' / 'single_string' / 'full_neck' legacy paths.
+    const fretboardSystem = advancedMode ? (data.get('fretboardSystem') || 'caged') : 'caged';
+    let shape = data.get('shape');
+    let shapeNotes = null, shapeDisplayName = null;
+    if (isShapeAwareSystem(fretboardSystem)) {
+      const resolved = resolveCurrentShape({ fretboardSystem, key: data.get('key') || 'C', scale: data.get('scale') || 'major', shape }, setup.openMidis);
+      if (resolved) {
+        shape = resolved.shape;
+        shapeNotes = resolved.resolved.notes;
+        shapeDisplayName = resolved.resolved.displayName;
+        fretMin = resolved.resolved.fretMin;
+        fretMax = resolved.resolved.fretMax;
+      }
+    }
     return {
       mode: practiceType,
       practiceType,
       advancedMode,
       fretboardSystem,
+      shape,
+      shapeNotes,
+      shapeDisplayName,
       cagedShape: advancedMode ? (data.get('cagedShape') || 'C') : 'C',
       renderer: data.get('renderer') || 'highway_3d',
       instrument: setup.instrument,
@@ -672,20 +773,6 @@
   function secondsPerDivision(cfg) { const q = 60 / cfg.bpm; return ({ quarter:q, eighth:q/2, sixteenth:q/4, triplet:q/3, eighth_triplet:q/3, sixteenth_triplet:q/6 })[cfg.subdivision] || q/2; }
   function measureSeconds(cfg) { return (60 / cfg.bpm) * (4 / cfg.meter.denominator) * cfg.meter.numerator; }
   function fretboardSystemLabel(value) { return FRETBOARD_SYSTEM_LABELS[value] || FRETBOARD_SYSTEM_LABELS.position; }
-  function cagedRootFret(shape, keyPc) {
-    const def = CAGED_SHAPES[shape];
-    if (!def) return 0;
-    const openPc = STRING_SETUPS.guitar_6_standard.openMidis[def.rootStringIdx] % 12;
-    return ((keyPc - openPc) + 12) % 12;
-  }
-  function fretRangeForSystem(system, shape, keyPc) {
-    if (system !== 'caged' && system !== 'caged_shape_run' && system !== 'caged_shape_follow') return null;
-    const root = cagedRootFret(shape, keyPc);
-    const fMin = Math.max(0, root - 1);
-    const isShapeRun = system === 'caged_shape_run' || system === 'caged_shape_follow';
-    const fMax = isShapeRun ? Math.min(24, root + 16) : Math.min(24, root + 5);
-    return { fretMin:fMin, fretMax:fMax };
-  }
 
   function cagedShapeQualityKey(quality) {
     if (quality === 'min' || quality === 'min7' || quality === 'min_maj7') return 'min';
@@ -863,16 +950,28 @@
     return idx > 0 ? positions.slice(idx).concat(positions.slice(0, idx)) : positions;
   }
 
+  // Convert a shape's note list (s/f/d/isRoot) into the {s,f,midi,pc} shape
+  // the chart generators expect.
+  function shapeNotesToPositions(cfg, shapeNotes) {
+    const opens = openMidisForConfig(cfg);
+    return shapeNotes
+      .filter(n => n.s >= 0 && n.s < cfg.stringCount)
+      .map(n => {
+        const midi = opens[n.s] + n.f;
+        return { s: n.s, f: n.f, midi, pc: midi % 12 };
+      })
+      .sort((a, b) => a.midi - b.midi || a.s - b.s || a.f - b.f);
+  }
+
   function scalePositionsForSystem(cfg) {
+    // Shape-aware systems (caged / 3nps / open) come pre-resolved by readConfig
+    // — return the shape's note set directly.
+    if (cfg.shapeNotes && cfg.shapeNotes.length) {
+      return shapeNotesToPositions(cfg, cfg.shapeNotes);
+    }
     switch (cfg.fretboardSystem) {
       case 'single_string': return singleStringScalePositions(cfg);
       case 'full_neck': return everyScalePosition(Object.assign({}, cfg, { fretMin:0, fretMax:24 }));
-      case 'caged_shape_run':
-      case 'caged_shape_follow':
-        return startAtRootPc(everyScalePosition(cfg), cfg);
-      case 'caged':
-        return startAtRootPc(allScalePositions(cfg), cfg);
-      case 'three_nps':
       case 'position':
       default: return allScalePositions(cfg);
     }
@@ -1910,7 +2009,7 @@
       ...(cfg.mode === 'chromatic' ? [`Chromatic pattern: ${CHROMATIC_PATTERN_LABELS[cfg.chromaticPattern] || cfg.chromaticPattern}`] : []),
       `Advanced controls: ${cfg.advancedMode ? 'on' : 'off'}`,
       `Fretboard system: ${fretboardSystemLabel(cfg.fretboardSystem)}`,
-      ...(cfg.fretboardSystem === 'caged' || cfg.fretboardSystem === 'caged_shape_run' || cfg.fretboardSystem === 'caged_shape_follow' ? [`CAGED shape: ${cfg.cagedShape}`] : []),
+      ...(cfg.shapeDisplayName ? [`Shape: ${cfg.shapeDisplayName} (frets ${cfg.fretMin}-${cfg.fretMax})`] : []),
       `Direction/repeats: ${cfg.direction}, ${cfg.repeatCount}x`,
       ...(cfg.sequence && cfg.sequence !== 'none' ? [`Sequence: ${SEQUENCE_LABELS[cfg.sequence] || cfg.sequence}`] : []),
       `Pattern: ${cfg.mode === 'chromatic' ? (CHROMATIC_PATTERN_LABELS[cfg.chromaticPattern] || cfg.chromaticPattern) : cfg.mode === 'scale' ? fretboardSystemLabel(cfg.fretboardSystem) : 'full chord-tone arpeggios across one position'}`,
@@ -1974,50 +2073,42 @@
     else field.value = String(value);
   }
   function syncCagedButtonStrip() {
-    const hidden = $('slopscale-caged-shape-value');
-    if (hidden) {
-      const shape = hidden.value;
-      document.querySelectorAll('.slopscale-caged-shape-btn').forEach(btn => { btn.classList.toggle('active', btn.getAttribute('data-shape') === shape); });
-    }
-    const sysSelect = $('slopscale-fretboard-system'), form = $('slopscale-controls');
-    if (sysSelect && form) {
-      const v = sysSelect.value;
-      const isCaged = v === 'caged' || v === 'caged_shape_run' || v === 'caged_shape_follow';
-      if (isCaged) form.setAttribute('data-fretboard-caged', '1');
-      else form.removeAttribute('data-fretboard-caged');
-    }
-  }
-  function syncFretRangeForSystem() {
-    const form = $('slopscale-controls'); if (!form) return;
-    const sysEl = $('slopscale-fretboard-system');
-    const keyEl = form.querySelector('[name="key"]');
-    const cagedEl = $('slopscale-caged-shape-value');
-    const fMinEl = form.querySelector('[name="fretMin"]');
-    const fMaxEl = form.querySelector('[name="fretMax"]');
-    if (!sysEl || !keyEl || !fMinEl || !fMaxEl) return;
-    const system = sysEl.value, shape = (cagedEl && cagedEl.value) || 'E';
-    const keyPc = NOTE_ALIASES[keyEl.value] ?? 0;
-    const range = fretRangeForSystem(system, shape, keyPc);
-    if (!range) return;
-    fMinEl.value = String(range.fretMin);
-    fMaxEl.value = String(range.fretMax);
+    // The button-strip UI was removed in favor of the unified Shape dropdown.
+    // Kept as a no-op so existing callers don't need to be touched.
   }
 
+  // Mirror the Shape dropdown's selected value into the legacy hidden
+  // cagedShape input. Only meaningful when the active system is CAGED — for
+  // other systems the chord-template helpers aren't called.
+  function syncShapeDropdownSelectionToHidden() {
+    const sysEl = $('slopscale-fretboard-system');
+    const shapeEl = $('slopscale-shape');
+    const hidden = $('slopscale-caged-shape-value');
+    if (!shapeEl || !hidden) return;
+    if (sysEl && sysEl.value === 'caged' && shapeEl.value) hidden.value = shapeEl.value;
+  }
   function applyPathwayConfig(config) {
     if (!config) return;
     if (Object.prototype.hasOwnProperty.call(config, 'advancedMode')) setFieldSilent('advancedMode', config.advancedMode);
     syncAdvancedMode();
     Object.keys(config).forEach(k => { if (k !== 'advancedMode') setFieldSilent(k, config[k]); });
     syncStringSetupControls();
-    syncCagedButtonStrip();
+    syncShapeDropdown();
+    syncShapeDropdownSelectionToHidden();
   }
 
-  function nearestPositionId(fretMin) {
-    let best = '5th', bestDist = Infinity;
-    for (const id of POSITION_ORDER) {
-      const p = POSITION_PRESETS[id];
-      const d = Math.abs(p.fretMin - (fretMin || 0));
-      if (d < bestDist) { best = id; bestDist = d; }
+  // Given a fret-range hint (from a legacy pathway definition), pick the
+  // shape whose fret window is closest to that range. Used so old pathway
+  // data with fretMin/fretMax still picks a sensible shape on the new model.
+  function shapeFromFretHint(system, fretMinHint, keyPc, scale, openMidis) {
+    const order = shapeOrderForKey(keyPc, system, scale, openMidis);
+    if (!order.length) return null;
+    let best = order[0], bestDist = Infinity;
+    for (const shape of order) {
+      const resolved = fretWindowForShape(keyPc, system, shape, scale, openMidis);
+      if (!resolved) continue;
+      const d = Math.abs(resolved.fretMin - (fretMinHint || 0));
+      if (d < bestDist) { best = shape; bestDist = d; }
     }
     return best;
   }
@@ -2052,26 +2143,15 @@
 
   // Translate the named Position dropdown into raw fretMin/fretMax inputs.
   // Only active in pathway mode — Custom mode lets the user set frets directly.
-  function syncPositionToFretRange() {
-    const root = $('slopscale-root');
-    if (!root || !root.classList.contains('slopscale-pathway-mode')) return;
-    const posEl = $('slopscale-position');
-    if (!posEl) return;
-    const preset = POSITION_PRESETS[posEl.value];
-    if (!preset) return;
-    setFieldSilent('fretMin', preset.fretMin);
-    setFieldSilent('fretMax', preset.fretMax);
-  }
-
   // Detect divergence from the curated pathway and flag it visually so the
   // user knows they have drifted off the prescribed exercise. Pathway,
-  // Position, Key, and fret range are all expected to vary; BPM and audio
+  // Shape, Key, and fret range are all expected to vary; BPM and audio
   // toggles are personal preference, not exercise content. That leaves
   // structural changes (scale, progression, etc) as the only true modifiers —
   // and in pathway mode those controls are hidden anyway.
   function markPathwayModifiedIfApplicable(targetName) {
     if (!activePathwayId || activePathwayId === 'custom') return;
-    const ignore = new Set(['pathway', 'position', 'fretMin', 'fretMax', 'key', 'bpm', 'audioNotes', 'audioMetronome', 'audioHarmony']);
+    const ignore = new Set(['pathway', 'shape', 'fretboardSystem', 'fretMin', 'fretMax', 'key', 'bpm', 'audioNotes', 'audioMetronome', 'audioHarmony']);
     if (ignore.has(targetName)) return;
     updatePathwayGoalCard(activePathwayId, true);
   }
@@ -2103,14 +2183,28 @@
       applyPathwayConfig(tieredConfig);
       setPathwayModeClass(true);
       updatePathwayGoalCard(id, false);
-      // Match Position dropdown to whatever fret range the variation chose,
-      // then re-apply the dropdown's preset so the position is the source of
-      // truth — pathways can suggest a starting position, but the actual fret
-      // window comes from the standard 4-fret position preset.
-      const posEl = $('slopscale-position');
-      const fretMin = variation.fretMin != null ? variation.fretMin : pw.base.fretMin;
-      if (posEl && fretMin != null) posEl.value = nearestPositionId(fretMin);
-      syncPositionToFretRange();
+      // Resolve the pathway's intended shape. New-style pathways can set
+      // `fretboardSystem` + `shape` directly; legacy pathways pass `fretMin`
+      // (and we pick the closest shape on the current key).
+      const shapeEl = $('slopscale-shape');
+      if (shapeEl) {
+        const system = tieredConfig.fretboardSystem || 'caged';
+        const keyEl = $('slopscale-controls')?.querySelector('[name="key"]');
+        const keyPc = keyEl ? (NOTE_ALIASES[keyEl.value] ?? 0) : 0;
+        const scale = tieredConfig.scale || 'major';
+        const openMidis = STRING_SETUPS.guitar_6_standard.openMidis;
+        let chosenShape = tieredConfig.shape;
+        if (chosenShape == null && isShapeAwareSystem(system)) {
+          const fretHint = variation.fretMin != null ? variation.fretMin : pw.base.fretMin;
+          chosenShape = shapeFromFretHint(system, fretHint, keyPc, scale, openMidis)
+            || defaultShapeForSystem(system, keyPc, scale, openMidis);
+        }
+        syncShapeDropdown();
+        if (chosenShape != null) {
+          shapeEl.value = String(chosenShape);
+          syncShapeDropdownSelectionToHidden();
+        }
+      }
       syncTempoTierButtons();
       syncScaleDropdown(id);
       return;
@@ -2124,7 +2218,29 @@
   }
 
   function rotateToNextVariation() {
+    // Per design (docs/position-system-rework.md): Next Variation cycles
+    // through shapes within the current key, in the cyclic order of the
+    // current system (e.g., for CAGED in C major: C → A → G → E → D → C).
     if (!activePathwayId || activePathwayId === 'custom') return;
+    const sysEl = $('slopscale-fretboard-system');
+    const shapeEl = $('slopscale-shape');
+    const keyEl = $('slopscale-controls')?.querySelector('[name="key"]');
+    const scaleEl = $('slopscale-controls')?.querySelector('[name="scale"]');
+    const system = sysEl ? sysEl.value : 'caged';
+    if (isShapeAwareSystem(system) && shapeEl && keyEl) {
+      const keyPc = NOTE_ALIASES[keyEl.value] ?? 0;
+      const scale = scaleEl ? scaleEl.value : 'major';
+      const openMidis = STRING_SETUPS.guitar_6_standard.openMidis;
+      const current = system === '3nps' ? parseInt(shapeEl.value, 10) : shapeEl.value;
+      const next = nextShapeInCycle(keyPc, system, current, scale, openMidis);
+      if (next != null) {
+        shapeEl.value = String(next);
+        syncShapeDropdownSelectionToHidden();
+        onGenerate();
+        return;
+      }
+    }
+    // Fallback for non-shape-aware systems: keep the old per-pathway variation rotation.
     const pw = PATHWAYS[activePathwayId];
     if (!pw || !pw.vary || !pw.vary.length) return;
     const nextIdx = (activePathwayVariationIdx + 1) % pw.vary.length;
@@ -2241,17 +2357,18 @@
     $('slopscale-go-plugins')?.addEventListener('click', () => { stopRenderer(); goScreen('plugins'); });
     $('slopscale-controls').addEventListener('change', (ev) => {
       const name = ev && ev.target ? ev.target.name : '';
-      // Position selector drives fretMin/fretMax silently in pathway mode.
-      if (name === 'position') syncPositionToFretRange();
+      if (name === 'shape') syncShapeDropdownSelectionToHidden();
       if (name === 'practiceType') syncChromaticVisibility();
       if (name === 'keyCycle') { const h = $('slopscale-keycycle-help'); if (h) h.style.display = ev.target.value !== 'none' ? '' : 'none'; }
       syncAdvancedMode();
       markPathwayModifiedIfApplicable(name);
       if (activeBundle) onGenerate();
     });
-    $('slopscale-fretboard-system')?.addEventListener('change', syncFretRangeForSystem);
-    $('slopscale-controls')?.querySelector('[name="key"]')?.addEventListener('change', syncFretRangeForSystem);
-    document.querySelectorAll('.slopscale-caged-shape-btn').forEach(btn => btn.addEventListener('click', () => setTimeout(syncFretRangeForSystem, 0)));
+    // Key or fretboardSystem change → repopulate the Shape dropdown for the
+    // new (key, system) combination.
+    $('slopscale-fretboard-system')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); });
+    $('slopscale-controls')?.querySelector('[name="key"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); });
+    $('slopscale-controls')?.querySelector('[name="scale"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); });
     const pathwaySelect = $('slopscale-pathway');
     pathwaySelect?.addEventListener('change', () => {
       applyPathwayById(pathwaySelect.value);
@@ -2262,6 +2379,11 @@
       if (activeBundle) onGenerate();
     });
     loadPathwayFavorites();
+    // Populate the Shape dropdown for the initial (key, system) before any
+    // pathway runs — applyInitialPathway may set the shape value, but it
+    // can't select an option that doesn't exist yet.
+    syncShapeDropdown();
+    syncShapeDropdownSelectionToHidden();
     applyInitialPathway();
     window.addEventListener('storage', (ev) => { if (ev.key === 'invertHighway' || ev.key === 'lefty' || ev.key === 'renderScale') refreshForHostSettingChange(); });
     window.addEventListener('focus', refreshForHostSettingChange);

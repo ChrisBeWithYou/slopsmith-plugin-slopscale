@@ -270,29 +270,18 @@
         </label>
         <label>Fretboard system
           <select name="fretboardSystem" id="slopscale-fretboard-system">
-            <option value="position" selected>Position box / selected fret range</option>
-            <option value="three_nps">3-notes-per-string</option>
-            <option value="caged">CAGED position</option>
-            <option value="caged_shape_run">CAGED single shape — strict ascend</option>
-            <option value="caged_shape_follow">CAGED single shape — closest position</option>
+            <option value="caged" selected>CAGED (5 shapes)</option>
+            <option value="3nps">3 Notes Per String (7 positions)</option>
+            <option value="open">Open position</option>
             <option value="single_string">Single-string run</option>
             <option value="full_neck">Full-neck map</option>
+            <option value="position">Custom fret range (advanced)</option>
           </select>
         </label>
-        <!-- CAGED shape family — visible only when any caged_* mode is active -->
-        <div class="slopscale-caged-fields slopscale-caged-only">
-          <label>CAGED shape family
-            <span class="slopscale-help" style="margin-top:2px;">Pick the chord shape that anchors this position on the neck.</span>
-          </label>
-          <div class="slopscale-caged-shapes" role="group" aria-label="CAGED shape">
-            <button type="button" class="slopscale-caged-shape-btn active" data-shape="C" title="C shape — root on 5th string">C</button>
-            <button type="button" class="slopscale-caged-shape-btn" data-shape="A" title="A shape — root on 5th string">A</button>
-            <button type="button" class="slopscale-caged-shape-btn" data-shape="G" title="G shape — root on 6th string">G</button>
-            <button type="button" class="slopscale-caged-shape-btn" data-shape="E" title="E shape — root on 6th string">E</button>
-            <button type="button" class="slopscale-caged-shape-btn" data-shape="D" title="D shape — root on 4th string">D</button>
-          </div>
-          <input type="hidden" name="cagedShape" id="slopscale-caged-shape-value" value="C">
-        </div>
+        <!-- Backwards-compat hidden input — mirrors the active Shape value so the
+             chord-template helpers (cagedShapeNotesForChord, pickShapeRootFret)
+             still receive a CAGED letter when applicable. -->
+        <input type="hidden" name="cagedShape" id="slopscale-caged-shape-value" value="C">
 
         <div class="slopscale-grid-2">
           <label>Direction
@@ -331,14 +320,13 @@
         <label class="slopscale-pathway-only" id="slopscale-pathway-scale-wrap">Scale
           <select id="slopscale-pathway-scale"><!-- populated by syncScaleDropdown() --></select>
         </label>
-        <label class="slopscale-pathway-only">Position
-          <select name="position" id="slopscale-position">
-            <option value="open">Open position (0–3)</option>
-            <option value="3rd">3rd position (3–6)</option>
-            <option value="5th" selected>5th position (5–8)</option>
-            <option value="7th">7th position (7–10)</option>
-            <option value="9th">9th position (9–12)</option>
-            <option value="12th">12th position (12–15)</option>
+        <label class="slopscale-pathway-only">Shape
+          <select name="shape" id="slopscale-shape">
+            <!-- Populated dynamically by syncShapeDropdown() based on the
+                 current key + fretboard system. Each option's value is the
+                 shape identifier ('C'/'A'/'G'/'E'/'D' for CAGED, 1-7 for
+                 3NPS, 'open' for Open). Labels include the resolved fret
+                 range for the current key. -->
           </select>
         </label>
         <label class="slopscale-custom-only" style="grid-column: span 2">Scale
@@ -493,19 +481,10 @@
    attaches the change listener and applies the initial pathway. */
 (function initSlopScalePathwaysRemoved() { return; })();
 
-(function initCagedShapeButtons() {
-  const form      = document.getElementById('slopscale-controls');
-  const sysSelect = document.getElementById('slopscale-fretboard-system');
-  const hidden    = document.getElementById('slopscale-caged-shape-value');
-  const btns      = document.querySelectorAll('.slopscale-caged-shape-btn');
-
-  function isCaged() { const v = sysSelect ? sysSelect.value : ''; return v === 'caged' || v === 'caged_shape_run' || v === 'caged_shape_follow'; }
-  function updateCagedVisibility() { if (isCaged()) form.setAttribute('data-fretboard-caged', '1'); else form.removeAttribute('data-fretboard-caged'); }
-  function setShape(shape) { if (hidden) hidden.value = shape; btns.forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-shape') === shape)); }
-
-  btns.forEach(btn => btn.addEventListener('click', () => setShape(btn.getAttribute('data-shape'))));
-  if (sysSelect) { sysSelect.addEventListener('change', updateCagedVisibility); updateCagedVisibility(); }
-})();
+/* The CAGED shape-button row was removed in favor of a unified Shape dropdown
+   (#slopscale-shape) populated by screen.js's syncShapeDropdown(). The hidden
+   #slopscale-caged-shape-value input is kept and mirrored from the Shape
+   dropdown so the legacy chord-template helpers still receive a CAGED letter. */
 
 (function installSlopScaleHostSettingsWatcher() {
   if (window.__slopscaleHostSettingsWatcherInstalled) return;
