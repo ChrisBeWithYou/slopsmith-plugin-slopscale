@@ -120,7 +120,7 @@
       scales:['blues','minor_pentatonic'],
       tempoTiers:[60, 80, 100, 120],
       base:{ practiceType:'scale', scale:'blues', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'min7' },
-      vary:[ { key:'A', fretMin:5, fretMax:8 }, { key:'E', fretMin:0, fretMax:3 }, { key:'D', fretMin:10, fretMax:13 }, { key:'G', fretMin:3, fretMax:6 }, { key:'C', fretMin:8, fretMax:11 } ]
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ]
     },
     pent_foundation: {
       label:'Pentatonic Foundation',
@@ -128,7 +128,7 @@
       scales:['minor_pentatonic','blues','major_pentatonic'],
       tempoTiers:[60, 80, 100, 120],
       base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7' },
-      vary:[ { key:'A', fretMin:5, fretMax:8 }, { key:'E', fretMin:0, fretMax:3 }, { key:'D', fretMin:10, fretMax:13 }, { key:'G', fretMin:3, fretMax:6 }, { key:'C', fretMin:8, fretMax:11 } ]
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ]
     },
     major_pent_country: {
       label:'Major Pentatonic Country',
@@ -136,7 +136,7 @@
       scales:['major_pentatonic','major','blues'],
       tempoTiers:[70, 95, 115, 140],
       base:{ practiceType:'scale', scale:'major_pentatonic', meter:'4/4', subdivision:'eighth', bpm:95, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'I-IV-V', chordDepth:'triad', chordOverride:'auto', key:'G', fretMin:3, fretMax:7 },
-      vary:[ { key:'G', fretMin:3, fretMax:7 }, { key:'A', fretMin:5, fretMax:9 }, { key:'D', fretMin:2, fretMax:7 }, { key:'E', fretMin:0, fretMax:4 }, { key:'C', fretMin:0, fretMax:5 } ]
+      vary:[ { key:'G', shape:'G' }, { key:'A', shape:'E' }, { key:'D', shape:'E' }, { key:'E', shape:'E' }, { key:'C', shape:'E' } ]
     },
     dorian_groove: {
       label:'Dorian Groove',
@@ -144,7 +144,7 @@
       scales:['dorian','natural_minor','minor_pentatonic'],
       tempoTiers:[65, 85, 105, 125],
       base:{ practiceType:'scale', scale:'dorian', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'i-VII-VI-VII', chordDepth:'seventh', chordOverride:'min7', key:'A', fretMin:5, fretMax:9 },
-      vary:[ { key:'A', fretMin:5, fretMax:9 }, { key:'D', fretMin:5, fretMax:9 }, { key:'E', fretMin:7, fretMax:11 }, { key:'G', fretMin:3, fretMax:7 }, { key:'C', fretMin:8, fretMax:12 } ]
+      vary:[ { key:'A', shape:'E' }, { key:'D', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ]
     },
     chord_tone_targeting: {
       label:'Chord Tone Targeting',
@@ -165,18 +165,18 @@
     diatonic_triad_drill: {
       label:'Diatonic Triad Drill',
       goal:'Triad arpeggio of every diatonic chord, in order. The 7-chord lap.',
-      scales:['major','natural_minor','harmonic_minor','melodic_minor'],
+      scales:['natural_minor','major','harmonic_minor','melodic_minor'],
       tempoTiers:[70, 100, 120, 144],
-      base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'triad', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
-      vary:[ { key:'C' }, { key:'G' }, { key:'D' }, { key:'A' }, { key:'E' }, { key:'F' } ]
+      base:{ practiceType:'diatonic_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'G' }, { key:'C', shape:'A' } ]
     },
     seventh_vocab: {
       label:'Seventh Chord Vocabulary',
-      goal:'Diatonic seventh arpeggios. The jazz starter — maj7, m7, m7, maj7, dom7, m7, m7b5.',
-      scales:['major','natural_minor','dorian','harmonic_minor'],
+      goal:'Diatonic seventh arpeggios in natural minor. One arpeggio per chord: m7, m7b5, maj7, m7, m7, maj7, dom7. Every diatonic seventh quality across the minor field.',
+      scales:['natural_minor','major','dorian','harmonic_minor'],
       tempoTiers:[65, 90, 110, 130],
-      base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
-      vary:[ { key:'C' }, { key:'F' }, { key:'Bb' }, { key:'G' }, { key:'D' } ]
+      base:{ practiceType:'diatonic_arpeggios', scale:'natural_minor', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'G' }, { key:'C', shape:'A' } ]
     },
     ii_V_I_workout: {
       label:'ii–V–I Workout',
@@ -191,16 +191,16 @@
       goal:'Yngwie / flamenco flavor. Harmonic-minor scale, mode-of-the-moment, every chord is dom7 so each bar lands the raised 7th outside the key.',
       scales:['harmonic_minor','phrygian_dominant','natural_minor'],
       tempoTiers:[70, 95, 115, 140],
-      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'harmonic_minor', chordDepth:'seventh', chordOverride:'dom7', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:110, bars:8, direction:'up_down', sequence:'fours', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:5, fretMax:12 },
-      vary:[ { key:'A', fretMin:5, fretMax:12 }, { key:'E', fretMin:7, fretMax:14 }, { key:'D', fretMin:5, fretMax:12 }, { key:'B', fretMin:7, fretMax:14 } ]
+      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'harmonic_minor', chordDepth:'seventh', chordOverride:'dom7', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:110, bars:8, direction:'up_down', sequence:'fours', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'B', shape:'E' } ]
     },
     sweep_primer: {
       label:'Sweep Arpeggio Primer',
       goal:'One chord tone per string, swept low-to-high with a hammer-on/pull-off turnaround at the apex, then swept back down. Root anchors the bass string. Start slow — sweeps reward cleanliness over speed.',
       scales:['natural_minor','harmonic_minor','major'],
       tempoTiers:[50, 65, 80, 100],
-      base:{ practiceType:'sweep_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', cagedShape:'A', key:'A', fretMin:5, fretMax:12 },
-      vary:[ { key:'A', fretMin:5, fretMax:12 }, { key:'A', fretMin:9, fretMax:16 }, { key:'D', fretMin:5, fretMax:12 }, { key:'E', fretMin:7, fretMax:14 }, { key:'G', fretMin:3, fretMax:10 } ]
+      base:{ practiceType:'sweep_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'A', shape:'A' }, { key:'D', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'G' } ]
     }
   };
   const PATHWAY_STORAGE_KEY = 'slopscale.lastPathway';
@@ -2095,6 +2095,7 @@
     syncStringSetupControls();
     syncShapeDropdown();
     syncShapeDropdownSelectionToHidden();
+    syncChromaticVisibility();
   }
 
   // Given a fret-range hint (from a legacy pathway definition), pick the
@@ -2207,6 +2208,7 @@
       }
       syncTempoTierButtons();
       syncScaleDropdown(id);
+      updateShapeButton();
       return;
     }
     const preset = window.__slopscaleFavorites && window.__slopscaleFavorites[id];
@@ -2215,6 +2217,40 @@
       setPathwayModeClass(true);
       updatePathwayGoalCard(null, false, preset);
     }
+  }
+
+  // Updates the "Next shape" button text to show the active shape and its
+  // position in the current key's cycle, e.g. "E-shape (4/5) →".
+  function updateShapeButton() {
+    const btn = $('slopscale-next-variation');
+    if (!btn) return;
+    const sysEl = $('slopscale-fretboard-system');
+    const shapeEl = $('slopscale-shape');
+    const keyEl = $('slopscale-controls')?.querySelector('[name="key"]');
+    const scaleEl = $('slopscale-controls')?.querySelector('[name="scale"]');
+    const system = sysEl ? sysEl.value : 'caged';
+    if (!isShapeAwareSystem(system) || !shapeEl || !keyEl) {
+      btn.textContent = 'Next variation';
+      return;
+    }
+    const keyPc = NOTE_ALIASES[keyEl.value] ?? 0;
+    const scale = scaleEl ? scaleEl.value : 'major';
+    const openMidis = STRING_SETUPS.guitar_6_standard.openMidis;
+    const current = system === '3nps' ? parseInt(shapeEl.value, 10) : shapeEl.value;
+    const order = shapeOrderForKey(keyPc, system, scale, openMidis);
+    const idx = order.indexOf(current);
+    if (idx === -1) { btn.textContent = 'Next shape'; return; }
+    const pos = idx + 1;
+    const total = order.length;
+    let shapeName;
+    if (system === '3nps') {
+      const def = THREE_NPS_POSITION_DEFS[current];
+      shapeName = def ? def.mode : `Pos ${current}`;
+    } else {
+      const def = CAGED_SHAPES[current];
+      shapeName = def ? def.displayName : current;
+    }
+    btn.textContent = `${shapeName} (${pos}/${total}) →`;
   }
 
   function rotateToNextVariation() {
@@ -2236,6 +2272,7 @@
       if (next != null) {
         shapeEl.value = String(next);
         syncShapeDropdownSelectionToHidden();
+        updateShapeButton();
         onGenerate();
         return;
       }

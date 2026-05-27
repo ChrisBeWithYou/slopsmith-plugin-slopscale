@@ -19,10 +19,10 @@ The plugin has no build step. There is no `package.json`, no compiler, no bundle
 | `settings.html` | Plugin settings panel fragment rendered by Slopsmith. |
 | `static/slopscale.css` | External stylesheet served by the `GET /api/plugins/slopscale/assets/slopscale.css` route. |
 | `docs/architecture.md` | Integration design — the authoritative spec for how the plugin interacts with Slopsmith. Read this first before changing the launch flow. |
-| `docs/exercise-schema.md` | Internal generated exercise JSON schema. |
+| `docs/exercise-schema.md` | Internal generated exercise JSON schema and note field abbreviations. |
 | `docs/practice-pedagogy.md` | Pedagogical rationale behind the curated pathways and build order. |
 | `docs/fretboard-pedagogy.md` | Guitar fretboard system reference (CAGED, 3NPS, etc.). |
-| `docs/position-system-rework.md` | Design notes on the unified position system. |
+| `docs/position-system-rework.md` | Design notes on the unified position system (CAGED_SHAPES consolidation history). |
 
 ## Development workflow
 
@@ -43,9 +43,9 @@ To exercise backend routes directly, hit them via curl or the browser while Slop
 
 ```
 User configures routine in screen.html/screen.js
-  → JS generates an exercise object (see exercise-schema.md)
+  → JS calls generate(config) dispatch → generator returns an exercise object
   → POST /api/plugins/slopscale/temp-sloppak
-  → routes.py writes a directory-form .sloppak under <DLC_DIR>/.slopscale-temp/
+  → routes.py normalises fields, synthesises audio stem, writes a directory-form .sloppak under <DLC_DIR>/.slopscale-temp/
   → JS calls window.playSong(filename, arrangement) — Slopsmith's native player opens
   → Player uses Slopsmith's existing highway, transport, and scoring
   → Escape key returns to the SlopScale screen (via sessionStorage marker)
@@ -60,6 +60,7 @@ The built-in 2D highway and 2D tab renderers in `screen.js` are **preview surfac
 - **Constants** — `NOTE_NAMES`, `STRING_SETUPS`, `SCALE_INTERVALS`, `CHORD_FORMULAS`, `DIATONIC_QUALITIES`, `COMMON_PROGRESSIONS`, `SEQUENCE_PATTERNS`, `CHROMATIC_PATTERNS`
 - **`CAGED_SHAPES`** — unified source of truth for CAGED shape data. Contains `rootStringIdx`, `scaleFretSpanFromRoot`, and `chordTemplates` per quality. **Do not split this into separate tables.** (Historical note: a previous version had two diverged tables; they were unified on 2026-05-26.)
 - **`PATHWAYS`** — curated pathway definitions: `label`, `goal`, `scales[]`, `tempoTiers[]`, `base` config, and `vary[]` list for Next Variation cycling.
+- **`generate(config)`** — dispatch function; routes to the correct generator based on `config.practiceType`.
 - **Generator functions** — `generateScale()`, `generateChordScales()`, `generateDiatonicArpeggios()`, `generateProgressionArpeggios()`, `generateSweepArpeggios()`, `generateChromatic()` — each returns an `exercise` object.
 - **Built-in renderer** — `drawHighway2D()`, `drawTab2D()`, the `Renderer` class driving `#slopscale-canvas`.
 - **Audio engine** — `AudioEngine` class: Web Audio API, note synthesis, metronome, harmony backing.
@@ -91,7 +92,40 @@ A temp sloppak is a directory with this structure:
 
 `manifest.yaml` must have a non-empty `stems` list for Slopsmith's player to provide a transport clock. The audio file is synthesized by `routes.py` from the note + beat data.
 
-Frontend field names (`chordTemplates`, `handShapes`) are normalized to Sloppak field names (`templates`, `handshapes`) by `_normalise_chart()` in `routes.py`.
+**Audio stem generation:** The stem is a synthesized WAV (OGG if ffmpeg is on PATH). The stem content is controlled by `session.audio` in the exercise payload:
+- `{ "notes": true }` — synthesizes plucked-sine note audio from the note list using the correct string/fret MIDI pitches.
+- `{ "metronome": true }` — synthesizes a metronome click track from the beats list (accented on measure downbeats).
+- Both false (default) — writes a silent WAV; the player still gets a valid transport clock.
+
+### Field name translation (frontend → sloppak)
+
+Frontend generators use camelCase names; `_normalise_chart()` in `routes.py` translates to the on-disk Sloppak field names before writing:
+
+| Frontend (exercise.chart) | Sloppak (arrangements/lead.json) |
+|---------------------------|----------------------------------|
+| `chordTemplates` | `templates` |
+| `handShapes` | `handshapes` |
+
+All other top-level arrangement fields (`notes`, `chords`, `anchors`, `beats`, `sections`) pass through unchanged.
+
+### Note field abbreviations
+
+All note objects in the exercise payload use compact keys (see `docs/exercise-schema.md` for full reference):
+
+| Key | Meaning |
+|-----|---------|
+| `t` | start time (seconds) |
+| `s` | string index |
+| `f` | fret number |
+| `sus` | sustain duration (seconds) |
+| `sl` / `slu` | slide target / slide-up target fret (-1 = none) |
+| `bn` | bend value (0 / 0.5 / 1 / 1.5 / 2) |
+| `ho` / `po` | hammer-on / pull-off |
+| `hm` / `hp` | harmonic / pinch harmonic |
+| `pm` | palm mute |
+| `mt` | muted/dead note |
+| `vb` / `tr` | vibrato / tremolo |
+| `ac` / `tp` | accent / tap |
 
 ### String index convention
 
@@ -104,6 +138,10 @@ Frontend field names (`chordTemplates`, `handShapes`) are normalized to Sloppak 
 - **`window.playSong`, `window.showScreen`, `window.createHighway`, and `window.slopsmith`** are Slopsmith's public frontend APIs. Do not monkey-patch them.
 - The Escape-return handler uses `sessionStorage['slopscale.returnToMenu'] = '1'` as a one-shot marker. Clear it on return. Only override Escape while `player` is the active screen and the marker is set.
 - **Do not add the temp sloppak to Slopsmith's library index.** It lives under `.slopscale-temp/` specifically to avoid indexing.
+
+## Current implementation state
+
+Per `docs/architecture.md`, the intended primary UX is **Launch in Main 3D Player** via `launchInMainPlayer()`. The embedded 2D renderers are preview-only. As of the last commit, `launchInMainPlayer()` exists in `screen.js` but the UI still emphasizes the embedded preview path. When working on UX, push toward the main-player launch as the primary action and demote the preview accordingly.
 
 ## Adding a new pathway
 
