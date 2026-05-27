@@ -127,6 +127,13 @@
   .slopscale-render-host { position: relative; flex: 1; min-height: 560px; overflow: hidden; background: #050711; }
   #slopscale-canvas { display: block; width: 100%; height: 100%; }
   .slopscale-summary { border-top: 1px solid rgba(75, 85, 99, 0.55); padding: 12px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; color: #cbd5e1; background: rgba(2, 6, 23, 0.72); font-size: 12px; line-height: 1.45; }
+  .slopscale-pitch-meter { display: none; align-items: center; gap: 10px; padding: 7px 14px; background: rgba(2, 6, 23, 0.85); border-top: 1px solid rgba(75, 85, 99, 0.55); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #94a3b8; }
+  #slopscale-pitch-note { font-size: 14px; font-weight: 700; color: #e2e8f0; min-width: 30px; }
+  .slopscale-cents-track { position: relative; width: 120px; height: 8px; background: #1e293b; border-radius: 4px; border: 1px solid #334155; overflow: hidden; flex-shrink: 0; }
+  .slopscale-cents-track::after { content: ''; position: absolute; left: 50%; top: 0; width: 1px; height: 100%; background: #334155; }
+  #slopscale-cents-needle { position: absolute; width: 4px; height: 100%; top: 0; left: 50%; transform: translateX(-50%); background: #475569; border-radius: 2px; transition: left 0.08s, background 0.08s; }
+  #slopscale-pitch-cents { min-width: 42px; text-align: right; }
+  #slopscale-pitch-accuracy { margin-left: auto; }
   /* Tempo tier buttons — rendered dynamically by syncTempoTierButtons() */
   .slopscale-tier-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
   .slopscale-tier-btn {
@@ -457,6 +464,12 @@
 
     <section class="slopscale-panel slopscale-stage">
       <div id="slopscale-render-host" class="slopscale-render-host"><canvas id="slopscale-canvas"></canvas></div>
+      <div id="slopscale-pitch-meter" class="slopscale-pitch-meter">
+        <span id="slopscale-pitch-note">--</span>
+        <div class="slopscale-cents-track"><div id="slopscale-cents-needle"></div></div>
+        <span id="slopscale-pitch-cents"></span>
+        <span id="slopscale-pitch-accuracy">--</span>
+      </div>
       <div id="slopscale-summary" class="slopscale-summary">Generate a practice chart to preview notes, chords, timing, and audio.</div>
     </section>
   </section>

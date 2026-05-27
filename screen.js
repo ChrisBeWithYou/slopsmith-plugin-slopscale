@@ -677,6 +677,8 @@
   let renderer = null, activeBundle = null, rafId = null;
   let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
   let audioCtx = null, audioNodes = [];
+  // Pitch tracker state — wraps slopsmithMinigames.scoring.createContinuous (no registration required)
+  let _ptHandle = null, _ptNotes = [], _ptOpenMidis = [], _ptScored = new Set();
   // Active pathway state — tracks which pathway is showing and which variation
   // index we are on, so Next Variation rotates predictably.
   let activePathwayId = null;
@@ -1908,7 +1910,7 @@
 
   function replaceCanvas() { const host = $('slopscale-render-host'), old = $('slopscale-canvas'), canvas = document.createElement('canvas'); canvas.id = 'slopscale-canvas'; canvas.style.width = '100%'; canvas.style.height = '100%'; if (old) old.replaceWith(canvas); else host.appendChild(canvas); const rect = host.getBoundingClientRect(); canvas.width = Math.max(640, Math.round(rect.width || 1280)); canvas.height = Math.max(420, Math.round(rect.height || 720)); return canvas; }
   function stopAudio() { for (const n of audioNodes) { try { n.stop && n.stop(0); } catch {} try { n.disconnect && n.disconnect(); } catch {} } audioNodes = []; }
-  function stopRenderer() { playing = false; stopAudio(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } if (renderer && typeof renderer.destroy === 'function') { try { renderer.destroy(); } catch (e) { console.warn('[SlopScale] renderer destroy failed', e); } } renderer = null; }
+  function stopRenderer() { playing = false; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } if (renderer && typeof renderer.destroy === 'function') { try { renderer.destroy(); } catch (e) { console.warn('[SlopScale] renderer destroy failed', e); } } renderer = null; }
 
   async function attachRenderer(exercise) {
     const cfg = exercise.session;
@@ -1993,8 +1995,8 @@
     }
     if (cfg.audio.metronome) for (const b of bundle.beats || []) { if (b.time < startFrom || b.time > duration + 0.1) continue; scheduleClick(ctx, base + (b.time - startFrom), (b.measure || -1) >= 0); }
   }
-  function startPlayback() { if (!activeBundle) return; stopAudio(); syncHighwaySettings(activeBundle); playing = true; playAnchorChartTime = currentPracticeTime; playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000; schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS); if (!rafId) rafId = requestAnimationFrame(tick); syncPlayButton(); refreshStatusFromState(); }
-  function stopPlayback() { playing = false; currentPracticeTime = 0; playAnchorChartTime = 0; stopAudio(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
+  function startPlayback() { if (!activeBundle) return; stopAudio(); syncHighwaySettings(activeBundle); playing = true; playAnchorChartTime = currentPracticeTime; playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000; schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS); if (!rafId) rafId = requestAnimationFrame(tick); startPitchTracker(activeBundle); syncPlayButton(); refreshStatusFromState(); }
+  function stopPlayback() { playing = false; currentPracticeTime = 0; playAnchorChartTime = 0; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
   // Toggle for the primary Play/Stop button. If we don't have a chart yet,
   // generate one first so the very first click always plays something.
   async function onPlayToggle() {
@@ -2380,6 +2382,70 @@
       el.style.display = isChromatic ? '' : 'none';
     });
   }
+
+  // ── Pitch tracker ──────────────────────────────────────────────────────────
+  // Uses slopsmithMinigames.scoring.createContinuous (bundled, no registration
+  // required). Silently no-ops when the Minigames plugin isn't loaded.
+  function ptAvailable() {
+    return typeof window.slopsmithMinigames?.scoring?.createContinuous === 'function';
+  }
+
+  function startPitchTracker(bundle) {
+    if (!ptAvailable()) return;
+    stopPitchTracker();
+    _ptNotes = [...(bundle.notes || [])].sort((a, b) => a.t - b.t);
+    _ptOpenMidis = bundle.openMidis || [];
+    _ptScored = new Set();
+    _ptHandle = window.slopsmithMinigames.scoring.createContinuous({ smoothingMs: 40 });
+    _ptHandle.on('pitch', ptOnPitch);
+    _ptHandle.on('end', () => { _ptHandle = null; });
+    ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: 0, total: 0 });
+  }
+
+  function ptOnPitch({ freqHz, confidence }) {
+    const t = currentPracticeTime;
+    let activeNote = null, activeIdx = -1;
+    for (let i = 0; i < _ptNotes.length; i++) {
+      const n = _ptNotes[i];
+      if (n.t - 0.06 <= t && t <= n.t + (n.sus || 0.24) + 0.06) { activeNote = n; activeIdx = i; break; }
+    }
+    const passedTotal = _ptNotes.filter(n => n.t + (n.sus || 0.24) + 0.06 < t).length;
+    if (confidence < 0.55 || !activeNote) {
+      ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: _ptScored.size, total: passedTotal });
+      return;
+    }
+    const openMidi = _ptOpenMidis[activeNote.s];
+    if (openMidi == null) return;
+    const expectedMidi = openMidi + activeNote.f;
+    const cents = Math.round(1200 * Math.log2(freqHz / midiToFreq(expectedMidi)));
+    if (!_ptScored.has(activeIdx) && Math.abs(cents) <= 50) _ptScored.add(activeIdx);
+    const noteName = NOTE_NAMES[((expectedMidi % 12) + 12) % 12] + (Math.floor(expectedMidi / 12) - 1);
+    ptUpdateMeter({ show: true, active: true, cents, note: noteName, hits: _ptScored.size, total: passedTotal });
+  }
+
+  function stopPitchTracker() {
+    if (_ptHandle) { try { _ptHandle.stop(); } catch (_) {} _ptHandle = null; }
+    ptUpdateMeter({ show: false });
+  }
+
+  function ptUpdateMeter({ show, active, cents, note, hits, total }) {
+    const meter = $('slopscale-pitch-meter');
+    if (!meter) return;
+    if (!show) { meter.style.display = 'none'; return; }
+    meter.style.display = 'flex';
+    const noteEl = $('slopscale-pitch-note'), centsEl = $('slopscale-pitch-cents');
+    const needleEl = $('slopscale-cents-needle'), accEl = $('slopscale-pitch-accuracy');
+    if (noteEl) noteEl.textContent = active ? note : '--';
+    const cc = Math.max(-100, Math.min(100, cents || 0));
+    const color = !active ? '#475569' : Math.abs(cents) <= 25 ? '#22c55e' : Math.abs(cents) <= 50 ? '#eab308' : '#ef4444';
+    if (needleEl) { needleEl.style.left = `${50 + cc / 2}%`; needleEl.style.background = color; }
+    if (centsEl) { centsEl.textContent = active ? `${cents >= 0 ? '+' : ''}${cents}¢` : ''; centsEl.style.color = color; }
+    if (accEl) {
+      if (total > 0) { const p = Math.round(hits / total * 100); accEl.textContent = `${hits}/${total} (${p}%)`; accEl.style.color = p >= 80 ? '#22c55e' : p >= 60 ? '#eab308' : '#ef4444'; }
+      else { accEl.textContent = '--'; accEl.style.color = ''; }
+    }
+  }
+  // ── End pitch tracker ──────────────────────────────────────────────────────
 
   function bind() {
     const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1';
