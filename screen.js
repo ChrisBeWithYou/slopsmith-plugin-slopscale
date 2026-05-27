@@ -64,38 +64,9 @@
     single_string:'Single-string run',
     full_neck:'Full-neck map'
   };
-  // which string (0=highE) holds the root, and that string's open pitch class, per CAGED shape
-  const CAGED_ROOT_STRING_IDX = { C:4, A:4, G:5, E:5, D:3 };
-  const CAGED_OPEN_PC         = { C:9, A:9, G:4, E:4, D:2 };
-  // CAGED shape templates: each entry { s:highE-indexed string, fOff:fret offset from root, iv:interval semitones }
-  // qualityKey maps full chord qualities into one of these template buckets.
-  const CAGED_SHAPE_DEFS = {
-    C: { rootStrHighE:4,
-      maj:[{s:4,fOff:0,iv:0},{s:3,fOff:-1,iv:4},{s:2,fOff:-3,iv:7},{s:1,fOff:-2,iv:0},{s:0,fOff:-3,iv:4}],
-      min:[{s:4,fOff:0,iv:0},{s:3,fOff:-2,iv:3},{s:2,fOff:-3,iv:7},{s:1,fOff:-2,iv:0},{s:0,fOff:-4,iv:3}],
-      dim:[{s:4,fOff:0,iv:0},{s:3,fOff:-2,iv:3},{s:2,fOff:-4,iv:6},{s:1,fOff:-2,iv:0},{s:0,fOff:-4,iv:3}]
-    },
-    A: { rootStrHighE:4,
-      maj:[{s:4,fOff:0,iv:0},{s:3,fOff:2,iv:7},{s:2,fOff:2,iv:0},{s:1,fOff:2,iv:4},{s:0,fOff:0,iv:7}],
-      min:[{s:4,fOff:0,iv:0},{s:3,fOff:2,iv:7},{s:2,fOff:2,iv:0},{s:1,fOff:1,iv:3},{s:0,fOff:0,iv:7}],
-      dim:[{s:4,fOff:0,iv:0},{s:3,fOff:1,iv:6},{s:2,fOff:2,iv:0},{s:1,fOff:1,iv:3},{s:0,fOff:-1,iv:6}]
-    },
-    G: { rootStrHighE:5,
-      maj:[{s:5,fOff:0,iv:0},{s:4,fOff:-1,iv:4},{s:3,fOff:-3,iv:7},{s:2,fOff:-3,iv:0},{s:1,fOff:-3,iv:4},{s:0,fOff:0,iv:0}],
-      min:[{s:5,fOff:0,iv:0},{s:4,fOff:-2,iv:3},{s:3,fOff:-3,iv:7},{s:2,fOff:-3,iv:0},{s:1,fOff:-4,iv:3},{s:0,fOff:0,iv:0}],
-      dim:[{s:5,fOff:0,iv:0},{s:4,fOff:-2,iv:3},{s:3,fOff:-4,iv:6},{s:2,fOff:-3,iv:0},{s:1,fOff:-4,iv:3},{s:0,fOff:0,iv:0}]
-    },
-    E: { rootStrHighE:5,
-      maj:[{s:5,fOff:0,iv:0},{s:4,fOff:2,iv:7},{s:3,fOff:2,iv:0},{s:2,fOff:1,iv:4},{s:1,fOff:0,iv:7},{s:0,fOff:0,iv:0}],
-      min:[{s:5,fOff:0,iv:0},{s:4,fOff:2,iv:7},{s:3,fOff:2,iv:0},{s:2,fOff:0,iv:3},{s:1,fOff:0,iv:7},{s:0,fOff:0,iv:0}],
-      dim:[{s:5,fOff:0,iv:0},{s:4,fOff:1,iv:6},{s:3,fOff:2,iv:0},{s:2,fOff:0,iv:3},{s:1,fOff:-1,iv:6},{s:0,fOff:0,iv:0}]
-    },
-    D: { rootStrHighE:3,
-      maj:[{s:3,fOff:0,iv:0},{s:2,fOff:2,iv:7},{s:1,fOff:3,iv:0},{s:0,fOff:2,iv:4}],
-      min:[{s:3,fOff:0,iv:0},{s:2,fOff:2,iv:7},{s:1,fOff:3,iv:0},{s:0,fOff:1,iv:3}],
-      dim:[{s:3,fOff:0,iv:0},{s:2,fOff:1,iv:6},{s:1,fOff:3,iv:0},{s:0,fOff:1,iv:3}]
-    }
-  };
+  // CAGED shape data moved to a single unified CAGED_SHAPES definition further
+  // down (search for "Unified CAGED shape data"). That table is the single
+  // source of truth for both chord templates and scale shape windows.
   const SEQUENCE_PATTERNS = {
     none:null,
     fours:[0,1,2,3],
@@ -252,6 +223,373 @@
   };
   const POSITION_ORDER = ['open', '3rd', '5th', '7th', '9th', '12th'];
 
+  // === CAGED + 3NPS + Open shape system ===
+  //
+  // A "shape" is a way of organizing a scale across the fretboard. SlopScale
+  // supports three systems: CAGED (5 shapes), 3NPS (7 modal positions), and
+  // Open (key-specific, uses open strings). The fret window of a shape is
+  // *derived* from the key — it isn't a user-supplied fret range.
+  //
+  // String indices follow SlopScale's existing convention: s=0 is the lowest
+  // string (low E in standard tuning, index 0 of openMidis). s=5 is high E.
+  //
+  // See docs/fretboard-pedagogy.md for the design rationale and
+  // docs/position-system-rework.md for how this data model is intended to
+  // flow into the rest of the plugin.
+
+  // Unified CAGED shape data — single source of truth.
+  //
+  // Each shape stores everything the plugin needs to know about it:
+  //   - rootStringIdx:           which string the canonical root sits on
+  //                              (s=0 is low E in standard tuning, per
+  //                              SlopScale's openMidis convention)
+  //   - displayName:             user-facing label
+  //   - scaleFretSpanFromRoot:   [low, high] offsets that define the fret
+  //                              window of the scale shape relative to the
+  //                              root's fret on rootStringIdx
+  //   - chordTemplates:          chord-tone offsets for rendering chord boxes
+  //                              on the highway, one entry per chord quality
+  //                              (maj / min / dim). Each entry is an array of
+  //                              { s, fOff, iv } where s is the string
+  //                              (low-E=0), fOff is the fret offset from the
+  //                              shape's rootFret, and iv is the interval in
+  //                              semitones above the chord root.
+  //
+  // Worked example — C-shape in C major:
+  //   rootStringIdx 1 (A string), keyPc 0 (C), so rootFret = 3.
+  //   scaleFretSpanFromRoot [-3, 2] → scale window is frets 0..5.
+  //   chordTemplates.maj has the C-shape chord-tone offsets relative to that
+  //   root fret 3.
+  //
+  // Historical note: the previous version of this file used two separate
+  // structures (CAGED_SHAPE_DEFS for chord templates in a high-E=0 indexing,
+  // and a separate scale-shape map in low-E=0). Those were unified here on
+  // 2026-05-26 to a single low-E=0 table so the two halves can't drift apart.
+  const CAGED_SHAPES = {
+    C: {
+      rootStringIdx: 1, displayName: 'C-shape', scaleFretSpanFromRoot: [-3, 2],
+      chordTemplates: {
+        maj: [{s:1,fOff:0,iv:0},{s:2,fOff:-1,iv:4},{s:3,fOff:-3,iv:7},{s:4,fOff:-2,iv:0},{s:5,fOff:-3,iv:4}],
+        min: [{s:1,fOff:0,iv:0},{s:2,fOff:-2,iv:3},{s:3,fOff:-3,iv:7},{s:4,fOff:-2,iv:0},{s:5,fOff:-4,iv:3}],
+        dim: [{s:1,fOff:0,iv:0},{s:2,fOff:-2,iv:3},{s:3,fOff:-4,iv:6},{s:4,fOff:-2,iv:0},{s:5,fOff:-4,iv:3}]
+      }
+    },
+    A: {
+      rootStringIdx: 1, displayName: 'A-shape', scaleFretSpanFromRoot: [-1, 4],
+      chordTemplates: {
+        maj: [{s:1,fOff:0,iv:0},{s:2,fOff:2,iv:7},{s:3,fOff:2,iv:0},{s:4,fOff:2,iv:4},{s:5,fOff:0,iv:7}],
+        min: [{s:1,fOff:0,iv:0},{s:2,fOff:2,iv:7},{s:3,fOff:2,iv:0},{s:4,fOff:1,iv:3},{s:5,fOff:0,iv:7}],
+        dim: [{s:1,fOff:0,iv:0},{s:2,fOff:1,iv:6},{s:3,fOff:2,iv:0},{s:4,fOff:1,iv:3},{s:5,fOff:-1,iv:6}]
+      }
+    },
+    G: {
+      rootStringIdx: 0, displayName: 'G-shape', scaleFretSpanFromRoot: [-3, 2],
+      chordTemplates: {
+        maj: [{s:0,fOff:0,iv:0},{s:1,fOff:-1,iv:4},{s:2,fOff:-3,iv:7},{s:3,fOff:-3,iv:0},{s:4,fOff:-3,iv:4},{s:5,fOff:0,iv:0}],
+        min: [{s:0,fOff:0,iv:0},{s:1,fOff:-2,iv:3},{s:2,fOff:-3,iv:7},{s:3,fOff:-3,iv:0},{s:4,fOff:-4,iv:3},{s:5,fOff:0,iv:0}],
+        dim: [{s:0,fOff:0,iv:0},{s:1,fOff:-2,iv:3},{s:2,fOff:-4,iv:6},{s:3,fOff:-3,iv:0},{s:4,fOff:-4,iv:3},{s:5,fOff:0,iv:0}]
+      }
+    },
+    E: {
+      rootStringIdx: 0, displayName: 'E-shape', scaleFretSpanFromRoot: [-1, 4],
+      chordTemplates: {
+        maj: [{s:0,fOff:0,iv:0},{s:1,fOff:2,iv:7},{s:2,fOff:2,iv:0},{s:3,fOff:1,iv:4},{s:4,fOff:0,iv:7},{s:5,fOff:0,iv:0}],
+        min: [{s:0,fOff:0,iv:0},{s:1,fOff:2,iv:7},{s:2,fOff:2,iv:0},{s:3,fOff:0,iv:3},{s:4,fOff:0,iv:7},{s:5,fOff:0,iv:0}],
+        dim: [{s:0,fOff:0,iv:0},{s:1,fOff:1,iv:6},{s:2,fOff:2,iv:0},{s:3,fOff:0,iv:3},{s:4,fOff:-1,iv:6},{s:5,fOff:0,iv:0}]
+      }
+    },
+    D: {
+      rootStringIdx: 2, displayName: 'D-shape', scaleFretSpanFromRoot: [-2, 3],
+      chordTemplates: {
+        maj: [{s:2,fOff:0,iv:0},{s:3,fOff:2,iv:7},{s:4,fOff:3,iv:0},{s:5,fOff:2,iv:4}],
+        min: [{s:2,fOff:0,iv:0},{s:3,fOff:2,iv:7},{s:4,fOff:3,iv:0},{s:5,fOff:1,iv:3}],
+        dim: [{s:2,fOff:0,iv:0},{s:3,fOff:1,iv:6},{s:4,fOff:3,iv:0},{s:5,fOff:1,iv:3}]
+      }
+    }
+  };
+  const CAGED_CYCLE = ['C', 'A', 'G', 'E', 'D']; // cyclic order (C→A→G→E→D→C…)
+
+  // 3NPS positions, named by mode. Each position starts on a specific scale
+  // degree on the low E string, then places 3 consecutive scale degrees on
+  // each subsequent string.
+  const THREE_NPS_POSITION_DEFS = {
+    1: { startDegree: 1, mode: 'Ionian',     displayName: 'Position 1 (Ionian)' },
+    2: { startDegree: 2, mode: 'Dorian',     displayName: 'Position 2 (Dorian)' },
+    3: { startDegree: 3, mode: 'Phrygian',   displayName: 'Position 3 (Phrygian)' },
+    4: { startDegree: 4, mode: 'Lydian',     displayName: 'Position 4 (Lydian)' },
+    5: { startDegree: 5, mode: 'Mixolydian', displayName: 'Position 5 (Mixolydian)' },
+    6: { startDegree: 6, mode: 'Aeolian',    displayName: 'Position 6 (Aeolian)' },
+    7: { startDegree: 7, mode: 'Locrian',    displayName: 'Position 7 (Locrian)' }
+  };
+  const THREE_NPS_CYCLE = [1, 2, 3, 4, 5, 6, 7];
+
+  // Pitch-class helpers — independent of any tuning, derived from openMidis.
+  function openPcForString(openMidis, stringIdx) {
+    return openMidis[stringIdx] % 12;
+  }
+  function lowestFretWithPc(openPc, targetPc) {
+    return ((targetPc - openPc) + 12) % 12;
+  }
+  function scaleSemitones(scale) {
+    return SCALE_INTERVALS[scale] || SCALE_INTERVALS.major;
+  }
+  function pcOfDegree(keyPc, degree, scale) {
+    const semis = scaleSemitones(scale);
+    if (degree < 1 || degree > semis.length) return null;
+    return (keyPc + semis[degree - 1]) % 12;
+  }
+  function degreeOfPc(keyPc, notePc, scale) {
+    const semis = scaleSemitones(scale);
+    const interval = ((notePc - keyPc) + 12) % 12;
+    const idx = semis.indexOf(interval);
+    return idx === -1 ? null : idx + 1;
+  }
+
+  // Resolve a CAGED shape in a given key.
+  // Returns { fretMin, fretMax, rootFret, rootStringIdx, notes: [{s,f,d,isRoot}], displayName }
+  // or null if the shape is undefined.
+  function resolveCAGEDShape(keyPc, shape, scale, openMidis) {
+    const def = CAGED_SHAPES[shape];
+    if (!def) return null;
+    const rootOpenPc = openPcForString(openMidis, def.rootStringIdx);
+    const rootFret = lowestFretWithPc(rootOpenPc, keyPc);
+    const fretMin = rootFret + def.scaleFretSpanFromRoot[0];
+    const fretMax = rootFret + def.scaleFretSpanFromRoot[1];
+    const notes = [];
+    const numStrings = openMidis.length;
+    for (let s = 0; s < numStrings; s++) {
+      const openPc = openPcForString(openMidis, s);
+      const firstFret = Math.max(0, fretMin);
+      for (let f = firstFret; f <= fretMax; f++) {
+        const notePc = (openPc + f) % 12;
+        const degree = degreeOfPc(keyPc, notePc, scale);
+        if (degree !== null) notes.push({ s, f, d: degree, isRoot: degree === 1 });
+      }
+    }
+    return {
+      fretMin: Math.max(0, fretMin),
+      fretMax,
+      rootFret,
+      rootStringIdx: def.rootStringIdx,
+      notes,
+      displayName: def.displayName
+    };
+  }
+
+  // Resolve a 3NPS position in a given key.
+  // Generates 3 consecutive scale degrees per string starting from `position`
+  // on the low E string, then climbs the rest of the strings by +3 degrees each.
+  // Fret choice: lowest valid fret per degree, with octave bumps to keep each
+  // string's notes ascending AND keep the position climbing across strings.
+  function resolveThreeNPSPosition(keyPc, position, scale, openMidis) {
+    const def = THREE_NPS_POSITION_DEFS[position];
+    if (!def) return null;
+    const semis = scaleSemitones(scale);
+    const NUM_DEGREES = semis.length;
+    const notes = [];
+    let prevHighMidi = -1;
+    const numStrings = openMidis.length;
+    for (let s = 0; s < numStrings; s++) {
+      const baseDegreeIdx = ((def.startDegree - 1) + s * 3) % NUM_DEGREES;
+      const degrees = [
+        baseDegreeIdx,
+        (baseDegreeIdx + 1) % NUM_DEGREES,
+        (baseDegreeIdx + 2) % NUM_DEGREES
+      ];
+      const openPc = openPcForString(openMidis, s);
+      const openMidi = openMidis[s];
+      const fretsForDegrees = degrees.map(idx => lowestFretWithPc(openPc, (keyPc + semis[idx]) % 12));
+      for (let i = 1; i < fretsForDegrees.length; i++) {
+        while (openMidi + fretsForDegrees[i] <= openMidi + fretsForDegrees[i - 1]) {
+          fretsForDegrees[i] += 12;
+        }
+      }
+      while (prevHighMidi >= 0 && openMidi + fretsForDegrees[0] <= prevHighMidi) {
+        for (let i = 0; i < fretsForDegrees.length; i++) fretsForDegrees[i] += 12;
+      }
+      prevHighMidi = openMidi + fretsForDegrees[fretsForDegrees.length - 1];
+      for (let i = 0; i < degrees.length; i++) {
+        notes.push({ s, f: fretsForDegrees[i], d: degrees[i] + 1, isRoot: degrees[i] === 0 });
+      }
+    }
+    const allFrets = notes.map(n => n.f);
+    return {
+      fretMin: Math.min.apply(null, allFrets),
+      fretMax: Math.max.apply(null, allFrets),
+      rootFret: notes.find(n => n.isRoot && n.s === 0)?.f ?? null,
+      rootStringIdx: 0,
+      notes,
+      displayName: def.displayName
+    };
+  }
+
+  // Resolve the open-position shape for a given key.
+  // Generates all scale notes in frets 0–3 across every string. Some keys have
+  // very few notes here (e.g., F#, Bb in major) — callers can check the note
+  // count and decide whether Open is sensible for the key.
+  function resolveOpenShape(keyPc, scale, openMidis) {
+    const fretMin = 0;
+    const fretMax = 3;
+    const notes = [];
+    const numStrings = openMidis.length;
+    for (let s = 0; s < numStrings; s++) {
+      const openPc = openPcForString(openMidis, s);
+      for (let f = fretMin; f <= fretMax; f++) {
+        const notePc = (openPc + f) % 12;
+        const degree = degreeOfPc(keyPc, notePc, scale);
+        if (degree !== null) notes.push({ s, f, d: degree, isRoot: degree === 1 });
+      }
+    }
+    return { fretMin, fretMax, rootFret: null, rootStringIdx: null, notes, displayName: 'Open position' };
+  }
+
+  // Heuristic for whether Open position is a sensible system for this key.
+  // The "open position" character comes from ringing open strings — so the
+  // key must have at least 2 unique open-string pitches in its scale.
+  // This excludes Db, F#, and Ab major (≤1 open string in scale) and
+  // includes everything else.
+  function isOpenSystemSensible(keyPc, scale, openMidis) {
+    const semis = scaleSemitones(scale);
+    const scalePcs = new Set(semis.map(s => (keyPc + s) % 12));
+    const openInScale = new Set();
+    for (let s = 0; s < openMidis.length; s++) {
+      const openPc = openMidis[s] % 12;
+      if (scalePcs.has(openPc)) openInScale.add(openPc);
+    }
+    return openInScale.size >= 2;
+  }
+
+  // Unified entry point. Returns the shape's resolved data or null.
+  function fretWindowForShape(keyPc, system, shape, scale, openMidis) {
+    if (system === 'caged')   return resolveCAGEDShape(keyPc, shape, scale, openMidis);
+    if (system === '3nps')    return resolveThreeNPSPosition(keyPc, shape, scale, openMidis);
+    if (system === 'open')    return resolveOpenShape(keyPc, scale, openMidis);
+    return null;
+  }
+
+  // Available shapes for a system, ordered low-to-high by where each shape
+  // sits on the neck for the given key. Used by the Shape dropdown to list
+  // shapes in fret order and by Next Variation to cycle through them.
+  function shapeOrderForKey(keyPc, system, scale, openMidis) {
+    if (system === 'caged') {
+      return CAGED_CYCLE
+        .map(shape => ({ shape, resolved: resolveCAGEDShape(keyPc, shape, scale, openMidis) }))
+        .filter(entry => entry.resolved)
+        .sort((a, b) => a.resolved.fretMin - b.resolved.fretMin)
+        .map(entry => entry.shape);
+    }
+    if (system === '3nps') {
+      return THREE_NPS_CYCLE
+        .map(shape => ({ shape, resolved: resolveThreeNPSPosition(keyPc, shape, scale, openMidis) }))
+        .filter(entry => entry.resolved)
+        .sort((a, b) => a.resolved.fretMin - b.resolved.fretMin)
+        .map(entry => entry.shape);
+    }
+    if (system === 'open') {
+      return isOpenSystemSensible(keyPc, scale, openMidis) ? ['open'] : [];
+    }
+    return [];
+  }
+
+  // Returns the next shape in the cyclic order for the current key, wrapping.
+  // Used by the Next Variation button.
+  function nextShapeInCycle(keyPc, system, currentShape, scale, openMidis) {
+    const order = shapeOrderForKey(keyPc, system, scale, openMidis);
+    if (!order.length) return null;
+    const idx = order.indexOf(currentShape);
+    if (idx === -1) return order[0];
+    return order[(idx + 1) % order.length];
+  }
+
+  // Expose for DevTools inspection and future wiring. Not yet consumed by the
+  // chart generators — see docs/position-system-rework.md for the rollout plan.
+  if (typeof window !== 'undefined') {
+    window.__slopscaleShapes = {
+      CAGED_SHAPES,
+      THREE_NPS_POSITION_DEFS,
+      CAGED_CYCLE,
+      THREE_NPS_CYCLE,
+      resolveCAGEDShape,
+      resolveThreeNPSPosition,
+      resolveOpenShape,
+      isOpenSystemSensible,
+      fretWindowForShape,
+      shapeOrderForKey,
+      nextShapeInCycle,
+      // Helpers
+      openPcForString,
+      pcOfDegree,
+      degreeOfPc
+    };
+  }
+
+  // Smoke tests — verify the data model produces correct output for known
+  // reference cases. Fires once on load via console.assert; failures are
+  // visible in DevTools but don't break the plugin.
+  (function smokeTestShapeSystem() {
+    const guitar = [40, 45, 50, 55, 59, 64];
+    function fretsByString(shape) {
+      const map = {};
+      for (const n of shape.notes) {
+        if (!map[n.s]) map[n.s] = [];
+        map[n.s].push(n.f);
+      }
+      for (const s of Object.keys(map)) map[s] = map[s].slice().sort((a, b) => a - b);
+      return map;
+    }
+    function arraysEqual(a, b) {
+      if (!a || !b || a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+      return true;
+    }
+    // CAGED C-shape in C major → frets 0–5, root at A-string fret 3
+    const cShapeC = resolveCAGEDShape(0, 'C', 'major', guitar);
+    console.assert(cShapeC && cShapeC.fretMin === 0 && cShapeC.fretMax === 5,
+      '[SlopScale shapes] C-shape in C major should span frets 0–5', cShapeC);
+    console.assert(cShapeC.notes.some(n => n.s === 1 && n.f === 3 && n.isRoot),
+      '[SlopScale shapes] C-shape in C major should have root at s=1 f=3', cShapeC);
+    // CAGED E-shape in G major → root on low E fret 3, span 2–7
+    const eShapeG = resolveCAGEDShape(7, 'E', 'major', guitar);
+    console.assert(eShapeG && eShapeG.fretMin === 2 && eShapeG.fretMax === 7,
+      '[SlopScale shapes] E-shape in G major should span frets 2–7', eShapeG);
+    console.assert(eShapeG.notes.some(n => n.s === 0 && n.f === 3 && n.isRoot),
+      '[SlopScale shapes] E-shape in G major should have root at s=0 f=3', eShapeG);
+    // 3NPS Position 1 (Ionian) in C major → low E starts at fret 8
+    const pos1C = resolveThreeNPSPosition(0, 1, 'major', guitar);
+    const pos1Frets = fretsByString(pos1C);
+    console.assert(arraysEqual(pos1Frets[0], [8, 10, 12]),
+      '[SlopScale shapes] 3NPS Pos 1 in C major, low E should be [8,10,12]', pos1Frets);
+    console.assert(arraysEqual(pos1Frets[4], [10, 12, 13]),
+      '[SlopScale shapes] 3NPS Pos 1 in C major, B string should be [10,12,13]', pos1Frets);
+    // 3NPS Position 1 in G major → low E starts at fret 3
+    const pos1G = resolveThreeNPSPosition(7, 1, 'major', guitar);
+    const pos1GFrets = fretsByString(pos1G);
+    console.assert(arraysEqual(pos1GFrets[0], [3, 5, 7]),
+      '[SlopScale shapes] 3NPS Pos 1 in G major, low E should be [3,5,7]', pos1GFrets);
+    // CAGED order in C major: C → A → G → E → D
+    const cagedC = shapeOrderForKey(0, 'caged', 'major', guitar);
+    console.assert(arraysEqual(cagedC, ['C', 'A', 'G', 'E', 'D']),
+      '[SlopScale shapes] CAGED order in C major should be C,A,G,E,D', cagedC);
+    // CAGED order in G major: G → E → D → C → A
+    const cagedG = shapeOrderForKey(7, 'caged', 'major', guitar);
+    console.assert(arraysEqual(cagedG, ['G', 'E', 'D', 'C', 'A']),
+      '[SlopScale shapes] CAGED order in G major should be G,E,D,C,A', cagedG);
+    // Open is sensible for C major (root on B-string fret 1, plenty of notes)
+    console.assert(isOpenSystemSensible(0, 'major', guitar),
+      '[SlopScale shapes] Open should be sensible for C major');
+    // Open is NOT sensible for Db major or Ab major — those are the only two
+    // major keys with no root note in frets 0-3 across any string.
+    console.assert(!isOpenSystemSensible(1, 'major', guitar),
+      '[SlopScale shapes] Open should NOT be sensible for Db major (no root in frets 0-3)');
+    console.assert(!isOpenSystemSensible(8, 'major', guitar),
+      '[SlopScale shapes] Open should NOT be sensible for Ab major (no root in frets 0-3)');
+    // Next-variation cycle in C major CAGED: C → A → G → E → D → C
+    console.assert(nextShapeInCycle(0, 'caged', 'C', 'major', guitar) === 'A',
+      '[SlopScale shapes] After C-shape in C major, next is A-shape');
+    console.assert(nextShapeInCycle(0, 'caged', 'D', 'major', guitar) === 'C',
+      '[SlopScale shapes] After D-shape in C major, wraps to C-shape');
+  })();
+
   let renderer = null, activeBundle = null, rafId = null;
   let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
   let audioCtx = null, audioNodes = [];
@@ -335,7 +673,9 @@
   function measureSeconds(cfg) { return (60 / cfg.bpm) * (4 / cfg.meter.denominator) * cfg.meter.numerator; }
   function fretboardSystemLabel(value) { return FRETBOARD_SYSTEM_LABELS[value] || FRETBOARD_SYSTEM_LABELS.position; }
   function cagedRootFret(shape, keyPc) {
-    const openPc = CAGED_OPEN_PC[shape] ?? 4;
+    const def = CAGED_SHAPES[shape];
+    if (!def) return 0;
+    const openPc = STRING_SETUPS.guitar_6_standard.openMidis[def.rootStringIdx] % 12;
     return ((keyPc - openPc) + 12) % 12;
   }
   function fretRangeForSystem(system, shape, keyPc) {
@@ -356,31 +696,31 @@
   function cagedShapeNotesForChord(cfg, shape, quality, rootFret) {
     // Shape templates are designed for 6-string guitar; skip for other string counts
     if (cfg.stringCount !== 6) return null;
-    const def = CAGED_SHAPE_DEFS[shape];
+    const def = CAGED_SHAPES[shape];
     if (!def) return null;
-    const tmpl = def[cagedShapeQualityKey(quality)];
+    const tmpl = def.chordTemplates[cagedShapeQualityKey(quality)];
     if (!tmpl) return null;
     const opens = openMidisForConfig(cfg);
     const out = [];
     for (const note of tmpl) {
-      const sLowE = cfg.stringCount - 1 - note.s;
-      if (sLowE < 0 || sLowE >= cfg.stringCount) continue;
+      // note.s is already in low-E=0 indexing per CAGED_SHAPES convention.
+      if (note.s < 0 || note.s >= cfg.stringCount) continue;
       const f = rootFret + note.fOff;
       if (f < 0 || f > 24) continue;
-      const midi = opens[sLowE] + f;
-      out.push({ s:sLowE, f, midi, pc:midi % 12, interval:note.iv });
+      const midi = opens[note.s] + f;
+      out.push({ s:note.s, f, midi, pc:midi % 12, interval:note.iv });
     }
     out.sort((a, b) => a.midi - b.midi || a.s - b.s);
     return out;
   }
 
   function pickShapeRootFret(cfg, shape, rootPc, prevRootFret, mode) {
-    const def = CAGED_SHAPE_DEFS[shape];
+    const def = CAGED_SHAPES[shape];
     if (!def) return null;
-    const sLowE = cfg.stringCount - 1 - def.rootStrHighE;
-    if (sLowE < 0 || sLowE >= cfg.stringCount) return null;
+    // def.rootStringIdx is already in low-E=0 indexing.
+    if (def.rootStringIdx < 0 || def.rootStringIdx >= cfg.stringCount) return null;
     const opens = openMidisForConfig(cfg);
-    const anchorPc = ((opens[sLowE] % 12) + 12) % 12;
+    const anchorPc = ((opens[def.rootStringIdx] % 12) + 12) % 12;
     const baseFret = (((rootPc - anchorPc) % 12) + 12) % 12;
     // Generate candidate frets across the neck (baseFret + 0/12, plus -12/+24 for headroom)
     const options = [];
