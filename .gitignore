@@ -9,3 +9,4 @@ docs/sources/
 .claude/skills/run-slopscale/node_modules/
 .claude/skills/run-slopscale/package-lock.json
 .claude/skills/run-slopscale/dump-chords.mjs
+.claude/skills/run-slopscale/audit-ux.mjs

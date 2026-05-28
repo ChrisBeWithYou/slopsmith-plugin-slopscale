@@ -2825,6 +2825,32 @@
     $('slopscale-summary').textContent += `\n\nSaved preset: ${name}`;
   }
   function syncStringSetupControls() { const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'); if (!instrument || !setup) return; const current = STRING_SETUPS[setup.value] || STRING_SETUPS.guitar_6_standard; instrument.value = current.instrument; }
+  // CAGED/3NPS shape concepts are guitar-only — hide them when bass is active.
+  // Also switch the renderer to 2D Highway since the host's 3D Highway plugin
+  // throws on non-6-string string counts.
+  function syncInstrumentClass() {
+    const root = $('slopscale-root');
+    const setup = document.querySelector('[name="stringSetup"]');
+    if (!root || !setup) return;
+    const isBass = (STRING_SETUPS[setup.value] || {}).instrument === 'bass';
+    root.classList.toggle('slopscale-bass-instrument', isBass);
+    if (isBass) {
+      const fs = document.querySelector('[name="fretboardSystem"]');
+      if (fs && (fs.value === 'caged' || fs.value === '3nps')) fs.value = 'position';
+      const rendererSel = document.querySelector('[name="renderer"]');
+      const currentRenderer = rendererSel?.value || localStorage.getItem('slopscale.renderer') || 'highway_3d';
+      if (currentRenderer === 'highway_3d') {
+        if (rendererSel) rendererSel.value = 'builtin_2d';
+        localStorage.setItem('slopscale.renderer', 'builtin_2d');
+        syncViewSwitcher('builtin_2d');
+      }
+    }
+    // Re-label the next-variation button so it stops claiming "E-shape" on
+    // bass (it cycles through pathway variations, which on bass aren't
+    // shape-defined). updateShapeButton() picks the right label based on the
+    // active fretboard system (forced to 'position' above for bass).
+    updateShapeButton();
+  }
   function syncAdvancedMode() {
     const root = $('slopscale-root'), toggle = $('slopscale-advanced-toggle');
     const enabled = !!toggle?.checked;
@@ -3339,18 +3365,46 @@
     if (rendererSel && rendererSel.value !== kind) rendererSel.value = kind;
     if (!lastExercise) return;
     lastExercise.session.renderer = kind;
+    const summary = $('slopscale-summary');
     try {
       await attachRenderer(lastExercise);
+      // Refresh the summary so any prior error text from a failed attach
+      // doesn't stick around once a switch succeeds.
+      if (summary) summary.textContent = summarize(lastExercise);
     } catch (e) {
       console.error('[SlopScale] renderer switch failed', e);
+      // Auto-fall back to 2D Highway, which is in-tree and handles any
+      // string count. Without this, a 3D-Highway failure leaves the user
+      // staring at a stuck error with no obvious way out.
+      if (kind !== 'builtin_2d') {
+        if (summary) summary.textContent = `${kind} unavailable — falling back to 2D Highway.\n(${e.message || e})`;
+        try {
+          syncViewSwitcher('builtin_2d');
+          lastExercise.session.renderer = 'builtin_2d';
+          await attachRenderer(lastExercise);
+          if (summary) summary.textContent = summarize(lastExercise);
+        } catch (e2) {
+          console.error('[SlopScale] fallback to 2D Highway failed', e2);
+          if (summary) summary.textContent = `Renderer failed: ${e2.message || e2}`;
+        }
+      } else if (summary) {
+        summary.textContent = `Renderer failed: ${e.message || e}`;
+      }
     }
   }
 
   function bind() {
     const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1';
     const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'), advancedToggle = $('slopscale-advanced-toggle');
-    instrument?.addEventListener('change', () => { if (!setup) return; setup.value = instrument.value === 'bass' ? 'bass_4_standard' : 'guitar_6_standard'; if (activeBundle) onGenerate(); });
-    setup?.addEventListener('change', syncStringSetupControls); syncStringSetupControls();
+    instrument?.addEventListener('change', () => {
+      if (!setup) return;
+      setup.value = instrument.value === 'bass' ? 'bass_4_standard' : 'guitar_6_standard';
+      syncInstrumentClass();
+      if (activeBundle) onGenerate();
+    });
+    setup?.addEventListener('change', () => { syncStringSetupControls(); syncInstrumentClass(); });
+    syncStringSetupControls();
+    syncInstrumentClass();
     advancedToggle?.addEventListener('change', syncAdvancedMode); syncAdvancedMode(); syncChromaticVisibility();
     $('slopscale-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', ev.target.value); if (activeBundle) onGenerate(); });
     $('slopscale-play').addEventListener('click', onPlayToggle);

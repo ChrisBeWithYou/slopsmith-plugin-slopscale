@@ -83,6 +83,7 @@
      - Custom mode: full form, hide the pathway-only helpers (named Position, Next variation). */
   .slopscale-root.slopscale-pathway-mode .slopscale-custom-only { display: none !important; }
   .slopscale-root:not(.slopscale-pathway-mode) .slopscale-pathway-only { display: none !important; }
+  .slopscale-root.slopscale-bass-instrument .slopscale-guitar-only { display: none !important; }
 
   /* Pathway goal caption gets a little more breathing room and weight when active. */
   .slopscale-pathway-goal-card {
@@ -325,7 +326,7 @@
             <option value="notation_2d">Notation</option>
           </select>
         </label>
-        <label>Fretboard system
+        <label class="slopscale-guitar-only">Fretboard system
           <select name="fretboardSystem" id="slopscale-fretboard-system">
             <option value="caged" selected>CAGED (5 shapes)</option>
             <option value="3nps">3 Notes Per String (7 positions)</option>
@@ -377,7 +378,7 @@
         <label class="slopscale-pathway-only" id="slopscale-pathway-scale-wrap">Scale
           <select id="slopscale-pathway-scale"><!-- populated by syncScaleDropdown() --></select>
         </label>
-        <label class="slopscale-pathway-only">Shape
+        <label class="slopscale-pathway-only slopscale-guitar-only">Shape
           <select name="shape" id="slopscale-shape">
             <!-- Populated dynamically by syncShapeDropdown() based on the
                  current key + fretboard system. Each option's value is the
