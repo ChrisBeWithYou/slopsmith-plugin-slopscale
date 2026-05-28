@@ -3380,11 +3380,21 @@
     if (!lastExercise) return;
     lastExercise.session.renderer = kind;
     const summary = $('slopscale-summary');
+    // Preserve playback across the switch — attachRenderer tears down the
+    // current renderer (which stops audio and zeroes the playhead), so we
+    // capture the active playback position here and resume after the new
+    // renderer is in place.
+    const wasPlaying = playing;
+    const resumeAt = currentPracticeTime;
     try {
       await attachRenderer(lastExercise);
       // Refresh the summary so any prior error text from a failed attach
       // doesn't stick around once a switch succeeds.
       if (summary) summary.textContent = summarize(lastExercise);
+      if (wasPlaying) {
+        currentPracticeTime = resumeAt;
+        startPlayback();
+      }
     } catch (e) {
       console.error('[SlopScale] renderer switch failed', e);
       // Auto-fall back to 2D Highway, which is in-tree and handles any
@@ -3397,6 +3407,7 @@
           lastExercise.session.renderer = 'builtin_2d';
           await attachRenderer(lastExercise);
           if (summary) summary.textContent = summarize(lastExercise);
+          if (wasPlaying) { currentPracticeTime = resumeAt; startPlayback(); }
         } catch (e2) {
           console.error('[SlopScale] fallback to 2D Highway failed', e2);
           if (summary) summary.textContent = `Renderer failed: ${e2.message || e2}`;

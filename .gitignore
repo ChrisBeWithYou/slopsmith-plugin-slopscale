@@ -11,3 +11,4 @@ docs/sources/
 .claude/skills/run-slopscale/dump-chords.mjs
 .claude/skills/run-slopscale/audit-ux.mjs
 .claude/skills/run-slopscale/probe-share.mjs
+.claude/skills/run-slopscale/probe-audio.mjs
