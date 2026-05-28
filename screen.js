@@ -5,7 +5,7 @@
   const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   const NOTE_ALIASES = { C:0, 'B#':0, 'C#':1, Db:1, D:2, 'D#':3, Eb:3, E:4, Fb:4, F:5, 'E#':5, 'F#':6, Gb:6, G:7, 'G#':8, Ab:8, A:9, 'A#':10, Bb:10, B:11, Cb:11 };
   const STRING_COLORS = ['#ef4444', '#eab308', '#3b82f6', '#f97316', '#22c55e', '#a855f7', '#ec4899', '#14b8a6'];
-  const AUDIO_LOOKAHEAD_SECONDS = 0.035;
+  const AUDIO_LOOKAHEAD_SECONDS = 0.20;
 
   const STRING_SETUPS = {
     guitar_6_standard: { label:'6-string guitar — standard', instrument:'guitar', openMidis:[40,45,50,55,59,64], tuning:[0,0,0,0,0,0] },
@@ -2936,7 +2936,10 @@
   }
   function schedulePreviewAudio(bundle, fromTime, delaySeconds) {
     const cfg = readConfig();
-    if (!cfg.audio.notes && !cfg.audio.metronome && !cfg.audio.harmony) return;
+    // Prefer the bundle's own audio settings (sessions patch their own config)
+    // so the session's checkboxes are honoured rather than the single-exercise ones.
+    const audio = bundle.config?.audio || cfg.audio;
+    if (!audio.notes && !audio.metronome && !audio.harmony) return;
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
     const ctx = audioCtx, base = ctx.currentTime + (Number.isFinite(delaySeconds) ? delaySeconds : AUDIO_LOOKAHEAD_SECONDS), startFrom = fromTime || 0;
@@ -2946,17 +2949,17 @@
     const opens = (bundle.openMidis && bundle.openMidis.length) ? bundle.openMidis : openMidisForConfig(cfg);
     const instrument = bundle.config?.instrument || cfg.instrument;
     const duration = bundle.songInfo?.duration || 0;
-    if (cfg.audio.harmony) for (const ev of bundle.backingEvents || []) {
+    if (audio.harmony) for (const ev of bundle.backingEvents || []) {
       if (ev.end < startFrom || ev.t > duration + 0.1) continue;
       const start = Math.max(ev.t, startFrom), end = Math.min(ev.end, duration);
       scheduleHarmonyPad(ctx, base + (start - startFrom), ev.midis || [], Math.max(0.2, end - start), instrument);
     }
-    if (cfg.audio.notes) for (const n of bundle.notes || []) {
+    if (audio.notes) for (const n of bundle.notes || []) {
       if (n.t < startFrom || n.t > duration + 0.1) continue;
       if (n.s < 0 || n.s >= opens.length || n.f < 0) continue;
-      schedulePluckedString(ctx, base + (n.t - startFrom), midiToFreq(opens[n.s] + n.f), Math.max(0.10, Math.min(0.85, n.sus || 0.24)), instrument, cfg.audio.harmony ? 0.9 : 1.25);
+      schedulePluckedString(ctx, base + (n.t - startFrom), midiToFreq(opens[n.s] + n.f), Math.max(0.10, Math.min(0.85, n.sus || 0.24)), instrument, audio.harmony ? 0.9 : 1.25);
     }
-    if (cfg.audio.metronome) for (const b of bundle.beats || []) { if (b.time < startFrom || b.time > duration + 0.1) continue; scheduleClick(ctx, base + (b.time - startFrom), (b.measure || -1) >= 0); }
+    if (audio.metronome) for (const b of bundle.beats || []) { if (b.time < startFrom || b.time > duration + 0.1) continue; scheduleClick(ctx, base + (b.time - startFrom), (b.measure || -1) >= 0); }
   }
   function startPlayback() {
     if (!activeBundle) return;
@@ -3888,6 +3891,12 @@
       metronome: !!document.getElementById('slopscale-session-audio-metronome')?.checked,
       harmony: !!document.getElementById('slopscale-session-audio-harmony')?.checked,
     };
+    // Pre-warm the AudioContext while still in the button-click user-gesture context
+    // (before any await). Without this, new AudioContext() created inside the
+    // async continuation below may start in 'suspended' state on some hosts,
+    // causing notes scheduled with the frozen currentTime to fire in the past.
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
     // Read current string setup from the form so sessions respect the user's
     // string-count selection (built-in sessions default to guitar_6_standard
     // but should use whatever the form has active).
