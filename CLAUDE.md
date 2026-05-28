@@ -21,8 +21,17 @@ The plugin has no build step. There is no `package.json`, no compiler, no bundle
 | `docs/architecture.md` | Integration design — the authoritative spec for how the plugin interacts with Slopsmith. Read this first before changing the launch flow. |
 | `docs/exercise-schema.md` | Internal generated exercise JSON schema and note field abbreviations. |
 | `docs/practice-pedagogy.md` | Pedagogical rationale behind the curated pathways and build order. |
+| `docs/pedagogy-sequencing.md` | Beginner→advanced sequencing rationale for pathways. |
 | `docs/fretboard-pedagogy.md` | Guitar fretboard system reference (CAGED, 3NPS, etc.). |
 | `docs/position-system-rework.md` | Design notes on the unified position system (CAGED_SHAPES consolidation history). |
+| `docs/session-schema.md` | Session/segment data model used by `BUILT_IN_SESSIONS`. |
+| `docs/theory-caged.md` / `theory-scales.md` / `theory-arpeggios.md` / `theory-levine-jazz.md` | Distilled theory knowledge base (Berklee, Serna, Aebersold, Levine). |
+| `docs/ui-session.md` | Session UI design notes. |
+| `docs/session-2026-05-26-shape-system.md` | Shape-system unification session log. |
+| `docs/sources/` | Source PDFs — reference material only. |
+| `README.md` | User-facing feature list + install steps. |
+| `ROADMAP.md` | Phase plan; **read at session start**. Authoritative for "what's shipped vs planned". |
+| `AGENTS.md` | Codex variant; mirrors this file. |
 
 ## Development workflow
 
@@ -55,16 +64,21 @@ The built-in 2D highway and 2D tab renderers in `screen.js` are **preview surfac
 
 ### screen.js structure
 
-`screen.js` is one IIFE containing everything. Key sections (in order):
+`screen.js` is one IIFE, ~190 KB / 3400+ lines. **Prefer targeted `Grep` to locate a section before reading.** Key sections (in order):
 
-- **Constants** — `NOTE_NAMES`, `STRING_SETUPS`, `SCALE_INTERVALS`, `CHORD_FORMULAS`, `DIATONIC_QUALITIES`, `COMMON_PROGRESSIONS`, `SEQUENCE_PATTERNS`, `CHROMATIC_PATTERNS`
+- **Constants** — `NOTE_NAMES`, `STRING_SETUPS`, `SCALE_INTERVALS`, `CHORD_FORMULAS`, `DIATONIC_QUALITIES`, `COMMON_PROGRESSIONS`, `SEQUENCE_PATTERNS`, `CHROMATIC_PATTERNS`, etc.
 - **`CAGED_SHAPES`** — unified source of truth for CAGED shape data. Contains `rootStringIdx`, `scaleFretSpanFromRoot`, and `chordTemplates` per quality. **Do not split this into separate tables.** (Historical note: a previous version had two diverged tables; they were unified on 2026-05-26.)
 - **`PATHWAYS`** — curated pathway definitions: `label`, `goal`, `scales[]`, `tempoTiers[]`, `base` config, and `vary[]` list for Next Variation cycling.
-- **`generate(config)`** — dispatch function; routes to the correct generator based on `config.practiceType`.
-- **Generator functions** — `generateScale()`, `generateChordScales()`, `generateDiatonicArpeggios()`, `generateProgressionArpeggios()`, `generateSweepArpeggios()`, `generateChromatic()` — each returns an `exercise` object.
-- **Built-in renderer** — `drawHighway2D()`, `drawTab2D()`, the `Renderer` class driving `#slopscale-canvas`.
-- **Audio engine** — `AudioEngine` class: Web Audio API, note synthesis, metronome, harmony backing.
-- **Slopsmith integration** — `launchInMainPlayer()`, `playSong()` wrapper, Escape-return handler.
+- **`BUILT_IN_SESSIONS`** — multi-segment session presets (ii–V–I Workshop, Daily 30-min Intermediate, Blues Fundamentals, Bebop Fundamentals).
+- **Exercise builders** — `buildScaleExercise`, `buildChordScaleExercise`, `buildArpeggioExercise`, `buildSweepArpeggioExercise`, `buildChromaticExercise`, `buildGuideTonesExercise`. Each returns an `exercise` object.
+- **`generateExercise(cfg)`** — single-exercise dispatch; routes to the correct builder based on `cfg.practiceType`.
+- **Session builders** — `buildSegmentConfig`, `buildBpmLadderChart`, `buildSessionChart`, `generateSession`. `generateSession()` is parallel to `generateExercise()`; both return the same `{ version, session, chart }` shape so the downstream `makeBundle`/launch path is unchanged.
+- **`makeBundle(exercise)`** — wraps an exercise into a renderer-ready bundle.
+- **Renderer factory system** — `resolveRendererFactory()` selects between `highway_3d` (delegated to host's `window.slopsmithViz_highway_3d`), built-in 2D highway, and `notation_2d`. User selection persisted via `localStorage['slopscale.renderer']`.
+- **Built-in renderers** — `drawHighway2D()`, `drawTab2D()`, the `Renderer` class driving `#slopscale-canvas`.
+- **Audio engine** — Web Audio API, note synthesis, metronome, harmony backing.
+- **Slopsmith Minigames SDK integration** — pitch tracker via `window.slopsmithMinigames.scoring.createContinuous(...)`. Used as a scoring consumer only; **the plugin is not registered as a Slopsmith minigame.**
+- **Public surface** — `window.SlopScale = { generateExercise, makeBundle, resolveRendererFactory, readConfig }` (around line 3385).
 - **`bind()`** — wires all DOM events; called once on DOMContentLoaded.
 
 ### routes.py structure
@@ -141,7 +155,9 @@ All note objects in the exercise payload use compact keys (see `docs/exercise-sc
 
 ## Current implementation state
 
-Per `docs/architecture.md`, the intended primary UX is **Launch in Main 3D Player** via `launchInMainPlayer()`. The embedded 2D renderers are preview-only. As of the last commit, `launchInMainPlayer()` exists in `screen.js` but the UI still emphasizes the embedded preview path. When working on UX, push toward the main-player launch as the primary action and demote the preview accordingly.
+The backend `POST /temp-sloppak` route is implemented and ready (see `routes.py`). **The frontend launch flow into Slopsmith's main player is not currently wired up** — `screen.js` has no `launchInMainPlayer()` symbol and no `fetch('/api/plugins/slopscale/temp-sloppak')` call. The plugin currently operates as an embedded preview app with three renderer modes via `resolveRendererFactory()` (3D highway delegated to host, 2D highway, 2D notation), plus a Minigames-SDK pitch tracker.
+
+Per `docs/architecture.md`, the intended primary UX is still **Launch in Main 3D Player** via the temp-sloppak path. Wiring up that launch is outstanding work — when adding it, the `generateExercise` → `makeBundle` → POST → `playSong` chain is already designed for it. Check `ROADMAP.md` before scoping any rework here.
 
 ## Adding a new pathway
 
@@ -152,6 +168,6 @@ Per `docs/architecture.md`, the intended primary UX is **Launch in Main 3D Playe
 ## Adding a new generator (practice type)
 
 1. Add the `<option>` to the `practiceType` select in `screen.html`.
-2. Implement `generateX(config)` in `screen.js` returning an `exercise` object matching `docs/exercise-schema.md`.
-3. Wire it into the `generate(config)` dispatch function.
+2. Implement `buildXExercise(cfg)` in `screen.js` returning an `exercise` object matching `docs/exercise-schema.md`.
+3. Wire it into the `generateExercise(cfg)` dispatch function.
 4. No backend changes needed unless the new type requires a new route.
