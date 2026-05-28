@@ -873,6 +873,10 @@
 
   let renderer = null, activeBundle = null, rafId = null, lastExercise = null;
   let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
+  // Count-in: while performance.now() < countInUntilMs, the tick freezes
+  // the playhead at the start position and only the count-in clicks play.
+  // 0 = no count-in active.
+  let countInUntilMs = 0;
   // A-B segment loop endpoints in chart-time seconds. Null = no loop.
   // See docs/section-looping.md for the design + phasing.
   let segmentLoopA = null, segmentLoopB = null;
@@ -1019,6 +1023,11 @@
       key: data.get('key') || 'C',
       scale: data.get('scale') || 'major',
       bpm: Math.max(30, Math.min(260, parseFloat(data.get('bpm') || '100'))),
+      // Count-in bars before playback starts. 0 = no count-in (immediate
+      // play). 1/2/4 = that many bars of metronome clicks at the current
+      // bpm + meter, then the chart kicks in. See startPlayback below for
+      // how this is plumbed into the transport.
+      countInBars: Math.max(0, Math.min(8, parseInt(data.get('countIn') || '0', 10) || 0)),
       meter: parseMeter(data.get('meter')),
       subdivision: data.get('subdivision') || 'eighth',
       direction: advancedMode ? (data.get('direction') || 'up_down') : 'up_down',
@@ -2857,6 +2866,16 @@
   function tick(nowMs) {
     if (!renderer || !activeBundle) return;
     if (playing) {
+      // Hold the playhead frozen at the start position during count-in.
+      // Click sounds were already scheduled in startPlayback; the visible
+      // chart only starts moving once the count-in window closes.
+      if (countInUntilMs && nowMs < countInUntilMs) {
+        drawOnce(); rafId = requestAnimationFrame(tick); return;
+      }
+      if (countInUntilMs && nowMs >= countInUntilMs) {
+        countInUntilMs = 0;
+        playAnchorMs = nowMs;  // chart clock starts now
+      }
       const elapsedMs = Math.max(0, nowMs - playAnchorMs);
       currentPracticeTime = playAnchorChartTime + elapsedMs / 1000;
       const duration = activeBundle.songInfo.duration || 1;
@@ -2933,8 +2952,44 @@
     }
     if (cfg.audio.metronome) for (const b of bundle.beats || []) { if (b.time < startFrom || b.time > duration + 0.1) continue; scheduleClick(ctx, base + (b.time - startFrom), (b.measure || -1) >= 0); }
   }
-  function startPlayback() { if (!activeBundle) return; stopAudio(); syncHighwaySettings(activeBundle); playing = true; playAnchorChartTime = currentPracticeTime; playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000; schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS); if (!rafId) rafId = requestAnimationFrame(tick); startPitchTracker(activeBundle); syncPlayButton(); refreshStatusFromState(); }
-  function stopPlayback() { playing = false; currentPracticeTime = 0; playAnchorChartTime = 0; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
+  function startPlayback() {
+    if (!activeBundle) return;
+    stopAudio(); syncHighwaySettings(activeBundle);
+    playing = true;
+    playAnchorChartTime = currentPracticeTime;
+    // Count-in: optionally play N bars of metronome clicks before the chart
+    // starts. The clicks scheduling is shifted to use ctx.currentTime as
+    // its base; the chart audio is offset by the count-in duration so the
+    // first chart note lands exactly when the last count-in click does.
+    const cfg = readConfig();
+    const measureSec = measureSeconds(cfg);
+    const countInSec = (cfg.countInBars || 0) * measureSec;
+    const startMs = performance.now();
+    playAnchorMs = startMs + (countInSec + AUDIO_LOOKAHEAD_SECONDS) * 1000;
+    countInUntilMs = countInSec > 0 ? startMs + countInSec * 1000 : 0;
+    if (countInSec > 0) scheduleCountInClicks(cfg, countInSec);
+    schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS + countInSec);
+    if (!rafId) rafId = requestAnimationFrame(tick);
+    startPitchTracker(activeBundle); syncPlayButton(); refreshStatusFromState();
+  }
+  // Schedule N bars of metronome clicks before chart playback starts.
+  // First click of each bar is the accented one. Reuses the same
+  // scheduleClick helper as the in-chart metronome track.
+  function scheduleCountInClicks(cfg, countInSec) {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    const ctx = audioCtx;
+    const base = ctx.currentTime + AUDIO_LOOKAHEAD_SECONDS;
+    const beatSec = 60 / cfg.bpm;
+    const beatsPerBar = cfg.meter.numerator;
+    const totalBeats = (cfg.countInBars || 0) * beatsPerBar;
+    for (let i = 0; i < totalBeats; i++) {
+      const when = base + i * beatSec;
+      if (when - ctx.currentTime > countInSec + 0.2) break;
+      scheduleClick(ctx, when, (i % beatsPerBar) === 0);
+    }
+  }
+  function stopPlayback() { playing = false; currentPracticeTime = 0; playAnchorChartTime = 0; countInUntilMs = 0; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
   // Toggle for the primary Play/Stop button. If we don't have a chart yet,
   // generate one first so the very first click always plays something.
   async function onPlayToggle() {
@@ -3136,6 +3191,20 @@
     syncStringCountChips();
     syncTuningOptions();
   }
+  // Saved-tunings cache, populated by loadSavedTunings() once per plugin
+  // session. Filtered per (family, string_count) by syncTuningOptions.
+  let savedTunings = [];
+  async function loadSavedTunings() {
+    try {
+      const r = await fetch('/api/plugins/slopscale/tunings');
+      if (!r.ok) return;
+      const body = await r.json();
+      savedTunings = Array.isArray(body.tunings) ? body.tunings : [];
+    } catch (_) {
+      savedTunings = [];
+    }
+    syncTuningOptions();
+  }
   function syncTuningOptions() {
     const sel = $('slopscale-tuning-select'); if (!sel) return;
     const family = currentFamily();
@@ -3156,19 +3225,39 @@
       ? customMidis
       : ((STRING_SETUPS[setupName] || {}).openMidis || []);
     let activeId = null;
+    // Built-in presets (Standard, Drop D, DADGAD, …).
+    const presetGroup = document.createElement('optgroup');
+    presetGroup.label = 'Built-in';
     for (const p of presets) {
       const opt = document.createElement('option');
       opt.value = p.id;
       opt.textContent = p.label;
       opt.dataset.midis = p.midis.join(',');
-      sel.appendChild(opt);
+      presetGroup.appendChild(opt);
       if (!activeId && effective.length === p.midis.length && effective.every((m, i) => m === p.midis[i])) {
         activeId = p.id;
       }
     }
+    sel.appendChild(presetGroup);
+    // Saved tunings filtered to the current family + string count.
+    const mine = savedTunings.filter(t => t.family === family && t.string_count === count);
+    if (mine.length) {
+      const savedGroup = document.createElement('optgroup');
+      savedGroup.label = 'Saved';
+      for (const t of mine) {
+        const opt = document.createElement('option');
+        opt.value = `saved:${t.id}`;
+        opt.textContent = t.name;
+        opt.dataset.midis = (t.midis || []).join(',');
+        savedGroup.appendChild(opt);
+        if (!activeId && effective.length === (t.midis || []).length && (t.midis || []).every((m, i) => m === effective[i])) {
+          activeId = `saved:${t.id}`;
+        }
+      }
+      sel.appendChild(savedGroup);
+    }
     // Always offer a Custom option. Picked when no preset matched and the
-    // user does have a non-empty custom override (otherwise just leave the
-    // first preset selected).
+    // user does have a non-empty custom override.
     const customOpt = document.createElement('option');
     customOpt.value = 'custom';
     customOpt.textContent = 'Custom…';
@@ -3176,6 +3265,36 @@
     if (!activeId && customMidis && customMidis.length === count) activeId = 'custom';
     sel.value = activeId || (presets[0] && presets[0].id) || 'custom';
     syncCustomTuningInputs();
+  }
+  // Persist the active custom tuning to the DB under a user-supplied name.
+  // After save, refetch the saved-tunings list so the dropdown reflects the
+  // new entry immediately.
+  async function onSaveTuningClick() {
+    const hidden = $('slopscale-custom-open-midis');
+    const midisStr = hidden?.value || '';
+    const midis = midisStr.split(',').map(Number).filter(Number.isFinite);
+    if (!midis.length) return;
+    const family = currentFamily();
+    const count = currentStringCount();
+    if (midis.length !== count) return;
+    const defaultName = midis.map(midiToNoteName).join(' ');
+    const name = window.prompt('Save tuning as:', defaultName);
+    if (!name) return;
+    try {
+      const r = await fetch('/api/plugins/slopscale/tunings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), family, string_count: count, midis }),
+      });
+      if (!r.ok) {
+        const txt = await r.text();
+        console.warn('[SlopScale] save tuning failed', r.status, txt);
+        return;
+      }
+      await loadSavedTunings();
+    } catch (e) {
+      console.warn('[SlopScale] save tuning error', e);
+    }
   }
   function syncCustomTuningInputs() {
     const sel = $('slopscale-tuning-select');
@@ -3238,6 +3357,25 @@
   function onTuningPresetChange() {
     const sel = $('slopscale-tuning-select'); if (!sel) return;
     const hidden = $('slopscale-custom-open-midis');
+    // Saved tunings come back as `saved:<id>`; the midis live on the option's
+    // dataset.midis (set by syncTuningOptions). Apply them as a custom
+    // override against the family's standard stringSetup.
+    if (sel.value && sel.value.startsWith('saved:')) {
+      const opt = sel.options[sel.selectedIndex];
+      const midis = (opt?.dataset.midis || '').split(',').map(Number).filter(Number.isFinite);
+      if (midis.length) {
+        const family = currentFamily();
+        const count = currentStringCount();
+        const setup = document.querySelector('[name="stringSetup"]');
+        if (setup) {
+          setup.value = `${family}_${count}_standard`;
+          commitCustomTuning(midis);
+          setup.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        syncCustomTuningInputs();
+      }
+      return;
+    }
     if (sel.value === 'custom') {
       // Initialize hidden field from the current stringSetup if not already.
       if (!hidden.value) {
@@ -3895,6 +4033,45 @@
       if (btn) { const orig = btn.textContent; btn.textContent = 'Copy failed'; setTimeout(() => { btn.textContent = orig; }, 1500); }
     }
   }
+  // Paste-share-link handler: accept either a full URL containing an
+  // #s=<base64> param, or just the raw base64 string. Restores form state,
+  // refreshes every dependent control, and triggers a regenerate.
+  function onPasteShareLink(raw) {
+    const el = $('slopscale-paste-share');
+    if (!raw || !raw.trim()) { if (el) el.classList.remove('flash-ok', 'flash-bad'); return; }
+    let encoded = raw.trim();
+    // Try to extract #s=... from a URL; fall back to treating the input as
+    // an already-extracted base64 payload.
+    const hashIdx = encoded.indexOf('#');
+    if (hashIdx !== -1) {
+      const params = new URLSearchParams(encoded.slice(hashIdx + 1));
+      const v = params.get(SHARE_HASH_KEY);
+      if (v) encoded = v;
+    }
+    const state = decodeShareHash(encoded);
+    if (!state || typeof state !== 'object') {
+      if (el) { el.classList.remove('flash-ok'); el.classList.add('flash-bad'); setTimeout(() => el.classList.remove('flash-bad'), 1500); }
+      return;
+    }
+    applyFormState(state);
+    // Re-run every downstream sync so dependent controls follow the
+    // restored form values (Shape dropdown, instrument-aware UI bits, etc.).
+    syncShapeDropdown();
+    syncShapeDropdownSelectionToHidden();
+    syncInstrumentFamilyButtons();
+    syncInstrumentClass();
+    syncStringCountChips();
+    syncTuningOptions();
+    syncAdvancedMode();
+    syncChromaticVisibility();
+    writeShareHash();
+    if (el) {
+      el.value = '';
+      el.classList.remove('flash-bad'); el.classList.add('flash-ok');
+      setTimeout(() => el.classList.remove('flash-ok'), 1500);
+    }
+    if (activeBundle) onGenerate();
+  }
 
   function bind() {
     const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1';
@@ -3916,6 +4093,11 @@
       onTuningPresetChange();
       if (activeBundle) onGenerate();
     });
+    $('slopscale-save-tuning')?.addEventListener('click', onSaveTuningClick);
+    // Fetch any tunings the user saved in a prior session and pull them
+    // into the dropdown. Async; the dropdown is repainted by the fetch
+    // callback so users see saved entries the moment the request lands.
+    loadSavedTunings();
     // Restore the last-used family before first sync, so reload lands on
     // bass-instrument state immediately (renderer fallback, shape selector
     // hidden, etc.) rather than guitar-then-bass flicker.
@@ -3939,6 +4121,18 @@
     $('slopscale-next-variation')?.addEventListener('click', rotateToNextVariation);
     $('slopscale-save').addEventListener('click', () => savePreset().catch(e => { $('slopscale-summary').textContent += `\n\nPreset save failed: ${e.message || e}`; }));
     $('slopscale-share')?.addEventListener('click', onCopyShareLink);
+    // Paste-share-link: fire on actual paste events AND on plain typing
+    // (some users will type a base64 payload in directly).
+    const pasteEl = $('slopscale-paste-share');
+    if (pasteEl) {
+      pasteEl.addEventListener('paste', (ev) => {
+        // Read the clipboard data directly so we don't depend on the input
+        // value being updated yet.
+        const txt = (ev.clipboardData || window.clipboardData)?.getData('text') || '';
+        if (txt) { ev.preventDefault(); onPasteShareLink(txt); }
+      });
+      pasteEl.addEventListener('change', () => onPasteShareLink(pasteEl.value));
+    }
     $('slopscale-go-library')?.addEventListener('click', () => { stopRenderer(); goScreen('home'); });
     $('slopscale-go-plugins')?.addEventListener('click', () => { stopRenderer(); goScreen('plugins'); });
     $('slopscale-controls').addEventListener('change', (ev) => {

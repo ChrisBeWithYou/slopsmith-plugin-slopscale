@@ -37,6 +37,13 @@ class PresetPayload(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
+class TuningPayload(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    family: str = Field(min_length=1, max_length=32)   # 'guitar' | 'bass'
+    string_count: int = Field(ge=1, le=12)
+    midis: list[int] = Field(min_length=1, max_length=12)
+
+
 class TempSloppakPayload(BaseModel):
     exercise: dict[str, Any] = Field(default_factory=dict)
 
@@ -49,6 +56,88 @@ def _data_dir(context: dict) -> Path:
 
 def _presets_path(context: dict) -> Path:
     return _data_dir(context) / "presets.json"
+
+
+# ── DB-backed storage (presets + tunings) ────────────────────────────────────
+#
+# Plugins get a shared MetaDB instance via `context["meta_db"]`, which exposes
+# a `conn` (sqlite3.Connection with check_same_thread=False) and `_lock`
+# (threading.Lock) — same pattern Slopsmith uses for its own loops table.
+#
+# We keep our state in two dedicated tables prefixed `slopscale_` so they
+# don't get confused with the songs library. Schemas are conservative — IDs
+# are TEXT for presets (so the existing slug-style IDs from the JSON file
+# survive migration) and INTEGER AUTOINCREMENT for tunings (since the
+# frontend creates them by name and doesn't care about the id beyond delete).
+
+def _ensure_tables(meta_db) -> None:
+    with meta_db._lock:
+        meta_db.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS slopscale_presets (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                kind TEXT NOT NULL DEFAULT 'exercise',
+                config_json TEXT NOT NULL,
+                created_at REAL NOT NULL
+            )
+            """
+        )
+        meta_db.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS slopscale_tunings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                family TEXT NOT NULL,
+                string_count INTEGER NOT NULL,
+                midis_csv TEXT NOT NULL,
+                created_at REAL NOT NULL
+            )
+            """
+        )
+        meta_db.conn.commit()
+
+
+def _migrate_presets_from_json(meta_db, presets_path: Path) -> None:
+    """One-time migration: if the DB has no presets but the legacy JSON file
+    does, copy them in. Idempotent — subsequent calls are no-ops because the
+    DB is no longer empty. We don't delete the JSON file; it sits as a
+    breadcrumb in case the migration needs auditing."""
+    if not presets_path.exists():
+        return
+    try:
+        existing = meta_db.conn.execute(
+            "SELECT COUNT(*) FROM slopscale_presets"
+        ).fetchone()[0]
+    except Exception:
+        return
+    if existing:
+        return
+    try:
+        data = json.loads(presets_path.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    presets = data.get("presets", []) if isinstance(data, dict) else []
+    if not isinstance(presets, list) or not presets:
+        return
+    now = time.time()
+    with meta_db._lock:
+        for p in presets:
+            if not isinstance(p, dict) or "id" not in p or "name" not in p:
+                continue
+            meta_db.conn.execute(
+                "INSERT OR REPLACE INTO slopscale_presets "
+                "(id, name, kind, config_json, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    str(p.get("id"))[:96],
+                    str(p.get("name"))[:160],
+                    str(p.get("kind") or "exercise")[:64],
+                    json.dumps(p.get("config") or {}, ensure_ascii=False),
+                    now,
+                ),
+            )
+        meta_db.conn.commit()
 
 
 def _read_json(path: Path, fallback: Any) -> Any:
@@ -417,6 +506,10 @@ def _cleanup_temp_root(temp_root: Path) -> None:
 def setup(app: FastAPI, context: dict) -> None:
     data_dir = _data_dir(context)
     presets_path = _presets_path(context)
+    meta_db = context.get("meta_db")
+    if meta_db is not None:
+        _ensure_tables(meta_db)
+        _migrate_presets_from_json(meta_db, presets_path)
 
     @app.get(f"/api/plugins/{PLUGIN_ID}/status")
     def status():
@@ -428,6 +521,7 @@ def setup(app: FastAPI, context: dict) -> None:
             "data_dir": str(data_dir),
             "preset_file_exists": presets_path.exists(),
             "dlc_dir_available": bool(dlc_dir),
+            "db_backed": meta_db is not None,
         }
 
     @app.get(f"/api/plugins/{PLUGIN_ID}/assets/{{filename}}")
@@ -441,47 +535,121 @@ def setup(app: FastAPI, context: dict) -> None:
 
     @app.get(f"/api/plugins/{PLUGIN_ID}/presets")
     def list_presets():
-        data = _read_json(presets_path, {"version": SCHEMA_VERSION, "presets": []})
-        presets = data.get("presets", [])
-        if not isinstance(presets, list):
-            raise HTTPException(500, "Invalid presets file: presets must be a list.")
-        return {"version": data.get("version", SCHEMA_VERSION), "presets": presets}
+        if meta_db is None:
+            raise HTTPException(503, "Plugin DB context unavailable.")
+        rows = meta_db.conn.execute(
+            "SELECT id, name, kind, config_json, created_at "
+            "FROM slopscale_presets ORDER BY created_at DESC"
+        ).fetchall()
+        out = []
+        for r in rows:
+            try:
+                cfg = json.loads(r[3]) if r[3] else {}
+            except Exception:
+                cfg = {}
+            out.append({"id": r[0], "name": r[1], "kind": r[2], "config": cfg, "created_at": r[4]})
+        return {"version": SCHEMA_VERSION, "presets": out}
 
     @app.post(f"/api/plugins/{PLUGIN_ID}/presets")
     def save_preset(payload: PresetPayload):
-        data = _read_json(presets_path, {"version": SCHEMA_VERSION, "presets": []})
-        presets = data.get("presets", [])
-        if not isinstance(presets, list):
-            raise HTTPException(500, "Invalid presets file: presets must be a list.")
-
-        next_preset = _model_dump(payload)
-        updated = False
-        for i, existing in enumerate(presets):
-            if isinstance(existing, dict) and existing.get("id") == payload.id:
-                presets[i] = next_preset
-                updated = True
-                break
-        if not updated:
-            presets.append(next_preset)
-
-        out = {"version": SCHEMA_VERSION, "presets": presets}
-        _atomic_write_json(presets_path, out)
-        return {"ok": True, "preset": next_preset, "updated": updated}
+        if meta_db is None:
+            raise HTTPException(503, "Plugin DB context unavailable.")
+        existing = meta_db.conn.execute(
+            "SELECT 1 FROM slopscale_presets WHERE id = ?", (payload.id,)
+        ).fetchone()
+        with meta_db._lock:
+            meta_db.conn.execute(
+                "INSERT OR REPLACE INTO slopscale_presets "
+                "(id, name, kind, config_json, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (payload.id, payload.name, payload.kind,
+                 json.dumps(payload.config, ensure_ascii=False), time.time()),
+            )
+            meta_db.conn.commit()
+        return {"ok": True, "preset": _model_dump(payload), "updated": bool(existing)}
 
     @app.delete(f"/api/plugins/{PLUGIN_ID}/presets/{{preset_id}}")
     def delete_preset(preset_id: str):
-        data = _read_json(presets_path, {"version": SCHEMA_VERSION, "presets": []})
-        presets = data.get("presets", [])
-        if not isinstance(presets, list):
-            raise HTTPException(500, "Invalid presets file: presets must be a list.")
-
-        kept = [p for p in presets if not (isinstance(p, dict) and p.get("id") == preset_id)]
-        if len(kept) == len(presets):
+        if meta_db is None:
+            raise HTTPException(503, "Plugin DB context unavailable.")
+        with meta_db._lock:
+            cur = meta_db.conn.execute(
+                "DELETE FROM slopscale_presets WHERE id = ?", (preset_id,)
+            )
+            meta_db.conn.commit()
+        if cur.rowcount == 0:
             raise HTTPException(404, "Preset not found.")
-
-        out = {"version": SCHEMA_VERSION, "presets": kept}
-        _atomic_write_json(presets_path, out)
         return {"ok": True, "deleted": preset_id}
+
+    # ── Saved tunings ────────────────────────────────────────────────────
+    # User-defined custom tunings. The frontend offers these alongside the
+    # built-in TUNING_PRESETS in the tuning dropdown. We persist by name
+    # (UNIQUE) so re-saving with the same name overwrites — the JS clears
+    # the previous record by DELETE-then-POST when the user re-saves.
+    @app.get(f"/api/plugins/{PLUGIN_ID}/tunings")
+    def list_tunings():
+        if meta_db is None:
+            raise HTTPException(503, "Plugin DB context unavailable.")
+        rows = meta_db.conn.execute(
+            "SELECT id, name, family, string_count, midis_csv, created_at "
+            "FROM slopscale_tunings ORDER BY family, string_count, name"
+        ).fetchall()
+        out = []
+        for r in rows:
+            try:
+                midis = [int(x) for x in (r[4] or "").split(",") if x.strip()]
+            except Exception:
+                midis = []
+            out.append({"id": r[0], "name": r[1], "family": r[2],
+                        "string_count": r[3], "midis": midis, "created_at": r[5]})
+        return {"version": SCHEMA_VERSION, "tunings": out}
+
+    @app.post(f"/api/plugins/{PLUGIN_ID}/tunings")
+    def save_tuning(payload: TuningPayload):
+        if meta_db is None:
+            raise HTTPException(503, "Plugin DB context unavailable.")
+        if payload.family not in {"guitar", "bass"}:
+            raise HTTPException(400, "family must be 'guitar' or 'bass'.")
+        if len(payload.midis) != payload.string_count:
+            raise HTTPException(400, "midis length must match string_count.")
+        for m in payload.midis:
+            if m < 0 or m > 127:
+                raise HTTPException(400, f"midi out of range: {m}")
+        csv = ",".join(str(int(m)) for m in payload.midis)
+        existing = meta_db.conn.execute(
+            "SELECT id FROM slopscale_tunings WHERE name = ?", (payload.name,)
+        ).fetchone()
+        with meta_db._lock:
+            if existing:
+                meta_db.conn.execute(
+                    "UPDATE slopscale_tunings SET family=?, string_count=?, midis_csv=? "
+                    "WHERE id=?",
+                    (payload.family, payload.string_count, csv, existing[0]),
+                )
+                tuning_id = existing[0]
+            else:
+                cur = meta_db.conn.execute(
+                    "INSERT INTO slopscale_tunings "
+                    "(name, family, string_count, midis_csv, created_at) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (payload.name, payload.family, payload.string_count, csv, time.time()),
+                )
+                tuning_id = cur.lastrowid
+            meta_db.conn.commit()
+        return {"ok": True, "id": tuning_id, "updated": bool(existing)}
+
+    @app.delete(f"/api/plugins/{PLUGIN_ID}/tunings/{{tuning_id}}")
+    def delete_tuning(tuning_id: int):
+        if meta_db is None:
+            raise HTTPException(503, "Plugin DB context unavailable.")
+        with meta_db._lock:
+            cur = meta_db.conn.execute(
+                "DELETE FROM slopscale_tunings WHERE id = ?", (tuning_id,)
+            )
+            meta_db.conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Tuning not found.")
+        return {"ok": True, "deleted": tuning_id}
 
     @app.post(f"/api/plugins/{PLUGIN_ID}/temp-sloppak")
     def build_temp_sloppak(payload: TempSloppakPayload):

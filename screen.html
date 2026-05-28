@@ -137,6 +137,15 @@
   /* Match Next variation to Play's height so the row reads as a single
      action band rather than primary-button-plus-tiny-sidekick. */
   #slopscale-next-variation { min-height: 48px; font-size: 13px; }
+  /* Paste-share-link input: low-key, parchment-on-night, with a green flash
+     on a successful restore + a red flash on a malformed link. */
+  .slopscale-paste-share { margin-top: 4px; }
+  #slopscale-paste-share { width: 100%; min-height: 30px; padding: 0 10px;
+    background: #0a1322; color: #cbd5e1; border: 1px solid #334155;
+    border-radius: 8px; font-size: 12px; font-family: ui-monospace,monospace; }
+  #slopscale-paste-share:focus { outline: none; border-color: #60a5fa; }
+  #slopscale-paste-share.flash-ok { border-color: #16a34a; }
+  #slopscale-paste-share.flash-bad { border-color: #b91c1c; }
   /* View switcher toolbar inside the render stage */
   .slopscale-view-switcher { display: flex; align-items: center; gap: 4px; padding: 7px 12px; background: rgba(9,15,30,0.92); border-bottom: 1px solid rgba(75,85,99,0.4); flex-shrink: 0; }
   .slopscale-view-label { font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8; margin-right: 6px; }
@@ -269,6 +278,8 @@
   }
   .slopscale-controls .slopscale-custom-tuning-input:focus { border-color: #60a5fa !important; }
   .slopscale-controls .slopscale-custom-tuning-input.invalid { border-color: #b91c1c !important; color: #fca5a5 !important; }
+  .slopscale-custom-tuning-save { display: flex; }
+  #slopscale-save-tuning { min-height: 24px !important; padding: 0 10px !important; font-size: 11px !important; min-width: 0 !important; }
 
   /* Segmented control: pill background with one filled "selected" segment
      and one bordered "deselected" segment. Both states need visible weight
@@ -390,6 +401,9 @@
           <span class="slopscale-tuning-label">Notes (low → high)</span>
           <div class="slopscale-custom-tuning-inputs" id="slopscale-custom-tuning-inputs">
             <!-- populated by syncCustomTuningInputs() -->
+          </div>
+          <div class="slopscale-custom-tuning-save">
+            <button type="button" id="slopscale-save-tuning" class="secondary" title="Save this tuning so it appears in the dropdown next time">+ Save tuning…</button>
           </div>
         </div>
         <!-- Hidden field — keeps any per-string custom tuning in the form so
@@ -584,9 +598,17 @@
         </label>
       </div>
 
-      <div class="slopscale-group-title">Tempo &amp; audio</div>
+      <div class="slopscale-group-title">Tempo (BPM)</div>
       <div class="slopscale-grid-3">
-        <label>BPM <input name="bpm" type="number" min="30" max="260" step="1" value="100"></label>
+        <label><input name="bpm" type="number" min="30" max="260" step="1" value="100"></label>
+        <label>Count-in
+          <select name="countIn">
+            <option value="0" selected>None</option>
+            <option value="1">1 bar</option>
+            <option value="2">2 bars</option>
+            <option value="4">4 bars</option>
+          </select>
+        </label>
         <label class="slopscale-custom-only">Meter
           <select name="meter"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="6/8">6/8</option><option value="7/8:2+2+3">7/8 — 2+2+3</option><option value="7/8:3+2+2">7/8 — 3+2+2</option><option value="5/4">5/4</option></select>
         </label>
@@ -669,6 +691,9 @@
         <button type="button" id="slopscale-regenerate" class="slopscale-custom-only secondary">Regenerate</button>
         <button type="button" id="slopscale-share" class="secondary" title="Copy a link that restores this exact exercise">Copy share link</button>
         <button type="button" id="slopscale-save" class="secondary">Save preset</button>
+      </div>
+      <div class="slopscale-paste-share">
+        <input type="text" id="slopscale-paste-share" placeholder="Paste a share link here to load it…" autocomplete="off" spellcheck="false">
       </div>
 
       </div><!-- end .slopscale-single-only -->

@@ -17,4 +17,5 @@ docs/sources/
 .claude/skills/run-slopscale/probe-themes.mjs
 .claude/skills/run-slopscale/probe-instr.mjs
 .claude/skills/run-slopscale/probe-tuning.mjs
+.claude/skills/run-slopscale/probe-night.mjs
 .slopscale-shots/blank-load.png
