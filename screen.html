@@ -311,6 +311,57 @@
   .slopscale-segment-name { font-size: 12.5px; font-weight: 650; color: #e2e8f0; }
   .slopscale-segment-meta { font-size: 11px; color: #6b7280; }
 
+  /* Progress strip — streak + 7-day calendar, always visible in both modes */
+  .slopscale-progress-strip { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: rgba(15,23,42,0.6); border: 1px solid #1f2937; border-radius: 10px; }
+  .slopscale-streak-block { display: flex; flex-direction: column; align-items: center; min-width: 36px; }
+  .slopscale-streak-num { font-size: 20px; font-weight: 800; color: #f8fafc; line-height: 1; }
+  .slopscale-streak-num.active { color: #60a5fa; }
+  .slopscale-streak-word { font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #475569; margin-top: 2px; white-space: nowrap; }
+  .slopscale-progress-divider { width: 1px; align-self: stretch; background: #1f2937; flex-shrink: 0; }
+  .slopscale-cal-dots { display: flex; gap: 5px; flex: 1; justify-content: space-around; }
+  .slopscale-cal-day { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .slopscale-cal-dot { width: 9px; height: 9px; border-radius: 50%; background: #0f172a; border: 1px solid #1e293b; transition: background 0.15s, border-color 0.15s; }
+  .slopscale-cal-dot.practiced { background: #1d4ed8; border-color: #3b82f6; }
+  .slopscale-cal-day.today .slopscale-cal-dot { border-color: #475569; }
+  .slopscale-cal-day.today .slopscale-cal-dot.practiced { background: #2563eb; border-color: #60a5fa; box-shadow: 0 0 5px rgba(96,165,250,0.4); }
+  .slopscale-cal-lbl { font-size: 9px; color: #334155; font-weight: 600; }
+  .slopscale-cal-day.today .slopscale-cal-lbl { color: #64748b; }
+  /* Pathway tier cleared state + unlock glow animation */
+  .slopscale-tier-btn.cleared { border-color: rgba(34, 197, 94, 0.45); background: rgba(20, 83, 45, 0.12); }
+  .slopscale-tier-btn.cleared .tier-name::after { content: ' ✓'; color: #4ade80; font-size: 9px; font-weight: 900; }
+  @keyframes slopscale-tier-glow {
+    0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+    25%  { box-shadow: 0 0 14px 4px rgba(34, 197, 94, 0.7); }
+    100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+  }
+  .slopscale-tier-btn.tier-glow { animation: slopscale-tier-glow 1.8s ease-out forwards; }
+  /* Skill tree */
+  .slopscale-skill-tree { height: 210px; overflow-x: auto; overflow-y: hidden; border: 1px solid #1e293b; border-radius: 10px; background: rgba(9,14,26,0.5); }
+  .slopscale-tree-inner { position: relative; min-width: 580px; height: 100%; }
+  .slopscale-tree-edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .tree-edge { stroke: rgba(51,65,85,0.6); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .slopscale-tree-node { position: absolute; transform: translate(-50%,-50%); z-index: 1; }
+  .slopscale-tree-node-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 4px 6px; border-radius: 6px; border: 1px solid #1e293b;
+    background: rgba(15,23,42,0.92); color: #64748b; font-family: inherit;
+    font-size: 9px; font-weight: 600; cursor: pointer; text-align: center;
+    line-height: 1.25; max-width: 68px; white-space: normal;
+    transition: border-color 0.12s, color 0.12s, background 0.12s;
+  }
+  .slopscale-tree-node-btn:hover { border-color: #475569; color: #cbd5e1; background: rgba(30,41,59,0.95); }
+  .slopscale-tree-node.active .slopscale-tree-node-btn { border-color: #3b82f6; background: rgba(29,78,216,0.22); color: #f8fafc; }
+  .tree-node-tiers { display: flex; gap: 2px; margin-top: 1px; }
+  .tree-tier-dot { width: 4px; height: 4px; border-radius: 50%; background: #1e293b; border: 1px solid #334155; }
+  .tree-tier-dot.cleared { background: #22c55e; border-color: #4ade80; }
+  .slopscale-tree-switch-link {
+    font-size: 10px; color: #475569; cursor: pointer; background: none;
+    border: none; padding: 0; text-decoration: underline; margin-top: 2px;
+    font-family: inherit;
+  }
+  .slopscale-tree-switch-link:hover { color: #94a3b8; }
+  .slopscale-pathway-only.tree-switch-right { display: block; text-align: right; }
+
   @media (max-width: 1100px) { .slopscale-layout { grid-template-columns: 1fr; } .slopscale-controls { max-height: none; } }
   @media (max-width: 720px) { .slopscale-grid-2, .slopscale-grid-3, .slopscale-audio-options { grid-template-columns: 1fr; } }
 
@@ -417,30 +468,46 @@
         <button type="button" id="slopscale-mode-session" class="slopscale-mode-btn" aria-pressed="false">Session</button>
       </div>
 
+      <!-- Progress strip — streak + 7-day calendar, always visible -->
+      <div class="slopscale-progress-strip" id="slopscale-progress-strip">
+        <div class="slopscale-streak-block">
+          <span class="slopscale-streak-num" id="slopscale-streak-num">0</span>
+          <span class="slopscale-streak-word">day streak</span>
+        </div>
+        <div class="slopscale-progress-divider"></div>
+        <div class="slopscale-cal-dots" id="slopscale-cal-dots">
+          <!-- populated by syncProgressStrip() -->
+        </div>
+      </div>
+
       <!-- Single exercise mode — pathway + custom controls -->
       <div class="slopscale-single-only">
 
       <div class="slopscale-group-title">Pathway</div>
-      <label>Practice pathway
-        <select name="pathway" id="slopscale-pathway">
-          <option value="custom">Custom — full control</option>
-          <optgroup label="Curated">
-            <option value="chromatic_warmup">Chromatic Warmup</option>
-            <option value="blues_foundation">Blues Scale Foundation</option>
-            <option value="pent_foundation" selected="selected">Pentatonic Foundation</option>
-            <option value="major_pent_country">Major Pentatonic Country</option>
-            <option value="dorian_groove">Dorian Groove</option>
-            <option value="chord_tone_targeting">Chord Tone Targeting</option>
-            <option value="modal_awareness">Modal Awareness</option>
-            <option value="diatonic_triad_drill">Diatonic Triad Drill</option>
-            <option value="seventh_vocab">Seventh Chord Vocabulary</option>
-            <option value="ii_V_I_workout">ii–V–I Workout</option>
-            <option value="harmonic_minor_exotic">Harmonic Minor Exotic</option>
-            <option value="sweep_primer">Sweep Arpeggio Primer</option>
-          </optgroup>
-          <optgroup label="Favorites" hidden=""></optgroup>
-        </select>
-      </label>
+      <!-- Hidden select keeps all existing onChange / applyPathwayById logic intact -->
+      <select name="pathway" id="slopscale-pathway" style="display:none;">
+        <option value="custom">Custom — full control</option>
+        <optgroup label="Curated">
+          <option value="chromatic_warmup">Chromatic Warmup</option>
+          <option value="blues_foundation">Blues Scale Foundation</option>
+          <option value="pent_foundation" selected="selected">Pentatonic Foundation</option>
+          <option value="major_pent_country">Major Pentatonic Country</option>
+          <option value="dorian_groove">Dorian Groove</option>
+          <option value="chord_tone_targeting">Chord Tone Targeting</option>
+          <option value="modal_awareness">Modal Awareness</option>
+          <option value="diatonic_triad_drill">Diatonic Triad Drill</option>
+          <option value="seventh_vocab">Seventh Chord Vocabulary</option>
+          <option value="ii_V_I_workout">ii–V–I Workout</option>
+          <option value="harmonic_minor_exotic">Harmonic Minor Exotic</option>
+          <option value="sweep_arpeggio_primer">Sweep Arpeggio Primer</option>
+          <option value="modal_vamp">Modal Vamp</option>
+          <option value="bend_drill">Bending Drill</option>
+        </optgroup>
+        <optgroup label="Favorites" hidden=""></optgroup>
+      </select>
+      <div id="slopscale-skill-tree" class="slopscale-skill-tree slopscale-pathway-only"></div>
+      <button type="button" id="slopscale-tree-custom" class="slopscale-tree-switch-link slopscale-pathway-only tree-switch-right">Custom mode →</button>
+      <button type="button" id="slopscale-tree-back" class="slopscale-tree-switch-link slopscale-custom-only">← Pathways</button>
 
       <div class="slopscale-pathway-goal-card slopscale-pathway-only" id="slopscale-pathway-goal-card">
         <div><span class="pathway-tag" id="slopscale-pathway-tag">Goal</span><span class="pathway-title" id="slopscale-pathway-title">Pentatonic Foundation</span></div>
@@ -462,6 +529,56 @@
           <option value="diatonic_arpeggios">Diatonic arpeggios</option>
           <option value="progression_arpeggios">Progression arpeggios</option>
           <option value="sweep_arpeggios">Sweep arpeggios</option>
+          <option value="guide_tones">Guide tones</option>
+          <option value="bending">Bending drill</option>
+          <option value="legato">Legato runs</option>
+          <option value="vibrato">Vibrato</option>
+          <option value="scale_thirds">Scale in thirds</option>
+          <option value="scale_sixths">Scale in sixths</option>
+          <option value="call_response">Call &amp; response</option>
+          <option value="tremolo_picking">Tremolo picking</option>
+          <option value="tapping">Tapping</option>
+          <option value="pedal_point">Pedal point</option>
+          <option value="string_skipping">String skipping</option>
+          <option value="position_shift">Position shift</option>
+          <option value="rhythmic_displacement">Rhythmic displacement</option>
+          <option value="chromatic_enclosures">Chromatic enclosures</option>
+          <option value="bebop_scale">Bebop scale</option>
+          <option value="arpeggio_inversions">Arpeggio inversions</option>
+          <option value="walking_bass">Walking bass</option>
+          <option value="hybrid_picking">Hybrid picking</option>
+          <option value="triadic_pairs">Triadic pairs</option>
+          <option value="pentatonic_super">Pentatonic superimposition</option>
+          <option value="shell_voicings">Shell voicings</option>
+          <option value="octave_displacement">Octave displacement</option>
+        </select>
+      </label>
+      <div class="slopscale-guide-tones-only slopscale-custom-only">
+        <div class="slopscale-grid-2">
+          <label>Voices
+            <select name="voices">
+              <option value="thirds_only">3rds only</option>
+              <option value="sevenths_only">7ths only</option>
+              <option value="both_alternating">Alternating 3rds + 7ths</option>
+            </select>
+          </label>
+          <label>Progression
+            <select name="guideToneProgression">
+              <option value="ii-V-I">ii–V–I (major)</option>
+              <option value="minor_ii_V_i">Minor ii–V–i</option>
+              <option value="I-vi-ii-V">I–vi–ii–V turnaround</option>
+              <option value="vi-ii-V-I">vi–ii–V–I</option>
+              <option value="diatonic">Diatonic (all 7 chords)</option>
+            </select>
+          </label>
+        </div>
+        <span class="slopscale-help">Voice-led 3rds and 7ths over a chord progression — essential jazz ear training.</span>
+      </div>
+      <label class="slopscale-bending-only">Bend target
+        <select name="bendTarget">
+          <option value="whole">Whole step (full bend)</option>
+          <option value="half">Half step (½ bend)</option>
+          <option value="mixed">Mixed (alternate)</option>
         </select>
       </label>
       <label class="slopscale-chromatic-only">Finger pattern
@@ -573,6 +690,13 @@
               <option value="bebop_major">Bebop major</option>
               <option value="bebop_dominant">Bebop dominant</option>
             </optgroup>
+            <optgroup label="Melodic minor modes">
+              <option value="dorian_b2">Dorian ♭2 (mm II)</option>
+              <option value="lydian_augmented">Lydian augmented (mm III)</option>
+              <option value="mixolydian_b6">Mixolydian ♭6 (mm V)</option>
+              <option value="locrian_sharp2">Locrian ♮2 (mm VI)</option>
+              <option value="altered">Altered / Super Locrian (mm VII)</option>
+            </optgroup>
           </select>
         </label>
       </div>
@@ -623,6 +747,13 @@
         <label class="slopscale-toggle"><input name="audioMetronome" type="checkbox" checked> Metronome click</label>
         <label class="slopscale-toggle"><input name="audioHarmony" type="checkbox" checked> Harmony backing</label>
       </div>
+      <label>Harmony tone
+        <select name="harmonyTone">
+          <option value="pad">Synth pad</option>
+          <option value="epiano">E-piano</option>
+          <option value="organ">Organ</option>
+        </select>
+      </label>
       <div class="slopscale-help slopscale-custom-only">Harmony backing is generated from the selected key, scale, and progression.</div>
 
       <div class="slopscale-grid-3 slopscale-custom-only">
@@ -668,6 +799,8 @@
             <option value="i-VI-III-VII">Minor: i–VI–III–VII</option>
             <option value="i-VII-VI-VII">Minor: i–VII–VI–VII</option>
             <option value="minor_ii_V_i">Minor ii–V–i</option>
+            <option value="rhythm_changes_a">Rhythm Changes A (I–VI7–ii–V × 2)</option>
+            <option value="rhythm_changes_bridge">Rhythm Changes bridge (III7–VI7–II7–V7)</option>
           </select>
         </label>
         <label>Chord-scale strategy
@@ -729,6 +862,13 @@
           <label class="slopscale-toggle"><input id="slopscale-session-audio-metronome" type="checkbox" checked> Metronome click</label>
           <label class="slopscale-toggle"><input id="slopscale-session-audio-harmony" type="checkbox" checked> Harmony backing</label>
         </div>
+        <label>Harmony tone
+          <select id="slopscale-session-audio-harmony-tone">
+            <option value="pad">Synth pad</option>
+            <option value="epiano">E-piano</option>
+            <option value="organ">Organ</option>
+          </select>
+        </label>
 
         <div class="slopscale-actions">
           <button type="button" id="slopscale-launch-session" class="primary">▶ Launch Session</button>

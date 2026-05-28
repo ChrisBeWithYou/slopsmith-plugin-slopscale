@@ -98,43 +98,66 @@
 - ✅ Per-segment preview list
 
 ### Guide tones UI
-- 🔲 `voices` selector in `screen.html` (`thirds_only` / `sevenths_only` / `both_alternating`)
-- 🔲 `guide_tones` option in the practice type selector
+- ✅ `voices` selector in `screen.html` (`thirds_only` / `sevenths_only` / `both_alternating`)
+- ✅ `guide_tones` option in the practice type selector
+- ✅ `guideToneProgression` selector (jazz-focused subset: ii–V–I, minor ii–V–i, turnarounds, diatonic)
 
 ### Jazz chord-scale defaults
-- 🔲 `chord_scales` generator: default maj7 → Lydian (not Ionian), dom7 resolving to major → Lydian dominant, m7b5 → Locrian ♮2
-- 🔲 Minor ii-V-i: add `minor: true` flag to `minor_ii_V_i` progression so generator uses m7b5 on degree ii, altered/dim on degree V
+- ✅ `MODE_FOR_QUALITY`: maj7 → Lydian, dom7 → Lydian dominant, min7b5 → Locrian ♮2
+- ✅ Minor ii-V-i: `PROGRESSION_QUALITY_OVERRIDES` forces m7b5 on ii, dom7 on V, min7 on i regardless of parent scale
+- ✅ `DIATONIC_QUALITIES` expanded to all 7 major modes (dorian/phrygian/lydian/mixolydian/locrian) + melodic minor — each mode gets its own correct diatonic chord qualities
+- ✅ Melodic minor modes added to scale dropdown (Dorian ♭2, Lydian augmented, Mixolydian ♭6, Locrian ♮2, Altered)
 
 ### String setup
-- 🔲 **Per-string tuning editor** — allow users to set individual string pitches rather than only selecting from preset `STRING_SETUPS`. Required for open tunings (DADGAD, open G, open D), step-down tunings, and baritone guitar. Maps to `openMidis` array adjustments. *(User UX request)*
+- ✅ **Per-string tuning editor** — `TUNING_PRESETS`, `customOpenMidis` hidden input, tuning block UI in `screen.html`, `openMidisForConfig` override logic all implemented.
 
 ### Data gaps
-- 🔲 Rhythm Changes A section in `COMMON_PROGRESSIONS` (full 8-chord, not reducible to 4 degrees)
-- 🔲 Rhythm Changes bridge (III7–VI7–II7–V7) in `COMMON_PROGRESSIONS`
-- 🔲 `modal_vamp` as a named pathway (one chord, one scale, extended duration)
+- ✅ Rhythm Changes A section — `[1,6,2,5,1,6,2,5]` with VI forced to dom7 via `PROGRESSION_QUALITY_OVERRIDES`
+- ✅ Rhythm Changes bridge — `[3,6,2,5]` with all four degrees forced to dom7
+- ✅ `modal_vamp` pathway — 7 modal scales, 16-bar vamp, 5 Next Variation keys/modes
 
 ---
 
 ## Phase 2 — Gamification Layer
-*Progress tracking first, then the XP/streak UI on top of it.*
 
-### Progress tracking (localStorage)
-- 🔲 Log each practice session start/stop: date, pathway/session name, BPM tier, duration played
-- 🔲 "Last 7 days" calendar grid displayed in SlopScale panel
-- 🔲 Streak counter (days practiced in a row)
+### Design principles (locked)
+- **Soft gamification** — progression describes what you've done, never restricts what you can do. No content gating, ever.
+- **Pathway mode = opt-in gamification.** Tier bars, XP, and goal cards live inside the pathway experience. Custom mode has none of this by default.
+- **Universal session logging** — every session is logged regardless of mode (pathway or custom). Streak + total practice time work for pure Custom users too.
+- **Passive attribution** — Custom sessions that match a pathway's parameters (key, scale, BPM range) quietly count toward that pathway's tier progress. No interruptions.
+- **Descriptive not prescriptive** — "You've reached 90 BPM" not "Unlock tier 3." Tier system suggests what to try next, never blocks.
+- **SDK deferred** — built in localStorage with a clean schema. When Slopsmith refines a practice-tool SDK track (separate from the minigame run/score model), migration is a storage swap, not a redesign. SlopScale stays unregistered as a minigame.
 
-### XP and pathway leveling
-- 🔲 Map 4 BPM tiers per pathway to XP milestones
-- 🔲 Visual progress bar per pathway card
-- 🔲 Tier unlock glow effect when a tier is cleared
+### Session logger
+- ✅ Log each session on Play: `{ id, date, ts, mode, pathway_id, bpm, bpm_tier, scale, key, practice_type, duration_ms, hit_count, miss_count }`
+- ✅ Session ends on Stop or page unload (`beforeunload` + `pagehide`) — duration written at that point
+- ✅ Sub-2s blips discarded (accidental clicks, regenerate-while-playing)
+- ✅ Storage key: `slopscale.sessions` — append-only JSON array, capped at 500 entries
+- ✅ Passive mode detection: pathway/custom/session resolved from DOM state at play time
+
+### Streak + calendar
+- ✅ Streak counter — consecutive days ending at yesterday-or-today; grace period until midnight so streak stays alive until you practice today
+- ✅ 7-day calendar grid — dot per day (oldest left, today right); today's dot glows when practiced; always visible above the mode toggle in both modes
+- ✅ Dates stored as local calendar dates (not UTC) so midnight boundary matches the user's clock
+
+### Pathway tier progress
+- ✅ Per-pathway BPM tier state: highest tier reached (`slopscale.pathway_tiers` localStorage)
+- ✅ Passive attribution: Custom sessions within ±5 BPM of a pathway's tier threshold count toward it
+- ✅ Visual cleared state on tier buttons (green tint + ✓ mark via `cleared` CSS class)
+- ✅ Tier cleared glow effect when a new tier is first reached (`tier-glow` CSS animation)
+- ✅ SDK: emits `window.slopsmith 'slopscale:tier:unlocked'` on new high; accuracy gated via `slopsmithMinigames` hit/miss data
 
 ### Achievements
-- 🔲 10–15 named badges: "Blues Initiator", "Circle Rider", "Sweep Starter", "Jazz Chord Tones", etc.
-- 🔲 LocalStorage unlock state + achievement panel
+- 🔲 10–15 named badges: "First Rep" (first session), "Blues Initiator", "Circle Rider", "Sweep Starter", "Jazz Chord Tones", "Week Streak", "Speed Demon" (tier 4 on any pathway), etc.
+- 🔲 Unlocked state in localStorage + achievement panel (opt-in, not surfaced in practice flow)
 
 ### Pathway skill tree
-- 🔲 Replace flat pathway dropdown with a visual tree (beginner → intermediate → advanced)
-- 🔲 Prerequisite gating: pathway unlocks when prior tier is hit
+- ✅ Replace flat dropdown with scrollable SVG skill tree (hidden select keeps all existing event logic)
+- ✅ 14 nodes in 6 pedagogical columns with SVG edge lines showing learning flow
+- ✅ Each node: abbreviated name + 4 tier dots (green = cleared from `slopscale.pathway_tiers`)
+- ✅ Active node highlighted; clicking fires the existing pathway change handler
+- ✅ "Custom mode →" / "← Pathways" toggle links; fixed sweep_primer key mismatch
+- ✅ Tree rerenders on pathway change and on tier unlock (dots update live)
 
 ---
 
@@ -142,7 +165,7 @@
 *Richer practice audio without turning SlopScale into a backing-track app.*
 
 ### Harmony tone selector
-- 🔲 Add a `harmonyTone` control to the Preview Audio section: **Synth pad** (current) / **E-piano** (triangle+sine, sharp attack, fast decay — Rhodes feel) / **Organ** (additive sines, instant on/off, flat envelope). All three pure Web Audio, zero dependencies, ~50 lines.
+- ✅ `harmonyTone` select in both Single and Session audio sections: **Synth pad** / **E-piano** (triangle+bell, percussive decay) / **Organ** (7-drawbar additive sines, instant on/off). Pure Web Audio, no deps. Passed through `readConfig`, `onLaunchSession`, and `scheduleHarmonyPad`.
 
 ### Backing track generator (intentional future scope)
 - 🔲 **WebAudioFont or Tone.js Sampler** — load GM-compatible instrument samples from a CDN (piano, acoustic guitar, bass, etc.) for real sampled chord pads. Trigger on each backing event the same way oscillators are today. No audio stem generation needed — purely frontend.
@@ -156,15 +179,29 @@
 *New generators and genre pathway packs.*
 
 ### New generators
-- 🔲 **Bending drill** — fixed note pairs with `bn: 1` / `bn: 2`; beginner-essential
-- 🔲 **Legato runs** — scale passages with `ho: true` ascending, `po: true` descending
-- 🔲 **String-skipping** — restrict to non-adjacent strings; Satriani/Guthrie Govan vocabulary
-- 🔲 **Pedal point sequences** — alternating pedal note + scale run above/below
-- 🔲 **Chromatic enclosures** — approach notes wrapping chord tones (-1, +1, -2, +1)
-- 🔲 **Chord Jam / Improv Scoring mode** — generate a chord progression (dropdown or semi-random), display it as a backing chart, score user's improvisation based on whether played notes land in the correct chord-scale at each moment. Uses existing Minigames SDK pitch tracker + chord-scale matching logic; achievable without Slopsmith's full scorer API. *(Community request)*
+- ✅ **Bending drill** — `buildBendingExercise`, filters to treble strings (s=0,1,2), pre-bend fret from target pitch; half/whole/mixed targets; `bend_drill` pathway; `Bending` node in skill tree
+- ✅ **Legato runs** — HOPO per string: `ho:true` ascending, `po:true` descending, grouped by string
+- ✅ **Vibrato** — sustained scale notes at half-note steps, `vb:true`
+- ✅ **Scale in thirds** — every-other-note from sorted positions (i, i+2 pairs)
+- ✅ **Scale in sixths** — skip-4 pairs (i, i+5) ascending/descending
+- ✅ **Call & response** — 2 bars notes, 2 bars silence, cycling
+- ✅ **Tremolo picking** — `tr:true` rapid-fire, one note per bar held at subdivision speed
+- ✅ **Tapping** — `tp:true` 12 frets above each scale note, alternating fretted/tapped
+- ✅ **Pedal point** — lowest note as pedal, all higher notes as melody, interleaved
+- ✅ **String skipping** — reorders notes to even/odd string groups forcing cross-string jumps
+- ✅ **Position shift** — widens fret range by +7 to cross a shape boundary
+- ✅ **Rhythmic displacement** — phrase offset by one quarter note, crosses the barline
+- ✅ **Chromatic enclosures** — lower/upper semitone approach + resolution on each chord tone
+- ✅ **Bebop scale** — auto-selects `bebop_major` or `bebop_dominant`; chord tones land on downbeats
+- ✅ **Arpeggio inversions** — cycles root/1st/2nd/3rd inversions of root chord
+- ✅ **Walking bass** — quarter-note walks root→scale tones→next root via `nearestPositionForPc`
+- ✅ **Hybrid picking** — interleaves consecutive string pairs (pick low, pluck high)
+- ✅ **Triadic pairs** — interleaves I-triad (1-3-5) + III-triad (3-5-7) note sets
+- ✅ **Pentatonic superimposition** — minor pentatonic from b3 of root (Dorian superimposition)
+- ✅ **Shell voicings** — 1-3-7 arpeggiated through chord changes via `nearestPositionForPc`
+- ✅ **Octave displacement** — pairs scale degrees in two octaves, jumps between them
+- 🔲 **Chord Jam / Improv Scoring mode** — backing chart + Minigames SDK scoring against chord-scale targets *(Community request)*
 - 🔲 **Improv mode** — backing chord chart with empty note slots; user fills them in
-- 🔲 **Walking bass line** — root-to-chord-tone scalar walks between chord changes
-- 🔲 **Pentatonic superimposition** — play pentatonic from non-root starting point for specific tension (advanced jazz technique)
 
 ### Visual / practice modes
 - 🔲 **Master mode** — post-processing pass that removes notes from the final N% of a chart; trains memorization
@@ -211,6 +248,10 @@
 
 | Date | Work done | Key commits |
 |------|-----------|-------------|
+| 2026-05-28 | Phase 4: 20 new generators — legato, vibrato, scale thirds/sixths, call+response, tremolo, tapping, pedal point, string skipping, position shift, rhythmic displacement, chromatic enclosures, bebop scale, arpeggio inversions, walking bass, hybrid picking, triadic pairs, pentatonic super, shell voicings, octave displacement. | — |
+| 2026-05-28 | Phase 3+4: harmony tone selector (pad/epiano/organ), bending drill generator + pathway + tree node. | — |
+| 2026-05-28 | Phase 2: skill tree — SVG node map replaces flat dropdown, 14 nodes × 18 edges, tier dots live-update, Custom ↔ Pathways toggle links, sweep_arpeggio_primer key fix. | — |
+| 2026-05-28 | Phase 2: pathway tier progress — `slopscale.pathway_tiers` localStorage, `advancePathwayTier()`, accuracy gate via Minigames SDK hit/miss, passive custom-session attribution, `cleared` + `tier-glow` CSS, `slopscale:tier:unlocked` SDK emit. | — |
 | 2026-05-27 | Session UI: two-mode toggle pill (Single/Session), session selector, summary card (name/desc/stats), segment list with kind-badge cards, Launch Session button, audio toggles. `docs/ui-session.md` design spec. | `e9cec8d` |
 | 2026-05-27 | Advanced jazz theory reference ingested → `docs/theory-jazz-advanced.md`. Practice session data model: `buildSessionChart`, `buildBpmLadderChart`, `buildSegmentConfig`, `generateSession`, `buildGuideTonesExercise`, `nearestPositionForPc`. 5 melodic minor modes added to `SCALE_INTERVALS`. 4 built-in session presets. Session schema doc. | `194be3c`, `81fd6ab` |
 | 2026-05-27 | Roadmap, competitive landscape, Phase 1–6 plan drafted. | — |

@@ -76,6 +76,9 @@
     minor_pentatonic:[0,3,5,7,10], major_pentatonic:[0,2,4,7,9], blues:[0,3,5,6,7,10],
     // Bebop scales (chromatic passing tone so chord tones land on strong beats)
     bebop_major:[0,2,4,5,7,8,9,11], bebop_dominant:[0,2,4,5,7,9,10,11],
+    // Bebop minor (dorian + chromatic passing tone between b3 and the 4th) — keeps
+    // the minor 3rd so it sits correctly over minor/dorian tonalities.
+    bebop_dorian:[0,2,3,4,5,7,9,10],
     // Modes of the major scale
     dorian:[0,2,3,5,7,9,10], phrygian:[0,1,3,5,7,8,10], lydian:[0,2,4,6,7,9,11],
     mixolydian:[0,2,4,5,7,9,10], locrian:[0,1,3,5,6,8,10],
@@ -95,9 +98,15 @@
     min7b5:{symbol:'m7b5', intervals:[0,3,6,10]}, dim7:{symbol:'dim7', intervals:[0,3,6,9]}, sus4:{symbol:'sus4', intervals:[0,5,7]}, add9:{symbol:'add9', intervals:[0,4,7,14]}
   };
   const DIATONIC_QUALITIES = {
-    major:{triad:['maj','min','min','maj','maj','min','dim'], seventh:['maj7','min7','min7','maj7','dom7','min7','min7b5']},
-    natural_minor:{triad:['min','dim','maj','min','min','maj','maj'], seventh:['min7','min7b5','maj7','min7','min7','maj7','dom7']},
-    harmonic_minor:{triad:['min','dim','aug','min','maj','maj','dim'], seventh:['min7','min7b5','maj7','min7','dom7','maj7','dim7']}
+    major:         {triad:['maj','min','min','maj','maj','min','dim'],    seventh:['maj7','min7','min7','maj7','dom7','min7','min7b5']},
+    dorian:        {triad:['min','min','maj','maj','min','dim','maj'],    seventh:['min7','min7','maj7','dom7','min7','min7b5','maj7']},
+    phrygian:      {triad:['min','maj','maj','min','dim','maj','min'],    seventh:['min7','maj7','dom7','min7','min7b5','maj7','min7']},
+    lydian:        {triad:['maj','maj','min','dim','maj','min','min'],    seventh:['maj7','dom7','min7','min7b5','maj7','min7','min7']},
+    mixolydian:    {triad:['maj','min','dim','maj','min','min','maj'],    seventh:['dom7','min7','min7b5','maj7','min7','min7','maj7']},
+    natural_minor: {triad:['min','dim','maj','min','min','maj','maj'],    seventh:['min7','min7b5','maj7','min7','min7','maj7','dom7']},
+    locrian:       {triad:['dim','maj','min','min','maj','maj','min'],    seventh:['min7b5','maj7','min7','min7','maj7','dom7','min7']},
+    harmonic_minor:{triad:['min','dim','aug','min','maj','maj','dim'],    seventh:['min7','min7b5','maj7','min7','dom7','maj7','dim7']},
+    melodic_minor: {triad:['min','min','aug','maj','maj','dim','dim'],    seventh:['min7','min7','maj7','dom7','dom7','min7b5','min7b5']}
   };
   const COMMON_PROGRESSIONS = {
     diatonic:[1,2,3,4,5,6,7,1],
@@ -117,7 +126,19 @@
     quick_change_blues:[1,4,1,1,4,4,1,1,5,4,1,5],
     'i-VI-III-VII':[1,6,3,7],
     'i-VII-VI-VII':[1,7,6,7],
-    minor_ii_V_i:[2,5,1,1]
+    minor_ii_V_i:[2,5,1,1],
+    // Rhythm Changes (Gershwin "I Got Rhythm" form) — simplified to degree system.
+    // A section: I–VI7–ii–V turnaround × 2 (bars 1–8). VI is a secondary dominant.
+    rhythm_changes_a:[1,6,2,5,1,6,2,5],
+    // Bridge: chain of secondary dominants resolving III7→VI7→II7→V7→I.
+    rhythm_changes_bridge:[3,6,2,5]
+  };
+  // Per-progression chord quality overrides — win over diatonic scale harmony,
+  // but lose to a user-specified chordOverride. Used by chordQualityForDegree.
+  const PROGRESSION_QUALITY_OVERRIDES = {
+    minor_ii_V_i:        { 2:'min7b5', 5:'dom7', 1:'min7' },
+    rhythm_changes_a:    { 6:'dom7' },
+    rhythm_changes_bridge:{ 3:'dom7', 6:'dom7', 2:'dom7', 5:'dom7' }
   };
   const FRETBOARD_SYSTEM_LABELS = {
     caged:'CAGED (5 shapes)',
@@ -147,11 +168,11 @@
     yngwie_sixes:'sixes (1-2-3-4-3-2)'
   };
   const MODE_FOR_QUALITY = {
-    maj:'major', maj7:'major',
-    min:'dorian', min7:'dorian',
-    dom7:'mixolydian',
-    dim:'locrian', min7b5:'locrian', dim7:'locrian',
-    aug:'major', sus4:'mixolydian', add9:'major'
+    maj:'major',           maj7:'lydian',
+    min:'dorian',          min7:'dorian',
+    dom7:'lydian_dominant',
+    dim:'locrian',         min7b5:'locrian_sharp2', dim7:'locrian',
+    aug:'major',           sus4:'mixolydian', add9:'major'
   };
   const CHROMATIC_PATTERNS = {
     '1234':[0,1,2,3], '4321':[3,2,1,0], '1324':[0,2,1,3], '1342':[0,2,3,1], '2413':[1,3,0,2]
@@ -172,6 +193,44 @@
   };
   // Tempo tier labels — shared by all pathways. Index 0 = Slow.
   const TIER_LABELS = ['Slow', 'Med', 'Fast', 'Push'];
+  // Skill tree topology — positions as % of the inner container (x left→right, y top→bottom).
+  // Edges draw pedagogical flow lines; clicking a node selects the pathway.
+  const SKILL_TREE_NODES = [
+    { id: 'chromatic_warmup',      x:  6, y: 50, short: 'Chromatic' },
+    { id: 'pent_foundation',       x: 20, y: 27, short: 'Pentatonic' },
+    { id: 'blues_foundation',      x: 20, y: 73, short: 'Blues Scale' },
+    { id: 'major_pent_country',    x: 36, y: 12, short: 'Major Pent' },
+    { id: 'dorian_groove',         x: 36, y: 42, short: 'Dorian' },
+    { id: 'harmonic_minor_exotic', x: 36, y: 80, short: 'Harm. Minor' },
+    { id: 'chord_tone_targeting',  x: 54, y: 24, short: 'Chord Tones' },
+    { id: 'modal_awareness',       x: 54, y: 52, short: 'Modal Aware.' },
+    { id: 'diatonic_triad_drill',  x: 54, y: 80, short: 'Triad Drill' },
+    { id: 'modal_vamp',            x: 72, y: 36, short: 'Modal Vamp' },
+    { id: 'seventh_vocab',         x: 72, y: 62, short: '7th Chords' },
+    { id: 'sweep_arpeggio_primer', x: 72, y: 85, short: 'Sweep Arps' },
+    { id: 'ii_V_I_workout',        x: 88, y: 50, short: 'ii–V–I' },
+    { id: 'bend_drill',            x: 20, y: 91, short: 'Bending' },
+  ];
+  const SKILL_TREE_EDGES = [
+    ['chromatic_warmup',    'pent_foundation'],
+    ['chromatic_warmup',    'blues_foundation'],
+    ['pent_foundation',     'bend_drill'],
+    ['blues_foundation',    'bend_drill'],
+    ['pent_foundation',     'major_pent_country'],
+    ['pent_foundation',     'dorian_groove'],
+    ['blues_foundation',    'dorian_groove'],
+    ['blues_foundation',    'harmonic_minor_exotic'],
+    ['dorian_groove',       'chord_tone_targeting'],
+    ['dorian_groove',       'modal_awareness'],
+    ['major_pent_country',  'chord_tone_targeting'],
+    ['modal_awareness',     'modal_vamp'],
+    ['modal_awareness',     'diatonic_triad_drill'],
+    ['chord_tone_targeting','diatonic_triad_drill'],
+    ['diatonic_triad_drill','seventh_vocab'],
+    ['diatonic_triad_drill','sweep_arpeggio_primer'],
+    ['seventh_vocab',       'ii_V_I_workout'],
+    ['modal_vamp',          'ii_V_I_workout'],
+  ];
   const PATHWAYS = {
     chromatic_warmup: {
       label:'Chromatic Warmup',
@@ -268,13 +327,35 @@
       base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'harmonic_minor', chordDepth:'seventh', chordOverride:'dom7', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:110, bars:8, direction:'up_down', sequence:'fours', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
       vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'B', shape:'E' } ]
     },
-    sweep_primer: {
+    sweep_arpeggio_primer: {
       label:'Sweep Arpeggio Primer',
       goal:'One chord tone per string, swept low-to-high with a hammer-on/pull-off turnaround at the apex, then swept back down. Root anchors the bass string. Start slow — sweeps reward cleanliness over speed.',
       scales:['natural_minor','harmonic_minor','major'],
       tempoTiers:[50, 65, 80, 100],
       base:{ practiceType:'sweep_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
       vary:[ { key:'A', shape:'E' }, { key:'A', shape:'A' }, { key:'D', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'G' } ]
+    },
+    modal_vamp: {
+      label:'Modal Vamp',
+      goal:'One scale, one pedal, no chord changes — extended melodic exploration in a single tonality. Essential for modal jazz, fusion, and building phrase vocabulary without harmonic distractions.',
+      scales:['dorian','mixolydian','lydian','phrygian','natural_minor','lydian_dominant','altered'],
+      tempoTiers:[65, 85, 105, 125],
+      base:{ practiceType:'modal_vamp', scale:'dorian', meter:'4/4', subdivision:'eighth', bpm:80, bars:16, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { key:'A', scale:'dorian', shape:'E' }, { key:'D', scale:'dorian', shape:'E' }, { key:'G', scale:'mixolydian', shape:'E' }, { key:'A', scale:'lydian', shape:'E' }, { key:'A', scale:'altered', shape:'E' } ]
+    },
+    bend_drill: {
+      label:'Bending Drill',
+      goal:'Whole-step bends on the upper three strings. Bend up to the target pitch, hold, listen. Consistent intonation is the entire point — if you can\'t hear when you\'re sharp, slow down. Classic blues and rock vocabulary.',
+      scales:['minor_pentatonic','blues','major_pentatonic','major'],
+      tempoTiers:[50, 65, 80, 95],
+      base:{ practiceType:'bending', bendTarget:'whole', scale:'minor_pentatonic', meter:'4/4', subdivision:'quarter', bpm:60, bars:8, direction:'up_down', advancedMode:false, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[
+        { key:'A', shape:'E', bendTarget:'whole' },
+        { key:'A', shape:'E', bendTarget:'half' },
+        { key:'E', shape:'E', bendTarget:'whole' },
+        { key:'A', shape:'E', bendTarget:'mixed' },
+        { key:'D', shape:'E', bendTarget:'whole' },
+      ]
     }
   };
   const PATHWAY_STORAGE_KEY = 'slopscale.lastPathway';
@@ -289,7 +370,7 @@
   //
   // Segment `kind` values map to buildSingleChart() mode dispatch:
   //   scale | chord_scales | diatonic_arpeggios | progression_arpeggios |
-  //   sweep_arpeggios | chromatic | guide_tones | modal_vamp
+  //   sweep_arpeggios | chromatic | guide_tones | modal_vamp | bending
   //
   // Built-in sessions follow established jazz pedagogy. The "ii-V-I Workshop"
   // segment order follows a standard guide-tone-first learning sequence.
@@ -873,6 +954,7 @@
 
   let renderer = null, activeBundle = null, rafId = null, lastExercise = null;
   let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
+  let _activeSession = null, _sessionStartMs = 0, _newlyUnlockedTier = null;
   // Count-in: while performance.now() < countInUntilMs, the tick freezes
   // the playhead at the start position and only the count-in clicks play.
   // 0 = no count-in active.
@@ -1065,12 +1147,16 @@
       fretMax,
       bars: Math.max(1, Math.min(32, parseInt(data.get('bars') || '4', 10))),
       chordDepth: advancedMode ? (data.get('chordDepth') || 'triad') : 'triad',
-      progression: advancedMode ? (data.get('progression') || 'diatonic') : 'diatonic',
+      progression: practiceType === 'guide_tones'
+        ? (data.get('guideToneProgression') || 'ii-V-I')
+        : (advancedMode ? (data.get('progression') || 'diatonic') : 'diatonic'),
       chordOverride: advancedMode ? (data.get('chordOverride') || 'auto') : 'auto',
       chromaticPattern: data.get('chromaticPattern') || '1234',
+      voices: data.get('voices') || 'thirds_only',
       keyCycle: data.get('keyCycle') || 'none',
       keyCycleLength: Math.max(2, Math.min(12, parseInt(data.get('keyCycleLength') || '4', 10))),
-      audio: { notes: data.get('audioNotes') === 'on', metronome: data.get('audioMetronome') === 'on', harmony: data.get('audioHarmony') === 'on' }
+      bendTarget: data.get('bendTarget') || 'whole',
+      audio: { notes: data.get('audioNotes') === 'on', metronome: data.get('audioMetronome') === 'on', harmony: data.get('audioHarmony') === 'on', harmonyTone: data.get('harmonyTone') || 'pad' }
     };
   }
 
@@ -1338,8 +1424,10 @@
   }
   function buildAnchors(cfg, duration) { const out = [], width = Math.max(3, cfg.fretMax - cfg.fretMin + 1); for (let t = 0; t <= duration + 0.0001; t += 2) out.push({ time: Number(t.toFixed(6)), fret: cfg.fretMin, width }); return out; }
 
-  function chordQualityForDegree(scale, depth, degree, override) {
+  function chordQualityForDegree(scale, depth, degree, override, progression) {
     if (override && override !== 'auto') return override;
+    const progOverride = progression && PROGRESSION_QUALITY_OVERRIDES[progression];
+    if (progOverride && progOverride[degree] != null) return progOverride[degree];
     const family = DIATONIC_QUALITIES[scale] || DIATONIC_QUALITIES.major;
     const row = family[depth === 'seventh' ? 'seventh' : 'triad'] || family.triad;
     return row[(degree - 1 + 7) % 7] || 'maj';
@@ -1445,7 +1533,7 @@
     for (let t = 0, i = 0; t < duration - 0.001; t += slot, i++) {
       const degree = degrees[i % degrees.length];
       const rootPc = chordRootForDegree(cfg, degree);
-      const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride);
+      const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride, cfg.progression);
       const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj;
       events.push({ t:Number(t.toFixed(6)), end:Number(Math.min(duration, t + slot).toFixed(6)), name:chordName(rootPc, quality), midis:voiceBackingChord(rootPc, formula.intervals, cfg.instrument) });
     }
@@ -1476,7 +1564,7 @@
     for (let bar = 0; bar < totalBars; bar++) {
       const degree = degrees[bar % degrees.length];
       const rootPc = chordRootForDegree(cfg, degree);
-      const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride);
+      const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride, cfg.progression);
       const positions = strategy === 'chord_tone_emphasis' ? keyParent : chordScalePositions(cfg, rootPc, quality);
       if (!positions || !positions.length) continue;
       const sequenced = applySequencePattern(positions, cfg.sequence);
@@ -1583,7 +1671,7 @@
     for (let bar = 0; bar < totalBars; bar++) {
       const degree = degrees[bar % degrees.length];
       const rootPc = chordRootForDegree(cfg, degree);
-      const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride);
+      const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride, cfg.progression);
       const positions = sweepArpeggioPositions(cfg, rootPc, quality, anchorFret);
       if (!positions.length) continue;
       const path = buildSweepPathWithHopo(positions, cfg, rootPc, quality);
@@ -1615,7 +1703,7 @@
     let t = 0;
     degrees.forEach(degree => {
       const rootPc = chordRootForDegree(cfg, degree);
-      const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride);
+      const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride, cfg.progression);
       let displayPositions = null;
       let chordCfg = cfg;
       let shapeRootFret = null;
@@ -1714,8 +1802,6 @@
     const scale = cfg.scale || 'major';
     const scaleInts = SCALE_INTERVALS[scale] || SCALE_INTERVALS.major;
     const chordDepth = cfg.chordDepth || 'seventh';
-    const diatonicFam = DIATONIC_QUALITIES[scale] || DIATONIC_QUALITIES.major;
-    const qualities = diatonicFam[chordDepth === 'seventh' ? 'seventh' : 'triad'] || diatonicFam.triad;
     const degrees = progressionDegreesForConfig(cfg);
     const voices = cfg.voices || 'thirds_only';
     const mLen = measureSeconds(cfg);
@@ -1744,9 +1830,7 @@
         const degree = degrees[di];
         if (degree < 1 || degree > scaleInts.length) { t += mLen; continue; }
         const chordRootPc = (keyPc + scaleInts[degree - 1]) % 12;
-        const quality = (cfg.chordOverride && cfg.chordOverride !== 'auto')
-          ? cfg.chordOverride
-          : (qualities[(degree - 1 + 7) % 7] || 'maj');
+        const quality = chordQualityForDegree(cfg.scale, chordDepth, degree, cfg.chordOverride, cfg.progression);
         const formula = CHORD_FORMULAS[quality]?.intervals || [0, 4, 7];
         // 3rd = formula[1], 7th = formula[3] (if present, else fall back to 5th)
         const thirdPc  = (chordRootPc + (formula[1] ?? formula[0])) % 12;
@@ -1771,6 +1855,500 @@
     return { notes, chords:[], chordTemplates:[], handShapes:[], sections, duration };
   }
 
+  // ── Generator helpers ───────────────────────────────────────────────────────
+  // Most pattern generators below build a list of "events" (each at least
+  // { s, f }, optionally carrying technique flags), then either play them as-is
+  // or mirror them for ascending/descending/up-down practice, then lay them onto
+  // the timeline one per subdivision. These two helpers capture that shared tail
+  // so each builder only expresses what makes it distinct.
+
+  // Technique flags an event may carry through to its rendered note. Anything
+  // not in this list (e.g. midi/pc bookkeeping) is dropped so notes stay clean.
+  const SEQ_NOTE_FIELDS = ['ho', 'po', 'vb', 'tr', 'tp', 'bn', 'hm', 'hp', 'pm', 'mt', 'ac', 'sl', 'slu'];
+
+  function orientSeq(events, direction) {
+    if (direction === 'descending') return events.slice().reverse();
+    if (direction === 'up_down')    return [...events, ...events.slice().reverse()];
+    return events;
+  }
+
+  // Fill the timeline with `seq`, cycling it, one note per `step`.
+  // opts: { step, totalTime, sus, name, startAt=0, duration=Math.max(t,totalTime) }
+  function fillNotesFromSeq(seq, opts) {
+    const { step, totalTime, sus, name, startAt = 0 } = opts;
+    const notes = [], sections = [{ name, number: 1, time: 0 }];
+    let t = startAt, idx = 0;
+    while (t < totalTime - 0.001) {
+      const ev = seq[idx % seq.length];
+      const note = { t: Number(t.toFixed(6)), s: ev.s, f: ev.f, sus };
+      for (const k of SEQ_NOTE_FIELDS) if (ev[k] !== undefined) note[k] = ev[k];
+      notes.push(noteDefaults(note));
+      t += step; idx++;
+    }
+    const duration = opts.duration != null ? opts.duration : Math.max(t, totalTime);
+    return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration };
+  }
+
+  // Bending drill — cycles scale tones on upper strings (s=0,1,2: high E, B, G)
+  // with each note bent from a fret below the target pitch.
+  // bn=0.5 (half step) bends 1 semitone; bn=1 (whole step) bends 2 semitones.
+  function buildBendingExercise(cfg) {
+    const bendTarget = cfg.bendTarget || 'whole';
+    const step = secondsPerDivision(cfg);
+    const mLen  = measureSeconds(cfg);
+    const totalTime = cfg.bars * mLen;
+    const allPos = scalePositionsForSystem(cfg);
+    const BEND_STRINGS = new Set([0, 1, 2]);  // high E, B, G — practical bending range
+    let mixToggle = false;
+    const events = [];
+    for (const pos of allPos) {
+      if (!BEND_STRINGS.has(pos.s)) continue;
+      let bn;
+      if (bendTarget === 'half')       bn = 0.5;
+      else if (bendTarget === 'whole') bn = 1;
+      else { bn = mixToggle ? 0.5 : 1; mixToggle = !mixToggle; }
+      const semitones = bn < 1 ? 1 : 2;    // frets below the target pitch
+      const preFret = pos.f - semitones;
+      if (preFret < 0) continue;            // can't bend from below open string
+      events.push({ s: pos.s, f: preFret, bn });
+    }
+    if (!events.length) throw new Error('No bendable notes in this position. Try a higher fret range or CAGED shape.');
+    let seq;
+    if (cfg.direction === 'descending')    seq = events.slice().reverse();
+    else if (cfg.direction === 'up_down')  seq = [...events, ...events.slice().reverse()];
+    else                                   seq = events;
+    const sus = Math.max(0.2, step * 0.92);
+    const bendName = bendTarget === 'half' ? 'Half-step bends' : bendTarget === 'whole' ? 'Whole-step bends' : 'Mixed bends';
+    return fillNotesFromSeq(seq, { step, totalTime, sus, name: `${bendName} — ${cfg.key} ${cfg.scale}` });
+  }
+
+  // ── 20 additional generators ────────────────────────────────────────────────
+
+  function buildLegatoExercise(cfg) {
+    const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
+    const allPos = scalePositionsForSystem(cfg);
+    if (!allPos.length) throw new Error('No notes in range.');
+    const byStr = {};
+    for (const p of allPos) (byStr[p.s] || (byStr[p.s] = [])).push(p);
+    const strAsc = Object.keys(byStr).map(Number).sort((a, b) => b - a);
+    const asc = [], desc = [];
+    for (const s of strAsc) {
+      byStr[s].sort((a, b) => a.f - b.f).forEach((n, i) => asc.push({ s: n.s, f: n.f, ho: i > 0, po: false }));
+    }
+    for (const s of strAsc.slice().reverse()) {
+      byStr[s].sort((a, b) => b.f - a.f).forEach((n, i) => desc.push({ s: n.s, f: n.f, ho: false, po: i > 0 }));
+    }
+    const seq = cfg.direction === 'ascending' ? asc : cfg.direction === 'descending' ? desc : [...asc, ...desc];
+    const sus = Math.max(0.05, step * 0.9);
+    return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Legato runs — ${cfg.key} ${cfg.scale}` });
+  }
+
+  function buildVibratoExercise(cfg) {
+    const mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
+    const allPos = scalePositionsForSystem(cfg);
+    if (!allPos.length) throw new Error('No notes in range.');
+    const sorted = allPos.slice().sort((a, b) => a.midi - b.midi);
+    const seq = orientSeq(sorted.map(p => ({ s: p.s, f: p.f, vb: true })), cfg.direction);
+    const noteStep = mLen / 2, sus = Math.max(0.4, noteStep - 0.08);
+    return fillNotesFromSeq(seq, { step: noteStep, totalTime, sus, name: `Vibrato — ${cfg.key} ${cfg.scale}` });
+  }
+
+  function buildScaleThirdsExercise(cfg) {
+    const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
+    const sorted = scalePositionsForSystem(cfg).slice().sort((a, b) => a.midi - b.midi || a.s - b.s);
+    if (sorted.length < 3) throw new Error('Need ≥ 3 notes for thirds — expand fret range.');
+    const asc = [];
+    for (let i = 0; i + 2 < sorted.length; i++) { asc.push(sorted[i]); asc.push(sorted[i + 2]); }
+    const seq = orientSeq(asc, cfg.direction);
+    const sus = Math.max(0.05, step * 0.88);
+    return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Scale in thirds — ${cfg.key} ${cfg.scale}` });
+  }
+
+  function buildScaleSixthsExercise(cfg) {
+    const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
+    const sorted = scalePositionsForSystem(cfg).slice().sort((a, b) => a.midi - b.midi || a.s - b.s);
+    if (sorted.length < 6) throw new Error('Need ≥ 6 notes for sixths — expand fret range.');
+    const asc = [];
+    for (let i = 0; i + 5 < sorted.length; i++) { asc.push(sorted[i]); asc.push(sorted[i + 5]); }
+    const seq = orientSeq(asc, cfg.direction);
+    const sus = Math.max(0.05, step * 0.88);
+    return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Scale in sixths — ${cfg.key} ${cfg.scale}` });
+  }
+
+  function buildCallResponseExercise(cfg) {
+    const step = secondsPerDivision(cfg), mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
+    const allPos = scalePositionsForSystem(cfg);
+    if (!allPos.length) throw new Error('No notes in range.');
+    const sorted = allPos.slice().sort((a, b) => a.midi - b.midi);
+    const seq = cfg.direction === 'descending' ? sorted.slice().reverse()
+      : cfg.direction === 'up_down' ? [...sorted, ...sorted.slice().reverse()] : sorted;
+    const CALL = 2, CYCLE = 4; // 2 bars call, 2 bars silence
+    const sus = Math.max(0.05, step * 0.85);
+    const notes = [], sections = [{ name: 'Call', number: 1, time: 0 }, { name: 'Response', number: 2, time: CALL * mLen }];
+    let t = 0, noteIdx = 0;
+    while (t < totalTime - 0.001) {
+      if (Math.floor(t / mLen) % CYCLE < CALL) {
+        notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: seq[noteIdx % seq.length].s, f: seq[noteIdx % seq.length].f, sus }));
+        noteIdx++;
+      }
+      t += step;
+    }
+    return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration: Math.max(t, totalTime) };
+  }
+
+  function buildTremoloPickingExercise(cfg) {
+    const step = secondsPerDivision(cfg), mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
+    const sorted = scalePositionsForSystem(cfg).slice().sort((a, b) => a.midi - b.midi);
+    if (!sorted.length) throw new Error('No notes in range.');
+    const sus = Math.max(0.03, step * 0.9);
+    const notes = [], sections = [{ name: `Tremolo picking — ${cfg.key} ${cfg.scale}`, number: 1, time: 0 }];
+    let t = 0, posIdx = 0;
+    while (t < totalTime - 0.001) {
+      const barEnd = Math.min((Math.floor(t / mLen) + 1) * mLen, totalTime);
+      const pos = sorted[posIdx % sorted.length];
+      for (let mt = t; mt < barEnd - 0.001; mt += step)
+        notes.push(noteDefaults({ t: Number(mt.toFixed(6)), s: pos.s, f: pos.f, sus, tr: true }));
+      t = barEnd; posIdx++;
+    }
+    return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration: Math.max(t, totalTime) };
+  }
+
+  function buildTappingExercise(cfg) {
+    const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
+    const allPos = scalePositionsForSystem(cfg);
+    const TAP = 12;
+    const events = [];
+    for (const p of allPos) {
+      if (p.f + TAP > 24) continue;
+      events.push({ s: p.s, f: p.f, tp: false });
+      events.push({ s: p.s, f: p.f + TAP, tp: true });
+    }
+    if (!events.length) throw new Error('No tapping positions — try fretMin ≤ 12.');
+    const sus = Math.max(0.05, step * 0.85);
+    return fillNotesFromSeq(events, { step, totalTime, sus, name: `Tapping — ${cfg.key} ${cfg.scale}` });
+  }
+
+  function buildPedalPointExercise(cfg) {
+    const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
+    const allPos = scalePositionsForSystem(cfg);
+    if (!allPos.length) throw new Error('No notes in range.');
+    const sorted = allPos.slice().sort((a, b) => a.midi - b.midi);
+    const pedal = sorted[0];
+    const melody = sorted.filter(p => p.midi > pedal.midi);
+    if (!melody.length) throw new Error('Wider pitch range needed for pedal point.');
+    const melSeq = cfg.direction === 'descending' ? melody.slice().reverse()
+      : cfg.direction === 'up_down' ? [...melody, ...melody.slice().reverse()] : melody;
+    const events = [];
+    for (const m of melSeq) { events.push(pedal); events.push(m); }
+    const sus = Math.max(0.05, step * 0.88);
+    return fillNotesFromSeq(events, { step, totalTime, sus, name: `Pedal point — ${cfg.key} ${cfg.scale}` });
+  }
+
+  function buildStringSkippingExercise(cfg) {
+    const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
+    const allPos = scalePositionsForSystem(cfg);
+    if (!allPos.length) throw new Error('No notes in range.');
+    const byStr = {};
+    for (const p of allPos) (byStr[p.s] || (byStr[p.s] = [])).push(p);
+    const strings = Object.keys(byStr).map(Number).sort();
+    // Interleave even-index and odd-index strings — creates visible cross-string jumps
+    const events = [];
+    for (const grp of [strings.filter(s => s % 2 === 0), strings.filter(s => s % 2 === 1)]) {
+      for (const s of grp)
+        for (const p of byStr[s].sort((a, b) => a.f - b.f)) events.push(p);
+    }
+    const seq = orientSeq(events, cfg.direction);
+    const sus = Math.max(0.05, step * 0.88);
+    return fillNotesFromSeq(seq, { step, totalTime, sus, name: `String skipping — ${cfg.key} ${cfg.scale}` });
+  }
+
+  function buildPositionShiftExercise(cfg) {
+    // Extend the fret range to force a positional shift across a shape boundary
+    const wideCfg = Object.assign({}, cfg, { fretboardSystem: 'position', fretMax: (cfg.fretMax || 5) + 7, shapeNotes: null });
+    const allPos = scalePositionsForSystem(wideCfg);
+    if (!allPos.length) throw new Error('No notes found — try a lower fret range.');
+    const sorted = allPos.slice().sort((a, b) => a.midi - b.midi || a.s - b.s);
+    const seq = orientSeq(sorted, cfg.direction);
+    const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
+    const sus = Math.max(0.05, step * 0.88);
+    return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Position shift — ${cfg.key} ${cfg.scale}` });
+  }
+
+  function buildRhythmicDisplacementExercise(cfg) {
+    const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
+    const allPos = scalePositionsForSystem(cfg);
+    if (!allPos.length) throw new Error('No notes in range.');
+    const sorted = allPos.slice().sort((a, b) => a.midi - b.midi);
+    const seq = orientSeq(sorted, cfg.direction);
+    const offset = 60 / cfg.bpm; // displace by one quarter note
+    const sus = Math.max(0.05, step * 0.88);
+    return fillNotesFromSeq(seq, { step, totalTime, sus, startAt: offset, duration: totalTime, name: `Rhythmic displacement — ${cfg.key} ${cfg.scale}` });
+  }
+
+  function buildChromaticEnclosuresExercise(cfg) {
+    const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
+    const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+    const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth || 'seventh', 1, cfg.chordOverride, cfg.progression);
+    const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj7;
+    const chordPcs = formula.intervals.map(i => (keyPc + i) % 12);
+    const opens = openMidisForConfig(cfg);
+    const fMin = cfg.fretMin || 0, fMax = cfg.fretMax || 12;
+    const targets = [];
+    for (let s = 0; s < opens.length; s++)
+      for (let f = fMin + 1; f <= fMax; f++) {
+        const midi = opens[s] + f;
+        if (chordPcs.includes(((midi % 12) + 12) % 12)) targets.push({ s, f, midi });
+      }
+    targets.sort((a, b) => a.midi - b.midi);
+    if (!targets.length) throw new Error('No chord tones in range for enclosures.');
+    // Each target: lower approach (-1 fret), upper approach (+1 fret), resolution.
+    // Approach notes are skipped if they'd fall off the neck (≤0 lower bound is
+    // guaranteed since targets start at fMin+1; guard the upper edge at fret 24).
+    const events = [];
+    for (const tgt of targets) {
+      if (tgt.f - 1 >= 0)  events.push({ s: tgt.s, f: tgt.f - 1 });
+      if (tgt.f + 1 <= 24) events.push({ s: tgt.s, f: tgt.f + 1 });
+      events.push({ s: tgt.s, f: tgt.f });
+    }
+    const seq = orientSeq(events, cfg.direction);
+    const sus = Math.max(0.05, step * 0.88);
+    return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Chromatic enclosures — ${cfg.key}` });
+  }
+
+  function buildBebopScaleExercise(cfg) {
+    // Use bebop scale variant; chord tones land on downbeats with 8-note chromatic passing tone
+    const scaleInts = SCALE_INTERVALS[cfg.scale] || [];
+    // A minor 3rd (interval 3) in the source scale means a minor tonality — route
+    // to bebop minor (keeps the b3) rather than a major-3rd bebop scale. A dominant
+    // context (mixolydian: major 3rd + b7) gets bebop dominant; otherwise bebop major.
+    const hasMinorThird = scaleInts.includes(3);
+    const hasFlatSeventh = scaleInts.includes(10);
+    const bebopScale = (cfg.scale || '').startsWith('bebop_') ? cfg.scale
+      : hasMinorThird ? 'bebop_dorian'
+      : hasFlatSeventh ? 'bebop_dominant'
+      : 'bebop_major';
+    const bebopCfg = Object.assign({}, cfg, { scale: bebopScale, sequence: 'none', shapeNotes: null });
+    const allPos = scalePositionsForSystem(bebopCfg);
+    if (!allPos.length) throw new Error('No bebop scale notes in range.');
+    const sorted = allPos.slice().sort((a, b) => a.midi - b.midi || a.s - b.s);
+    const seq = orientSeq(sorted, cfg.direction);
+    const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
+    const sus = Math.max(0.05, step * 0.88);
+    return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Bebop scale — ${cfg.key} (${bebopScale.replace('_', ' ')})` });
+  }
+
+  function buildArpeggioInversionsExercise(cfg) {
+    const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth || 'triad', 1, cfg.chordOverride, cfg.progression);
+    const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj;
+    const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+    const take = cfg.chordDepth === 'seventh' ? 4 : 3;
+    const intervals = formula.intervals.slice(0, take);
+    const chordPcs = intervals.map(i => (keyPc + i) % 12);
+    const opens = openMidisForConfig(cfg);
+    const fMin = cfg.fretMin || 0, fMax = cfg.fretMax || 12;
+    const allTones = [];
+    for (let s = 0; s < opens.length; s++)
+      for (let f = fMin; f <= fMax; f++) {
+        const midi = opens[s] + f, pc = ((midi % 12) + 12) % 12;
+        const ci = chordPcs.indexOf(pc);
+        if (ci >= 0) allTones.push({ s, f, midi, ci });
+      }
+    allTones.sort((a, b) => a.midi - b.midi);
+    if (!allTones.length) throw new Error('No chord tones in range.');
+    // Build inversions: for each chord step as starting point, ascend from there
+    const events = [];
+    for (let inv = 0; inv < intervals.length; inv++) {
+      const start = allTones.find(t => t.ci === inv);
+      if (!start) continue;
+      allTones.filter(t => t.midi >= start.midi).slice(0, intervals.length * 2).forEach(n => events.push(n));
+    }
+    if (!events.length) throw new Error('Could not build inversions in range.');
+    const seq = orientSeq(events, cfg.direction);
+    const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
+    const sus = Math.max(0.05, step * 0.88);
+    return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Inversions — ${cfg.key} ${quality}` });
+  }
+
+  function buildWalkingBassExercise(cfg) {
+    const opens = openMidisForConfig(cfg);
+    const mLen = measureSeconds(cfg), beatStep = 60 / cfg.bpm;
+    const totalTime = cfg.bars * mLen;
+    const degrees = progressionDegreesForConfig(cfg);
+    const fMin = cfg.fretMin || 0, fMax = cfg.fretMax || 12;
+    const notes = [], sections = [{ name: `Walking bass — ${cfg.key} ${cfg.scale}`, number: 1, time: 0 }];
+    let prevMidi = 40, t = 0;
+    for (let bar = 0; bar < cfg.bars; bar++) {
+      const deg = degrees[bar % degrees.length];
+      const nextDeg = degrees[(bar + 1) % degrees.length];
+      const rootPc = chordRootForDegree(cfg, deg);
+      const nextRootPc = chordRootForDegree(cfg, nextDeg);
+      const rootPos = nearestPositionForPc(rootPc, prevMidi, opens, fMin, fMax);
+      if (!rootPos) { t += mLen; continue; }
+      notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: rootPos.s, f: rootPos.f, sus: beatStep * 0.9 }));
+      prevMidi = opens[rootPos.s] + rootPos.f;
+      // Find target octave of next root nearest to current midi
+      let targetMidi = nextRootPc;
+      while (targetMidi < prevMidi - 6) targetMidi += 12;
+      while (targetMidi > prevMidi + 17) targetMidi -= 12;
+      const beatsPerBar = cfg.meter.numerator;
+      const scaleInts = SCALE_INTERVALS[cfg.scale] || SCALE_INTERVALS.major;
+      for (let b = 1; b < beatsPerBar; b++) {
+        const frac = b / beatsPerBar;
+        const approxMidi = Math.round(prevMidi + (targetMidi - prevMidi) * frac);
+        // Find nearest scale tone to approxMidi
+        let bestPc = 0, bestDist = Infinity;
+        for (const iv of scaleInts) {
+          const pc = ((NOTE_ALIASES[cfg.key] ?? 0) + iv) % 12;
+          const oct = Math.round((approxMidi - pc) / 12);
+          const cand = pc + oct * 12;
+          if (Math.abs(cand - approxMidi) < bestDist) { bestDist = Math.abs(cand - approxMidi); bestPc = pc; }
+        }
+        const stepPos = nearestPositionForPc(bestPc, prevMidi, opens, fMin, fMax);
+        if (stepPos) {
+          notes.push(noteDefaults({ t: Number((t + b * beatStep).toFixed(6)), s: stepPos.s, f: stepPos.f, sus: beatStep * 0.9 }));
+          prevMidi = opens[stepPos.s] + stepPos.f;
+        }
+      }
+      t += mLen;
+    }
+    if (!notes.length) throw new Error('No walking bass notes generated.');
+    return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration: Math.max(t, totalTime) };
+  }
+
+  function buildHybridPickingExercise(cfg) {
+    const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
+    const allPos = scalePositionsForSystem(cfg);
+    if (!allPos.length) throw new Error('No notes in range.');
+    const byStr = {};
+    for (const p of allPos) (byStr[p.s] || (byStr[p.s] = [])).push(p);
+    const strings = Object.keys(byStr).map(Number).sort((a, b) => b - a); // low E first
+    // Pair consecutive strings: pick low, pluck high, creating the hybrid pattern
+    const events = [];
+    for (let i = 0; i + 1 < strings.length; i++) {
+      const lo = byStr[strings[i]].sort((a, b) => a.f - b.f);
+      const hi = byStr[strings[i + 1]].sort((a, b) => a.f - b.f);
+      const len = Math.max(lo.length, hi.length);
+      for (let j = 0; j < len; j++) {
+        events.push(lo[j % lo.length]);
+        events.push(hi[j % hi.length]);
+      }
+    }
+    if (!events.length) throw new Error('Need ≥ 2 strings for hybrid picking.');
+    const seq = orientSeq(events, cfg.direction);
+    const sus = Math.max(0.05, step * 0.88);
+    return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Hybrid picking — ${cfg.key} ${cfg.scale}` });
+  }
+
+  function buildTriadicPairsExercise(cfg) {
+    const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
+    const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+    const scaleInts = SCALE_INTERVALS[cfg.scale] || SCALE_INTERVALS.major;
+    const opens = openMidisForConfig(cfg);
+    const fMin = cfg.fretMin || 0, fMax = cfg.fretMax || 12;
+    // Triad 1: degrees 1-3-5 (indices 0,2,4); Triad 2: degrees 3-5-7 (indices 2,4,6)
+    const t1Pcs = [0, 2, 4].map(i => (keyPc + scaleInts[i % scaleInts.length]) % 12);
+    const t2Pcs = [2, 4, 6].map(i => (keyPc + scaleInts[i % scaleInts.length]) % 12);
+    function findNotes(pcs) {
+      const out = [];
+      for (let s = 0; s < opens.length; s++)
+        for (let f = fMin; f <= fMax; f++) {
+          const pc = ((opens[s] + f) % 12 + 12) % 12;
+          if (pcs.includes(pc)) out.push({ s, f, midi: opens[s] + f });
+        }
+      return out.sort((a, b) => a.midi - b.midi);
+    }
+    const t1 = findNotes(t1Pcs), t2 = findNotes(t2Pcs);
+    if (!t1.length || !t2.length) throw new Error('Not enough chord tones for triadic pairs.');
+    const events = [];
+    const len = Math.max(t1.length, t2.length);
+    for (let i = 0; i < len; i++) { events.push(t1[i % t1.length]); events.push(t2[i % t2.length]); }
+    const seq = orientSeq(events, cfg.direction);
+    const sus = Math.max(0.05, step * 0.88);
+    return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Triadic pairs — ${cfg.key} ${cfg.scale}` });
+  }
+
+  function buildPentatonicSuperExercise(cfg) {
+    const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
+    const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+    // Superimpose minor pentatonic from the b3 above the root — gives Dorian flavor
+    const superRoot = (keyPc + 3) % 12;
+    const pentInts = SCALE_INTERVALS.minor_pentatonic;
+    const superPcs = pentInts.map(i => (superRoot + i) % 12);
+    const opens = openMidisForConfig(cfg);
+    const fMin = cfg.fretMin || 0, fMax = cfg.fretMax || 12;
+    const positions = [];
+    for (let s = 0; s < opens.length; s++)
+      for (let f = fMin; f <= fMax; f++) {
+        const pc = ((opens[s] + f) % 12 + 12) % 12;
+        if (superPcs.includes(pc)) positions.push({ s, f, midi: opens[s] + f });
+      }
+    if (!positions.length) throw new Error('No superimposed pentatonic notes in range.');
+    const sorted = positions.sort((a, b) => a.midi - b.midi);
+    const seq = orientSeq(sorted, cfg.direction);
+    const sus = Math.max(0.05, step * 0.88);
+    const superName = pcName(superRoot);
+    return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Pent. superimposition — ${superName}m over ${cfg.key}` });
+  }
+
+  function buildShellVoicingsExercise(cfg) {
+    const mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
+    const opens = openMidisForConfig(cfg);
+    const degrees = progressionDegreesForConfig(cfg);
+    const fMin = cfg.fretMin || 0, fMax = cfg.fretMax || 12;
+    const notes = [], sections = [{ name: `Shell voicings — ${cfg.key}`, number: 1, time: 0 }];
+    let prevMidi = 48, t = 0, bar = 0;
+    while (t < totalTime - 0.001) {
+      const deg = degrees[bar % degrees.length];
+      const rootPc = chordRootForDegree(cfg, deg);
+      const quality = chordQualityForDegree(cfg.scale, 'seventh', deg, cfg.chordOverride, cfg.progression);
+      const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj7;
+      // Shell: root (0), 3rd (index 1), 7th (index 3 or fall back to 5th)
+      const shellIdxs = [0, 1, formula.intervals[3] != null ? 3 : 2];
+      for (let b = 0; b < 3; b++) {
+        const pc = (rootPc + formula.intervals[shellIdxs[b]]) % 12;
+        const pos = nearestPositionForPc(pc, prevMidi, opens, fMin, fMax);
+        if (pos) {
+          const noteT = t + (b / 3) * mLen;
+          if (noteT < totalTime)
+            notes.push(noteDefaults({ t: Number(noteT.toFixed(6)), s: pos.s, f: pos.f, sus: Math.max(0.1, mLen / 3 * 0.9) }));
+          prevMidi = opens[pos.s] + pos.f;
+        }
+      }
+      t += mLen; bar++;
+    }
+    if (!notes.length) throw new Error('No shell voicing notes generated.');
+    return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration: Math.max(t, totalTime) };
+  }
+
+  function buildOctaveDisplacementExercise(cfg) {
+    const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
+    const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+    const scaleInts = SCALE_INTERVALS[cfg.scale] || SCALE_INTERVALS.major;
+    const opens = openMidisForConfig(cfg);
+    const fMin = cfg.fretMin || 0, fMax = Math.min(24, (cfg.fretMax || 12) + 12);
+    const events = [];
+    for (const iv of scaleInts) {
+      const pc = (keyPc + iv) % 12;
+      const instances = [];
+      for (let s = 0; s < opens.length; s++)
+        for (let f = fMin; f <= fMax; f++)
+          if (((opens[s] + f) % 12 + 12) % 12 === pc) instances.push({ s, f, midi: opens[s] + f });
+      instances.sort((a, b) => a.midi - b.midi);
+      // Find a pair exactly one octave apart
+      for (let i = 0; i + 1 < instances.length; i++) {
+        if (instances[i + 1].midi - instances[i].midi === 12) {
+          events.push(instances[i]); events.push(instances[i + 1]); break;
+        }
+      }
+    }
+    if (!events.length) throw new Error('No octave pairs in range — expand fret range.');
+    const seq = orientSeq(events, cfg.direction);
+    const sus = Math.max(0.05, step * 0.88);
+    return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Octave displacement — ${cfg.key} ${cfg.scale}` });
+  }
+
+  // ── End additional generators ───────────────────────────────────────────────
+
   const CYCLE_KEY_ORDERS = {
     circle_of_fourths: ['C','F','Bb','Eb','Ab','Db','Gb','B','E','A','D','G'],
     circle_of_fifths:  ['C','G','D','A','E','B','Gb','Db','Ab','Eb','Bb','F'],
@@ -1782,8 +2360,29 @@
     if (mode === 'scale' || mode === 'modal_vamp') return buildScaleExercise(cfg);
     if (mode === 'chord_scales')      return buildChordScaleExercise(cfg);
     if (mode === 'sweep_arpeggios')   return buildSweepArpeggioExercise(cfg);
-    if (mode === 'chromatic')         return buildChromaticExercise(cfg);
-    if (mode === 'guide_tones')       return buildGuideTonesExercise(cfg);
+    if (mode === 'chromatic')              return buildChromaticExercise(cfg);
+    if (mode === 'guide_tones')            return buildGuideTonesExercise(cfg);
+    if (mode === 'bending')                return buildBendingExercise(cfg);
+    if (mode === 'legato')                 return buildLegatoExercise(cfg);
+    if (mode === 'vibrato')                return buildVibratoExercise(cfg);
+    if (mode === 'scale_thirds')           return buildScaleThirdsExercise(cfg);
+    if (mode === 'scale_sixths')           return buildScaleSixthsExercise(cfg);
+    if (mode === 'call_response')          return buildCallResponseExercise(cfg);
+    if (mode === 'tremolo_picking')        return buildTremoloPickingExercise(cfg);
+    if (mode === 'tapping')                return buildTappingExercise(cfg);
+    if (mode === 'pedal_point')            return buildPedalPointExercise(cfg);
+    if (mode === 'string_skipping')        return buildStringSkippingExercise(cfg);
+    if (mode === 'position_shift')         return buildPositionShiftExercise(cfg);
+    if (mode === 'rhythmic_displacement')  return buildRhythmicDisplacementExercise(cfg);
+    if (mode === 'chromatic_enclosures')   return buildChromaticEnclosuresExercise(cfg);
+    if (mode === 'bebop_scale')            return buildBebopScaleExercise(cfg);
+    if (mode === 'arpeggio_inversions')    return buildArpeggioInversionsExercise(cfg);
+    if (mode === 'walking_bass')           return buildWalkingBassExercise(cfg);
+    if (mode === 'hybrid_picking')         return buildHybridPickingExercise(cfg);
+    if (mode === 'triadic_pairs')          return buildTriadicPairsExercise(cfg);
+    if (mode === 'pentatonic_super')       return buildPentatonicSuperExercise(cfg);
+    if (mode === 'shell_voicings')         return buildShellVoicingsExercise(cfg);
+    if (mode === 'octave_displacement')    return buildOctaveDisplacementExercise(cfg);
     return buildArpeggioExercise(cfg, progressionDegreesForConfig(cfg));
   }
 
@@ -2956,16 +3555,65 @@
     osc1.stop(stopAt); osc2.stop(stopAt);
     audioNodes.push(osc1, osc2, preGain, filter, gain);
   }
-  function scheduleHarmonyPad(ctx, when, midis, dur, instrument) {
+  function scheduleHarmonyPad(ctx, when, midis, dur, instrument, tone) {
     if (!midis.length) return;
+    tone = tone || 'pad';
+
+    if (tone === 'organ') {
+      // Hammond drawbar simulation — additive sines, instant on/off, flat envelope
+      const RATIOS = [1, 2, 3, 4, 5, 6, 8];
+      const VOLS   = [0.8, 0.5, 0.35, 0.25, 0.18, 0.12, 0.08];
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.13 / Math.max(1, midis.length), when);
+      master.connect(ctx.destination);
+      audioNodes.push(master);
+      midis.slice(0, 4).forEach(midi => {
+        RATIOS.forEach((r, ri) => {
+          const osc = ctx.createOscillator(), g = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(midiToFreq(midi) * r, when);
+          g.gain.setValueAtTime(VOLS[ri], when);
+          osc.connect(g); g.connect(master);
+          osc.start(when); osc.stop(when + dur);
+          audioNodes.push(osc, g);
+        });
+      });
+      return;
+    }
+
+    if (tone === 'epiano') {
+      // Rhodes feel — triangle fundamental, fast percussive decay to sustain, bell partial
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.0001, when);
+      master.gain.exponentialRampToValueAtTime(0.28, when + 0.003);
+      master.gain.exponentialRampToValueAtTime(0.09, when + Math.min(0.38, dur * 0.35));
+      master.gain.linearRampToValueAtTime(0.06, when + Math.max(0.39, dur - 0.06));
+      master.gain.linearRampToValueAtTime(0.0001, when + dur);
+      master.connect(ctx.destination);
+      audioNodes.push(master);
+      midis.slice(0, 4).forEach(midi => {
+        const osc = ctx.createOscillator(), bell = ctx.createOscillator();
+        const g = ctx.createGain(), gb = ctx.createGain();
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(midiToFreq(midi), when);
+        bell.type = 'sine'; bell.frequency.setValueAtTime(midiToFreq(midi) * 2, when);
+        g.gain.setValueAtTime(0.65, when); gb.gain.setValueAtTime(0.09, when);
+        osc.connect(g); g.connect(master);
+        bell.connect(gb); gb.connect(master);
+        osc.start(when); osc.stop(when + dur + 0.05);
+        bell.start(when); bell.stop(when + dur + 0.05);
+        audioNodes.push(osc, bell, g, gb);
+      });
+      return;
+    }
+
+    // pad (default) — triangle+sawtooth mix, lowpass, slow attack/release
     const master = ctx.createGain(), filter = ctx.createBiquadFilter();
     filter.type = 'lowpass'; filter.frequency.setValueAtTime(instrument === 'bass' ? 1150 : 1900, when); filter.Q.setValueAtTime(0.7, when);
     master.gain.setValueAtTime(0.0001, when); master.gain.exponentialRampToValueAtTime(0.24, when + 0.012); master.gain.linearRampToValueAtTime(0.18, when + Math.max(0.08, dur - 0.16)); master.gain.linearRampToValueAtTime(0.0001, when + dur);
     filter.connect(master); master.connect(ctx.destination);
     audioNodes.push(filter, master);
     midis.slice(0, 5).forEach((midi, i) => {
-      const osc = ctx.createOscillator();
-      const g = ctx.createGain();
+      const osc = ctx.createOscillator(), g = ctx.createGain();
       osc.type = i === 0 ? 'triangle' : 'sawtooth';
       osc.frequency.setValueAtTime(midiToFreq(midi), when);
       osc.detune.setValueAtTime((i - 2) * 3, when);
@@ -2997,7 +3645,7 @@
     if (audio.harmony) for (const ev of bundle.backingEvents || []) {
       if (ev.end < startFrom || ev.t > duration + 0.1) continue;
       const start = Math.max(ev.t, startFrom), end = Math.min(ev.end, duration);
-      scheduleHarmonyPad(ctx, base + (start - startFrom), ev.midis || [], Math.max(0.2, end - start), instrument);
+      scheduleHarmonyPad(ctx, base + (start - startFrom), ev.midis || [], Math.max(0.2, end - start), instrument, audio.harmonyTone || 'pad');
     }
     if (audio.notes) for (const n of bundle.notes || []) {
       if (n.t < startFrom || n.t > duration + 0.1) continue;
@@ -3008,6 +3656,8 @@
   }
   function startPlayback() {
     if (!activeBundle) return;
+    sessionEnd(); // flush any in-progress session before starting a new one
+    sessionBegin();
     stopAudio(); syncHighwaySettings(activeBundle);
     playing = true;
     playAnchorChartTime = currentPracticeTime;
@@ -3043,7 +3693,7 @@
       scheduleClick(ctx, when, (i % beatsPerBar) === 0);
     }
   }
-  function stopPlayback() { playing = false; currentPracticeTime = 0; playAnchorChartTime = 0; countInUntilMs = 0; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
+  function stopPlayback() { sessionEnd(); playing = false; currentPracticeTime = 0; playAnchorChartTime = 0; countInUntilMs = 0; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
   // Toggle for the primary Play/Stop button. If we don't have a chart yet,
   // generate one first so the very first click always plays something.
   async function onPlayToggle() {
@@ -3556,7 +4206,7 @@
   // and in pathway mode those controls are hidden anyway.
   function markPathwayModifiedIfApplicable(targetName) {
     if (!activePathwayId || activePathwayId === 'custom') return;
-    const ignore = new Set(['pathway', 'shape', 'fretboardSystem', 'fretMin', 'fretMax', 'key', 'bpm', 'audioNotes', 'audioMetronome', 'audioHarmony']);
+    const ignore = new Set(['pathway', 'shape', 'fretboardSystem', 'fretMin', 'fretMax', 'key', 'bpm', 'audioNotes', 'audioMetronome', 'audioHarmony', 'harmonyTone']);
     if (ignore.has(targetName)) return;
     updatePathwayGoalCard(activePathwayId, true);
   }
@@ -3613,6 +4263,7 @@
       syncTempoTierButtons();
       syncScaleDropdown(id);
       updateShapeButton();
+      renderSkillTree();
       return;
     }
     const preset = window.__slopscaleFavorites && window.__slopscaleFavorites[id];
@@ -3621,6 +4272,7 @@
       setPathwayModeClass(true);
       updatePathwayGoalCard(null, false, preset);
     }
+    renderSkillTree();
   }
 
   // Updates the "Next shape" button text to show the active shape and its
@@ -3730,10 +4382,16 @@
     const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
     const tiers = pw && pw.tempoTiers ? pw.tempoTiers : null;
     if (!tiers || !tiers.length) return;
+    const ptData = pathwayTiersLoad();
+    const highestCleared = (ptData[activePathwayId] || {}).highest_tier ?? -1;
     tiers.forEach((bpm, i) => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'slopscale-tier-btn' + (i === activeTempoTierIdx ? ' active' : '');
+      let cls = 'slopscale-tier-btn';
+      if (i === activeTempoTierIdx) cls += ' active';
+      if (i <= highestCleared) cls += ' cleared';
+      if (i === _newlyUnlockedTier) cls += ' tier-glow';
+      btn.className = cls;
       btn.innerHTML = `<span class="tier-name">${TIER_LABELS[i] || `T${i+1}`}</span><span class="tier-bpm">${bpm} BPM</span>`;
       btn.addEventListener('click', () => {
         activeTempoTierIdx = i;
@@ -3742,6 +4400,57 @@
         onGenerate();
       });
       container.appendChild(btn);
+    });
+  }
+
+  function renderSkillTree() {
+    const container = $('slopscale-skill-tree');
+    if (!container) return;
+    const ptData = pathwayTiersLoad();
+    // Build inner wrapper + SVG edge layer + node buttons
+    container.innerHTML = '<div class="slopscale-tree-inner" id="slopscale-tree-inner"></div>';
+    const inner = container.firstChild;
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'slopscale-tree-edges');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    // Draw edges first so nodes render on top
+    const nodeMap = Object.fromEntries(SKILL_TREE_NODES.map(n => [n.id, n]));
+    SKILL_TREE_EDGES.forEach(([aId, bId]) => {
+      const a = nodeMap[aId], b = nodeMap[bId];
+      if (!a || !b) return;
+      const line = document.createElementNS(NS, 'line');
+      line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
+      line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+      line.setAttribute('class', 'tree-edge');
+      svg.appendChild(line);
+    });
+    inner.appendChild(svg);
+    // Draw nodes
+    SKILL_TREE_NODES.forEach(node => {
+      const pw = PATHWAYS[node.id];
+      if (!pw) return;
+      const highestTier = (ptData[node.id] || {}).highest_tier ?? -1;
+      const isActive = node.id === activePathwayId;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'slopscale-tree-node' + (isActive ? ' active' : '');
+      wrapper.style.left = node.x + '%';
+      wrapper.style.top  = node.y + '%';
+      const tiers = (pw.tempoTiers || []).map((_, i) =>
+        `<span class="tree-tier-dot${i <= highestTier ? ' cleared' : ''}"></span>`
+      ).join('');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'slopscale-tree-node-btn';
+      btn.title = pw.label;
+      btn.innerHTML = `<span>${node.short}</span><span class="tree-node-tiers">${tiers}</span>`;
+      btn.addEventListener('click', () => {
+        const sel = $('slopscale-pathway');
+        if (sel) { sel.value = node.id; sel.dispatchEvent(new Event('change')); }
+      });
+      wrapper.appendChild(btn);
+      inner.appendChild(wrapper);
     });
   }
 
@@ -3777,9 +4486,14 @@
   function syncChromaticVisibility() {
     const practiceTypeEl = document.querySelector('[name="practiceType"]');
     const mode = practiceTypeEl ? practiceTypeEl.value : '';
-    const isChromatic = mode === 'chromatic';
     document.querySelectorAll('.slopscale-chromatic-only').forEach(el => {
-      el.style.display = isChromatic ? '' : 'none';
+      el.style.display = mode === 'chromatic' ? '' : 'none';
+    });
+    document.querySelectorAll('.slopscale-guide-tones-only').forEach(el => {
+      el.style.display = mode === 'guide_tones' ? '' : 'none';
+    });
+    document.querySelectorAll('.slopscale-bending-only').forEach(el => {
+      el.style.display = mode === 'bending' ? '' : 'none';
     });
   }
 
@@ -3825,6 +4539,9 @@
 
   function stopPitchTracker() {
     if (_ptHandle) { try { _ptHandle.stop(); } catch (_) {} _ptHandle = null; }
+    // Clear scoring state so a later silent preview can't read this run's
+    // notes/hits and feed stale hit/miss counts to the pathway tier gate.
+    _ptNotes = []; _ptScored = new Set();
     ptUpdateMeter({ show: false });
   }
 
@@ -3846,6 +4563,180 @@
     }
   }
   // ── End pitch tracker ──────────────────────────────────────────────────────
+
+  // ── Session logger ─────────────────────────────────────────────────────────
+  // Append-only log of every practice session. Soft-gamification model:
+  // logs silently regardless of mode, never gates anything.
+  // Schema: { id, date, ts, mode, pathway_id, bpm, bpm_tier, scale, key,
+  //           practice_type, duration_ms, hit_count, miss_count }
+
+  function sessionsLoad() {
+    try { return JSON.parse(localStorage.getItem('slopscale.sessions') || '[]'); }
+    catch { return []; }
+  }
+
+  function sessionsSave(arr) {
+    try { localStorage.setItem('slopscale.sessions', JSON.stringify(arr.slice(0, 500))); }
+    catch (e) { console.warn('[SlopScale] session save failed', e); }
+  }
+
+  // ── Pathway tier progress ───────────────────────────────────────────────────
+  // Schema: { [pathway_id]: { highest_tier: number } }
+  // highest_tier: -1 = none cleared, 0-3 = highest index cleared.
+  // Accuracy gate: if pitch tracker ran (hit+miss > 0) and accuracy < 65%, skip.
+  // Passive attribution: custom sessions within ±5 BPM of a pathway tier BPM
+  // count toward that pathway.
+  // SDK: emits window.slopsmith 'slopscale:tier:unlocked' when a new high is set.
+  function pathwayTiersLoad() {
+    try { return JSON.parse(localStorage.getItem('slopscale.pathway_tiers') || '{}'); }
+    catch { return {}; }
+  }
+  function pathwayTiersSave(obj) {
+    try { localStorage.setItem('slopscale.pathway_tiers', JSON.stringify(obj)); }
+    catch (e) { console.warn('[SlopScale] pathway tier save failed', e); }
+  }
+  function _updatePathwayTier(pathwayId, tier) {
+    const all = pathwayTiersLoad();
+    const cur = all[pathwayId] || { highest_tier: -1 };
+    if (tier <= cur.highest_tier) return null;
+    all[pathwayId] = { highest_tier: tier };
+    pathwayTiersSave(all);
+    if (window.slopsmith && typeof window.slopsmith.emit === 'function') {
+      window.slopsmith.emit('slopscale:tier:unlocked', {
+        pathway: pathwayId, tier, label: TIER_LABELS[tier] || `T${tier + 1}`
+      });
+    }
+    return { pathwayId, tier };
+  }
+  function advancePathwayTier(session) {
+    const total = (session.hit_count || 0) + (session.miss_count || 0);
+    const accurate = total === 0 || (session.hit_count || 0) / total >= 0.65;
+    if (!accurate) return null;
+    if (session.mode === 'pathway' && session.pathway_id && PATHWAYS[session.pathway_id]) {
+      const tier = session.bpm_tier;
+      if (tier != null && tier >= 0) return _updatePathwayTier(session.pathway_id, tier);
+    }
+    if (session.mode === 'custom' && session.bpm != null) {
+      for (const [pwId, pw] of Object.entries(PATHWAYS)) {
+        const tiers = pw.tempoTiers || [];
+        let matchedTier = -1;
+        tiers.forEach((t, i) => { if (Math.abs(session.bpm - t) <= 5) matchedTier = Math.max(matchedTier, i); });
+        if (matchedTier >= 0) {
+          const r = _updatePathwayTier(pwId, matchedTier);
+          if (r) return r;
+        }
+      }
+    }
+    return null;
+  }
+  // ── End pathway tier progress ───────────────────────────────────────────────
+
+  function sessionBegin() {
+    const isSessionMode = $('slopscale-root')?.classList.contains('slopscale-session-mode');
+    let mode, pathway_id, bpm, bpm_tier, scale, key, practice_type;
+
+    if (isSessionMode) {
+      mode = 'session';
+      pathway_id = $('slopscale-session-select')?.value || null;
+      bpm = null; bpm_tier = null;
+      const firstSeg = activeBundle?.session?.segments?.[0]?.config;
+      scale = firstSeg?.scale || null;
+      key   = firstSeg?.key   || null;
+      practice_type = 'session';
+    } else {
+      const cfg = activeBundle?.session || readConfig();
+      const pathwayEl = document.querySelector('[name="pathway"]');
+      const pathwayId = pathwayEl?.value || 'custom';
+      mode = pathwayId === 'custom' ? 'custom' : 'pathway';
+      pathway_id = mode === 'pathway' ? pathwayId : null;
+      bpm = cfg.bpm;
+      scale = cfg.scale;
+      key   = cfg.key;
+      practice_type = cfg.practiceType || cfg.mode || 'scale';
+      // Tier = index of highest tempoTier the current BPM meets or exceeds
+      bpm_tier = null;
+      if (mode === 'pathway' && PATHWAYS[pathwayId]) {
+        const tiers = PATHWAYS[pathwayId].tempoTiers;
+        bpm_tier = tiers.reduce((best, t, i) => bpm >= t ? i : best, 0);
+      }
+    }
+
+    const now = Date.now();
+    _activeSession = {
+      id: `${now}-${Math.random().toString(36).slice(2, 7)}`,
+      date: localDateStr(),
+      ts: now, mode, pathway_id, bpm, bpm_tier, scale, key, practice_type,
+      duration_ms: 0, hit_count: 0, miss_count: 0
+    };
+    _sessionStartMs = performance.now();
+  }
+
+  function sessionEnd() {
+    if (!_activeSession) return;
+    const durationMs = Math.round(performance.now() - _sessionStartMs);
+    // Discard sub-2s blips (accidental clicks, regenerate-while-playing)
+    if (durationMs < 2000) { _activeSession = null; return; }
+    const passedTotal = _ptNotes.filter(n => n.t + (n.sus || 0.24) + 0.06 < currentPracticeTime).length;
+    _activeSession.duration_ms = durationMs;
+    _activeSession.hit_count   = _ptScored.size;
+    _activeSession.miss_count  = Math.max(0, passedTotal - _ptScored.size);
+    const sessions = sessionsLoad();
+    sessions.unshift(_activeSession);
+    sessionsSave(sessions);
+    const unlock = advancePathwayTier(_activeSession);
+    _activeSession = null;
+    if (unlock) { _newlyUnlockedTier = unlock.tier; syncTempoTierButtons(); renderSkillTree(); _newlyUnlockedTier = null; }
+    syncProgressStrip();
+  }
+
+  function localDateStr(d = new Date()) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function streakCount(sessions) {
+    const practiced = new Set(sessions.map(s => s.date));
+    const today = localDateStr();
+    const yesterday = localDateStr(new Date(Date.now() - 86400000));
+    // Streak is alive if today or yesterday has a session (grace until midnight)
+    if (!practiced.has(today) && !practiced.has(yesterday)) return 0;
+    let count = 0;
+    let d = practiced.has(today) ? new Date() : new Date(Date.now() - 86400000);
+    while (practiced.has(localDateStr(d))) {
+      count++;
+      d = new Date(d.getTime() - 86400000);
+    }
+    return count;
+  }
+
+  function last7Days(sessions) {
+    const practiced = new Set(sessions.map(s => s.date));
+    const DAY_LETTERS = ['S','M','T','W','T','F','S'];
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(Date.now() - (6 - i) * 86400000);
+      const date = localDateStr(d);
+      return { date, letter: DAY_LETTERS[d.getDay()], practiced: practiced.has(date), isToday: i === 6 };
+    });
+  }
+
+  function syncProgressStrip() {
+    const sessions = sessionsLoad();
+    const streak = streakCount(sessions);
+    const numEl = $('slopscale-streak-num');
+    if (numEl) {
+      numEl.textContent = streak;
+      numEl.classList.toggle('active', streak > 0);
+    }
+    const calEl = $('slopscale-cal-dots');
+    if (!calEl) return;
+    calEl.innerHTML = last7Days(sessions).map(d =>
+      `<div class="slopscale-cal-day${d.isToday ? ' today' : ''}">` +
+      `<div class="slopscale-cal-dot${d.practiced ? ' practiced' : ''}"></div>` +
+      `<span class="slopscale-cal-lbl">${d.letter}</span>` +
+      `</div>`
+    ).join('');
+  }
+
+  // ── End session logger ─────────────────────────────────────────────────────
 
   // ── Session UI ─────────────────────────────────────────────────────────────
 
@@ -3932,9 +4823,10 @@
     const btn = $('slopscale-launch-session');
     const summary = $('slopscale-summary');
     const audio = {
-      notes:   !!document.getElementById('slopscale-session-audio-notes')?.checked,
-      metronome: !!document.getElementById('slopscale-session-audio-metronome')?.checked,
-      harmony: !!document.getElementById('slopscale-session-audio-harmony')?.checked,
+      notes:      !!document.getElementById('slopscale-session-audio-notes')?.checked,
+      metronome:  !!document.getElementById('slopscale-session-audio-metronome')?.checked,
+      harmony:    !!document.getElementById('slopscale-session-audio-harmony')?.checked,
+      harmonyTone: document.getElementById('slopscale-session-audio-harmony-tone')?.value || 'pad',
     };
     // Pre-warm the AudioContext while still in the button-click user-gesture context
     // (before any await). Without this, new AudioContext() created inside the
@@ -4241,6 +5133,20 @@
       // does not feel sluggish.
       if (activeBundle) onGenerate();
     });
+    // Skill tree mode-switch buttons
+    $('slopscale-tree-custom')?.addEventListener('click', () => {
+      const sel = $('slopscale-pathway');
+      if (sel) { sel.value = 'custom'; sel.dispatchEvent(new Event('change')); }
+    });
+    $('slopscale-tree-back')?.addEventListener('click', () => {
+      const sel = $('slopscale-pathway');
+      if (!sel) return;
+      let stored = null;
+      try { stored = localStorage.getItem(PATHWAY_STORAGE_KEY); } catch (_) {}
+      const valid = stored && stored !== 'custom' && Array.from(sel.options).some(o => o.value === stored);
+      sel.value = valid ? stored : 'pent_foundation';
+      sel.dispatchEvent(new Event('change'));
+    });
     // Session mode toggle
     $('slopscale-mode-single')?.addEventListener('click', () => {
       syncSessionMode('single');
@@ -4262,6 +5168,7 @@
     syncShapeDropdown();
     syncShapeDropdownSelectionToHidden();
     applyInitialPathway();
+    renderSkillTree();
     // If the URL carries a share hash, replay the snapshotted form values
     // *after* applyInitialPathway has set up the pathway-driven defaults.
     // The share state wins over the pathway defaults, but the pathway
@@ -4280,6 +5187,12 @@
     window.addEventListener('storage', (ev) => { if (ev.key === 'invertHighway' || ev.key === 'lefty' || ev.key === 'renderScale') refreshForHostSettingChange(); });
     window.addEventListener('focus', refreshForHostSettingChange);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshForHostSettingChange(); });
+    // Flush any in-progress session on page hide / unload so duration is saved
+    // even if the user closes the tab or navigates away while the preview plays.
+    const onPageHide = () => { if (playing) sessionEnd(); };
+    window.addEventListener('beforeunload', onPageHide);
+    window.addEventListener('pagehide', onPageHide);
+    syncProgressStrip();
     // Defend against blank-on-load: when the host SPA navigates to the
     // SlopScale screen, re-attach the renderer. The initial bind() may have
     // run while the screen was still hidden (host=0x0), and even the
