@@ -2939,16 +2939,22 @@
     if (!cfg.audio.notes && !cfg.audio.metronome && !cfg.audio.harmony) return;
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
-    const ctx = audioCtx, base = ctx.currentTime + (Number.isFinite(delaySeconds) ? delaySeconds : AUDIO_LOOKAHEAD_SECONDS), startFrom = fromTime || 0, opens = openMidisForConfig(cfg), duration = bundle.songInfo?.duration || 0;
+    const ctx = audioCtx, base = ctx.currentTime + (Number.isFinite(delaySeconds) ? delaySeconds : AUDIO_LOOKAHEAD_SECONDS), startFrom = fromTime || 0;
+    // Use the bundle's own openMidis so note frequencies always match what was
+    // generated — prevents pitch mismatch when the form's string setup differs
+    // from the exercise (e.g. session generated with 6-string, form shows 8-string).
+    const opens = (bundle.openMidis && bundle.openMidis.length) ? bundle.openMidis : openMidisForConfig(cfg);
+    const instrument = bundle.config?.instrument || cfg.instrument;
+    const duration = bundle.songInfo?.duration || 0;
     if (cfg.audio.harmony) for (const ev of bundle.backingEvents || []) {
       if (ev.end < startFrom || ev.t > duration + 0.1) continue;
       const start = Math.max(ev.t, startFrom), end = Math.min(ev.end, duration);
-      scheduleHarmonyPad(ctx, base + (start - startFrom), ev.midis || [], Math.max(0.2, end - start), cfg.instrument);
+      scheduleHarmonyPad(ctx, base + (start - startFrom), ev.midis || [], Math.max(0.2, end - start), instrument);
     }
     if (cfg.audio.notes) for (const n of bundle.notes || []) {
       if (n.t < startFrom || n.t > duration + 0.1) continue;
       if (n.s < 0 || n.s >= opens.length || n.f < 0) continue;
-      schedulePluckedString(ctx, base + (n.t - startFrom), midiToFreq(opens[n.s] + n.f), Math.max(0.10, Math.min(0.85, n.sus || 0.24)), cfg.instrument, cfg.audio.harmony ? 0.9 : 1.25);
+      schedulePluckedString(ctx, base + (n.t - startFrom), midiToFreq(opens[n.s] + n.f), Math.max(0.10, Math.min(0.85, n.sus || 0.24)), instrument, cfg.audio.harmony ? 0.9 : 1.25);
     }
     if (cfg.audio.metronome) for (const b of bundle.beats || []) { if (b.time < startFrom || b.time > duration + 0.1) continue; scheduleClick(ctx, base + (b.time - startFrom), (b.measure || -1) >= 0); }
   }
@@ -3882,8 +3888,13 @@
       metronome: !!document.getElementById('slopscale-session-audio-metronome')?.checked,
       harmony: !!document.getElementById('slopscale-session-audio-harmony')?.checked,
     };
-    // Clone session; patch audio into each segment config so buildSegmentConfig picks it up
+    // Read current string setup from the form so sessions respect the user's
+    // string-count selection (built-in sessions default to guitar_6_standard
+    // but should use whatever the form has active).
+    const formStringSetup = document.querySelector('[name="stringSetup"]')?.value || null;
+    // Clone session; patch audio + string setup into each segment config
     const session = Object.assign({}, baseSession, {
+      ...(formStringSetup ? { stringSetup: formStringSetup } : {}),
       segments: baseSession.segments.map(seg =>
         Object.assign({}, seg, { config: Object.assign({}, seg.config, { audio }) })
       )
