@@ -821,6 +821,9 @@
 
   let renderer = null, activeBundle = null, rafId = null, lastExercise = null;
   let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
+  // A-B segment loop endpoints in chart-time seconds. Null = no loop.
+  // See docs/section-looping.md for the design + phasing.
+  let segmentLoopA = null, segmentLoopB = null;
   let audioCtx = null, audioNodes = [];
   // Notation renderer is notation-only — tab is its own renderer now.
   const notationMode = 'notation';
@@ -2711,7 +2714,22 @@
       const elapsedMs = Math.max(0, nowMs - playAnchorMs);
       currentPracticeTime = playAnchorChartTime + elapsedMs / 1000;
       const duration = activeBundle.songInfo.duration || 1;
-      if (currentPracticeTime > duration) { currentPracticeTime = 0; playAnchorChartTime = 0; playAnchorMs = nowMs + AUDIO_LOOKAHEAD_SECONDS * 1000; stopAudio(); schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS); }
+      // A-B segment loop wins over whole-chart wrap when both endpoints are
+      // set. No count-in or rewind animation in this phase — just snap to A
+      // and re-schedule audio. (See docs/section-looping.md "Phase 2 — UI"
+      // for the count-in / rewind plan.)
+      if (segmentLoopA != null && segmentLoopB != null && currentPracticeTime >= segmentLoopB) {
+        currentPracticeTime = segmentLoopA;
+        playAnchorChartTime = segmentLoopA;
+        playAnchorMs = nowMs + AUDIO_LOOKAHEAD_SECONDS * 1000;
+        stopAudio();
+        schedulePreviewAudio(activeBundle, segmentLoopA, AUDIO_LOOKAHEAD_SECONDS);
+        if (window.slopsmith && typeof window.slopsmith.emit === 'function') {
+          window.slopsmith.emit('slopscale:loop:wrap', { a: segmentLoopA, b: segmentLoopB, time: segmentLoopA });
+        }
+      } else if (currentPracticeTime > duration) {
+        currentPracticeTime = 0; playAnchorChartTime = 0; playAnchorMs = nowMs + AUDIO_LOOKAHEAD_SECONDS * 1000; stopAudio(); schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS);
+      }
     }
     drawOnce(); rafId = requestAnimationFrame(tick);
   }
@@ -3380,21 +3398,16 @@
     if (!lastExercise) return;
     lastExercise.session.renderer = kind;
     const summary = $('slopscale-summary');
-    // Preserve playback across the switch — attachRenderer tears down the
-    // current renderer (which stops audio and zeroes the playhead), so we
-    // capture the active playback position here and resume after the new
-    // renderer is in place.
-    const wasPlaying = playing;
-    const resumeAt = currentPracticeTime;
+    // Switching views stops playback by design — the user explicitly chose a
+    // new view, so we treat that as a transport break. stopPlayback() resets
+    // the playhead, kills audio, AND updates the Play button label back to
+    // "▶ Play" so the user isn't left looking at a stale "■ Stop".
+    if (playing) stopPlayback();
     try {
       await attachRenderer(lastExercise);
       // Refresh the summary so any prior error text from a failed attach
       // doesn't stick around once a switch succeeds.
       if (summary) summary.textContent = summarize(lastExercise);
-      if (wasPlaying) {
-        currentPracticeTime = resumeAt;
-        startPlayback();
-      }
     } catch (e) {
       console.error('[SlopScale] renderer switch failed', e);
       // Auto-fall back to 2D Highway, which is in-tree and handles any
@@ -3407,7 +3420,6 @@
           lastExercise.session.renderer = 'builtin_2d';
           await attachRenderer(lastExercise);
           if (summary) summary.textContent = summarize(lastExercise);
-          if (wasPlaying) { currentPracticeTime = resumeAt; startPlayback(); }
         } catch (e2) {
           console.error('[SlopScale] fallback to 2D Highway failed', e2);
           if (summary) summary.textContent = `Renderer failed: ${e2.message || e2}`;
@@ -3582,6 +3594,21 @@
     window.addEventListener('storage', (ev) => { if (ev.key === 'invertHighway' || ev.key === 'lefty' || ev.key === 'renderScale') refreshForHostSettingChange(); });
     window.addEventListener('focus', refreshForHostSettingChange);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshForHostSettingChange(); });
+    // Defend against blank-on-load: when the host SPA navigates to the
+    // SlopScale screen, re-attach the renderer. The initial bind() may have
+    // run while the screen was still hidden (host=0x0), and even the
+    // ResizeObserver fallback can fire before the renderer has a stable
+    // size. A re-attach when the screen becomes visible is cheap and makes
+    // the initial paint reliable. (Also covers re-entry after the user
+    // navigated to Library or another screen and came back.)
+    if (window.slopsmith && typeof window.slopsmith.on === 'function') {
+      window.slopsmith.on('screen:changed', (ev) => {
+        if (ev?.detail?.id !== 'plugin-slopscale') return;
+        if (lastExercise) {
+          attachRenderer(lastExercise).catch(e => console.warn('[SlopScale] re-attach on screen show failed', e));
+        }
+      });
+    }
     // Wait until the render host has real dimensions before firing the
     // initial generate. The host may be 0x0 while the plugin screen is
     // still being laid out; if attachRenderer runs against a 0x0 canvas,
@@ -3606,6 +3633,46 @@
   }
   function boot() { if (bind()) return; let tries = 0; const timer = setInterval(() => { tries += 1; if (bind() || tries > 40) clearInterval(timer); }, 250); }
 
-  window.SlopScale = { generateExercise, makeBundle, resolveRendererFactory, readConfig };
+  // A-B segment loop public API. See docs/section-looping.md for the spec.
+  // No UI yet — this is the transport-layer foundation that a phase-2 UI
+  // (or a sibling plugin / driver script) can drive.
+  function setSegmentLoop(a, b) {
+    const aNum = Number(a), bNum = Number(b);
+    if (!Number.isFinite(aNum) || !Number.isFinite(bNum) || bNum <= aNum) {
+      throw new Error(`setSegmentLoop: requires finite a and b with b > a (got a=${a}, b=${b})`);
+    }
+    const duration = activeBundle?.songInfo?.duration ?? Infinity;
+    if (aNum < 0 || bNum > duration + 0.0001) {
+      throw new Error(`setSegmentLoop: endpoints must lie within [0, ${duration}] (got a=${aNum}, b=${bNum})`);
+    }
+    segmentLoopA = aNum;
+    segmentLoopB = bNum;
+    // Seek the playhead to A so the next tick wraps cleanly inside the loop.
+    currentPracticeTime = aNum;
+    if (playing) {
+      // Re-anchor the play clock and re-schedule audio from A so the listener
+      // hears the loop region immediately, not silence until the next wrap.
+      playAnchorChartTime = aNum;
+      playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
+      stopAudio();
+      schedulePreviewAudio(activeBundle, aNum, AUDIO_LOOKAHEAD_SECONDS);
+    } else {
+      drawOnce();
+    }
+    if (window.slopsmith && typeof window.slopsmith.emit === 'function') {
+      window.slopsmith.emit('slopscale:loop:set', { a: aNum, b: bNum });
+    }
+  }
+  function clearSegmentLoop() {
+    if (segmentLoopA == null && segmentLoopB == null) return;
+    segmentLoopA = null;
+    segmentLoopB = null;
+    if (window.slopsmith && typeof window.slopsmith.emit === 'function') {
+      window.slopsmith.emit('slopscale:loop:clear', {});
+    }
+  }
+  function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
+
+  window.SlopScale = { generateExercise, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();

@@ -12,3 +12,6 @@ docs/sources/
 .claude/skills/run-slopscale/audit-ux.mjs
 .claude/skills/run-slopscale/probe-share.mjs
 .claude/skills/run-slopscale/probe-audio.mjs
+.claude/skills/run-slopscale/probe-loop.mjs
+.claude/skills/run-slopscale/probe-blank-load.mjs
+.slopscale-shots/blank-load.png
