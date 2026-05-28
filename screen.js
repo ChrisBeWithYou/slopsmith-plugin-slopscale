@@ -1998,8 +1998,9 @@
     // Strings stacked top-to-bottom; fret numbers sit ON the string lines.
     // Time scrolls right-to-left through a fixed playhead.
     // String convention: s=0=lowE (same as the rest of SlopScale).
-    // With invertHighway=false (default): low E at top, high e at bottom.
-    // With invertHighway=true: high e at top, low E at bottom (GP/standard tab layout).
+    // Orientation: ALWAYS standard tab layout — high e at top, low E at bottom.
+    // Tab notation is a reading convention, not a highway display preference,
+    // so invertHighway is intentionally ignored here.
     let canvas = null, ctx = null, W = 0, H = 0;
     const LEFT_PAD = 56, RIGHT_PAD = 28, TOP_PAD = 70, BOTTOM_PAD = 56;
     const AHEAD = 6, BEHIND = 1.2;
@@ -2012,9 +2013,10 @@
       canvas.width = W;
       canvas.height = H;
     }
-    function laneY(s, count, inverted) {
+    function laneY(s, count) {
+      // Standard tab: high e (s=nStr-1) at top, low E (s=0) at bottom.
       const top = TOP_PAD, bottom = H - BOTTOM_PAD;
-      const visualIndex = inverted ? (count - 1 - s) : s;
+      const visualIndex = count - 1 - s;
       const step = (bottom - top) / Math.max(1, count - 1);
       return top + visualIndex * step;
     }
@@ -2033,11 +2035,11 @@
       ctx.strokeRect(LEFT_PAD - 8, TOP_PAD - 8, W - LEFT_PAD - RIGHT_PAD + 12, H - TOP_PAD - BOTTOM_PAD + 16);
     }
 
-    function drawStaff(nStr, inverted, openMidis) {
+    function drawStaff(nStr, openMidis) {
       ctx.strokeStyle = '#5c5340';
       ctx.lineWidth = 1;
       for (let s = 0; s < nStr; s++) {
-        const y = laneY(s, nStr, inverted);
+        const y = laneY(s, nStr);
         ctx.beginPath(); ctx.moveTo(LEFT_PAD, y); ctx.lineTo(W - RIGHT_PAD, y); ctx.stroke();
         ctx.fillStyle = '#3a3528';
         ctx.font = '700 12px ui-monospace, Menlo, Consolas, monospace';
@@ -2160,13 +2162,13 @@
       }
     }
 
-    function drawNotes(bundle, now, nStr, inverted) {
+    function drawNotes(bundle, now, nStr) {
       // First pass: sustains and dead-note Xs
       for (const n of bundle.notes || []) {
         const dt = n.t - now;
         if (dt < -BEHIND || dt > AHEAD) continue;
         const x = xForDt(dt);
-        const y = laneY(n.s, nStr, inverted);
+        const y = laneY(n.s, nStr);
         if ((n.sus || 0) > 0) {
           const x2 = xForDt(dt + n.sus);
           ctx.strokeStyle = 'rgba(120,53,15,0.35)';
@@ -2179,7 +2181,7 @@
         const dt = n.t - now;
         if (dt < -BEHIND || dt > AHEAD) continue;
         const x = xForDt(dt);
-        const y = laneY(n.s, nStr, inverted);
+        const y = laneY(n.s, nStr);
         // Erase the staff line behind the fret number so it stays readable
         const fretText = n.mt ? 'x' : String(n.f);
         const padW = Math.max(14, fretText.length * 8 + 4);
@@ -2215,15 +2217,14 @@
       resize();
       const now = bundle.currentTime || 0;
       const nStr = Math.max(1, bundle.stringCount || 6);
-      const inverted = !!bundle.inverted;
       const openMidis = bundle.openMidis || null;
 
       drawBackground();
-      drawStaff(nStr, inverted, openMidis);
+      drawStaff(nStr, openMidis);
       drawBarLines(bundle, now);
       drawBackingChordRow(bundle, now);
       drawChordNames(bundle, now);
-      drawNotes(bundle, now, nStr, inverted);
+      drawNotes(bundle, now, nStr);
       drawSectionMarkers(bundle, now);
       drawPlayhead();
       drawHud(bundle, now);
