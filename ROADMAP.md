@@ -138,7 +138,21 @@
 
 ---
 
-## Phase 3 — Exercise Library Expansion
+## Phase 3 — Audio Enrichment
+*Richer practice audio without turning SlopScale into a backing-track app.*
+
+### Harmony tone selector
+- 🔲 Add a `harmonyTone` control to the Preview Audio section: **Synth pad** (current) / **E-piano** (triangle+sine, sharp attack, fast decay — Rhodes feel) / **Organ** (additive sines, instant on/off, flat envelope). All three pure Web Audio, zero dependencies, ~50 lines.
+
+### Backing track generator (intentional future scope)
+- 🔲 **WebAudioFont or Tone.js Sampler** — load GM-compatible instrument samples from a CDN (piano, acoustic guitar, bass, etc.) for real sampled chord pads. Trigger on each backing event the same way oscillators are today. No audio stem generation needed — purely frontend.
+- 🔲 **Groove engine** — optional rhythmic strumming pattern applied to the chord voicings (straight 4, bossa, shuffle 8ths). Pairs with the sampler above.
+- 🔲 **Tempo-sync metronome variations** — hi-hat pattern, rimshot, brushes; selectable alongside the current click-track.
+- 🔲 Prerequisite: confirm CDN policy is acceptable (or bundle a small soundfont). Keep it opt-in so existing audio path stays default.
+
+---
+
+## Phase 4 — Exercise Library Expansion
 *New generators and genre pathway packs.*
 
 ### New generators
@@ -164,7 +178,7 @@
 
 ---
 
-## Phase 4 — Scoring Integration + Adaptive Practice
+## Phase 5 — Scoring Integration + Adaptive Practice
 *Depends on Slopsmith's scorer API becoming available.*
 
 - 🔲 Wire Slopsmith Constitution II / pitch scorer results into SlopScale progress model
@@ -174,7 +188,7 @@
 
 ---
 
-## Phase 5 — Piano / Keyboard Support
+## Phase 6 — Piano / Keyboard Support
 *Architecturally significant — coordinate with Slopsmith roadmap.*
 
 - 🔲 Define pitch-primary exercise data model (note name + octave + duration, string/fret derived for guitar)
@@ -184,7 +198,7 @@
 
 ---
 
-## Phase 6 — Standalone Potential
+## Phase 7 — Standalone Potential
 *Only if SlopScale outgrows what Slopsmith can provide.*
 
 - 🔲 Evaluate whether Slopsmith's ecosystem is the right long-term host
