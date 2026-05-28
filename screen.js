@@ -793,7 +793,7 @@
       '[SlopScale shapes] After D-shape in C major, wraps to C-shape');
   })();
 
-  let renderer = null, activeBundle = null, rafId = null;
+  let renderer = null, activeBundle = null, rafId = null, lastExercise = null;
   let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
   let audioCtx = null, audioNodes = [];
   // Pitch tracker state — wraps slopsmithMinigames.scoring.createContinuous (no registration required)
@@ -2242,10 +2242,11 @@
     if (kind === 'builtin_2d') return { factory:makeBuiltin2DRenderer, label:'2D Highway' };
     if (kind === 'tab_2d') return { factory:makeBuiltin2DTabRenderer, label:'2D Tablature' };
     if (kind === 'highway_3d') {
-      if (!window.slopsmithViz_highway_3d) await loadScriptOnce('slopscale-highway-3d-loader', '/api/plugins/highway_3d/screen.js');
+      if (!window.slopsmithViz_highway_3d) {
+        try { await loadScriptOnce('slopscale-highway-3d-loader', '/api/plugins/highway_3d/screen.js'); } catch (_) {}
+      }
       if (typeof window.slopsmithViz_highway_3d === 'function') return { factory:window.slopsmithViz_highway_3d, label:'3D Note Highway' };
-      // Fall back to the built-in 2D highway if the 3D one isn't available
-      return { factory:makeBuiltin2DRenderer, label:'2D Highway (fallback — 3D renderer not found)' };
+      return { factory:makeBuiltin2DRenderer, label:'2D Highway (fallback)' };
     }
     return { factory:makeBuiltin2DRenderer, label:'2D Highway (default)' };
   }
@@ -2390,6 +2391,7 @@
     const summary = $('slopscale-summary');
     try {
       const exercise = generateExercise(readConfig());
+      lastExercise = exercise;
       summary.textContent = summarize(exercise);
       await attachRenderer(exercise);
       refreshStatusFromState();
@@ -2889,6 +2891,7 @@
       if (playing) stopPlayback();
       showStatus('Building session…');
       const exercise = generateSession(session);
+      lastExercise = exercise;
       const totalSecs = exercise.chart.duration.toFixed(1);
       if (summary) summary.textContent = `Session: ${session.name}\n${session.segments.length} segments · ${totalSecs}s total\nGenerated: ${exercise.chart.notes.length} notes, ${exercise.chart.beats.length} beats`;
       await attachRenderer(exercise);
@@ -2904,6 +2907,24 @@
   }
 
   // ── End Session UI ──────────────────────────────────────────────────────────
+
+  function syncViewSwitcher(kind) {
+    document.querySelectorAll('.slopscale-view-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.renderer === kind);
+    });
+  }
+
+  async function onViewSwitch(kind) {
+    syncViewSwitcher(kind);
+    // Keep the Advanced renderer dropdown in sync (if visible / accessible)
+    const rendererSel = document.querySelector('[name="renderer"]');
+    if (rendererSel && rendererSel.value !== kind) rendererSel.value = kind;
+    if (!lastExercise) return;
+    lastExercise.session.renderer = kind;
+    try { await attachRenderer(lastExercise); } catch (e) {
+      console.error('[SlopScale] renderer switch failed', e);
+    }
+  }
 
   function bind() {
     const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1';
@@ -2923,9 +2944,14 @@
       if (name === 'shape') syncShapeDropdownSelectionToHidden();
       if (name === 'practiceType') syncChromaticVisibility();
       if (name === 'keyCycle') { const h = $('slopscale-keycycle-help'); if (h) h.style.display = ev.target.value !== 'none' ? '' : 'none'; }
+      if (name === 'renderer') syncViewSwitcher(ev.target.value);
       syncAdvancedMode();
       markPathwayModifiedIfApplicable(name);
       if (activeBundle) onGenerate();
+    });
+    // View switcher buttons in the render stage — independent of exercise mode
+    document.querySelectorAll('.slopscale-view-btn').forEach(btn => {
+      btn.addEventListener('click', () => onViewSwitch(btn.dataset.renderer));
     });
     // Key or fretboardSystem change → repopulate the Shape dropdown for the
     // new (key, system) combination.
@@ -2962,6 +2988,7 @@
     syncShapeDropdown();
     syncShapeDropdownSelectionToHidden();
     applyInitialPathway();
+    syncViewSwitcher(document.querySelector('[name="renderer"]')?.value || 'highway_3d');
     window.addEventListener('storage', (ev) => { if (ev.key === 'invertHighway' || ev.key === 'lefty' || ev.key === 'renderScale') refreshForHostSettingChange(); });
     window.addEventListener('focus', refreshForHostSettingChange);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshForHostSettingChange(); });

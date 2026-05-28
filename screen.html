@@ -123,6 +123,13 @@
   .slopscale-actions button.primary:hover { background: linear-gradient(180deg, #1d4ed8, #1e40af); }
   .slopscale-actions button.primary.is-playing { background: linear-gradient(180deg, #b91c1c, #991b1b); border-color: #f87171; }
   .slopscale-actions button.primary.is-playing:hover { background: linear-gradient(180deg, #991b1b, #7f1d1d); }
+  /* View switcher toolbar inside the render stage */
+  .slopscale-view-switcher { display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: rgba(9,15,30,0.92); border-bottom: 1px solid rgba(75,85,99,0.4); flex-shrink: 0; }
+  .slopscale-view-label { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #475569; margin-right: 2px; }
+  .slopscale-view-btn { min-height: 26px; border: 1px solid #334155; border-radius: 6px; background: #0f172a; color: #64748b; font-size: 11px; font-weight: 700; cursor: pointer; padding: 0 10px; transition: background 0.1s, color 0.1s, border-color 0.1s; }
+  .slopscale-view-btn:hover { background: #1e293b; color: #e2e8f0; }
+  .slopscale-view-btn.active { background: linear-gradient(180deg, #1e40af, #1d4ed8); border-color: #60a5fa; color: #f8fafc; }
+
   .slopscale-stage { overflow: hidden; min-height: 620px; display: flex; flex-direction: column; }
   .slopscale-render-host { position: relative; flex: 1; min-height: 560px; overflow: hidden; background: #050711; }
   #slopscale-canvas { display: block; width: 100%; height: 100%; }
@@ -553,6 +560,12 @@
     </form>
 
     <section class="slopscale-panel slopscale-stage">
+      <div class="slopscale-view-switcher" role="group" aria-label="Renderer">
+        <span class="slopscale-view-label">View</span>
+        <button type="button" class="slopscale-view-btn active" data-renderer="highway_3d">3D Highway</button>
+        <button type="button" class="slopscale-view-btn" data-renderer="builtin_2d">2D Highway</button>
+        <button type="button" class="slopscale-view-btn" data-renderer="tab_2d">2D Tab</button>
+      </div>
       <div id="slopscale-render-host" class="slopscale-render-host"><canvas id="slopscale-canvas"></canvas></div>
       <div id="slopscale-pitch-meter" class="slopscale-pitch-meter">
         <span id="slopscale-pitch-note">--</span>
