@@ -17,13 +17,25 @@
   };
 
   const SCALE_INTERVALS = {
+    // Diatonic and common scales
     major:[0,2,4,5,7,9,11], natural_minor:[0,2,3,5,7,8,10], harmonic_minor:[0,2,3,5,7,8,11],
+    melodic_minor:[0,2,3,5,7,9,11],
+    // Pentatonic / blues
     minor_pentatonic:[0,3,5,7,10], major_pentatonic:[0,2,4,7,9], blues:[0,3,5,6,7,10],
+    // Bebop scales (chromatic passing tone so chord tones land on strong beats)
     bebop_major:[0,2,4,5,7,8,9,11], bebop_dominant:[0,2,4,5,7,9,10,11],
-    dorian:[0,2,3,5,7,9,10], phrygian:[0,1,3,5,7,8,10], lydian:[0,2,4,6,7,9,11], mixolydian:[0,2,4,5,7,9,10], locrian:[0,1,3,5,6,8,10],
-    melodic_minor:[0,2,3,5,7,9,11], phrygian_dominant:[0,1,4,5,7,8,10], lydian_dominant:[0,2,4,6,7,9,10],
+    // Modes of the major scale
+    dorian:[0,2,3,5,7,9,10], phrygian:[0,1,3,5,7,8,10], lydian:[0,2,4,6,7,9,11],
+    mixolydian:[0,2,4,5,7,9,10], locrian:[0,1,3,5,6,8,10],
+    // Other common jazz scales
+    phrygian_dominant:[0,1,4,5,7,8,10], lydian_dominant:[0,2,4,6,7,9,10],
     whole_tone:[0,2,4,6,8,10], diminished:[0,2,3,5,6,8,9,11],
-    lydian:[0,2,4,6,7,9,11], locrian:[0,1,3,5,6,8,10]
+    // Modes of melodic minor (Levine) — for jazz chord-scale applications
+    dorian_b2:[0,1,3,5,7,9,10],       // mode II: over m7 with half-step root motion above
+    lydian_augmented:[0,2,4,6,8,9,11], // mode III: over maj7#5, floating quality
+    mixolydian_b6:[0,2,4,5,7,8,10],   // mode V: over V7 resolving to minor
+    locrian_sharp2:[0,2,3,5,6,8,10],  // mode VI: over m7b5 (preferred over plain Locrian)
+    altered:[0,1,3,4,6,8,10],         // mode VII: maximum tension over V7alt
   };
   const CHORD_FORMULAS = {
     maj:{symbol:'maj', intervals:[0,4,7]}, min:{symbol:'min', intervals:[0,3,7]}, dim:{symbol:'dim', intervals:[0,3,6]}, aug:{symbol:'aug', intervals:[0,4,8]},
@@ -205,6 +217,103 @@
   };
   const PATHWAY_STORAGE_KEY = 'slopscale.lastPathway';
   const PATHWAY_FIRST_VISIT_DEFAULT = 'pent_foundation';
+
+  // === Practice Sessions ===
+  //
+  // A session is an ordered list of exercise segments. Each segment configures
+  // one exercise type and duration. buildSessionChart() concatenates them into
+  // a single sloppak with section markers. See docs/session-schema.md for the
+  // full field reference.
+  //
+  // Segment `kind` values map to buildSingleChart() mode dispatch:
+  //   scale | chord_scales | diatonic_arpeggios | progression_arpeggios |
+  //   sweep_arpeggios | chromatic | guide_tones | modal_vamp
+  //
+  // Built-in sessions are Levine-informed presets. A "ii-V-I Workshop" segment
+  // order follows his recommended learning sequence directly.
+
+  const BUILT_IN_SESSIONS = {
+    ii_v_i_workshop: {
+      version:1,
+      name:'ii–V–I Workshop',
+      description:"Levine's 8-step sequence for any progression: guide tones first (3rds, then 7ths, then alternating), then chord scales, then arpeggios. All in C major / E-shape position.",
+      stringSetup:'guitar_6_standard',
+      tags:['jazz','intermediate'],
+      bpmLadder:{ enabled:false },
+      keyCycle:{ enabled:false },
+      segments:[
+        { id:'gt_thirds',   name:'Guide tones — 3rds',        kind:'guide_tones',
+          config:{ key:'C', scale:'major', progression:'ii-V-I', chordDepth:'seventh', voices:'thirds_only',    bpm:60, bars:8, meter:'4/4', subdivision:'quarter',  fretboardSystem:'caged', shape:'E', direction:'up_down', sequence:'none', keyCycle:'none' } },
+        { id:'gt_sevenths', name:'Guide tones — 7ths',        kind:'guide_tones',
+          config:{ key:'C', scale:'major', progression:'ii-V-I', chordDepth:'seventh', voices:'sevenths_only', bpm:60, bars:8, meter:'4/4', subdivision:'quarter',  fretboardSystem:'caged', shape:'E', direction:'up_down', sequence:'none', keyCycle:'none' } },
+        { id:'gt_both',     name:'Guide tones — alternating', kind:'guide_tones',
+          config:{ key:'C', scale:'major', progression:'ii-V-I', chordDepth:'seventh', voices:'both_alternating', bpm:60, bars:8, meter:'4/4', subdivision:'quarter', fretboardSystem:'caged', shape:'E', direction:'up_down', sequence:'none', keyCycle:'none' } },
+        { id:'chord_scales',name:'Chord scales — mode of moment', kind:'chord_scales',
+          config:{ key:'C', scale:'major', progression:'ii-V-I', chordScaleStrategy:'mode_of_moment', chordDepth:'seventh', chordOverride:'auto', bpm:80, bars:8, meter:'4/4', subdivision:'eighth', fretboardSystem:'caged', shape:'E', direction:'up_down', sequence:'none', keyCycle:'none' } },
+        { id:'arpeggios',   name:'Diatonic 7th arpeggios',   kind:'diatonic_arpeggios',
+          config:{ key:'C', scale:'major', chordDepth:'seventh', chordOverride:'auto', bpm:80, bars:8, meter:'4/4', subdivision:'eighth', fretboardSystem:'caged', shape:'E', direction:'up_down', keyCycle:'none' } }
+      ]
+    },
+    daily_intermediate: {
+      version:1,
+      name:'Daily 30-min Intermediate',
+      description:'Segmented session after Steve Vai\'s block methodology: chromatic warmup, CAGED scale run, sequence pattern, diatonic arpeggios, sweep arpeggios.',
+      stringSetup:'guitar_6_standard',
+      tags:['intermediate','technique'],
+      bpmLadder:{ enabled:false },
+      keyCycle:{ enabled:false },
+      segments:[
+        { id:'chromatic',   name:'Chromatic warmup',            kind:'chromatic',
+          config:{ chromaticPattern:'1234', bpm:80, bars:8, direction:'up_down', fretboardSystem:'position', fretMin:1, fretMax:4, meter:'4/4', subdivision:'sixteenth', keyCycle:'none' } },
+        { id:'caged_scale', name:'C major — E-shape',           kind:'scale',
+          config:{ key:'C', scale:'major', bpm:90, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', sequence:'none', fretboardSystem:'caged', shape:'E', keyCycle:'none' } },
+        { id:'fours',       name:'Fours ascending sequence',    kind:'scale',
+          config:{ key:'C', scale:'major', bpm:90, bars:8, meter:'4/4', subdivision:'eighth', direction:'ascending', sequence:'fours', fretboardSystem:'caged', shape:'E', keyCycle:'none' } },
+        { id:'arpeggios',   name:'Diatonic 7th arpeggios',      kind:'diatonic_arpeggios',
+          config:{ key:'C', scale:'major', chordDepth:'seventh', chordOverride:'auto', bpm:100, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', fretboardSystem:'caged', shape:'E', keyCycle:'none' } },
+        { id:'sweeps',      name:'Sweep arpeggios — Am',        kind:'sweep_arpeggios',
+          config:{ key:'A', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', bpm:70, bars:8, meter:'4/4', subdivision:'sixteenth', direction:'up_down', fretboardSystem:'caged', shape:'E', keyCycle:'none' } }
+      ]
+    },
+    blues_fundamentals: {
+      version:1,
+      name:'Blues Fundamentals',
+      description:'Chromatic warmup → minor pentatonic box 1 → blues scale → chord scales over 12-bar form. The essential first-year blues vocabulary in A.',
+      stringSetup:'guitar_6_standard',
+      tags:['beginner','blues'],
+      bpmLadder:{ enabled:false },
+      keyCycle:{ enabled:false },
+      segments:[
+        { id:'chromatic',  name:'Chromatic warmup',             kind:'chromatic',
+          config:{ chromaticPattern:'1234', bpm:70, bars:8, direction:'up_down', fretboardSystem:'position', fretMin:1, fretMax:4, meter:'4/4', subdivision:'sixteenth', keyCycle:'none' } },
+        { id:'pent',       name:'A minor pentatonic — E-shape', kind:'scale',
+          config:{ key:'A', scale:'minor_pentatonic', bpm:80, bars:12, meter:'4/4', subdivision:'eighth', direction:'up_down', sequence:'none', fretboardSystem:'caged', shape:'E', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7', keyCycle:'none' } },
+        { id:'blues',      name:'A blues scale — E-shape',      kind:'scale',
+          config:{ key:'A', scale:'blues', bpm:80, bars:12, meter:'4/4', subdivision:'eighth', direction:'up_down', sequence:'none', fretboardSystem:'caged', shape:'E', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7', keyCycle:'none' } },
+        { id:'chord_scales',name:'Chord scales — 12-bar',       kind:'chord_scales',
+          config:{ key:'A', scale:'minor_pentatonic', bpm:90, bars:12, meter:'4/4', subdivision:'eighth', direction:'up_down', sequence:'none', fretboardSystem:'caged', shape:'E', chordScaleStrategy:'mode_of_moment', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7', keyCycle:'none' } }
+      ]
+    },
+    bebop_fundamentals: {
+      version:1,
+      name:'Bebop Fundamentals',
+      description:'Dominant bebop scale applied to ii-V-I. Chromatic passing tone ensures chord tones land on strong beats — the grammar of bebop improvisation.',
+      stringSetup:'guitar_6_standard',
+      tags:['jazz','bebop','intermediate'],
+      bpmLadder:{ enabled:false },
+      keyCycle:{ enabled:false },
+      segments:[
+        { id:'chromatic',       name:'Chromatic warmup',          kind:'chromatic',
+          config:{ chromaticPattern:'1234', bpm:80, bars:8, direction:'up_down', fretboardSystem:'position', fretMin:1, fretMax:4, meter:'4/4', subdivision:'sixteenth', keyCycle:'none' } },
+        { id:'major_scale',     name:'C major — E-shape',         kind:'scale',
+          config:{ key:'C', scale:'major', bpm:80, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', sequence:'none', fretboardSystem:'caged', shape:'E', keyCycle:'none' } },
+        { id:'bebop_dominant',  name:'Bebop dominant — ii-V-I',   kind:'chord_scales',
+          config:{ key:'C', scale:'bebop_dominant', progression:'ii-V-I', chordScaleStrategy:'mode_of_moment', chordDepth:'seventh', chordOverride:'auto', bpm:90, bars:8, meter:'4/4', subdivision:'eighth', direction:'ascending', sequence:'none', fretboardSystem:'caged', shape:'E', keyCycle:'none' } },
+        { id:'ii_v_i_arps',     name:'ii–V–I arpeggios',          kind:'progression_arpeggios',
+          config:{ key:'C', scale:'major', progression:'ii-V-I', chordDepth:'seventh', chordOverride:'auto', bpm:90, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', fretboardSystem:'caged', shape:'E', keyCycle:'none' } }
+      ]
+    }
+  };
 
   // === CAGED + 3NPS + Open shape system ===
   //
@@ -847,6 +956,28 @@
     return out;
   }
 
+  // Find the {s, f, midi} within [fretMin, fretMax] whose pitch class matches
+  // targetPc and whose MIDI pitch is closest to prevMidi. Used by guide tones
+  // for voice-leading — each successive guide tone takes the nearest occurrence
+  // rather than jumping to an arbitrary octave.
+  function nearestPositionForPc(targetPc, prevMidi, openMidis, fretMin, fretMax) {
+    const normPc = ((targetPc % 12) + 12) % 12;
+    const options = [];
+    for (let s = 0; s < openMidis.length; s++) {
+      for (let f = Math.max(0, fretMin); f <= Math.min(24, fretMax); f++) {
+        const midi = openMidis[s] + f;
+        if (((midi % 12) + 12) % 12 === normPc) options.push({ s, f, midi });
+      }
+    }
+    if (!options.length) return null;
+    let best = options[0], bestDist = Math.abs(options[0].midi - prevMidi);
+    for (let i = 1; i < options.length; i++) {
+      const d = Math.abs(options[i].midi - prevMidi);
+      if (d < bestDist) { best = options[i]; bestDist = d; }
+    }
+    return best;
+  }
+
   function applySequencePattern(positions, pattern) {
     const offsets = SEQUENCE_PATTERNS[pattern];
     if (!offsets || !offsets.length || positions.length < 2) return positions;
@@ -1325,6 +1456,72 @@
     return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration };
   }
 
+  // Guide tones generator — Levine's entry-point exercise for any progression.
+  // Generates only the 3rd and/or 7th of each chord, voice-led so each note
+  // moves by the smallest possible interval to the next chord's guide tone.
+  // `cfg.voices`: 'thirds_only' | 'sevenths_only' | 'both_alternating'
+  function buildGuideTonesExercise(cfg) {
+    const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+    const scale = cfg.scale || 'major';
+    const scaleInts = SCALE_INTERVALS[scale] || SCALE_INTERVALS.major;
+    const chordDepth = cfg.chordDepth || 'seventh';
+    const diatonicFam = DIATONIC_QUALITIES[scale] || DIATONIC_QUALITIES.major;
+    const qualities = diatonicFam[chordDepth === 'seventh' ? 'seventh' : 'triad'] || diatonicFam.triad;
+    const degrees = progressionDegreesForConfig(cfg);
+    const voices = cfg.voices || 'thirds_only';
+    const mLen = measureSeconds(cfg);
+    const openMidis = openMidisForConfig(cfg);
+    // Resolve fret range from shape if shape-aware system
+    let fMin = cfg.fretMin, fMax = cfg.fretMax;
+    if (isShapeAwareSystem(cfg.fretboardSystem) && cfg.shapeNotes && cfg.shapeNotes.length) {
+      const fs = cfg.shapeNotes.map(n => n.f);
+      fMin = Math.min.apply(null, fs); fMax = Math.max.apply(null, fs);
+    }
+    // Expand slightly for voice-leading flexibility without leaving the position
+    const searchFMin = Math.max(0, fMin - 2);
+    const searchFMax = Math.min(24, fMax + 2);
+
+    const notes = [], sections = [];
+    sections.push({ name:`Guide tones — ${voices.replace(/_/g,' ')}`, number:1, time:0 });
+
+    // Start in mid-range guitar register (E4 = MIDI 64)
+    let prevMidi = 64;
+    let useThird = true;
+    let t = 0;
+    const reps = Math.max(1, Math.round(cfg.bars / Math.max(1, degrees.length)));
+
+    for (let rep = 0; rep < reps; rep++) {
+      for (let di = 0; di < degrees.length; di++) {
+        const degree = degrees[di];
+        if (degree < 1 || degree > scaleInts.length) { t += mLen; continue; }
+        const chordRootPc = (keyPc + scaleInts[degree - 1]) % 12;
+        const quality = (cfg.chordOverride && cfg.chordOverride !== 'auto')
+          ? cfg.chordOverride
+          : (qualities[(degree - 1 + 7) % 7] || 'maj');
+        const formula = CHORD_FORMULAS[quality]?.intervals || [0, 4, 7];
+        // 3rd = formula[1], 7th = formula[3] (if present, else fall back to 5th)
+        const thirdPc  = (chordRootPc + (formula[1] ?? formula[0])) % 12;
+        const seventhPc = formula.length >= 4
+          ? (chordRootPc + formula[3]) % 12
+          : (chordRootPc + (formula[2] ?? formula[1] ?? formula[0])) % 12;
+
+        let targetPc;
+        if (voices === 'thirds_only')   targetPc = thirdPc;
+        else if (voices === 'sevenths_only') targetPc = seventhPc;
+        else { targetPc = useThird ? thirdPc : seventhPc; useThird = !useThird; }
+
+        const pos = nearestPositionForPc(targetPc, prevMidi, openMidis, searchFMin, searchFMax);
+        if (pos) {
+          notes.push(noteDefaults({ t:Number(t.toFixed(6)), s:pos.s, f:pos.f, sus:Math.max(0.05, mLen * 0.9), ac:di === 0 && rep === 0 }));
+          prevMidi = pos.midi;
+        }
+        t += mLen;
+      }
+    }
+    const duration = Math.max(t, cfg.bars * mLen);
+    return { notes, chords:[], chordTemplates:[], handShapes:[], sections, duration };
+  }
+
   const CYCLE_KEY_ORDERS = {
     circle_of_fourths: ['C','F','Bb','Eb','Ab','Db','Gb','B','E','A','D','G'],
     circle_of_fifths:  ['C','G','D','A','E','B','Gb','Db','Ab','Eb','Bb','F'],
@@ -1332,11 +1529,13 @@
   };
 
   function buildSingleChart(cfg) {
-    return cfg.mode === 'scale' ? buildScaleExercise(cfg)
-      : cfg.mode === 'chord_scales' ? buildChordScaleExercise(cfg)
-      : cfg.mode === 'sweep_arpeggios' ? buildSweepArpeggioExercise(cfg)
-      : cfg.mode === 'chromatic' ? buildChromaticExercise(cfg)
-      : buildArpeggioExercise(cfg, progressionDegreesForConfig(cfg));
+    const mode = cfg.mode || cfg.practiceType || 'scale';
+    if (mode === 'scale' || mode === 'modal_vamp') return buildScaleExercise(cfg);
+    if (mode === 'chord_scales')      return buildChordScaleExercise(cfg);
+    if (mode === 'sweep_arpeggios')   return buildSweepArpeggioExercise(cfg);
+    if (mode === 'chromatic')         return buildChromaticExercise(cfg);
+    if (mode === 'guide_tones')       return buildGuideTonesExercise(cfg);
+    return buildArpeggioExercise(cfg, progressionDegreesForConfig(cfg));
   }
 
   function buildKeyCycleChart(cfg) {
@@ -1370,6 +1569,138 @@
     const duration = Math.max(chart.duration || 0, cfg.bars * measureSeconds(cfg));
     const anchors = chart.anchors && chart.anchors.length ? chart.anchors : buildAnchors(cfg, duration);
     return { version:1, session:cfg, chart:Object.assign({}, chart, { beats:buildBeats(cfg, duration), anchors, duration }) };
+  }
+
+  // Build one segment's config by merging session-level defaults, string setup,
+  // and segment-level overrides. Resolves shape notes if system is shape-aware.
+  function buildSegmentConfig(segment, session) {
+    const stringSetup = session.stringSetup || 'guitar_6_standard';
+    const setup = STRING_SETUPS[stringSetup] || STRING_SETUPS.guitar_6_standard;
+    const raw = Object.assign({
+      // Structural defaults
+      key:'C', scale:'major', bpm:80, bars:4, direction:'up_down', sequence:'none',
+      subdivision:'eighth', fretboardSystem:'caged', shape:'E', fretMin:0, fretMax:5,
+      chordDepth:'seventh', progression:'ii-V-I', chordOverride:'auto',
+      chordScaleStrategy:'mode_of_moment', chromaticPattern:'1234', keyCycle:'none',
+      repeatCount:1, advancedMode:true, voices:'thirds_only',
+      audio:{ notes:false, metronome:true, harmony:false },
+    }, segment.config || {}, {
+      // Always derive these from the session's string setup
+      stringSetup, instrument:setup.instrument,
+      stringCount:setup.openMidis.length,
+      // Segment kind drives the mode dispatch
+      mode: segment.kind, practiceType: segment.kind,
+    });
+    // Parse meter string → object (e.g. '4/4' → { numerator:4, denominator:4, grouping:[4] })
+    if (typeof raw.meter === 'string') raw.meter = parseMeter(raw.meter);
+    // Resolve CAGED / 3NPS / Open shape into fretMin/fretMax + shapeNotes
+    raw.shapeNotes = null; raw.shapeDisplayName = null;
+    if (isShapeAwareSystem(raw.fretboardSystem)) {
+      const resolved = resolveCurrentShape({ fretboardSystem:raw.fretboardSystem, key:raw.key, scale:raw.scale, shape:raw.shape }, setup.openMidis);
+      if (resolved) {
+        raw.shape = resolved.shape;
+        raw.shapeNotes = resolved.resolved.notes;
+        raw.shapeDisplayName = resolved.resolved.displayName;
+        raw.fretMin = resolved.resolved.fretMin;
+        raw.fretMax = resolved.resolved.fretMax;
+      }
+    }
+    return raw;
+  }
+
+  // Generate a chart for one segment with optional BPM ladder sub-sections.
+  // BPM ladder produces sub-section markers ("80 BPM", "85 BPM", …) and
+  // concatenates the same exercise at stepping tempos with correct beat timing.
+  function buildBpmLadderChart(segCfg, ladder) {
+    const { bpmStart, bpmTarget, bpmStep, repsPerStep = 1 } = ladder;
+    const notes = [], chords = [], chordTemplates = [], handShapes = [], sections = [], anchors = [], beats = [];
+    let t = 0, tplOffset = 0;
+    for (let bpm = bpmStart; bpm <= bpmTarget + 0.001; bpm += bpmStep) {
+      for (let r = 0; r < repsPerStep; r++) {
+        const stepCfg = Object.assign({}, segCfg, { bpm, keyCycle:'none' });
+        const chart = buildSingleChart(stepCfg);
+        const dur = Math.max(chart.duration || 0, segCfg.bars * measureSeconds(stepCfg));
+        if (r === 0) sections.push({ name:`${Math.round(bpm)} BPM`, number:sections.length + 1, time:Number(t.toFixed(6)) });
+        chart.notes.forEach(n => notes.push(Object.assign({}, n, { t:Number((n.t + t).toFixed(6)) })));
+        chart.chords.forEach(c => chords.push(Object.assign({}, c, { t:Number((c.t + t).toFixed(6)), id:c.id + tplOffset })));
+        chart.chordTemplates.forEach(ct => chordTemplates.push(ct));
+        chart.handShapes.forEach(hs => handShapes.push(Object.assign({}, hs, { chord_id:hs.chord_id + tplOffset, start_time:Number((hs.start_time + t).toFixed(6)), end_time:Number((hs.end_time + t).toFixed(6)) })));
+        (chart.anchors || []).forEach(a => anchors.push(Object.assign({}, a, { time:Number((a.time + t).toFixed(6)) })));
+        buildBeats(stepCfg, dur).forEach(b => beats.push(Object.assign({}, b, { time:Number((b.time + t).toFixed(6)) })));
+        tplOffset += (chart.chordTemplates || []).length;
+        t += dur;
+      }
+    }
+    return { notes, chords, chordTemplates, handShapes, sections, anchors, beats, duration:t };
+  }
+
+  // Concatenate all session segments into one chart with section markers.
+  // Each segment's times are offset by the cumulative duration of prior segments.
+  // BPM ladder and key cycle are applied per-segment as configured.
+  function buildSessionChart(session) {
+    const notes = [], chords = [], chordTemplates = [], handShapes = [], sections = [], anchors = [], beats = [];
+    let t = 0, tplOffset = 0;
+
+    for (const segment of (session.segments || [])) {
+      const segCfg = buildSegmentConfig(segment, session);
+      // Determine which builder to use for this segment
+      const ladder = segment.bpmLadder
+        ? (segment.bpmLadder.enabled ? segment.bpmLadder : null)
+        : (session.bpmLadder?.enabled ? session.bpmLadder : null);
+      const keyCycleStrategy = (segment.keyCycle !== undefined)
+        ? (segment.keyCycle?.enabled ? segment.keyCycle.strategy : null)
+        : (session.keyCycle?.enabled ? session.keyCycle.strategy : null);
+      const keyCycleLen = (segment.keyCycle?.keysPerSession) || (session.keyCycle?.keysPerSession) || 4;
+
+      let chart;
+      if (ladder) {
+        chart = buildBpmLadderChart(segCfg, ladder);
+      } else if (keyCycleStrategy) {
+        chart = buildKeyCycleChart(Object.assign({}, segCfg, { keyCycle:keyCycleStrategy, keyCycleLength:keyCycleLen }));
+      } else {
+        chart = buildSingleChart(segCfg);
+      }
+
+      const dur = chart.duration || (segCfg.bars * measureSeconds(segCfg));
+
+      // Segment-level section marker at the top of each segment
+      sections.push({ name:segment.name, number:sections.length + 1, time:Number(t.toFixed(6)) });
+      // Sub-sections from the chart (BPM ladder steps, key cycle keys) — skip index 0
+      // since that collides with the segment marker we just pushed
+      (chart.sections || []).forEach((s, i) => {
+        if (i === 0) return;
+        sections.push(Object.assign({}, s, { number:sections.length + 1, time:Number((s.time + t).toFixed(6)) }));
+      });
+
+      chart.notes.forEach(n => notes.push(Object.assign({}, n, { t:Number((n.t + t).toFixed(6)) })));
+      chart.chords.forEach(c => chords.push(Object.assign({}, c, { t:Number((c.t + t).toFixed(6)), id:c.id + tplOffset })));
+      chart.chordTemplates.forEach(ct => chordTemplates.push(ct));
+      chart.handShapes.forEach(hs => handShapes.push(Object.assign({}, hs, { chord_id:hs.chord_id + tplOffset, start_time:Number((hs.start_time + t).toFixed(6)), end_time:Number((hs.end_time + t).toFixed(6)) })));
+      (chart.anchors || []).forEach(a => anchors.push(Object.assign({}, a, { time:Number((a.time + t).toFixed(6)) })));
+      // Use pre-computed beats if the chart has them (BPM ladder), else generate
+      const segBeats = chart.beats || buildBeats(segCfg, dur);
+      segBeats.forEach(b => beats.push(Object.assign({}, b, { time:Number((b.time + t).toFixed(6)) })));
+      tplOffset += (chart.chordTemplates || []).length;
+      t += dur;
+    }
+    return { notes, chords, chordTemplates, handShapes, sections, anchors, beats, duration:t };
+  }
+
+  // Top-level session generator — parallel to generateExercise() for single exercises.
+  // Returns the same { version, session, chart } shape so the rest of the launch
+  // path (makeBundle, POST /temp-sloppak, playSong) works unchanged.
+  function generateSession(session) {
+    const chart = buildSessionChart(session);
+    const duration = chart.duration || 0;
+    // Use first segment's config for metadata
+    const firstSeg = (session.segments || [])[0];
+    const firstCfg = firstSeg ? buildSegmentConfig(firstSeg, session) : {};
+    const anchors = chart.anchors?.length ? chart.anchors : buildAnchors(firstCfg, duration);
+    const sessionMeta = Object.assign({}, firstCfg, {
+      mode:'session', practiceType:'session',
+      sessionName:session.name, sessionId:Object.keys(BUILT_IN_SESSIONS).find(k => BUILT_IN_SESSIONS[k] === session) || 'custom'
+    });
+    return { version:1, session:sessionMeta, chart:Object.assign({}, chart, { beats:chart.beats || [], anchors, duration }) };
   }
 
   function makeBundle(exercise) {
