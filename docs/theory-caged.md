@@ -8,6 +8,9 @@ Synthesized from source PDFs in `docs/sources/`. Supplements the overview in `fr
 - Guitar Method: All Scales And Arpeggios (five arpeggio positions per chord type)
 - A Modern Method For Guitar (Berklee) Vol. 1–2 — W. Leavitt (position system, movable chord forms, derivative chord sequences)
 - Berklee Voice Leading For Guitar — John Thomas (drop-2 voicings, chord families)
+- Guitar Building Blocks — Patrick Stefurak (derivation framework: notes → pentatonic → chords → CAGED; fretboard visualization; BCEF triangles)
+- Berklee Jazz Guitar Chord Dictionary — Rick Peckham (guide tone chords, movable 7th chord shapes, voicings for all qualities, quartal voicings, bebop scale exercises)
+- Berklee Reharmonization Techniques — Berklee Press (three chord families: tonic/subdominant/dominant; simple substitution logic)
 
 ---
 
@@ -146,6 +149,80 @@ This mirrors the SlopScale current CAGED_SHAPES implementation and is validated 
 
 ---
 
+## Derivation framework: six guitar building blocks (Guitar Building Blocks — Stefurak)
+
+Stefurak's method identifies six fundamental building blocks from which all guitar knowledge derives. Each block is a logical extension of the previous:
+
+1. **Notes on the neck** — know every natural note name by string/fret position (not just EADGBE and patterns)
+2. **Major, minor, dominant chord forms** — CAGED shapes in all five positions; derived from the pentatonic and major scale
+3. **Major scale** — seven scale patterns (3 notes/string), one for each starting note (A through G)
+4. **Pentatonic scale** — five patterns (2 notes/string) derived from the major scale by removing degrees 4 and 7
+
+The derivation logic:
+- **Major scale (3 notes/string):** Play letters A–G sequentially with three notes per string. Seven starting notes yield seven scale patterns (all seven modes fall out naturally).
+- **Pentatonic (2 notes/string):** Drop to two notes per string using only ACDEG (omitting B and F = degrees 2 and 6 from A minor perspective). Yields five pentatonic patterns.
+- **Chord/arpeggio forms (1 note/string):** Play only A, C, E (one note per string). Yields five chord/arpeggio positions — these ARE the five CAGED arpeggio patterns. Convert to major (A, C#, E) or dominant (A, C#, E, G) by adjusting individual notes.
+
+**SlopScale implication:** This derivation chain is a powerful mental model — all five CAGED positions are implicit in the pentatonic patterns, which are implicit in the major scale patterns. A player who knows the major scale "already knows" where the pentatonic lives and where the chord forms live, once the derivation is explained.
+
+### Fretboard visualization principles (Stefurak)
+
+**BCEF triangular clusters:** On the guitar neck, B and C are adjacent (no accidental between them), as are E and F. These four notes cluster together and appear in diagonal groupings across the fretboard. Visualizing the BCEF groups (at the 7th fret as the "bull's-eye" target) anchors note memorization in the center of the neck.
+
+**Octave triangles:** Any note appears in triangular groups of three across the neck (two strings apart, two or three frets apart depending on the B-G string tuning offset). Recognizing these triangles links positions across different string sets.
+
+**Note memorization by daily rotation:** Practice one natural note name per day (A on Sunday, B on Monday, C through G for the rest of the week). Play the note on every string, say the fret numbers aloud, then close eyes and visualize the positions. Seven weeks covers all seven natural notes.
+
+**The B-G tuning offset:** The G–B string pair is tuned a major third apart (3 semitones) while all other adjacent pairs are a perfect fourth apart (5 semitones). This "one-fret offset" must be accounted for when reading BCEF patterns across that pair of strings.
+
+---
+
+## Chord function families (Berklee Reharmonization Techniques)
+
+Diatonic chords in any major key fall into three function families:
+
+| Family | Symbol | Members (key of C) | Character |
+|---|---|---|---|
+| **Tonic** | (T) | IMaj7, III-7, VI-7 | Stable, resting function; phrase endings; no tritone |
+| **Subdominant** | (SD) | II-7, IVMaj7, V7sus4 | Moderate forward motion; contain the 4th degree (tendency tone) |
+| **Dominant** | (D) | V7, VIIø7, V7sus4 (resolving to I) | Strong forward motion; contain the tritone (3rd and 7th of V7) |
+
+**The 4th degree as tendency tone:** In any major key, the 4th scale degree is a "tendency tone" that naturally pulls down to the 3rd when played over the IMaj7 chord. This is why IV chords feel "not quite at rest" — they contain this tendency tone.
+
+**The tritone:** The interval between the 3rd and 7th of V7 creates the dominant's characteristic "wanting to resolve" sound. VII-ø7 contains the same tritone as V7 (G7 and Bø7 in the key of C both contain B–F). This equivalence is why they are interchangeable.
+
+**Simple substitution rule:** Any chord can be replaced with another chord in the same function family. IMaj7 → III-7 (both tonic). IV-7 → II-7 (both subdominant). Important caveat: check for b9 melody/harmony clashes — a b9 interval between melody and chord tone creates unwanted dissonance unless the chord is V7b9 resolving to a tonic.
+
+**SlopScale implication:** When generating chord-scale exercises, labeling the chord's family (T/SD/D) is more informative than listing its scale degree. The function label is what determines scale choice; the degree label alone doesn't.
+
+---
+
+## Guide tone chords (Berklee Jazz Guitar Chord Dictionary — Peckham)
+
+Guide tones are the 3rd and 7th of any chord — the two tones that define chord quality and function. A "guide tone chord" is a stripped voicing containing only Root + 3 + 7 (or Root + 7 + 3), voiced across two or three adjacent strings.
+
+**Two guide tone voicing layouts (for all 7th chord qualities):**
+
+| Voicing | String layout | Use |
+|---|---|---|
+| Root–3–7 | Root lowest, 3rd middle, 7th highest | Natural voice leading when 3rd drops to b7 in II→V |
+| Root–7–3 | Root lowest, 7th middle, 3rd highest | Inverted; 7th descends to 3rd across chord changes |
+
+These two layouts cover all seven chord qualities: Maj7, Dom7, Min7, Min7b5, Maj6, Min6, Dim7. The guide tones form the skeleton of a jazz chord — all other notes (5th, 9th, 11th, 13th) are color additions to this skeleton.
+
+**Movable 7th chord shape summary (Peckham):** Standard jazz chord vocabulary uses movable shapes built on four string sets (6–4–3–2, 5–4–3–2, 4–3–2–1, 5–3–2–1). For each quality, root placement determines which string set is practical:
+- Root on 6th string: E-form barre chord base
+- Root on 5th string: A-form barre chord base
+- Root on 4th string: D-form barre chord base
+- Root on 2nd string: high-string voicings (practical for solo guitar)
+
+**Three stages of chord development (Peckham):**
+1. Physical Stamina — building hand muscles (this comes first; don't rush it)
+2. Muscle Memory — memorizing the chord voicing shapes
+3. Informed Musical Instincts — using the chords to make music (this is the actual goal)
+
+---
+
 ## Practice implications for SlopScale
 
 1. **CAGED shapes are positional anchors, not just chord voicings.** Each shape defines a zone of the fretboard within which scales, arpeggios, and chord voicings all live. SlopScale exercises set at a specific CAGED position should present all relevant material (scale + arpeggio + chord voicing) within that zone.
@@ -159,3 +236,9 @@ This mirrors the SlopScale current CAGED_SHAPES implementation and is validated 
 5. **Five-shape coverage should be the long-term goal of any pathway.** No pathway is complete until the student can play the same material in all five CAGED zones. Pathways with `vary[]` should cycle through shapes systematically, not randomly.
 
 6. **Drop-2 voicings are the practical jazz guitar application of CAGED.** If SlopScale ever adds a chord-voicing exercise type, the drop-2 approach (play the same chord quality through all five CAGED shapes using voice-led drop-2 voicings) is the most established and musically useful format.
+
+7. **Guide tone chord exercises are a high-value intermediate step.** Root–3–7 and Root–7–3 voicings are simpler than full CAGED shapes but carry full harmonic information. A SlopScale pathway: play guide tone chords up and down the neck for a II–V–I progression, tracking how the 3rd and 7th voice-lead between chords.
+
+8. **Function family labels improve chord-scale UX.** When SlopScale shows a chord in a chord-scale exercise, labeling it Tonic/Subdominant/Dominant (not just "IIm7" etc.) gives the player the information they need to make scale choices without theory knowledge overhead.
+
+9. **The derivation chain (major → pentatonic → arpeggio) is a conceptual win.** Displaying "this arpeggio is the pentatonic with one note removed" or "this shape lives inside the E-form pentatonic box" would connect exercises the player already knows to new ones, reducing the cognitive load of learning each new exercise from scratch.

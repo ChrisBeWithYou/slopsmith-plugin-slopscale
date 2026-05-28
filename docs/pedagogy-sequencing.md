@@ -8,8 +8,11 @@ Synthesized from method books and instructional PDFs in `docs/sources/`. Informs
 - A Modern Method For Guitar (Berklee) Vol. 2 — W. Leavitt (chord derivative sequences, diatonic chord memorization)
 - Fretboard Theory 2008 — Desi Serna (pentatonic-first approach, song-based learning, connecting patterns)
 - Guitar Method: All Scales And Arpeggios (approach patterns for scale variation)
-- Aebersold Jazz Handbook — Jamey Aebersold (jazz practice philosophy, improvisation methodology)
+- Aebersold Jazz Handbook — Jamey Aebersold (jazz practice philosophy, improvisation methodology, scale learning procedure, scale syllabus, song learning tips)
 - Berklee Voice Leading For Guitar — John Thomas (chord function sequencing, II-V-I structure)
+- Guitar Building Blocks — Patrick Stefurak (structured practice logs, note memorization system, six-building-block derivation, daily schedule discipline)
+- Berklee Reharmonization Techniques — Berklee Press (chord family function, simple substitution as a musical ear training concept)
+- Mastering Bebop Scales — Jan Ghijselen (bebop practice methodology: cycles vs. standards, patience-first philosophy)
 
 ---
 
@@ -157,6 +160,101 @@ Aebersold specifically warns against skipping key transposition: "Make a habit o
 
 ---
 
+## Aebersold's practice procedure for learning scales to any song
+
+This 12-step progression (from the Aebersold Jazz Handbook) is a systematic way to internalize a new scale over a chord progression — applicable to any practice tool that provides a backing track:
+
+1. Play the **root/tonic note** of each chord in sequence (root only, whole notes)
+2. Play the **first 2 notes** of each chord's scale
+3. Play the **first 3 notes** of each chord's scale
+4. Play the **first 5 notes** of each chord's scale (pentatonic subset)
+5. Play the **triad** (1, 3, 5) of each chord's scale
+6. Play **7th chords** (1, 3, 5, 7) of each chord's scale
+7. Play **9th chords** (1, 3, 5, 7, 9) of each chord's scale
+8. Play the **entire scale** up and down
+9. Play **6th chords** (1, 3, 5, 6) of each chord's scale
+10. Play the scale **up to the 9th and back down the chord tones**
+11. Play **up the 9th chord and down the scale**
+12. Play the scale in **broken thirds** (1-3, 2-4, 3-5, 4-6, 5-7, 6-8, etc. up and down)
+
+**SlopScale implication:** This 12-step procedure maps directly onto a pathway "level" system. SlopScale's `SEQUENCE_PATTERNS` already handles step 12 (broken thirds) and basic scale runs (step 8). Steps 5–7 (triad → 7th → 9th) are arpeggio generators. The full 12-step sequence is a natural ordering for a "Scale Mastery" pathway.
+
+---
+
+## Aebersold's song-learning tips
+
+1. Listen to the song repeatedly; memorize the melody in your mind before touching the instrument.
+2. Play the melody slowly, copying every inflection from the recording.
+3. Learn chord scales/progressions **in the order they appear in the song** — don't practice all scales separately first.
+4. Emphasize 3rds and 7ths in your improvised lines over each chord.
+5. Memorize melody AND chord scales; know chord tone locations on your instrument.
+6. Improvise original melodies based on what your **mind hears** — the mind guides, the fingers follow.
+7. Learn lyrics to instrumental songs when possible — singing the lyrics while playing the melody deepens melodic expression.
+
+**Scale practice principle:** "Don't play things over and over that you can already play. This is great for the ego but does little to advance musical progress." — Aebersold. This is consistent with Leavitt's accumulative process — advance, review, advance.
+
+---
+
+## Structured practice methodology (Guitar Building Blocks — Stefurak)
+
+Stefurak's approach uses **written practice logs** as the discipline mechanism. Key features applicable to SlopScale:
+
+### Practice log structure
+
+Each session log specifies:
+- Date and time (scheduled in advance, not improvised)
+- Exercise name
+- **Target BPM** and subdivision (e.g., 120 BPM / 16th notes)
+- **Duration goal** (e.g., 5 minutes per exercise)
+- **Quality target** (how many reps at tempo without errors)
+
+The log is written *before* the session begins. This transforms practice from "pick up guitar and noodle" into a scheduled appointment with measurable output.
+
+### Six building blocks — weekly practice scope (Stefurak)
+
+Stefurak's minimum viable weekly practice structure covers all six building blocks every week:
+
+| Block | Practice vehicle |
+|---|---|
+| Notes on the neck | One note per day; say fret numbers aloud; visualize with eyes closed |
+| Dexterity | Semi-chromatic 4 notes/string at 120 BPM 16th notes; 3 notes/string variant |
+| Hammer-on / pull-off | 2 reps at tempo before switching |
+| Crab exercise | Chromatic stretch across frets at 140 BPM |
+| CAGED major chords | Cycle all five shapes at 120 BPM quarter notes |
+
+**Visualization as a practice mode:** Stefurak emphasizes mental practice without the instrument — while commuting, in the shower, during breaks. Visualizing the note positions is as important as physically playing them.
+
+### Daily note memorization technique (Stefurak)
+
+- Learn one note per day (A Sunday → G Saturday)
+- Play the note on every string (open nut to 11th fret only)
+- Say the fret numbers aloud as you play (e.g., "5 0 7 2 10 5" for A across 6 strings)
+- Recall with eyes closed; check against fretboard
+- Revisit during the day without the instrument — car, shower, waiting in line
+
+One week completes A through G. Repeat cycle for four weeks; all natural notes become automatic.
+
+---
+
+## Bebop practice methodology (Mastering Bebop Scales — Ghijselen)
+
+Two practice modes for bebop scales:
+
+### 1. Cycles (key cycling)
+
+Practice each bebop exercise through the cycle of fourths (C → F → Bb → Eb → Ab → Db → Gb → B → E → A → D → G → C). Each key is a new repetition of the same technique. This:
+- Prevents the common bad habit of practicing only in comfortable keys
+- Trains the ear across all tonal centers
+- Aligns with Aebersold's "practice in all twelve keys" directive
+
+### 2. Chord changes on standards (slow → correct → tempo)
+
+Take a jazz standard's chord changes. Apply the bebop scale exercise over one full chorus without a steady beat — focus on the technique, not the rhythm. Then add the beat slowly; increase tempo gradually. Don't chase Bird-tempo performance before the mechanics are solid.
+
+**Patience principle (Ghijselen):** "Master each technique thoroughly before moving on. It could take you minutes, hours or months — who cares. Each step is a step forward." This is consistent with Leavitt's "don't try to perfectly master before proceeding" but adds a critical nuance: *the mechanic* should be clean before increasing tempo, even if perfect performance at tempo isn't required before moving to the next concept.
+
+---
+
 ## Practice implications for SlopScale
 
 1. **Pathway sequence: pentatonic → blues → major → modes → arpeggios → 7th arpeggios.** This aligns with Serna's order and Leavitt's derivative principle. Each step adds one concept to what's already known.
@@ -172,3 +270,11 @@ Aebersold specifically warns against skipping key transposition: "Make a habit o
 6. **Song context as the long-term motivator.** Aebersold and Serna both emphasize that exercises only stick when tied to real music. SlopScale could add a "song suggestion" display on pathway screens — e.g., "This scale is used in [song] — try it there after this drill."
 
 7. **The student should improvise over the exercise backing.** The current architecture launches into the main Slopsmith player, which provides backing audio. This is exactly what Aebersold recommends (rhythm-section backing as soon as possible). The "Play" flow is correct; maintain it as the primary UX.
+
+8. **The Aebersold 12-step procedure maps onto a pathway level system.** SlopScale could surface this as an explicit "Depth" setting: Level 1 = root only, Level 2 = root + 2 notes, ... Level 8 = full scale, Level 12 = broken thirds + arpeggios. Each level is a distinct exercise, not just the same exercise faster.
+
+9. **Structured practice logs are a valuable feature analogue.** SlopScale doesn't have practice logs yet, but the Stefurak principle suggests the UI should encourage scheduling: "Practice this at [BPM] for [minutes] today." A simple "Set today's goal" prompt before launching the player would orient the session.
+
+10. **Key cycling should be the default behavior, not an optional variation.** Aebersold, Ghijselen, and Leavitt all independently emphasize all-twelve-keys practice. SlopScale's `vary[]` key cycling should be presented as "the expected path," not as an advanced feature.
+
+11. **Function family labels (Tonic/Subdominant/Dominant) make harmonic context legible.** When showing chord-scale exercises, adding the function label teaches the player *why* a particular scale sounds right over a chord — not just *that* it does. This is low-cost information display with high educational value.

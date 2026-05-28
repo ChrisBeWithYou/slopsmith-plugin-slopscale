@@ -9,6 +9,9 @@ Synthesized from source PDFs in `docs/sources/`. Used to inform SlopScale genera
 - A Modern Method For Guitar (Berklee) Vol. 3 — W. Leavitt (notation-heavy, minimal text)
 - Guitar Method: All Scales And Arpeggios (full text, all chapters)
 - Fretboard Theory 2008 — Desi Serna (chapters 1–11 extracted)
+- Mastering Bebop Scales (website, Jan Ghijselen) — bebop scale principle, rules of thumb, chord-tone strong-beat targeting
+- Aebersold Jazz Handbook — Jamey Aebersold (dominant 7th tree, scale syllabus categories, ear training methodology)
+- Playing The Changes: Bass — Paul Del Nero / Berklee (pitch axis concept, tetrachords as four-note scale groupings)
 
 ---
 
@@ -134,6 +137,92 @@ When improvising over a II–V–I, tensions in dominant chords resolve as follo
 
 ---
 
+## Bebop scales
+
+### The core principle (Mastering Bebop Scales — Ghijselen; Aebersold Jazz Handbook)
+
+The bebop scale is a diatonic scale with one additional chromatic passing tone inserted so that **chord tones land on strong beats (beats 1, 2, 3, 4)** and non-chord tones fall on weak beats (the "and" subdivisions). This is the fundamental harmonic grammar of bebop improvisation.
+
+**Two insertion rules:**
+- **Dominant bebop scale:** Insert a chromatic tone between b7 and root. Example: C dominant bebop = C D E F G A Bb **B** C (8 notes → chromatic walk B→C before the root).
+- **Major bebop scale (tonic/major I chord):** Insert a chromatic tone between the 5th and 6th. Example: C major bebop = C D E F G **G#** A B C.
+- **Minor bebop scale (minor I chord):** Insert a chromatic tone between b7 and root, same as dominant. Example: D minor bebop = D E F G A Bb **C#** D C.
+
+**Result:** Because the scale now has 8 tones, any ascending or descending 8th-note run starting on a chord tone will end on a chord tone on the next beat.
+
+### Bebop rules of thumb (Ghijselen)
+
+| Starting from | Moving TO a chord tone | Moving AWAY from a chord tone |
+|---|---|---|
+| **Strong beat** | Insert ONE or an ODD number of notes | Insert NO or an EVEN number of notes |
+| **Weak beat** | Insert NO or an EVEN number of notes | Insert ONE or an ODD number of notes |
+
+**Additional skip rules:**
+- Octave displacement is always OK (doesn't break the strong-beat logic).
+- Skip from any chord tone to any non-chord tone: OK.
+- Skip from any non-chord tone to any chord tone: OK.
+- Skip chord-tone to chord-tone OR non-chord-tone to non-chord-tone: insert ONE or an ODD number of notes before continuing.
+
+### Dominant bebop scale applied to other modes (Ghijselen)
+
+The dominant bebop scale can be applied over non-dominant chords by starting it from a different scale degree:
+- **Over Phrygian:** Start dominant bebop from the 3rd of the Phrygian scale.
+- **Over Lydian:** Start dominant bebop from the 2nd of the Lydian scale.
+- **Over Aeolian:** Start dominant bebop from the b7.
+- **Over Locrian:** Start dominant bebop from the b6.
+- **Over Altered:** Start the dominant-b6 bebop from the b6 (or #5).
+- **Over Lydian Dominant:** Start dominant-b6 bebop from the 2nd.
+
+### Aebersold's dominant 7th tree — 8 scale choices over V7
+
+When a dominant 7th chord resolves up a perfect 4th (e.g., C7 → F), any of these scales may be used over the C7:
+
+| Scale | Formula | Character |
+|-------|---------|-----------|
+| 1. Dominant 7 (Mixolydian) | C D E F G A Bb C | Basic dominant sound; treat the 4th as a passing tone |
+| 2. Bebop dominant | C D E F G A Bb **B** C | Chromatic passing tone between b7 and root |
+| 3. Lydian dominant | C D E **F#** G A Bb C | #4 is a "favorite note"; was called b5 in earlier usage |
+| 4. Whole tone | C D E F# G# Bb C | Symmetric, 6 tones; #4 and #5; French Impressionist character |
+| 5. Diminished (H-W) | C Db D# E F# G A Bb C | Symmetric, 8 tones; b9, #9, #4; high tension; Michael Brecker sound |
+| 6. Diminished whole-tone (Altered) | C Db D# E F# G# Bb C | 4 altered tones: b9, #9, #4, #5; maximum tension |
+| 7. Spanish/Jewish scale | C Db E F G Ab Bb C | b9 and b6; used in minor key contexts; = F harmonic minor from C |
+| 8. Chromatic | C C# D Eb E F F# G Ab A Bb B C | All 12 tones; catch-all; requires strong target-note awareness |
+
+**Key principle (Aebersold):** The two most important notes in any scale are the 3rd and 7th. The 3rd tells the listener major or minor quality. The 7th tells whether the sound is stable (maj7 = stable) or wants to move (b7 = wants to resolve). The root is "taken for granted."
+
+### Scale syllabus — five chord/scale families (Aebersold)
+
+Aebersold organizes improvisation scales into five families. Within each family, scale choices are listed from most consonant (top) to most dissonant (bottom):
+
+1. **Major** — Ionian, Lydian, major bebop, major pentatonic
+2. **Dorian minor** — Dorian, Aeolian (natural minor), harmonic minor, melodic minor, minor pentatonic, blues
+3. **Dominant 7th** — see the 8-scale tree above
+4. **Half-diminished (minor 7b5)** — Locrian, Locrian #2
+5. **Diminished / sus4** — symmetric diminished (W-H), whole tone, sus4 chord scales
+
+**Practical principle:** Scales nearer the top of each family produce consonance; scales further down produce increasing tension. The player's job is to control tension-and-release by choosing appropriately.
+
+---
+
+## Tetrachords — four-note scale groupings (Playing the Changes: Bass — Del Nero / Berklee)
+
+A tetrachord is the first or last four notes of a scale. Four types are relevant to improvisation:
+
+| Tetrachord type | Formula | Half-step location |
+|---|---|---|
+| **Major** | 1 2 3 4 | Between degrees 3 and 4 |
+| **Minor** | 1 2 b3 4 | Between degrees 2 and 3 |
+| **Phrygian** | 1 b2 b3 4 | Between degrees 1 and 2 |
+| **Lydian** | 1 2 3 #4 | No half step |
+
+**Pitch axis concept:** In a chord progression, a single pitch (the "pitch axis") may remain common across all chords. Choosing the right *mode* of the axis pitch — rather than switching tonal centers — is the linear improvisation approach. Example: over CMaj7 → C-7, the axis is C; over CMaj7 use C Ionian, over C-7 use C Aeolian.
+
+**Tetrachords as building blocks:** Each mode of a major scale can be understood as two stacked tetrachords. Dorian = minor tetrachord + minor tetrachord. Mixolydian = major tetrachord + minor tetrachord (with b7). This decomposition makes it easy to identify which notes change when a chord changes within the same key area.
+
+**SlopScale implication:** Tetrachord awareness gives a mental model smaller than a full scale — four notes that define a local harmonic area. Pathways that cycle through modes can introduce the tetrachord decomposition as a way to hear the difference between adjacent modes without treating each as a wholly new pattern.
+
+---
+
 ## Practice implications for SlopScale
 
 1. **Build from fingering types, not isolated patterns.** Leavitt's Type 1–4 system means that when a player learns the major scale Types, they can derive all diatonic scales from them. SlopScale pathways should reference or name positions (e.g., "5th position Dorian") rather than treating each scale as a wholly new shape.
@@ -147,3 +236,9 @@ When improvising over a II–V–I, tensions in dominant chords resolve as follo
 5. **Scale formulas need relative-to-major framing.** The most portable mental model is "how does this scale differ from the major scale?" (e.g., Dorian = major with b3 and b7). All generator output should be derivable from this framing.
 
 6. **Chord-scale pairings for generation:** When generating a diatonic scale passage over a chord, the pairing table above (chord → chord scale) is the authority for which scale tones belong.
+
+7. **Bebop scales as a "next step" after major scale fluency.** Once a player can run a major or Dorian scale cleanly in a position, the bebop version (add one chromatic passing tone) is the immediate jazz extension. SlopScale could offer a "bebop variant" checkbox in the scale generator that adds the chromatic passing tone at the correct position.
+
+8. **Dominant 7th tree as the key variation system for jazz-context pathways.** The 8-scale tree over V7 is the practical vocabulary expansion sequence for SlopScale's jazz-oriented scales pathway. Order: Mixolydian → Lydian dominant → Bebop → Diminished → Altered.
+
+9. **Tetrachords as an intermediate learning layer.** Four notes before a full 7-note scale — useful for beginners who aren't ready for a full position but want to start connecting chord tones.
