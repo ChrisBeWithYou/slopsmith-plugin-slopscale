@@ -119,7 +119,7 @@
     sweep_arpeggios:'#ef4444', guide_tones:'#eab308',
   };
   // Tempo tier labels — shared by all pathways. Index 0 = Slow.
-  const TIER_LABELS = ['Slow', 'Med', 'Fast', 'Challenge'];
+  const TIER_LABELS = ['Slow', 'Med', 'Fast', 'Push'];
   const PATHWAYS = {
     chromatic_warmup: {
       label:'Chromatic Warmup',
@@ -3121,7 +3121,7 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'slopscale-tier-btn' + (i === activeTempoTierIdx ? ' active' : '');
-      btn.textContent = `${TIER_LABELS[i] || `T${i+1}`} (${bpm})`;
+      btn.innerHTML = `<span class="tier-name">${TIER_LABELS[i] || `T${i+1}`}</span><span class="tier-bpm">${bpm} BPM</span>`;
       btn.addEventListener('click', () => {
         activeTempoTierIdx = i;
         setFieldSilent('bpm', String(bpm));

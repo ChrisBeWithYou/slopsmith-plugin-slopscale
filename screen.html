@@ -20,10 +20,9 @@
   }
   .slopscale-header h1 { margin: 0; font-size: 22px; line-height: 1.1; letter-spacing: -0.02em; color: #f8fafc; font-weight: 700; }
   .slopscale-tagline { margin: 3px 0 6px 0; font-size: 12px; color: #94a3b8; max-width: 760px; }
-  .slopscale-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 11px; color: #6b7280; }
-  .slopscale-meta a { color: #60a5fa; text-decoration: none; }
-  .slopscale-meta a:hover { text-decoration: underline; }
-  .slopscale-meta-sep { color: #334155; }
+  .slopscale-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: #cbd5e1; }
+  .slopscale-meta #slopscale-renderer-status { color: #94a3b8; }
+  .slopscale-meta-sep { color: #475569; }
   .slopscale-layout { display: grid; grid-template-columns: minmax(340px, 460px) 1fr; gap: 16px; align-items: stretch; }
   .slopscale-controls { padding: 16px; display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 150px); overflow: auto; }
   .slopscale-controls label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #d6deea; font-weight: 650; }
@@ -106,9 +105,16 @@
   /* Primary Play button gets its own row and visual weight; the rest sit in a
      compact secondary row underneath. */
   .slopscale-actions { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 6px; }
+  /* Play + Next variation share a row. Use flex so that hiding Next variation
+     (custom mode, where the pathway-only class hides it) collapses cleanly
+     and Play stretches the full width. Play stays the clearly primary
+     action via flex weighting. */
+  .slopscale-actions-row { display: flex; grid-template-columns: none; gap: 8px; }
+  .slopscale-actions-row > #slopscale-play { flex: 2 1 0; }
+  .slopscale-actions-row > #slopscale-next-variation { flex: 1 1 0; }
   .slopscale-actions-secondary { display: flex; flex-wrap: wrap; gap: 8px; }
   .slopscale-actions-secondary > button { flex: 1 1 140px; }
-  .slopscale-button, .slopscale-actions button {
+  .slopscale-button, .slopscale-actions button, .slopscale-actions-secondary button {
     min-height: 38px;
     border: 1px solid #475569;
     border-radius: 10px;
@@ -118,12 +124,19 @@
     cursor: pointer;
     padding: 0 12px;
   }
-  .slopscale-button:hover, .slopscale-actions button:hover { background: #24324a; }
-  .slopscale-button.secondary, .slopscale-actions button.secondary { background: #0f172a; color: #cbd5e1; }
+  .slopscale-button:hover,
+  .slopscale-actions button:hover,
+  .slopscale-actions-secondary button:hover { background: #24324a; border-color: #64748b; }
+  .slopscale-button.secondary,
+  .slopscale-actions button.secondary,
+  .slopscale-actions-secondary button.secondary { background: #0f172a; color: #cbd5e1; }
   .slopscale-actions button.primary { background: linear-gradient(180deg, #2563eb, #1d4ed8); border-color: #60a5fa; min-height: 48px; font-size: 15px; letter-spacing: 0.02em; }
   .slopscale-actions button.primary:hover { background: linear-gradient(180deg, #1d4ed8, #1e40af); }
   .slopscale-actions button.primary.is-playing { background: linear-gradient(180deg, #b91c1c, #991b1b); border-color: #f87171; }
   .slopscale-actions button.primary.is-playing:hover { background: linear-gradient(180deg, #991b1b, #7f1d1d); }
+  /* Match Next variation to Play's height so the row reads as a single
+     action band rather than primary-button-plus-tiny-sidekick. */
+  #slopscale-next-variation { min-height: 48px; font-size: 13px; }
   /* View switcher toolbar inside the render stage */
   .slopscale-view-switcher { display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: rgba(9,15,30,0.92); border-bottom: 1px solid rgba(75,85,99,0.4); flex-shrink: 0; }
   .slopscale-view-label { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #475569; margin-right: 2px; }
@@ -148,20 +161,26 @@
   #slopscale-pitch-cents { min-width: 42px; text-align: right; }
   #slopscale-pitch-accuracy { margin-left: auto; }
   /* Tempo tier buttons — rendered dynamically by syncTempoTierButtons() */
-  .slopscale-tier-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+  .slopscale-tier-buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .slopscale-tier-btn {
-    flex: 1 1 60px;
-    min-height: 34px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    min-height: 42px;
     border: 1px solid #475569;
     border-radius: 8px;
     background: #111827;
     color: #94a3b8;
-    font-size: 12px;
     font-weight: 700;
     cursor: pointer;
-    padding: 0 8px;
+    padding: 4px 6px;
+    line-height: 1.1;
     transition: background 0.1s, color 0.1s, border-color 0.1s;
   }
+  .slopscale-tier-btn .tier-name { font-size: 12px; }
+  .slopscale-tier-btn .tier-bpm { font-size: 10px; font-weight: 600; opacity: 0.75; }
   .slopscale-tier-btn:hover { background: #1e293b; color: #e2e8f0; }
   .slopscale-tier-btn.active { background: linear-gradient(180deg, #1e40af, #1d4ed8); border-color: #60a5fa; color: #f8fafc; }
 
@@ -244,9 +263,7 @@
     <div class="slopscale-meta">
       <span id="slopscale-status">Ready</span>
       <span class="slopscale-meta-sep">·</span>
-      <span id="slopscale-renderer-status" style="opacity:0.7">3D Highway</span>
-      <span class="slopscale-meta-sep">·</span>
-      <a href="https://github.com/ChrisBeWithYou/slopsmith-plugin-slopscale" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <span id="slopscale-renderer-status">3D Highway</span>
     </div>
   </section>
 
@@ -450,6 +467,7 @@
         </label>
       </div>
 
+      <div class="slopscale-group-title">Preview audio</div>
       <div class="slopscale-audio-options" aria-label="Generated audio options">
         <label class="slopscale-toggle"><input name="audioNotes" type="checkbox" checked> Hear generated notes</label>
         <label class="slopscale-toggle"><input name="audioMetronome" type="checkbox" checked> Metronome click</label>
@@ -515,11 +533,11 @@
         </label>
       </div>
 
-      <div class="slopscale-actions">
+      <div class="slopscale-actions slopscale-actions-row">
         <button type="button" id="slopscale-play" class="primary">▶ Play</button>
+        <button type="button" id="slopscale-next-variation" class="secondary slopscale-pathway-only">Next variation</button>
       </div>
       <div class="slopscale-actions-secondary">
-        <button type="button" id="slopscale-next-variation" class="slopscale-pathway-only">Next shape</button>
         <button type="button" id="slopscale-regenerate" class="slopscale-custom-only secondary">Regenerate</button>
         <button type="button" id="slopscale-save" class="secondary">Save preset</button>
       </div>
@@ -551,7 +569,7 @@
           <!-- populated by syncSessionSummary() -->
         </div>
 
-        <div class="slopscale-group-title">Audio</div>
+        <div class="slopscale-group-title">Preview audio</div>
         <div class="slopscale-audio-options" aria-label="Session audio options">
           <label class="slopscale-toggle"><input id="slopscale-session-audio-notes" type="checkbox" checked> Hear generated notes</label>
           <label class="slopscale-toggle"><input id="slopscale-session-audio-metronome" type="checkbox" checked> Metronome click</label>
