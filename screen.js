@@ -108,6 +108,16 @@
     '1234':'1-2-3-4 (standard)', '4321':'4-3-2-1 (reverse)',
     '1324':'1-3-2-4 (crossing)', '1342':'1-3-4-2 (spider)', '2413':'2-4-1-3 (advanced)'
   };
+  const KIND_LABELS = {
+    chromatic:'Chromatic', scale:'Scale', modal_vamp:'Modal Vamp',
+    chord_scales:'Chord Scales', diatonic_arpeggios:'Dia. Arps',
+    progression_arpeggios:'Prog. Arps', sweep_arpeggios:'Sweeps', guide_tones:'Guide Tones',
+  };
+  const KIND_COLORS = {
+    chromatic:'#f97316', scale:'#22c55e', modal_vamp:'#22c55e',
+    chord_scales:'#3b82f6', diatonic_arpeggios:'#a855f7', progression_arpeggios:'#a855f7',
+    sweep_arpeggios:'#ef4444', guide_tones:'#eab308',
+  };
   // Tempo tier labels — shared by all pathways. Index 0 = Slow.
   const TIER_LABELS = ['Slow', 'Med', 'Fast', 'Challenge'];
   const PATHWAYS = {
@@ -2778,6 +2788,122 @@
   }
   // ── End pitch tracker ──────────────────────────────────────────────────────
 
+  // ── Session UI ─────────────────────────────────────────────────────────────
+
+  function segmentEstDuration(seg) {
+    const cfg = seg.config || {};
+    const m = parseMeter(cfg.meter || '4/4');
+    const bpm = cfg.bpm || 80;
+    const bars = cfg.bars || 4;
+    return bars * (60 / bpm) * (4 / m.denominator) * m.numerator;
+  }
+
+  function buildSegmentCard(seg) {
+    const color = KIND_COLORS[seg.kind] || '#94a3b8';
+    const label = KIND_LABELS[seg.kind] || seg.kind;
+    const dur = segmentEstDuration(seg);
+    const durStr = dur < 60 ? `~${Math.round(dur)}s` : `~${Math.floor(dur / 60)}m${Math.round(dur % 60)}s`;
+    const cfg = seg.config || {};
+    const parts = [];
+    if (seg.kind === 'chromatic') {
+      parts.push(`Frets ${cfg.fretMin ?? 1}–${cfg.fretMax ?? 4}`);
+    } else if (cfg.key) {
+      parts.push(`${cfg.key} ${(cfg.scale || 'major').replace(/_/g, ' ')}`);
+    }
+    if (cfg.shape && seg.kind !== 'chromatic') parts.push(`${cfg.shape}-shape`);
+    if (cfg.progression && cfg.progression !== 'none' &&
+        ['chord_scales','guide_tones','progression_arpeggios'].includes(seg.kind)) {
+      parts.push(cfg.progression);
+    }
+    if (seg.kind === 'guide_tones' && cfg.voices) {
+      parts.push({ thirds_only:'3rds', sevenths_only:'7ths', both_alternating:'3rds+7ths' }[cfg.voices] || cfg.voices);
+    }
+    if (seg.kind === 'chord_scales' && cfg.chordScaleStrategy) {
+      parts.push(cfg.chordScaleStrategy === 'chord_tone_emphasis' ? 'chord tones' : 'mode of moment');
+    }
+    if (cfg.bpm) parts.push(`${cfg.bpm} BPM`);
+    if (cfg.bars) parts.push(`${cfg.bars} bars`);
+    parts.push(durStr);
+    return `<div class="slopscale-segment-card" data-kind="${seg.kind}">
+      <div class="slopscale-segment-header">
+        <span class="slopscale-segment-badge" style="color:${color}">${label}</span>
+        <span class="slopscale-segment-name">${seg.name || ''}</span>
+      </div>
+      <div class="slopscale-segment-meta">${parts.join(' · ')}</div>
+    </div>`;
+  }
+
+  function syncSessionSummary(sessionId) {
+    const session = BUILT_IN_SESSIONS[sessionId];
+    const info = $('slopscale-session-info'), list = $('slopscale-segment-list');
+    if (!info || !list) return;
+    if (!session) { info.innerHTML = ''; list.innerHTML = ''; return; }
+    const segs = session.segments || [];
+    const totalDur = segs.reduce((s, seg) => s + segmentEstDuration(seg), 0);
+    const bpms = segs.map(s => s.config?.bpm).filter(Boolean);
+    const minBpm = Math.min(...bpms), maxBpm = Math.max(...bpms);
+    const bpmStr = minBpm === maxBpm ? `${minBpm} BPM` : `${minBpm}–${maxBpm} BPM`;
+    const durStr = totalDur < 60 ? `${Math.round(totalDur)}s` : `${Math.floor(totalDur / 60)}m ${Math.round(totalDur % 60)}s`;
+    const tags = (session.tags || []).join(', ');
+    info.innerHTML = `
+      <div class="slopscale-session-info-name">${session.name}</div>
+      <div class="slopscale-session-info-desc">${session.description || ''}</div>
+      <div class="slopscale-session-info-stats">
+        <span class="slopscale-session-info-stat">${segs.length} segments</span>
+        <span class="slopscale-session-info-stat">${durStr}</span>
+        <span class="slopscale-session-info-stat">${bpmStr}</span>
+        ${tags ? `<span class="slopscale-session-info-stat">${tags}</span>` : ''}
+      </div>`;
+    list.innerHTML = segs.map(s => buildSegmentCard(s)).join('');
+  }
+
+  function syncSessionMode(mode) {
+    const root = $('slopscale-root'); if (!root) return;
+    root.classList.toggle('slopscale-session-mode', mode === 'session');
+    const btnSingle = $('slopscale-mode-single'), btnSession = $('slopscale-mode-session');
+    if (btnSingle) { btnSingle.classList.toggle('active', mode !== 'session'); btnSingle.setAttribute('aria-pressed', mode !== 'session' ? 'true' : 'false'); }
+    if (btnSession) { btnSession.classList.toggle('active', mode === 'session'); btnSession.setAttribute('aria-pressed', mode === 'session' ? 'true' : 'false'); }
+  }
+
+  async function onLaunchSession() {
+    const sel = $('slopscale-session-select');
+    const sessionId = sel?.value || Object.keys(BUILT_IN_SESSIONS)[0];
+    const baseSession = BUILT_IN_SESSIONS[sessionId];
+    if (!baseSession) return;
+    const btn = $('slopscale-launch-session');
+    const summary = $('slopscale-summary');
+    const audio = {
+      notes:   !!document.getElementById('slopscale-session-audio-notes')?.checked,
+      metronome: !!document.getElementById('slopscale-session-audio-metronome')?.checked,
+      harmony: !!document.getElementById('slopscale-session-audio-harmony')?.checked,
+    };
+    // Clone session; patch audio into each segment config so buildSegmentConfig picks it up
+    const session = Object.assign({}, baseSession, {
+      segments: baseSession.segments.map(seg =>
+        Object.assign({}, seg, { config: Object.assign({}, seg.config, { audio }) })
+      )
+    });
+    try {
+      if (btn) { btn.disabled = true; btn.textContent = 'Building…'; }
+      if (playing) stopPlayback();
+      showStatus('Building session…');
+      const exercise = generateSession(session);
+      const totalSecs = exercise.chart.duration.toFixed(1);
+      if (summary) summary.textContent = `Session: ${session.name}\n${session.segments.length} segments · ${totalSecs}s total\nGenerated: ${exercise.chart.notes.length} notes, ${exercise.chart.beats.length} beats`;
+      await attachRenderer(exercise);
+      startPlayback();
+      refreshStatusFromState();
+    } catch (e) {
+      showStatus('Error');
+      if (summary) summary.textContent = `Session error: ${e.message || e}`;
+      console.error('[SlopScale] session launch failed', e);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '▶ Launch Session'; }
+    }
+  }
+
+  // ── End Session UI ──────────────────────────────────────────────────────────
+
   function bind() {
     const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1';
     const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'), advancedToggle = $('slopscale-advanced-toggle');
@@ -2814,6 +2940,20 @@
       // does not feel sluggish.
       if (activeBundle) onGenerate();
     });
+    // Session mode toggle
+    $('slopscale-mode-single')?.addEventListener('click', () => {
+      syncSessionMode('single');
+      if (activeBundle) onGenerate();
+    });
+    $('slopscale-mode-session')?.addEventListener('click', () => {
+      syncSessionMode('session');
+      const sel = $('slopscale-session-select');
+      if (sel) syncSessionSummary(sel.value);
+    });
+    $('slopscale-session-select')?.addEventListener('change', ev => syncSessionSummary(ev.target.value));
+    $('slopscale-launch-session')?.addEventListener('click', onLaunchSession);
+    syncSessionSummary(Object.keys(BUILT_IN_SESSIONS)[0]);
+
     loadPathwayFavorites();
     // Populate the Shape dropdown for the initial (key, system) before any
     // pathway runs — applyInitialPathway may set the shape value, but it

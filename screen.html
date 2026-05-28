@@ -152,6 +152,33 @@
   .slopscale-tier-btn:hover { background: #1e293b; color: #e2e8f0; }
   .slopscale-tier-btn.active { background: linear-gradient(180deg, #1e40af, #1d4ed8); border-color: #60a5fa; color: #f8fafc; }
 
+  /* Single ↔ Session mode toggle pill */
+  .slopscale-mode-toggle { display: flex; gap: 3px; background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 3px; }
+  .slopscale-mode-btn { flex: 1; min-height: 30px; border: none; border-radius: 7px; background: transparent; color: #64748b; font-size: 12px; font-weight: 700; cursor: pointer; transition: background 0.12s, color 0.12s; }
+  .slopscale-mode-btn:hover { color: #e2e8f0; }
+  .slopscale-mode-btn.active { background: #1e293b; color: #f8fafc; box-shadow: 0 1px 3px rgba(0,0,0,0.4); }
+
+  /* Session vs Single mode visibility */
+  .slopscale-root.slopscale-session-mode .slopscale-single-only { display: none !important; }
+  .slopscale-root:not(.slopscale-session-mode) .slopscale-session-only { display: none !important; }
+
+  /* Session info summary card */
+  .slopscale-session-info { border: 1px solid rgba(96, 165, 250, 0.25); border-radius: 12px; padding: 12px 14px; background: rgba(15, 23, 42, 0.6); display: flex; flex-direction: column; gap: 6px; }
+  .slopscale-session-info-name { font-size: 13px; font-weight: 700; color: #f8fafc; }
+  .slopscale-session-info-desc { font-size: 12px; color: #94a3b8; line-height: 1.4; }
+  .slopscale-session-info-stats { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+  .slopscale-session-info-stat { background: #1e293b; border: 1px solid #334155; border-radius: 5px; padding: 2px 7px; font-size: 11px; color: #94a3b8; }
+
+  /* Segment list and cards */
+  .slopscale-segment-list { display: flex; flex-direction: column; gap: 4px; }
+  .slopscale-segment-card { border: 1px solid rgba(75, 85, 99, 0.5); border-radius: 9px; padding: 9px 11px; background: rgba(2, 6, 23, 0.4); display: flex; flex-direction: column; gap: 3px; transition: border-color 0.12s; }
+  .slopscale-segment-card:hover { border-color: rgba(96, 165, 250, 0.3); }
+  .slopscale-segment-card.active { border-left: 3px solid #3b82f6; border-color: rgba(96, 165, 250, 0.55); background: rgba(30, 64, 175, 0.12); }
+  .slopscale-segment-header { display: flex; align-items: center; gap: 7px; }
+  .slopscale-segment-badge { font-size: 9px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; flex-shrink: 0; }
+  .slopscale-segment-name { font-size: 12.5px; font-weight: 650; color: #e2e8f0; }
+  .slopscale-segment-meta { font-size: 11px; color: #6b7280; }
+
   @media (max-width: 1100px) { .slopscale-layout { grid-template-columns: 1fr; } .slopscale-controls { max-height: none; } }
   @media (max-width: 720px) { .slopscale-grid-2, .slopscale-grid-3, .slopscale-audio-options { grid-template-columns: 1fr; } }
 
@@ -181,6 +208,19 @@
     .slopscale-controls > .slopscale-advanced-card {
       grid-column: 1 / -1;
     }
+    /* Session panel spans full width at ultrawide */
+    .slopscale-controls > .slopscale-mode-toggle,
+    .slopscale-controls > .slopscale-single-only,
+    .slopscale-controls > .slopscale-session-only { grid-column: 1 / -1; }
+    /* Re-establish column layout inside the single-only wrapper */
+    .slopscale-single-only { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; align-content: start; }
+    .slopscale-single-only > .slopscale-group-title,
+    .slopscale-single-only > .slopscale-audio-options,
+    .slopscale-single-only > .slopscale-actions,
+    .slopscale-single-only > .slopscale-actions-secondary,
+    .slopscale-single-only > .slopscale-pathway-goal-card,
+    .slopscale-single-only > .slopscale-help,
+    .slopscale-single-only > .slopscale-advanced-card { grid-column: 1 / -1; }
   }
 </style>
 
@@ -199,6 +239,15 @@
 
   <section class="slopscale-layout">
     <form id="slopscale-controls" class="slopscale-panel slopscale-controls">
+
+      <!-- Mode toggle — always visible at top of left panel -->
+      <div class="slopscale-mode-toggle" role="group" aria-label="Practice mode">
+        <button type="button" id="slopscale-mode-single" class="slopscale-mode-btn active" aria-pressed="true">Single exercise</button>
+        <button type="button" id="slopscale-mode-session" class="slopscale-mode-btn" aria-pressed="false">Session</button>
+      </div>
+
+      <!-- Single exercise mode — pathway + custom controls -->
+      <div class="slopscale-single-only">
 
       <div class="slopscale-group-title">Pathway</div>
       <label>Practice pathway
@@ -460,6 +509,47 @@
         <button type="button" id="slopscale-regenerate" class="slopscale-custom-only secondary">Regenerate</button>
         <button type="button" id="slopscale-save" class="secondary">Save preset</button>
       </div>
+
+      </div><!-- end .slopscale-single-only -->
+
+      <!-- Session mode panel -->
+      <div class="slopscale-session-only" id="slopscale-session-panel">
+
+        <div class="slopscale-group-title">Program</div>
+        <label>Session
+          <select id="slopscale-session-select">
+            <optgroup label="Built-in">
+              <option value="ii_v_i_workshop">ii–V–I Workshop</option>
+              <option value="daily_intermediate">Daily 30-min Intermediate</option>
+              <option value="blues_fundamentals">Blues Fundamentals</option>
+              <option value="bebop_fundamentals">Bebop Fundamentals</option>
+            </optgroup>
+            <optgroup label="Saved" id="slopscale-session-saved-group" hidden></optgroup>
+          </select>
+        </label>
+
+        <div id="slopscale-session-info" class="slopscale-session-info">
+          <!-- populated by syncSessionSummary() -->
+        </div>
+
+        <div class="slopscale-group-title">Segments</div>
+        <div id="slopscale-segment-list" class="slopscale-segment-list">
+          <!-- populated by syncSessionSummary() -->
+        </div>
+
+        <div class="slopscale-group-title">Audio</div>
+        <div class="slopscale-audio-options" aria-label="Session audio options">
+          <label class="slopscale-toggle"><input id="slopscale-session-audio-notes" type="checkbox" checked> Hear generated notes</label>
+          <label class="slopscale-toggle"><input id="slopscale-session-audio-metronome" type="checkbox" checked> Metronome click</label>
+          <label class="slopscale-toggle"><input id="slopscale-session-audio-harmony" type="checkbox"> Harmony backing</label>
+        </div>
+
+        <div class="slopscale-actions">
+          <button type="button" id="slopscale-launch-session" class="primary">▶ Launch Session</button>
+        </div>
+
+      </div><!-- end .slopscale-session-only -->
+
     </form>
 
     <section class="slopscale-panel slopscale-stage">

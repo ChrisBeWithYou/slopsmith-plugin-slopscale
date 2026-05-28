@@ -105,6 +105,9 @@
 - 🔲 `chord_scales` generator: default maj7 → Lydian (not Ionian), dom7 resolving to major → Lydian dominant, m7b5 → Locrian ♮2
 - 🔲 Minor ii-V-i: add `minor: true` flag to `minor_ii_V_i` progression so generator uses m7b5 on degree ii, altered/dim on degree V
 
+### String setup
+- 🔲 **Per-string tuning editor** — allow users to set individual string pitches rather than only selecting from preset `STRING_SETUPS`. Required for open tunings (DADGAD, open G, open D), step-down tunings, and baritone guitar. Maps to `openMidis` array adjustments. *(User UX request)*
+
 ### Data gaps
 - 🔲 Rhythm Changes A section in `COMMON_PROGRESSIONS` (full 8-chord, not reducible to 4 degrees)
 - 🔲 Rhythm Changes bridge (III7–VI7–II7–V7) in `COMMON_PROGRESSIONS`
@@ -144,6 +147,7 @@
 - 🔲 **String-skipping** — restrict to non-adjacent strings; Satriani/Guthrie Govan vocabulary
 - 🔲 **Pedal point sequences** — alternating pedal note + scale run above/below
 - 🔲 **Chromatic enclosures** — approach notes wrapping chord tones (-1, +1, -2, +1)
+- 🔲 **Chord Jam / Improv Scoring mode** — generate a chord progression (dropdown or semi-random), display it as a backing chart, score user's improvisation based on whether played notes land in the correct chord-scale at each moment. Uses existing Minigames SDK pitch tracker + chord-scale matching logic; achievable without Slopsmith's full scorer API. *(Community request)*
 - 🔲 **Improv mode** — backing chord chart with empty note slots; user fills them in
 - 🔲 **Walking bass line** — root-to-chord-tone scalar walks between chord changes
 - 🔲 **Pentatonic superimposition** — play pentatonic from non-root starting point for specific tension (Levine chapter)
