@@ -881,6 +881,33 @@
   // See docs/section-looping.md for the design + phasing.
   let segmentLoopA = null, segmentLoopB = null;
   let audioCtx = null, audioNodes = [];
+  // highway_3d's _bgGetAnalyser() creates a fresh AudioContext every call
+  // until setup succeeds, then calls ctx.close() in the catch block when
+  // createMediaElementSource throws (stem_mixer already holds the element).
+  // That close() produces an audible transient click. Fix: while SlopScale
+  // has an active context, return a lightweight stub instead. The stub throws
+  // InvalidStateError on createMediaElementSource (flags the failure as
+  // permanent so highway_3d stops retrying) and no-ops close() (no click).
+  (function patchAudioContextForSharing() {
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) return;
+    const makeFakeCtx = () => ({
+      state: 'closed',
+      currentTime: 0,
+      close: () => Promise.resolve(),
+      createMediaElementSource: () => {
+        throw new DOMException('AudioContext already in use by SlopScale', 'InvalidStateError');
+      },
+    });
+    const Patched = function(...args) {
+      if (audioCtx && audioCtx.state !== 'closed') return makeFakeCtx();
+      const ctx = new Ctor(...args);
+      return ctx;
+    };
+    Patched.prototype = Ctor.prototype;
+    Object.defineProperty(window, 'AudioContext', { value: Patched, configurable: true, writable: true });
+    if (window.webkitAudioContext) Object.defineProperty(window, 'webkitAudioContext', { value: Patched, configurable: true, writable: true });
+  }());
   // Notation renderer is notation-only — tab is its own renderer now.
   const notationMode = 'notation';
 
@@ -2899,17 +2926,35 @@
     drawOnce(); rafId = requestAnimationFrame(tick);
   }
 
-  function makeDistortionCurve(amount) { const samples = 256, curve = new Float32Array(samples), k = amount || 18; for (let i = 0; i < samples; i++) { const x = i * 2 / samples - 1; curve[i] = ((3 + k) * x * 20 * Math.PI / 180) / (Math.PI + k * Math.abs(x)); } return curve; }
   function schedulePluckedString(ctx, when, freq, dur, instrument, gainScale) {
-    const isBass = instrument === 'bass', osc1 = ctx.createOscillator(), osc2 = ctx.createOscillator(), gain = ctx.createGain(), filter = ctx.createBiquadFilter(), shaper = ctx.createWaveShaper();
-    osc1.type = isBass ? 'triangle' : 'sawtooth'; osc2.type = isBass ? 'sine' : 'triangle';
-    osc1.frequency.setValueAtTime(freq, when); osc2.frequency.setValueAtTime(isBass ? Math.max(25, freq * 0.5) : freq * 2, when); osc2.detune.setValueAtTime(isBass ? 0 : 5, when);
-    filter.type = 'lowpass'; filter.frequency.setValueAtTime(isBass ? 1200 : 2600, when); filter.frequency.exponentialRampToValueAtTime(isBass ? 450 : 900, when + Math.max(0.08, dur)); filter.Q.setValueAtTime(isBass ? 0.7 : 1.1, when);
-    shaper.curve = makeDistortionCurve(isBass ? 8 : 14); shaper.oversample = '2x';
-    const amp = (isBass ? 0.28 : 0.24) * (gainScale || 1);
-    gain.gain.setValueAtTime(0.0001, when); gain.gain.exponentialRampToValueAtTime(amp, when + 0.004); gain.gain.exponentialRampToValueAtTime(amp * 0.45, when + 0.055); gain.gain.exponentialRampToValueAtTime(0.0001, when + Math.max(0.12, dur));
-    osc1.connect(filter); osc2.connect(filter); filter.connect(shaper); shaper.connect(gain); gain.connect(ctx.destination);
-    osc1.start(when); osc2.start(when); const stopAt = when + Math.max(0.14, dur) + 0.03; osc1.stop(stopAt); osc2.stop(stopAt); audioNodes.push(osc1, osc2, filter, shaper, gain);
+    // Triangle-based plucked-string synthesis — clean, audible, no WaveShaper
+    // over-drive. Sawtooth + heavy distortion (prior approach) produced
+    // click-like transients that were imperceptible as guitar notes on some
+    // hardware. Triangle is softer and reads clearly as a pitched note.
+    const isBass = instrument === 'bass';
+    const osc1 = ctx.createOscillator(), osc2 = ctx.createOscillator();
+    const preGain = ctx.createGain(), filter = ctx.createBiquadFilter(), gain = ctx.createGain();
+    osc1.type = 'triangle'; osc2.type = 'sine';
+    osc1.frequency.setValueAtTime(freq, when);
+    osc2.frequency.setValueAtTime(isBass ? Math.max(25, freq * 0.5) : freq * 2, when);
+    osc2.detune.setValueAtTime(isBass ? 0 : 7, when);
+    // Pre-gain mixes the two oscillators at a controlled level
+    preGain.gain.setValueAtTime(isBass ? 0.55 : 0.60, when);
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(isBass ? 1100 : 2400, when);
+    filter.frequency.exponentialRampToValueAtTime(isBass ? 380 : 800, when + Math.max(0.08, dur));
+    filter.Q.setValueAtTime(isBass ? 0.8 : 1.4, when);
+    const amp = (isBass ? 0.42 : 0.38) * (gainScale || 1);
+    gain.gain.setValueAtTime(0.0001, when);
+    gain.gain.exponentialRampToValueAtTime(amp, when + 0.008);
+    gain.gain.exponentialRampToValueAtTime(amp * 0.50, when + 0.070);
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + Math.max(0.12, dur));
+    osc1.connect(preGain); osc2.connect(preGain);
+    preGain.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+    osc1.start(when); osc2.start(when);
+    const stopAt = when + Math.max(0.14, dur) + 0.03;
+    osc1.stop(stopAt); osc2.stop(stopAt);
+    audioNodes.push(osc1, osc2, preGain, filter, gain);
   }
   function scheduleHarmonyPad(ctx, when, midis, dur, instrument) {
     if (!midis.length) return;
