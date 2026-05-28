@@ -87,10 +87,11 @@ FastAPI routes registered via `setup(app, context)`. All routes are under `/api/
 
 - `GET /status` — health check
 - `GET /assets/{filename}` — serves `static/slopscale.css`
-- `GET /presets` / `POST /presets` / `DELETE /presets/{id}` — preset CRUD via `presets.json`
+- `GET /presets` / `POST /presets` / `DELETE /presets/{id}` — preset CRUD
+- `GET /tunings` / `POST /tunings` / `DELETE /tunings/{id}` — custom-tuning CRUD (frontend posts a tuning by name + family + string count + MIDI list; id is an autoincrement INTEGER)
 - `POST /temp-sloppak` — normalizes the frontend exercise payload (`_normalise_chart`), writes a directory-form `.sloppak` package under the DLC folder, returns `{ ok, filename, title, duration }`. The frontend then calls `playSong(filename)`.
 
-Presets persist to `<CONFIG_DIR>/plugin_data/slopscale/presets.json`. Writes are atomic (temp file + `os.replace`).
+**Storage is DB-backed, not flat files.** Presets and tunings live in the shared Slopsmith meta-DB obtained via `context["meta_db"]` (a `sqlite3.Connection` on `.conn` guarded by `._lock`), in two dedicated tables `slopscale_presets` (TEXT id, preserves legacy slug ids) and `slopscale_tunings` (INTEGER autoincrement id). `_ensure_tables()` creates them on `setup()`. The legacy `<CONFIG_DIR>/plugin_data/slopscale/presets.json` is migrated into the DB once via `_migrate_presets_from_json()` (idempotent; runs only when the presets table is empty) and then left in place as an audit breadcrumb — it is **no longer the live store**, so don't edit it expecting changes to show up.
 
 Temp sloppaks live under `<DLC_DIR>/.slopscale-temp/<slug>.sloppak/`. They are cleaned up on the next build call (entries older than 24h, or beyond 20 total).
 
