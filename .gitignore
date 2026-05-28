@@ -5,3 +5,6 @@ __pycache__/
 node_modules/
 dist/
 docs/sources/
+.slopscale-shots/
+.claude/skills/run-slopscale/node_modules/
+.claude/skills/run-slopscale/package-lock.json
