@@ -430,7 +430,7 @@ def setup(app: FastAPI, context: dict) -> None:
             "dlc_dir_available": bool(dlc_dir),
         }
 
-    @app.get(f"/api/plugins/{PLUGIN_ID}/assets/{filename}")
+    @app.get(f"/api/plugins/{PLUGIN_ID}/assets/{{filename}}")
     def plugin_asset(filename: str):
         if filename != "slopscale.css":
             raise HTTPException(404, "Asset not found.")
@@ -468,7 +468,7 @@ def setup(app: FastAPI, context: dict) -> None:
         _atomic_write_json(presets_path, out)
         return {"ok": True, "preset": next_preset, "updated": updated}
 
-    @app.delete(f"/api/plugins/{PLUGIN_ID}/presets/{preset_id}")
+    @app.delete(f"/api/plugins/{PLUGIN_ID}/presets/{{preset_id}}")
     def delete_preset(preset_id: str):
         data = _read_json(presets_path, {"version": SCHEMA_VERSION, "presets": []})
         presets = data.get("presets", [])
