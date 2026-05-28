@@ -239,6 +239,37 @@
   .slopscale-instr-btn:disabled { color: #475569; cursor: not-allowed; }
   .slopscale-instr-btn:disabled::after { content: " ·"; opacity: 0.6; }
 
+  /* Strings + tuning block — sits between the instrument family chips and
+     the mode toggle. Hidden when Piano is active (Piano doesn't have a
+     string concept). */
+  .slopscale-tuning-block { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; padding: 8px 10px; background: rgba(15,23,42,0.55); border: 1px solid #1f2937; border-radius: 10px; }
+  .slopscale-root.slopscale-piano-instrument .slopscale-tuning-block { display: none; }
+  .slopscale-tuning-row { display: flex; align-items: center; gap: 8px; }
+  .slopscale-tuning-label { flex: 0 0 56px; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8; }
+  .slopscale-string-count-row { display: flex; gap: 4px; flex: 1; }
+  .slopscale-string-count-btn {
+    flex: 1; min-height: 26px; border: 1px solid #334155; border-radius: 7px;
+    background: #0f172a; color: #94a3b8; font-size: 12px; font-weight: 700;
+    cursor: pointer; padding: 0 6px;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .slopscale-string-count-btn:hover { color: #e2e8f0; border-color: #475569; }
+  .slopscale-string-count-btn.active { background: #1e293b; color: #f8fafc; border-color: #60a5fa; }
+  #slopscale-tuning-select { flex: 1; min-height: 28px; }
+  .slopscale-custom-tuning { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; border-top: 1px dashed #334155; }
+  .slopscale-custom-tuning-inputs { display: flex; gap: 4px; flex-wrap: wrap; }
+  /* Override the global .slopscale-controls input width:100% so the custom-
+     tuning row sits as a single row of small note-name pills. */
+  .slopscale-controls .slopscale-custom-tuning-input {
+    width: 56px !important; min-width: 56px !important; flex: 0 0 56px !important;
+    min-height: 26px !important; padding: 0 4px !important;
+    border: 1px solid #334155 !important; border-radius: 6px !important; background: #0a1322 !important;
+    color: #f8fafc !important; font-family: ui-monospace, "Consolas", monospace !important; font-size: 12px !important;
+    text-align: center !important;
+  }
+  .slopscale-controls .slopscale-custom-tuning-input:focus { border-color: #60a5fa !important; }
+  .slopscale-controls .slopscale-custom-tuning-input.invalid { border-color: #b91c1c !important; color: #fca5a5 !important; }
+
   /* Segmented control: pill background with one filled "selected" segment
      and one bordered "deselected" segment. Both states need visible weight
      so the user can tell at a glance that this is a toggle, not a label. */
@@ -336,6 +367,34 @@
         <button type="button" class="slopscale-instr-btn" data-instrument="bass">Bass</button>
         <button type="button" class="slopscale-instr-btn active" data-instrument="guitar">Guitar</button>
         <button type="button" class="slopscale-instr-btn" data-instrument="piano" disabled title="Piano support is coming in a future release">Piano</button>
+      </div>
+
+      <!-- Strings + tuning (hidden when Piano is active). The chip row offers
+           4/5/6 for bass, 6/7/8 for guitar; the tuning dropdown is repopulated
+           by syncTuningOptions() whenever family or count changes. The
+           custom-tuning row only appears when the user picks "Custom…". -->
+      <div class="slopscale-tuning-block" id="slopscale-tuning-block">
+        <div class="slopscale-tuning-row">
+          <span class="slopscale-tuning-label">Strings</span>
+          <div class="slopscale-string-count-row" id="slopscale-string-count-row" role="group" aria-label="String count">
+            <!-- populated by syncStringCountChips() -->
+          </div>
+        </div>
+        <div class="slopscale-tuning-row">
+          <span class="slopscale-tuning-label">Tuning</span>
+          <select id="slopscale-tuning-select" aria-label="Tuning">
+            <!-- populated by syncTuningOptions() -->
+          </select>
+        </div>
+        <div class="slopscale-custom-tuning" id="slopscale-custom-tuning" style="display:none">
+          <span class="slopscale-tuning-label">Notes (low → high)</span>
+          <div class="slopscale-custom-tuning-inputs" id="slopscale-custom-tuning-inputs">
+            <!-- populated by syncCustomTuningInputs() -->
+          </div>
+        </div>
+        <!-- Hidden field — keeps any per-string custom tuning in the form so
+             it round-trips through the share URL alongside everything else. -->
+        <input type="hidden" name="customOpenMidis" id="slopscale-custom-open-midis" value="">
       </div>
 
       <!-- Mode toggle — always visible at top of left panel -->
@@ -520,6 +579,7 @@
             <option value="guitar_8_standard">8-string guitar — standard</option>
             <option value="bass_4_standard">4-string bass — standard</option>
             <option value="bass_5_standard">5-string bass — standard low B</option>
+            <option value="bass_6_standard">6-string bass — standard (B-E-A-D-G-C)</option>
           </select>
         </label>
       </div>

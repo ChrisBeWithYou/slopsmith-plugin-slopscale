@@ -13,7 +13,59 @@
     guitar_7_standard: { label:'7-string guitar — standard', instrument:'guitar', openMidis:[35,40,45,50,55,59,64], tuning:[0,0,0,0,0,0,0] },
     guitar_8_standard: { label:'8-string guitar — standard', instrument:'guitar', openMidis:[30,35,40,45,50,55,59,64], tuning:[2,0,0,0,0,0,0,0] },
     bass_4_standard: { label:'4-string bass — standard', instrument:'bass', openMidis:[28,33,38,43], tuning:[0,0,0,0] },
-    bass_5_standard: { label:'5-string bass — standard low B', instrument:'bass', openMidis:[23,28,33,38,43], tuning:[0,0,0,0,0] }
+    bass_5_standard: { label:'5-string bass — standard low B', instrument:'bass', openMidis:[23,28,33,38,43], tuning:[0,0,0,0,0] },
+    bass_6_standard: { label:'6-string bass — standard (B-E-A-D-G-C)', instrument:'bass', openMidis:[23,28,33,38,43,48], tuning:[0,0,0,0,0,0] }
+  };
+
+  // Curated tunings. Keyed by `${family}_${stringCount}` → array of options
+  // ({label, midis}). Order is from lowest to highest string (matches
+  // STRING_SETUPS.openMidis). Picking one of these maps to a stringSetup
+  // when the midis match a built-in preset; otherwise it's stored as a
+  // customOpenMidis override (see readConfig + openMidisForConfig).
+  const TUNING_PRESETS = {
+    guitar_6: [
+      { id:'standard',     label:'Standard (E A D G B E)',      midis:[40,45,50,55,59,64] },
+      { id:'drop_d',       label:'Drop D (D A D G B E)',        midis:[38,45,50,55,59,64] },
+      { id:'eb_standard',  label:'Eb Standard (down ½ step)',   midis:[39,44,49,54,58,63] },
+      { id:'d_standard',   label:'D Standard (down 1 step)',    midis:[38,43,48,53,57,62] },
+      { id:'dadgad',       label:'DADGAD',                       midis:[38,45,50,55,57,62] },
+      { id:'open_g',       label:'Open G (D G D G B D)',        midis:[38,43,50,55,59,62] },
+      { id:'open_d',       label:'Open D (D A D F# A D)',       midis:[38,45,50,54,57,62] },
+    ],
+    guitar_7: [
+      { id:'standard',     label:'Standard (B E A D G B E)',    midis:[35,40,45,50,55,59,64] },
+      { id:'drop_a',       label:'Drop A (A E A D G B E)',      midis:[33,40,45,50,55,59,64] },
+    ],
+    guitar_8: [
+      { id:'standard',     label:'Standard (F# B E A D G B E)', midis:[30,35,40,45,50,55,59,64] },
+      { id:'drop_e',       label:'Drop E (E B E A D G B E)',    midis:[28,35,40,45,50,55,59,64] },
+    ],
+    bass_4: [
+      { id:'standard',     label:'Standard (E A D G)',          midis:[28,33,38,43] },
+      { id:'drop_d',       label:'Drop D (D A D G)',            midis:[26,33,38,43] },
+      { id:'eb_standard',  label:'Eb Standard (down ½ step)',   midis:[27,32,37,42] },
+      { id:'bead',         label:'BEAD (low B)',                midis:[23,28,33,38] },
+    ],
+    bass_5: [
+      { id:'standard',     label:'Standard low B (B E A D G)',  midis:[23,28,33,38,43] },
+      { id:'standard_hc',  label:'Standard high C (E A D G C)', midis:[28,33,38,43,48] },
+      { id:'drop_a',       label:'Drop A (A E A D G)',          midis:[21,28,33,38,43] },
+    ],
+    bass_6: [
+      { id:'standard',     label:'Standard (B E A D G C)',      midis:[23,28,33,38,43,48] },
+    ],
+  };
+  // Maps `${family}_${count}_${tuningId}` → stringSetup name when the preset
+  // matches a built-in entry; otherwise the chosen tuning gets stored as
+  // customOpenMidis on the config.
+  const TUNING_TO_SETUP = {
+    guitar_6_standard: 'guitar_6_standard',
+    guitar_6_drop_d:   'guitar_6_drop_d',
+    guitar_7_standard: 'guitar_7_standard',
+    guitar_8_standard: 'guitar_8_standard',
+    bass_4_standard:   'bass_4_standard',
+    bass_5_standard:   'bass_5_standard',
+    bass_6_standard:   'bass_6_standard',
   };
 
   const SCALE_INTERVALS = {
@@ -954,6 +1006,15 @@
       instrument: setup.instrument,
       stringSetup,
       setupLabel: setup.label,
+      // Custom per-string tuning override (comma-separated MIDI numbers in
+      // low → high order). When non-empty + length matches the stringSetup,
+      // openMidisForConfig prefers it over the stringSetup's defaults.
+      customOpenMidis: (() => {
+        const raw = (data.get('customOpenMidis') || '').toString().trim();
+        if (!raw) return null;
+        const list = raw.split(',').map(s => parseInt(s, 10)).filter(Number.isFinite);
+        return list.length === setup.openMidis.length ? list : null;
+      })(),
       stringCount: setup.openMidis.length,
       key: data.get('key') || 'C',
       scale: data.get('scale') || 'major',
@@ -977,8 +1038,23 @@
     };
   }
 
-  function openMidisForConfig(cfg) { return (STRING_SETUPS[cfg.stringSetup] || STRING_SETUPS.guitar_6_standard).openMidis.slice(); }
-  function tuningOffsetsForConfig(cfg) { return (STRING_SETUPS[cfg.stringSetup] || STRING_SETUPS.guitar_6_standard).tuning.slice(); }
+  function openMidisForConfig(cfg) {
+    // A customOpenMidis override on the config wins over the stringSetup's
+    // default — that's how per-string tunings (DADGAD, baritone, custom)
+    // flow from the form into the generators.
+    if (Array.isArray(cfg.customOpenMidis) && cfg.customOpenMidis.length) return cfg.customOpenMidis.slice();
+    return (STRING_SETUPS[cfg.stringSetup] || STRING_SETUPS.guitar_6_standard).openMidis.slice();
+  }
+  function tuningOffsetsForConfig(cfg) {
+    // When a custom tuning is in play, derive offsets from the difference
+    // between custom and stringSetup-standard midis so downstream callers
+    // that read the offset field still see something meaningful.
+    const baseSetup = STRING_SETUPS[cfg.stringSetup] || STRING_SETUPS.guitar_6_standard;
+    if (Array.isArray(cfg.customOpenMidis) && cfg.customOpenMidis.length === baseSetup.openMidis.length) {
+      return cfg.customOpenMidis.map((m, i) => m - baseSetup.openMidis[i]);
+    }
+    return baseSetup.tuning.slice();
+  }
   function noteDefaults(extra) { return Object.assign({ t:0, s:0, f:0, sus:0, sl:-1, slu:-1, bn:0, ho:false, po:false, hm:false, hp:false, pm:false, mt:false, vb:false, tr:false, ac:false, tp:false }, extra || {}); }
   function scalePcs(cfg) { const keyPc = NOTE_ALIASES[cfg.key] ?? 0; return (SCALE_INTERVALS[cfg.scale] || SCALE_INTERVALS.major).map(i => (keyPc + i) % 12); }
   function secondsPerDivision(cfg) { const q = 60 / cfg.bpm; return ({ quarter:q, eighth:q/2, sixteenth:q/4, triplet:q/3, eighth_triplet:q/3, sixteenth_triplet:q/6 })[cfg.subdivision] || q/2; }
@@ -2978,10 +3054,223 @@
     if (family === 'piano') return;  // disabled — coming in a future release
     const instr = document.querySelector('[name="instrument"]');
     if (!instr || instr.value === family) { syncInstrumentFamilyButtons(); return; }
+    // Drop any per-string custom tuning before flipping families — a guitar
+    // custom tuning has the wrong string count and the wrong note ranges
+    // for bass (and vice versa), so carrying it across is always wrong.
+    const hidden = $('slopscale-custom-open-midis');
+    if (hidden) hidden.value = '';
     instr.value = family;
     instr.dispatchEvent(new Event('change', { bubbles: true }));
     try { localStorage.setItem('slopscale.instrumentFamily', family); } catch (_) {}
     syncInstrumentFamilyButtons();
+    syncStringCountChips();
+    syncTuningOptions();
+  }
+
+  // ── Strings + tuning ───────────────────────────────────────────────────
+  // Parse "E2", "F#3", "Bb4" into a MIDI number (C-1 = 0, C4 = 60). Returns
+  // null on malformed input. Octave is required so the user gets a single
+  // explicit semantics instead of guessing.
+  function parseNoteName(s) {
+    if (typeof s !== 'string') return null;
+    const m = /^\s*([A-Ga-g])([#♯b♭]?)(-?\d+)\s*$/.exec(s);
+    if (!m) return null;
+    const letter = m[1].toUpperCase();
+    const acc = m[2].replace('♯','#').replace('♭','b');
+    const oct = parseInt(m[3], 10);
+    const baseMap = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
+    let pc = baseMap[letter];
+    if (acc === '#') pc += 1; else if (acc === 'b') pc -= 1;
+    const midi = (oct + 1) * 12 + pc;
+    if (midi < 0 || midi > 127) return null;
+    return midi;
+  }
+  function midiToNoteName(midi) {
+    if (!Number.isFinite(midi)) return '';
+    const names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    const oct = Math.floor(midi / 12) - 1;
+    return names[((midi % 12) + 12) % 12] + oct;
+  }
+  // Currently-effective tuning, in MIDI. Read by openMidisForConfig when
+  // present. Set whenever the user picks a tuning preset or edits a custom
+  // string; cleared when the user picks a built-in stringSetup tuning.
+  function currentFamily() {
+    const el = document.querySelector('[name="instrument"]');
+    return (el && el.value === 'bass') ? 'bass' : 'guitar';
+  }
+  function currentStringCount() {
+    const setup = document.querySelector('[name="stringSetup"]');
+    const cur = STRING_SETUPS[setup?.value] || STRING_SETUPS.guitar_6_standard;
+    return cur.openMidis.length;
+  }
+  function syncStringCountChips() {
+    const row = $('slopscale-string-count-row'); if (!row) return;
+    const family = currentFamily();
+    const counts = family === 'bass' ? [4,5,6] : [6,7,8];
+    const cur = currentStringCount();
+    row.innerHTML = '';
+    for (const n of counts) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'slopscale-string-count-btn' + (n === cur ? ' active' : '');
+      b.dataset.count = String(n);
+      b.textContent = String(n);
+      b.addEventListener('click', () => onStringCountClick(n));
+      row.appendChild(b);
+    }
+  }
+  function onStringCountClick(count) {
+    // Snap stringSetup to the canonical standard preset for this family +
+    // count. If a custom tuning was active, it's dropped — the user explicitly
+    // chose a different number of strings, so the per-string state is stale.
+    const family = currentFamily();
+    const target = `${family}_${count}_standard`;
+    const setupName = TUNING_TO_SETUP[target] || (family === 'guitar' ? 'guitar_6_standard' : 'bass_4_standard');
+    const setup = document.querySelector('[name="stringSetup"]');
+    if (!setup) return;
+    setup.value = setupName;
+    // Clear any custom tuning.
+    const hidden = $('slopscale-custom-open-midis');
+    if (hidden) hidden.value = '';
+    setup.dispatchEvent(new Event('change', { bubbles: true }));
+    syncStringCountChips();
+    syncTuningOptions();
+  }
+  function syncTuningOptions() {
+    const sel = $('slopscale-tuning-select'); if (!sel) return;
+    const family = currentFamily();
+    const count = currentStringCount();
+    const presets = TUNING_PRESETS[`${family}_${count}`] || [];
+    const setup = document.querySelector('[name="stringSetup"]');
+    const setupName = setup?.value || `${family}_${count}_standard`;
+    const hidden = $('slopscale-custom-open-midis');
+    const customStr = hidden?.value || '';
+    const customMidis = customStr ? customStr.split(',').map(Number).filter(Number.isFinite) : null;
+    sel.innerHTML = '';
+    // The "currently effective" tuning is the custom-override when present,
+    // otherwise the stringSetup's standard midis. Walk presets and pick the
+    // first one that matches — so e.g. switching to DADGAD via the dropdown
+    // (which is stored as customOpenMidis) keeps the dropdown showing
+    // "DADGAD" instead of "Custom".
+    const effective = (customMidis && customMidis.length === count)
+      ? customMidis
+      : ((STRING_SETUPS[setupName] || {}).openMidis || []);
+    let activeId = null;
+    for (const p of presets) {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.label;
+      opt.dataset.midis = p.midis.join(',');
+      sel.appendChild(opt);
+      if (!activeId && effective.length === p.midis.length && effective.every((m, i) => m === p.midis[i])) {
+        activeId = p.id;
+      }
+    }
+    // Always offer a Custom option. Picked when no preset matched and the
+    // user does have a non-empty custom override (otherwise just leave the
+    // first preset selected).
+    const customOpt = document.createElement('option');
+    customOpt.value = 'custom';
+    customOpt.textContent = 'Custom…';
+    sel.appendChild(customOpt);
+    if (!activeId && customMidis && customMidis.length === count) activeId = 'custom';
+    sel.value = activeId || (presets[0] && presets[0].id) || 'custom';
+    syncCustomTuningInputs();
+  }
+  function syncCustomTuningInputs() {
+    const sel = $('slopscale-tuning-select');
+    const wrap = $('slopscale-custom-tuning');
+    const inputs = $('slopscale-custom-tuning-inputs');
+    const hidden = $('slopscale-custom-open-midis');
+    if (!sel || !wrap || !inputs || !hidden) return;
+    const isCustom = sel.value === 'custom';
+    wrap.style.display = isCustom ? 'flex' : 'none';
+    if (!isCustom) return;
+    const count = currentStringCount();
+    // Seed from existing hidden value, or the current stringSetup's midis.
+    let midis = hidden.value ? hidden.value.split(',').map(Number).filter(Number.isFinite) : null;
+    if (!midis || midis.length !== count) {
+      const setup = document.querySelector('[name="stringSetup"]');
+      midis = (STRING_SETUPS[setup?.value] || STRING_SETUPS.guitar_6_standard).openMidis.slice();
+      if (midis.length !== count) {
+        // Pad / trim to match the chosen count.
+        while (midis.length < count) midis.unshift(midis[0] - 5);
+        midis = midis.slice(0, count);
+      }
+    }
+    inputs.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'slopscale-custom-tuning-input';
+      input.value = midiToNoteName(midis[i]);
+      input.dataset.idx = String(i);
+      input.spellcheck = false;
+      input.addEventListener('input', () => onCustomTuningEdit());
+      input.addEventListener('blur', () => onCustomTuningEdit(true));
+      inputs.appendChild(input);
+    }
+    // Commit the seeded values to the hidden field so an immediate read
+    // sees them even before the user types.
+    commitCustomTuning(midis);
+  }
+  function readCustomTuningInputs() {
+    const inputs = Array.from(document.querySelectorAll('.slopscale-custom-tuning-input'));
+    const midis = [];
+    let allValid = true;
+    for (const el of inputs) {
+      const m = parseNoteName(el.value);
+      if (m == null) { el.classList.add('invalid'); allValid = false; midis.push(null); }
+      else { el.classList.remove('invalid'); midis.push(m); }
+    }
+    return { midis, allValid };
+  }
+  function commitCustomTuning(midis) {
+    const hidden = $('slopscale-custom-open-midis');
+    if (hidden) hidden.value = midis.join(',');
+  }
+  function onCustomTuningEdit(commit) {
+    const { midis, allValid } = readCustomTuningInputs();
+    if (!allValid) return;
+    commitCustomTuning(midis);
+    if (commit && activeBundle) onGenerate();
+  }
+  function onTuningPresetChange() {
+    const sel = $('slopscale-tuning-select'); if (!sel) return;
+    const hidden = $('slopscale-custom-open-midis');
+    if (sel.value === 'custom') {
+      // Initialize hidden field from the current stringSetup if not already.
+      if (!hidden.value) {
+        const setup = document.querySelector('[name="stringSetup"]');
+        const midis = (STRING_SETUPS[setup?.value] || STRING_SETUPS.guitar_6_standard).openMidis.slice();
+        commitCustomTuning(midis);
+      }
+      syncCustomTuningInputs();
+      if (activeBundle) onGenerate();
+      return;
+    }
+    // A built-in preset. Drop any custom tuning and (when the preset matches
+    // a STRING_SETUPS entry) snap stringSetup to it. Otherwise apply the
+    // preset's midis as customOpenMidis so generators see the right tuning.
+    hidden.value = '';
+    const family = currentFamily();
+    const count = currentStringCount();
+    const preset = (TUNING_PRESETS[`${family}_${count}`] || []).find(p => p.id === sel.value);
+    if (!preset) return;
+    const setup = document.querySelector('[name="stringSetup"]');
+    const setupKey = `${family}_${count}_${preset.id}`;
+    const setupName = TUNING_TO_SETUP[setupKey];
+    if (setupName && STRING_SETUPS[setupName]) {
+      setup.value = setupName;
+      setup.dispatchEvent(new Event('change', { bubbles: true }));
+    } else {
+      // Non-canonical preset (e.g. DADGAD, Open G) — drive it as a custom
+      // tuning override against the family's standard stringSetup.
+      setup.value = `${family}_${count}_standard`;
+      commitCustomTuning(preset.midis);
+      setup.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    syncCustomTuningInputs();
   }
   function syncAdvancedMode() {
     const root = $('slopscale-root'), toggle = $('slopscale-advanced-toggle');
@@ -3616,10 +3905,16 @@
       syncInstrumentClass();
       if (activeBundle) onGenerate();
     });
-    setup?.addEventListener('change', () => { syncStringSetupControls(); syncInstrumentClass(); });
+    setup?.addEventListener('change', () => { syncStringSetupControls(); syncInstrumentClass(); syncStringCountChips(); syncTuningOptions(); });
     // Top-level instrument-family chips (Bass / Guitar / Piano).
     document.querySelectorAll('.slopscale-instr-btn').forEach(btn => {
       btn.addEventListener('click', () => onInstrumentFamilyClick(btn.dataset.instrument));
+    });
+    // Tuning preset dropdown — wired here since the chip row populates its
+    // contents dynamically and we still want a single change handler.
+    $('slopscale-tuning-select')?.addEventListener('change', () => {
+      onTuningPresetChange();
+      if (activeBundle) onGenerate();
     });
     // Restore the last-used family before first sync, so reload lands on
     // bass-instrument state immediately (renderer fallback, shape selector
@@ -3635,6 +3930,8 @@
     } catch (_) {}
     syncStringSetupControls();
     syncInstrumentClass();
+    syncStringCountChips();
+    syncTuningOptions();
     advancedToggle?.addEventListener('change', syncAdvancedMode); syncAdvancedMode(); syncChromaticVisibility();
     $('slopscale-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', ev.target.value); if (activeBundle) onGenerate(); });
     $('slopscale-play').addEventListener('click', onPlayToggle);
