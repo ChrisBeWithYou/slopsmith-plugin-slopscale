@@ -138,11 +138,37 @@
      action band rather than primary-button-plus-tiny-sidekick. */
   #slopscale-next-variation { min-height: 48px; font-size: 13px; }
   /* View switcher toolbar inside the render stage */
-  .slopscale-view-switcher { display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: rgba(9,15,30,0.92); border-bottom: 1px solid rgba(75,85,99,0.4); flex-shrink: 0; }
-  .slopscale-view-label { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #475569; margin-right: 2px; }
-  .slopscale-view-btn { min-height: 26px; border: 1px solid #334155; border-radius: 6px; background: #0f172a; color: #64748b; font-size: 11px; font-weight: 700; cursor: pointer; padding: 0 10px; transition: background 0.1s, color 0.1s, border-color 0.1s; }
-  .slopscale-view-btn:hover { background: #1e293b; color: #e2e8f0; }
-  .slopscale-view-btn.active { background: linear-gradient(180deg, #1e40af, #1d4ed8); border-color: #60a5fa; color: #f8fafc; }
+  .slopscale-view-switcher { display: flex; align-items: center; gap: 4px; padding: 7px 12px; background: rgba(9,15,30,0.92); border-bottom: 1px solid rgba(75,85,99,0.4); flex-shrink: 0; }
+  .slopscale-view-label { font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8; margin-right: 6px; }
+  /* Tabs read as tabs: unselected is a subtle outlined chip; selected gets
+     a saturated background, a bottom highlight, and a slight lift so the
+     active view is unmistakable at a glance. */
+  .slopscale-view-btn {
+    position: relative;
+    min-height: 30px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    padding: 0 14px;
+    transition: background 0.1s, color 0.1s, border-color 0.1s, transform 0.08s;
+  }
+  .slopscale-view-btn:hover { background: rgba(30,41,59,0.6); color: #e2e8f0; border-color: #334155; }
+  .slopscale-view-btn.active {
+    background: linear-gradient(180deg, #1e40af, #1d4ed8);
+    border-color: #3b82f6;
+    color: #f8fafc;
+    box-shadow: 0 0 0 1px rgba(96,165,250,0.4), 0 2px 6px rgba(29,78,216,0.35);
+  }
+  .slopscale-view-btn.active::after {
+    content: '';
+    position: absolute; left: 14%; right: 14%; bottom: -8px; height: 2px;
+    background: #60a5fa; border-radius: 1px;
+  }
   .slopscale-notation-subtoggle { display: flex; align-items: center; gap: 4px; padding: 0 0 0 10px; border-left: 1px solid #334155; margin-left: 4px; }
   .slopscale-sub-label { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #475569; margin-right: 2px; white-space: nowrap; }
   .slopscale-sub-btn { min-height: 22px; border: 1px solid #1e293b; border-radius: 4px; background: #0a1120; color: #475569; font-size: 10px; font-weight: 700; cursor: pointer; padding: 0 8px; transition: background 0.1s, color 0.1s, border-color 0.1s; white-space: nowrap; }
@@ -185,10 +211,14 @@
   .slopscale-tier-btn.active { background: linear-gradient(180deg, #1e40af, #1d4ed8); border-color: #60a5fa; color: #f8fafc; }
 
   /* Single ↔ Session mode toggle pill */
-  .slopscale-mode-toggle { display: flex; gap: 3px; background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 3px; }
-  .slopscale-mode-btn { flex: 1; min-height: 30px; border: none; border-radius: 7px; background: transparent; color: #64748b; font-size: 12px; font-weight: 700; cursor: pointer; transition: background 0.12s, color 0.12s; }
-  .slopscale-mode-btn:hover { color: #e2e8f0; }
-  .slopscale-mode-btn.active { background: #1e293b; color: #f8fafc; box-shadow: 0 1px 3px rgba(0,0,0,0.4); }
+  /* Segmented control: pill background with one filled "selected" segment
+     and one bordered "deselected" segment. Both states need visible weight
+     so the user can tell at a glance that this is a toggle, not a label. */
+  .slopscale-mode-toggle { display: flex; gap: 4px; background: #050b18; border: 1px solid #334155; border-radius: 12px; padding: 4px; }
+  .slopscale-mode-btn { flex: 1; min-height: 32px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #94a3b8; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
+  .slopscale-mode-btn:hover { color: #e2e8f0; border-color: #475569; }
+  .slopscale-mode-btn.active { background: linear-gradient(180deg, #1e3a8a, #1e40af); color: #f8fafc; border-color: #60a5fa; box-shadow: 0 1px 4px rgba(0,0,0,0.45); }
+  .slopscale-mode-btn.active:hover { border-color: #60a5fa; }
 
   /* Session vs Single mode visibility */
   .slopscale-root.slopscale-session-mode .slopscale-single-only { display: none !important; }
@@ -539,6 +569,7 @@
       </div>
       <div class="slopscale-actions-secondary">
         <button type="button" id="slopscale-regenerate" class="slopscale-custom-only secondary">Regenerate</button>
+        <button type="button" id="slopscale-share" class="secondary" title="Copy a link that restores this exact exercise">Copy share link</button>
         <button type="button" id="slopscale-save" class="secondary">Save preset</button>
       </div>
 
@@ -573,7 +604,7 @@
         <div class="slopscale-audio-options" aria-label="Session audio options">
           <label class="slopscale-toggle"><input id="slopscale-session-audio-notes" type="checkbox" checked> Hear generated notes</label>
           <label class="slopscale-toggle"><input id="slopscale-session-audio-metronome" type="checkbox" checked> Metronome click</label>
-          <label class="slopscale-toggle"><input id="slopscale-session-audio-harmony" type="checkbox"> Harmony backing</label>
+          <label class="slopscale-toggle"><input id="slopscale-session-audio-harmony" type="checkbox" checked> Harmony backing</label>
         </div>
 
         <div class="slopscale-actions">

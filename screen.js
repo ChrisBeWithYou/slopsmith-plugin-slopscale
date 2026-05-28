@@ -633,14 +633,27 @@
     return null;
   }
 
-  // Human-facing label for a shape: name + parenthetical fret range.
+  // Human-facing position name for a fret window. "Open position" for any
+  // shape sitting at the nut (fretMin === 0); otherwise "Nth position" using
+  // the standard guitar convention that "Nth position" = index finger on
+  // fret N.
+  function positionLabel(fretMin) {
+    if (fretMin == null) return '';
+    if (fretMin === 0) return 'open position';
+    return `${fretMin}${fretMin === 1 ? 'st' : fretMin === 2 ? 'nd' : fretMin === 3 ? 'rd' : 'th'} position`;
+  }
+
+  // Human-facing label for a shape: name + position name. The fret range is
+  // exposed as a title (tooltip) for the advanced reader who needs the exact
+  // window — beginners read "E-shape (open position)" far faster than
+  // "E-shape (frets 0-3)".
   function shapeLabel(system, shape, resolved) {
     if (!resolved) return String(shape);
-    const range = `(frets ${resolved.fretMin}–${resolved.fretMax})`;
-    if (system === 'caged') return `${resolved.displayName} ${range}`;
-    if (system === '3nps')  return `${resolved.displayName} ${range}`;
-    if (system === 'open')  return `${resolved.displayName} ${range}`;
-    return `${resolved.displayName} ${range}`;
+    return `${resolved.displayName} (${positionLabel(resolved.fretMin)})`;
+  }
+  function shapeLabelTooltip(resolved) {
+    if (!resolved || resolved.fretMin == null) return '';
+    return `frets ${resolved.fretMin}–${resolved.fretMax}`;
   }
 
   // Populate the Shape dropdown for the current key + system. Preserves the
@@ -679,6 +692,7 @@
       const opt = document.createElement('option');
       opt.value = String(shape);
       opt.textContent = shapeLabel(system, shape, resolved);
+      opt.title = shapeLabelTooltip(resolved);
       sel.appendChild(opt);
     }
     // Restore the previous selection if still valid; otherwise pick the lowest shape.
@@ -3393,6 +3407,74 @@
     }
   }
 
+  // ── Deep-link / shareable URL ──────────────────────────────────────────
+  // Serialises the active form state to a URL hash so a user can copy a link
+  // that restores the exact exercise on another machine. We snapshot the
+  // entire #slopscale-controls FormData — small enough to fit comfortably in
+  // a hash, and stays in sync with whatever fields the form happens to expose.
+  const SHARE_HASH_KEY = 's';
+  function snapshotFormState() {
+    const form = $('slopscale-controls'); if (!form) return null;
+    const data = new FormData(form);
+    const out = {};
+    for (const [k, v] of data.entries()) out[k] = v;
+    // FormData omits unchecked checkboxes; restore them explicitly so the
+    // round-trip is lossless (otherwise "Hear notes off" can't be shared).
+    form.querySelectorAll('input[type="checkbox"][name]').forEach(cb => {
+      if (!(cb.name in out)) out[cb.name] = cb.checked ? 'on' : '';
+    });
+    return out;
+  }
+  function applyFormState(state) {
+    const form = $('slopscale-controls'); if (!form || !state || typeof state !== 'object') return;
+    for (const [name, value] of Object.entries(state)) {
+      const field = form.querySelector(`[name="${name}"]`);
+      if (!field) continue;
+      if (field.type === 'checkbox') field.checked = value === 'on' || value === true;
+      else field.value = value;
+    }
+  }
+  function encodeShareHash(state) {
+    if (!state) return '';
+    try { return btoa(unescape(encodeURIComponent(JSON.stringify(state)))).replace(/=+$/, ''); }
+    catch (_) { return ''; }
+  }
+  function decodeShareHash(s) {
+    if (!s) return null;
+    try {
+      const pad = s.length % 4 ? s + '==='.slice((s.length + 3) % 4) : s;
+      return JSON.parse(decodeURIComponent(escape(atob(pad))));
+    } catch (_) { return null; }
+  }
+  function readShareHash() {
+    const h = location.hash.startsWith('#') ? location.hash.slice(1) : location.hash;
+    const params = new URLSearchParams(h);
+    return decodeShareHash(params.get(SHARE_HASH_KEY));
+  }
+  function writeShareHash() {
+    const enc = encodeShareHash(snapshotFormState());
+    if (!enc) return;
+    const params = new URLSearchParams(location.hash.startsWith('#') ? location.hash.slice(1) : location.hash);
+    params.set(SHARE_HASH_KEY, enc);
+    const next = '#' + params.toString();
+    if (location.hash !== next) history.replaceState(null, '', next);
+  }
+  async function onCopyShareLink() {
+    writeShareHash();
+    const btn = $('slopscale-share');
+    try {
+      await navigator.clipboard.writeText(location.href);
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Copied';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      }
+    } catch (e) {
+      console.warn('[SlopScale] clipboard copy failed', e);
+      if (btn) { const orig = btn.textContent; btn.textContent = 'Copy failed'; setTimeout(() => { btn.textContent = orig; }, 1500); }
+    }
+  }
+
   function bind() {
     const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1';
     const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'), advancedToggle = $('slopscale-advanced-toggle');
@@ -3411,6 +3493,7 @@
     $('slopscale-regenerate')?.addEventListener('click', onGenerate);
     $('slopscale-next-variation')?.addEventListener('click', rotateToNextVariation);
     $('slopscale-save').addEventListener('click', () => savePreset().catch(e => { $('slopscale-summary').textContent += `\n\nPreset save failed: ${e.message || e}`; }));
+    $('slopscale-share')?.addEventListener('click', onCopyShareLink);
     $('slopscale-go-library')?.addEventListener('click', () => { stopRenderer(); goScreen('home'); });
     $('slopscale-go-plugins')?.addEventListener('click', () => { stopRenderer(); goScreen('plugins'); });
     $('slopscale-controls').addEventListener('change', (ev) => {
@@ -3421,6 +3504,7 @@
       if (name === 'renderer') syncViewSwitcher(ev.target.value);
       syncAdvancedMode();
       markPathwayModifiedIfApplicable(name);
+      writeShareHash();
       if (activeBundle) onGenerate();
     });
     // View switcher buttons in the render stage — independent of exercise mode
@@ -3469,6 +3553,20 @@
     syncShapeDropdown();
     syncShapeDropdownSelectionToHidden();
     applyInitialPathway();
+    // If the URL carries a share hash, replay the snapshotted form values
+    // *after* applyInitialPathway has set up the pathway-driven defaults.
+    // The share state wins over the pathway defaults, but the pathway
+    // dropdown's value is part of the snapshot — so the GOAL card and the
+    // pathway-mode CSS stay correctly applied.
+    const sharedState = readShareHash();
+    if (sharedState) {
+      applyFormState(sharedState);
+      syncShapeDropdown();
+      syncShapeDropdownSelectionToHidden();
+      syncInstrumentClass();
+      syncAdvancedMode();
+      syncChromaticVisibility();
+    }
     syncViewSwitcher(document.querySelector('[name="renderer"]')?.value || 'highway_3d');
     window.addEventListener('storage', (ev) => { if (ev.key === 'invertHighway' || ev.key === 'lefty' || ev.key === 'renderScale') refreshForHostSettingChange(); });
     window.addEventListener('focus', refreshForHostSettingChange);
