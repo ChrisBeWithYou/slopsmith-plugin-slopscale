@@ -796,6 +796,7 @@
   let renderer = null, activeBundle = null, rafId = null, lastExercise = null;
   let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
   let audioCtx = null, audioNodes = [];
+  let notationMode = localStorage.getItem('slopscale.notationMode') || 'both';
   // Pitch tracker state — wraps slopsmithMinigames.scoring.createContinuous (no registration required)
   let _ptHandle = null, _ptNotes = [], _ptOpenMidis = [], _ptScored = new Set();
   // Active pathway state — tracks which pathway is showing and which variation
@@ -862,7 +863,7 @@
       shapeNotes,
       shapeDisplayName,
       cagedShape: advancedMode ? (data.get('cagedShape') || 'C') : 'C',
-      renderer: data.get('renderer') || 'highway_3d',
+      renderer: data.get('renderer') || localStorage.getItem('slopscale.renderer') || 'highway_3d',
       instrument: setup.instrument,
       stringSetup,
       setupLabel: setup.label,
@@ -2211,8 +2212,8 @@
     let canvas = null, ctx = null, W = 0, H = 0;
     let beatDur = 0.5, numAcc = 0, isFlats = false, isBass = false;
     let keyAccMap = {}, beamGroups = [];
+    let mode = 'both'; // 'both' | 'tab' | 'notation'
     const LEFT_PAD = 68, RIGHT_PAD = 24, AHEAD = 5, BEHIND = 1.5;
-    const N_RATIO = 0.56, T_RATIO = 0.38; // canvas split ratios
 
     function resize() {
       if (!canvas) return;
@@ -2292,15 +2293,16 @@
 
     // ── Layout helpers ────────────────────────────────────────────────────
     function staffLayout() {
-      const notH = Math.floor(H * N_RATIO);
-      const ls = Math.max(7, Math.floor(notH * 0.13));
+      const ratio = mode === 'notation' ? 0.90 : mode === 'tab' ? 0 : 0.56;
+      const notH = Math.floor(H * ratio);
+      const ls = Math.max(7, Math.floor(Math.max(notH, 1) * 0.13));
       const bottomY = Math.floor(notH * 0.28) + ls * 4;
       return { notH, ls, bottomY };
     }
     function tabLayout() {
-      const tabTop = Math.floor(H * (N_RATIO + 0.06));
-      const tabH = Math.floor(H * T_RATIO);
-      return { tabTop, tabH };
+      if (mode === 'tab') return { tabTop: Math.floor(H * 0.04), tabH: Math.floor(H * 0.88) };
+      if (mode === 'notation') return { tabTop: 0, tabH: 0 };
+      return { tabTop: Math.floor(H * 0.62), tabH: Math.floor(H * 0.38) };
     }
     function tabLaneY(s, nStr, tabTop, tabH) {
       const top = tabTop + tabH * 0.12, bottom = tabTop + tabH * 0.88;
@@ -2531,14 +2533,16 @@
       const { notH, ls, bottomY } = staffLayout();
       const { tabTop, tabH } = tabLayout();
       drawBg(notH, tabTop, tabH);
-      drawStaff(bottomY, ls);
-      drawClef(bottomY, ls);
-      drawKeySig(bottomY, ls);
-      drawNotationBarLines(bundle, now, bottomY, ls);
-      drawNotationNotes(bundle, now, bottomY, ls, openMidis);
-      drawNotationPlayhead(notH, bottomY, ls);
-      drawChordNames(bundle, now, notH);
-      drawTabSection(bundle, now);
+      if (mode !== 'tab') {
+        drawStaff(bottomY, ls);
+        drawClef(bottomY, ls);
+        drawKeySig(bottomY, ls);
+        drawNotationBarLines(bundle, now, bottomY, ls);
+        drawNotationNotes(bundle, now, bottomY, ls, openMidis);
+        drawNotationPlayhead(notH, bottomY, ls);
+        drawChordNames(bundle, now, notH);
+      }
+      if (mode !== 'notation') drawTabSection(bundle, now);
       drawSectionMarkers(bundle, now);
       drawHud(bundle, now, notH);
     }
@@ -2555,6 +2559,7 @@
         isBass = bundle.songInfo?.arrangement === 'Bass' || (bundle.openMidis?.[0] ?? 40) < 36;
         beamGroups = buildBeamGroups(bundle.notes || []);
       },
+      setMode(m) { mode = m; },
       draw, resize,
       destroy() { window.removeEventListener('resize', resize); canvas = null; ctx = null; }
     };
@@ -2581,11 +2586,17 @@
 
   async function attachRenderer(exercise) {
     const cfg = exercise.session;
+    // Honour saved renderer preference when the form hasn't been explicitly changed
+    if (!cfg.renderer || cfg.renderer === 'highway_3d') {
+      const saved = localStorage.getItem('slopscale.renderer');
+      if (saved) cfg.renderer = saved;
+    }
     stopRenderer(); activeBundle = makeBundle(exercise); currentPracticeTime = 0;
     const canvas = replaceCanvas(), resolved = await resolveRendererFactory(cfg.renderer);
     renderer = resolved.factory();
     if (!renderer || typeof renderer.draw !== 'function') throw new Error('Selected renderer did not return a Slopsmith-compatible renderer object.');
     if (typeof renderer.init === 'function') { renderer.init(canvas, activeBundle); if (renderer.readyPromise && typeof renderer.readyPromise.then === 'function') await renderer.readyPromise; }
+    if (cfg.renderer === 'notation_2d') renderer?.setMode?.(notationMode);
     const rect = canvas.parentElement.getBoundingClientRect();
     if (typeof renderer.resize === 'function') renderer.resize(Math.round(rect.width || canvas.width), Math.round(rect.height || canvas.height));
     const rendererStatus = $('slopscale-renderer-status'); if (rendererStatus) rendererStatus.textContent = resolved.label; drawOnce();
@@ -3236,18 +3247,35 @@
     document.querySelectorAll('.slopscale-view-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.renderer === kind);
     });
+    const sub = document.getElementById('slopscale-notation-subtoggle');
+    if (sub) sub.style.display = kind === 'notation_2d' ? 'flex' : 'none';
+  }
+  function syncNotationSubtoggle(m) {
+    document.querySelectorAll('.slopscale-sub-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === m);
+    });
   }
 
   async function onViewSwitch(kind) {
     syncViewSwitcher(kind);
+    localStorage.setItem('slopscale.renderer', kind);
     // Keep the Advanced renderer dropdown in sync (if visible / accessible)
     const rendererSel = document.querySelector('[name="renderer"]');
     if (rendererSel && rendererSel.value !== kind) rendererSel.value = kind;
     if (!lastExercise) return;
     lastExercise.session.renderer = kind;
-    try { await attachRenderer(lastExercise); } catch (e) {
+    try {
+      await attachRenderer(lastExercise);
+      if (kind === 'notation_2d') renderer?.setMode?.(notationMode);
+    } catch (e) {
       console.error('[SlopScale] renderer switch failed', e);
     }
+  }
+  function onNotationModeSwitch(m) {
+    notationMode = m;
+    localStorage.setItem('slopscale.notationMode', m);
+    syncNotationSubtoggle(m);
+    renderer?.setMode?.(m);
   }
 
   function bind() {
@@ -3277,6 +3305,20 @@
     document.querySelectorAll('.slopscale-view-btn').forEach(btn => {
       btn.addEventListener('click', () => onViewSwitch(btn.dataset.renderer));
     });
+    // Notation sub-toggle (Tab / Both / Notation)
+    document.querySelectorAll('.slopscale-sub-btn').forEach(btn => {
+      btn.addEventListener('click', () => onNotationModeSwitch(btn.dataset.mode));
+    });
+    // Restore last-used renderer from localStorage
+    const savedRenderer = localStorage.getItem('slopscale.renderer');
+    if (savedRenderer) {
+      syncViewSwitcher(savedRenderer);
+      syncNotationSubtoggle(notationMode);
+      const rendererSel = document.querySelector('[name="renderer"]');
+      if (rendererSel) rendererSel.value = savedRenderer;
+    } else {
+      syncNotationSubtoggle(notationMode);
+    }
     // Key or fretboardSystem change → repopulate the Shape dropdown for the
     // new (key, system) combination.
     $('slopscale-fretboard-system')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); });
