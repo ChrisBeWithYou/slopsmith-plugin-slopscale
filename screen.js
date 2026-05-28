@@ -367,45 +367,57 @@
   // structures (CAGED_SHAPE_DEFS for chord templates in a high-E=0 indexing,
   // and a separate scale-shape map in low-E=0). Those were unified here on
   // 2026-05-26 to a single low-E=0 table so the two halves can't drift apart.
+  // Each chordTemplate entry: { s, fOff, iv, fg }
+  //   s   — string index (low-E=0)
+  //   fOff — fret offset from the shape's root fret
+  //   iv  — interval class above root (0=root, 3=minor 3rd, 4=major 3rd, 6=dim5, 7=perfect 5th)
+  //   fg  — suggested left-hand finger (1=index, 2=middle, 3=ring, 4=pinky).
+  //         Encoded for the *barre form*; when the resulting fret = 0 (open),
+  //         the renderer should show an open-string marker and ignore fg.
+  //         Repeated fg values across adjacent strings indicate a barre/mini-barre.
   const CAGED_SHAPES = {
     C: {
       rootStringIdx: 1, displayName: 'C-shape', scaleFretSpanFromRoot: [-3, 2],
       chordTemplates: {
-        maj: [{s:1,fOff:0,iv:0},{s:2,fOff:-1,iv:4},{s:3,fOff:-3,iv:7},{s:4,fOff:-2,iv:0},{s:5,fOff:-3,iv:4}],
-        min: [{s:1,fOff:0,iv:0},{s:2,fOff:-2,iv:3},{s:3,fOff:-3,iv:7},{s:4,fOff:-2,iv:0},{s:5,fOff:-4,iv:3}],
-        dim: [{s:1,fOff:0,iv:0},{s:2,fOff:-2,iv:3},{s:3,fOff:-4,iv:6},{s:4,fOff:-2,iv:0},{s:5,fOff:-4,iv:3}]
+        maj: [{s:1,fOff:0,iv:0,fg:4},{s:2,fOff:-1,iv:4,fg:3},{s:3,fOff:-3,iv:7,fg:1},{s:4,fOff:-2,iv:0,fg:2},{s:5,fOff:-3,iv:4,fg:1}],
+        min: [{s:1,fOff:0,iv:0,fg:4},{s:2,fOff:-2,iv:3,fg:3},{s:3,fOff:-3,iv:7,fg:2},{s:4,fOff:-2,iv:0,fg:3},{s:5,fOff:-4,iv:3,fg:1}],
+        dim: [{s:1,fOff:0,iv:0,fg:4},{s:2,fOff:-2,iv:3,fg:2},{s:3,fOff:-4,iv:6,fg:1},{s:4,fOff:-2,iv:0,fg:3},{s:5,fOff:-4,iv:3,fg:1}]
       }
     },
     A: {
       rootStringIdx: 1, displayName: 'A-shape', scaleFretSpanFromRoot: [-1, 4], pentFretSpanFromRoot: [0, 3],
       chordTemplates: {
-        maj: [{s:1,fOff:0,iv:0},{s:2,fOff:2,iv:7},{s:3,fOff:2,iv:0},{s:4,fOff:2,iv:4},{s:5,fOff:0,iv:7}],
-        min: [{s:1,fOff:0,iv:0},{s:2,fOff:2,iv:7},{s:3,fOff:2,iv:0},{s:4,fOff:1,iv:3},{s:5,fOff:0,iv:7}],
-        dim: [{s:1,fOff:0,iv:0},{s:2,fOff:1,iv:6},{s:3,fOff:2,iv:0},{s:4,fOff:1,iv:3},{s:5,fOff:-1,iv:6}]
+        maj: [{s:1,fOff:0,iv:0,fg:1},{s:2,fOff:2,iv:7,fg:3},{s:3,fOff:2,iv:0,fg:3},{s:4,fOff:2,iv:4,fg:3},{s:5,fOff:0,iv:7,fg:1}],
+        min: [{s:1,fOff:0,iv:0,fg:1},{s:2,fOff:2,iv:7,fg:3},{s:3,fOff:2,iv:0,fg:4},{s:4,fOff:1,iv:3,fg:2},{s:5,fOff:0,iv:7,fg:1}],
+        dim: [{s:1,fOff:0,iv:0,fg:1},{s:2,fOff:1,iv:6,fg:2},{s:3,fOff:2,iv:0,fg:4},{s:4,fOff:1,iv:3,fg:3},{s:5,fOff:-1,iv:6,fg:1}]
       }
     },
     G: {
       rootStringIdx: 0, displayName: 'G-shape', scaleFretSpanFromRoot: [-3, 2],
       chordTemplates: {
-        maj: [{s:0,fOff:0,iv:0},{s:1,fOff:-1,iv:4},{s:2,fOff:-3,iv:7},{s:3,fOff:-3,iv:0},{s:4,fOff:-3,iv:4},{s:5,fOff:0,iv:0}],
-        min: [{s:0,fOff:0,iv:0},{s:1,fOff:-2,iv:3},{s:2,fOff:-3,iv:7},{s:3,fOff:-3,iv:0},{s:4,fOff:-4,iv:3},{s:5,fOff:0,iv:0}],
-        dim: [{s:0,fOff:0,iv:0},{s:1,fOff:-2,iv:3},{s:2,fOff:-4,iv:6},{s:3,fOff:-3,iv:0},{s:4,fOff:-4,iv:3},{s:5,fOff:0,iv:0}]
+        // G-shape is overwhelmingly played as an open chord (3-2-0-0-0-3, classic
+        // 2-1-0-0-0-3 fingering). Barre-up form is rare/uncomfortable.
+        maj: [{s:0,fOff:0,iv:0,fg:2},{s:1,fOff:-1,iv:4,fg:1},{s:2,fOff:-3,iv:7,fg:1},{s:3,fOff:-3,iv:0,fg:1},{s:4,fOff:-3,iv:4,fg:1},{s:5,fOff:0,iv:0,fg:3}],
+        min: [{s:0,fOff:0,iv:0,fg:2},{s:1,fOff:-2,iv:3,fg:1},{s:2,fOff:-3,iv:7,fg:1},{s:3,fOff:-3,iv:0,fg:1},{s:4,fOff:-4,iv:3,fg:1},{s:5,fOff:0,iv:0,fg:3}],
+        dim: [{s:0,fOff:0,iv:0,fg:2},{s:1,fOff:-2,iv:3,fg:1},{s:2,fOff:-4,iv:6,fg:1},{s:3,fOff:-3,iv:0,fg:1},{s:4,fOff:-4,iv:3,fg:1},{s:5,fOff:0,iv:0,fg:3}]
       }
     },
     E: {
       rootStringIdx: 0, displayName: 'E-shape', scaleFretSpanFromRoot: [-1, 4], pentFretSpanFromRoot: [0, 3],
       chordTemplates: {
-        maj: [{s:0,fOff:0,iv:0},{s:1,fOff:2,iv:7},{s:2,fOff:2,iv:0},{s:3,fOff:1,iv:4},{s:4,fOff:0,iv:7},{s:5,fOff:0,iv:0}],
-        min: [{s:0,fOff:0,iv:0},{s:1,fOff:2,iv:7},{s:2,fOff:2,iv:0},{s:3,fOff:0,iv:3},{s:4,fOff:0,iv:7},{s:5,fOff:0,iv:0}],
-        dim: [{s:0,fOff:0,iv:0},{s:1,fOff:1,iv:6},{s:2,fOff:2,iv:0},{s:3,fOff:0,iv:3},{s:4,fOff:-1,iv:6},{s:5,fOff:0,iv:0}]
+        // E-shape barre is the canonical movable shape — fingering encoded for
+        // the barre form (e.g. F major at rootFret 1: 1-3-3-2-1-1).
+        maj: [{s:0,fOff:0,iv:0,fg:1},{s:1,fOff:2,iv:7,fg:3},{s:2,fOff:2,iv:0,fg:4},{s:3,fOff:1,iv:4,fg:2},{s:4,fOff:0,iv:7,fg:1},{s:5,fOff:0,iv:0,fg:1}],
+        min: [{s:0,fOff:0,iv:0,fg:1},{s:1,fOff:2,iv:7,fg:3},{s:2,fOff:2,iv:0,fg:4},{s:3,fOff:0,iv:3,fg:1},{s:4,fOff:0,iv:7,fg:1},{s:5,fOff:0,iv:0,fg:1}],
+        dim: [{s:0,fOff:0,iv:0,fg:1},{s:1,fOff:1,iv:6,fg:2},{s:2,fOff:2,iv:0,fg:4},{s:3,fOff:0,iv:3,fg:1},{s:4,fOff:-1,iv:6,fg:1},{s:5,fOff:0,iv:0,fg:1}]
       }
     },
     D: {
       rootStringIdx: 2, displayName: 'D-shape', scaleFretSpanFromRoot: [-2, 3],
       chordTemplates: {
-        maj: [{s:2,fOff:0,iv:0},{s:3,fOff:2,iv:7},{s:4,fOff:3,iv:0},{s:5,fOff:2,iv:4}],
-        min: [{s:2,fOff:0,iv:0},{s:3,fOff:2,iv:7},{s:4,fOff:3,iv:0},{s:5,fOff:1,iv:3}],
-        dim: [{s:2,fOff:0,iv:0},{s:3,fOff:1,iv:6},{s:4,fOff:3,iv:0},{s:5,fOff:1,iv:3}]
+        maj: [{s:2,fOff:0,iv:0,fg:1},{s:3,fOff:2,iv:7,fg:2},{s:4,fOff:3,iv:0,fg:4},{s:5,fOff:2,iv:4,fg:3}],
+        min: [{s:2,fOff:0,iv:0,fg:1},{s:3,fOff:2,iv:7,fg:3},{s:4,fOff:3,iv:0,fg:4},{s:5,fOff:1,iv:3,fg:2}],
+        dim: [{s:2,fOff:0,iv:0,fg:1},{s:3,fOff:1,iv:6,fg:1},{s:4,fOff:3,iv:0,fg:3},{s:5,fOff:1,iv:3,fg:1}]
       }
     }
   };
@@ -796,7 +808,8 @@
   let renderer = null, activeBundle = null, rafId = null, lastExercise = null;
   let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
   let audioCtx = null, audioNodes = [];
-  let notationMode = localStorage.getItem('slopscale.notationMode') || 'both';
+  // Notation renderer is notation-only — tab is its own renderer now.
+  const notationMode = 'notation';
   // Pitch tracker state — wraps slopsmithMinigames.scoring.createContinuous (no registration required)
   let _ptHandle = null, _ptNotes = [], _ptOpenMidis = [], _ptScored = new Set();
   // Active pathway state — tracks which pathway is showing and which variation
@@ -1180,12 +1193,46 @@
     return pickChordPositions(cfg, rootPc, quality);
   }
 
+  // Build a chord template from canonical CAGED shape data — preferred path when
+  // the generator knows which CAGED shape it's working in. Produces the full
+  // chord voicing (all strings the shape covers, not just the strings the
+  // generator happened to play) with sensible fingerings.
+  function templateFromShape(name, shape, quality, rootFret, cfg, arp) {
+    if (cfg.stringCount !== 6) return null;
+    const def = CAGED_SHAPES[shape];
+    if (!def) return null;
+    const tmpl = def.chordTemplates[cagedShapeQualityKey(quality)];
+    if (!tmpl) return null;
+    const frets = new Array(cfg.stringCount).fill(-1);
+    const fingers = new Array(cfg.stringCount).fill(-1);
+    for (const ent of tmpl) {
+      if (ent.s < 0 || ent.s >= cfg.stringCount) continue;
+      const f = rootFret + ent.fOff;
+      if (f < 0 || f > 24) return null;
+      frets[ent.s] = f;
+      fingers[ent.s] = f === 0 ? 0 : (ent.fg ?? 1);
+    }
+    return { name, displayName:`${name} (${def.displayName})`, arp:!!arp, fingers, frets };
+  }
+
+  // Fallback when no shape context is available. Ranks distinct non-zero frets
+  // ascending — the lowest gets finger 1 (index / barre), next gets 2, etc.
+  // Strings sharing the same fret share the same finger (indicates a barre).
+  // Better than the previous "every string gets finger 1" but not perfect for
+  // shapes with non-contiguous same-fret strings; use templateFromShape when
+  // the CAGED shape is known.
   function templateFromPositions(name, positions, cfg, arp) {
     const frets = new Array(cfg.stringCount).fill(-1), fingers = new Array(cfg.stringCount).fill(-1);
     for (const p of positions) {
       if (!p || p.s < 0 || p.s >= cfg.stringCount) continue;
       if (frets[p.s] === -1 || p.f < frets[p.s]) frets[p.s] = p.f;
-      fingers[p.s] = p.f === 0 ? 0 : 1;
+    }
+    const distinctFrets = [...new Set(frets.filter(f => f > 0))].sort((a, b) => a - b);
+    const fretToFinger = new Map();
+    distinctFrets.forEach((f, idx) => fretToFinger.set(f, Math.min(4, idx + 1)));
+    for (let s = 0; s < cfg.stringCount; s++) {
+      if (frets[s] === -1) continue;
+      fingers[s] = frets[s] === 0 ? 0 : fretToFinger.get(frets[s]);
     }
     return { name, displayName:name, arp:!!arp, fingers, frets };
   }
@@ -1385,6 +1432,7 @@
       const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride);
       let displayPositions = null;
       let chordCfg = cfg;
+      let shapeRootFret = null;
       // CAGED single-shape modes: play the literal shape geometry, transposed to this chord's root
       // on the shape's anchor string. Strict mode marches monotonically up the neck; follow mode
       // picks the closest fret to the previous chord (lets the shape go up AND down the neck).
@@ -1395,6 +1443,7 @@
           const shapeNotes = cagedShapeNotesForChord(cfg, cfg.cagedShape, quality, rootFret);
           if (shapeNotes && shapeNotes.length) {
             displayPositions = shapeNotes;
+            shapeRootFret = rootFret;
             const winLo = Math.max(0, rootFret - 4);
             const winHi = Math.min(24, rootFret + 4);
             chordCfg = Object.assign({}, cfg, { fretMin:winLo, fretMax:winHi });
@@ -1409,7 +1458,10 @@
       }
       if (!displayPositions.length) return;
       const name = chordName(rootPc, quality), templateId = chordTemplates.length;
-      chordTemplates.push(templateFromPositions(name, displayPositions, chordCfg, true));
+      const shapeTemplate = (isShapeRun && shapeRootFret != null)
+        ? templateFromShape(name, cfg.cagedShape, quality, shapeRootFret, chordCfg, true)
+        : null;
+      chordTemplates.push(shapeTemplate || templateFromPositions(name, displayPositions, chordCfg, true));
       chords.push({ t:Number(t.toFixed(6)), id:templateId, hd:false, notes:displayPositions.map(p => noteDefaults({ s:p.s, f:p.f, sus:0 })) });
       sections.push({ name, number:templateId + 1, time:Number(t.toFixed(6)) });
       const path = directedPath(displayPositions, cfg.direction, cfg.repeatCount);
@@ -1996,24 +2048,34 @@
   }
 
   function makeBuiltin2DTabRenderer() {
-    // Interactive scrolling tab — dark style with string-colored note pills.
-    // HO/PO bezier arcs, bend arrows, slide connectors.
-    // Always standard tab orientation: high e at top, low E at bottom.
+    // Standard guitar-tab look: light parchment background, six black string
+    // lines, fret numbers sitting on the strings with the line broken behind
+    // each number, plain bar lines, chord names above the staff, HOPO arcs,
+    // slides and bends as inline glyphs. No colors, no pills, no glow.
     let canvas = null, ctx = null, W = 0, H = 0;
     let hopoPairs = [];
-    const LEFT_PAD = 64, RIGHT_PAD = 24, TOP_PAD = 80, BOTTOM_PAD = 52;
-    const AHEAD = 5, BEHIND = 1.5;
+    const LEFT_PAD = 56, RIGHT_PAD = 20, AHEAD = 5, BEHIND = 1.5;
+    const PAPER = '#fbf8ef', INK = '#1a1a1a', DIM = '#6b6b6b', PLAYHEAD = '#b91c1c';
 
     function resize() {
       if (!canvas) return;
       const r = canvas.parentElement.getBoundingClientRect();
       W = Math.max(640, Math.round(r.width || 1280));
-      H = Math.max(360, Math.round(r.height || 640));
+      H = Math.max(280, Math.round(r.height || 480));
       canvas.width = W; canvas.height = H;
     }
-    function laneY(s, count) {
-      const top = TOP_PAD, bottom = H - BOTTOM_PAD;
-      return top + (count - 1 - s) * ((bottom - top) / Math.max(1, count - 1));
+    function staffMetrics(nStr) {
+      // Staff occupies the vertical center with comfortable padding.
+      // Lane gap stays in a readable range regardless of canvas size.
+      const gap = Math.max(14, Math.min(22, Math.floor(H / (nStr + 6))));
+      const staffH = gap * (nStr - 1);
+      const top = Math.floor((H - staffH) / 2);
+      return { gap, top, bottom: top + staffH };
+    }
+    function laneY(s, nStr, top, gap) {
+      // s=0 is low E (lowest pitch); standard tab puts low E at the bottom,
+      // high e at the top — so map s=0 → bottom, s=nStr-1 → top.
+      return top + (nStr - 1 - s) * gap;
     }
     function xForDt(dt) {
       return LEFT_PAD + ((dt + BEHIND) / (AHEAD + BEHIND)) * (W - LEFT_PAD - RIGHT_PAD);
@@ -2032,171 +2094,184 @@
       }
     }
     function drawBackground() {
-      const g = ctx.createLinearGradient(0, 0, 0, H);
-      g.addColorStop(0, '#08111f'); g.addColorStop(1, '#040809');
-      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);
     }
-    function drawStringLanes(nStr, openMidis) {
+    function drawStaff(nStr, top, gap, openMidis) {
+      ctx.strokeStyle = INK; ctx.lineWidth = 1;
       for (let s = 0; s < nStr; s++) {
-        const y = laneY(s, nStr), col = STRING_COLORS[s] || '#94a3b8';
-        ctx.strokeStyle = col; ctx.globalAlpha = 0.18; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(LEFT_PAD - 8, y); ctx.lineTo(W - RIGHT_PAD, y); ctx.stroke();
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = col; ctx.font = '700 12px system-ui';
+        const y = laneY(s, nStr, top, gap);
+        ctx.beginPath(); ctx.moveTo(LEFT_PAD, y); ctx.lineTo(W - RIGHT_PAD, y); ctx.stroke();
+      }
+      // Left-edge string-tuning labels (e.g. e B G D A E).
+      ctx.fillStyle = INK; ctx.font = '600 11px "Cambria","Georgia",serif';
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      for (let s = 0; s < nStr; s++) {
+        const y = laneY(s, nStr, top, gap);
         const label = openMidis ? stringLabelForMidi(openMidis[s]) : `S${s+1}`;
         const display = (s === nStr - 1 && label === 'E') ? 'e' : label;
-        ctx.textAlign = 'right'; ctx.fillText(display, LEFT_PAD - 12, y + 5); ctx.textAlign = 'left';
+        ctx.fillText(display, LEFT_PAD - 8, y);
       }
+      ctx.textBaseline = 'alphabetic';
+      // "TAB" letter stack at the left, mimicking a clef position.
+      const midY = (top + (top + gap * (nStr - 1))) / 2;
+      ctx.fillStyle = INK; ctx.font = 'italic 700 18px "Cambria","Georgia",serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('T', LEFT_PAD - 28, midY - gap * 0.9);
+      ctx.fillText('A', LEFT_PAD - 28, midY + gap * 0.2);
+      ctx.fillText('B', LEFT_PAD - 28, midY + gap * 1.3);
+      ctx.textAlign = 'left';
     }
-    function drawBarLines(bundle, now) {
+    function drawBarLines(bundle, now, nStr, top, gap) {
+      const yTop = laneY(nStr - 1, nStr, top, gap);
+      const yBot = laneY(0, nStr, top, gap);
+      ctx.strokeStyle = INK; ctx.fillStyle = DIM;
       for (const b of bundle.beats || []) {
         const dt = b.time - now;
         if (dt < -BEHIND || dt > AHEAD) continue;
         const x = xForDt(dt);
         if (b.measure >= 0) {
-          ctx.strokeStyle = 'rgba(96,165,250,0.38)'; ctx.lineWidth = 1.2;
-          ctx.beginPath(); ctx.moveTo(x, TOP_PAD - 20); ctx.lineTo(x, H - BOTTOM_PAD + 8); ctx.stroke();
-          ctx.fillStyle = '#7dd3fc'; ctx.font = '10px system-ui';
-          ctx.fillText(String(b.measure), x + 3, TOP_PAD - 24);
-        } else {
-          ctx.strokeStyle = 'rgba(96,165,250,0.1)'; ctx.lineWidth = 1;
-          ctx.beginPath(); ctx.moveTo(x, TOP_PAD - 4); ctx.lineTo(x, TOP_PAD + 6); ctx.stroke();
+          ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, yTop); ctx.lineTo(x, yBot); ctx.stroke();
+          ctx.font = '10px "Cambria","Georgia",serif';
+          ctx.fillText(String(b.measure), x + 3, yTop - 6);
         }
       }
     }
-    function drawPlayhead() {
+    function drawPlayhead(top, gap, nStr) {
       const x = xForDt(0);
-      const g = ctx.createLinearGradient(x - 20, 0, x + 20, 0);
-      g.addColorStop(0, 'rgba(248,250,252,0)'); g.addColorStop(0.5, 'rgba(248,250,252,0.1)'); g.addColorStop(1, 'rgba(248,250,252,0)');
-      ctx.fillStyle = g; ctx.fillRect(x - 20, TOP_PAD - 30, 40, H - TOP_PAD - BOTTOM_PAD + 40);
-      ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(x, TOP_PAD - 32); ctx.lineTo(x, H - BOTTOM_PAD + 8); ctx.stroke();
-      ctx.fillStyle = '#f8fafc';
-      ctx.beginPath(); ctx.moveTo(x - 6, TOP_PAD - 34); ctx.lineTo(x + 6, TOP_PAD - 34); ctx.lineTo(x, TOP_PAD - 26); ctx.closePath(); ctx.fill();
+      const yTop = laneY(nStr - 1, nStr, top, gap);
+      const yBot = laneY(0, nStr, top, gap);
+      ctx.strokeStyle = PLAYHEAD; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x, yTop - 14); ctx.lineTo(x, yBot + 8); ctx.stroke();
     }
-    function drawChordNames(bundle, now) {
+    function drawChordNames(bundle, now, top) {
+      ctx.fillStyle = INK; ctx.font = 'italic 600 13px "Cambria","Georgia",serif';
+      ctx.textAlign = 'center';
       for (const ch of bundle.chords || []) {
         const dt = ch.t - now;
         if (dt < -BEHIND || dt > AHEAD) continue;
-        const x = xForDt(dt);
         const name = bundle.chordTemplates?.[ch.id]?.displayName || bundle.chordTemplates?.[ch.id]?.name || '';
         if (!name) continue;
-        ctx.font = '700 12px system-ui'; const tw = ctx.measureText(name).width;
-        ctx.fillStyle = 'rgba(124,45,18,0.75)'; ctx.fillRect(x - tw/2 - 4, 8, tw + 8, 20);
-        ctx.fillStyle = '#fecaca'; ctx.textAlign = 'center'; ctx.fillText(name, x, 22); ctx.textAlign = 'left';
+        ctx.fillText(name, xForDt(dt), top - 16);
       }
+      ctx.textAlign = 'left';
     }
-    function drawBackingChordRow(bundle, now) {
-      for (const ev of bundle.backingEvents || []) {
-        const dt = ev.t - now;
-        if (dt < -BEHIND || dt > AHEAD) continue;
-        const x = xForDt(dt);
-        ctx.fillStyle = 'rgba(250,204,21,0.1)'; ctx.fillRect(x - 34, 32, 68, 18);
-        ctx.strokeStyle = 'rgba(250,204,21,0.3)'; ctx.lineWidth = 1; ctx.strokeRect(x - 34, 32, 68, 18);
-        ctx.fillStyle = '#fde68a'; ctx.font = '700 11px system-ui'; ctx.textAlign = 'center';
-        ctx.fillText(ev.name, x, 44); ctx.textAlign = 'left';
-      }
-    }
-    function drawSectionMarkers(bundle, now) {
+    function drawSectionMarkers(bundle, now, top, gap, nStr) {
+      const yBot = laneY(0, nStr, top, gap);
+      ctx.fillStyle = INK; ctx.font = 'italic 600 11px "Cambria","Georgia",serif';
+      ctx.textAlign = 'center';
       for (const sec of bundle.sections || []) {
         const dt = sec.time - now;
         if (dt < -BEHIND || dt > AHEAD) continue;
-        const x = xForDt(dt);
-        ctx.strokeStyle = 'rgba(244,114,182,0.7)'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(x, H - BOTTOM_PAD + 10); ctx.lineTo(x, H - BOTTOM_PAD + 22); ctx.stroke();
-        ctx.fillStyle = '#fbcfe8'; ctx.font = '700 10px system-ui'; ctx.textAlign = 'center';
-        ctx.fillText(sec.name || '·', x, H - BOTTOM_PAD + 34); ctx.textAlign = 'left';
+        ctx.fillText(sec.name || '·', xForDt(dt), yBot + 22);
       }
+      ctx.textAlign = 'left';
     }
-    function drawHopoPairs(nStr, now) {
+    function drawHopoPairs(now, nStr, top, gap) {
+      ctx.strokeStyle = INK; ctx.fillStyle = INK;
       for (const p of hopoPairs) {
         const dtFrom = p.from.t - now, dtTo = p.to.t - now;
         if (dtFrom < -BEHIND - 0.1 || dtTo > AHEAD + 0.1 || p.from.s !== p.to.s) continue;
         const x1 = xForDt(dtFrom), x2 = xForDt(dtTo);
-        const y = laneY(p.from.s, nStr);
-        const arcH = Math.min(20, Math.max(8, (x2 - x1) * 0.35));
-        const col = p.isHo ? '#86efac' : '#fda4af';
-        ctx.strokeStyle = col; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(x1, y - 14);
-        ctx.quadraticCurveTo((x1 + x2) / 2, y - 14 - arcH, x2, y - 14); ctx.stroke();
-        ctx.fillStyle = col; ctx.font = '700 8px system-ui'; ctx.textAlign = 'center';
-        ctx.fillText(p.isHo ? 'H' : 'P', (x1 + x2) / 2, y - 14 - arcH - 2); ctx.textAlign = 'left';
+        const y = laneY(p.from.s, nStr, top, gap);
+        const arcH = Math.min(10, Math.max(5, (x2 - x1) * 0.25));
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x1, y - 6);
+        ctx.quadraticCurveTo((x1 + x2) / 2, y - 6 - arcH, x2, y - 6); ctx.stroke();
+        ctx.font = 'italic 600 9px "Cambria","Georgia",serif'; ctx.textAlign = 'center';
+        ctx.fillText(p.isHo ? 'h' : 'p', (x1 + x2) / 2, y - 6 - arcH - 2);
+        ctx.textAlign = 'left';
       }
     }
-    function drawNotes(bundle, now, nStr) {
+    function bendLabel(bn) {
+      return bn === 0.5 ? '½' : bn === 1 ? 'full' : bn === 1.5 ? '1½' : '2';
+    }
+    function drawSustainTie(x, y, x2) {
+      // A short horizontal tie line on the string, drawn in ink with the
+      // string line still visible beneath — minimal styling.
+      ctx.strokeStyle = INK; ctx.lineWidth = 1;
+      ctx.setLineDash([2, 2]);
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x2, y); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    function drawNotes(bundle, now, nStr, top, gap) {
+      ctx.fillStyle = INK;
+      const fontSize = Math.max(11, Math.min(14, gap - 4));
       for (const n of bundle.notes || []) {
         const dt = n.t - now;
         if (dt < -BEHIND || dt > AHEAD) continue;
-        const x = xForDt(dt), y = laneY(n.s, nStr);
-        const col = STRING_COLORS[n.s] || '#94a3b8';
+        const x = xForDt(dt), y = laneY(n.s, nStr, top, gap);
         const fretText = n.mt ? 'x' : String(n.f);
-        const padW = Math.max(24, fretText.length * 9 + 12), padH = 22;
-        if ((n.sus || 0) > 0) {
-          ctx.strokeStyle = col; ctx.globalAlpha = 0.3; ctx.lineWidth = 4;
-          ctx.beginPath(); ctx.moveTo(x + padW/2, y); ctx.lineTo(Math.min(W - RIGHT_PAD, xForDt(dt + n.sus)), y); ctx.stroke();
-          ctx.globalAlpha = 1;
+        // "Erase" the string line behind the fret number so the digit reads cleanly.
+        ctx.font = `700 ${fontSize}px ui-monospace,"Consolas","Courier New",monospace`;
+        const tw = ctx.measureText(fretText).width;
+        ctx.fillStyle = PAPER; ctx.fillRect(x - tw/2 - 2, y - fontSize/2 - 1, tw + 4, fontSize + 2);
+        ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(fretText, x, y);
+        ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+
+        // Sustain tie — dashed line continuing on the string for the duration.
+        if ((n.sus || 0) > 0 && !n.mt) {
+          const x2 = Math.min(W - RIGHT_PAD, xForDt(dt + n.sus));
+          drawSustainTie(x + tw/2 + 3, y, x2);
         }
+        // Slide indicator: small "/" or "\" after the fret number.
         if ((n.sl ?? -1) >= 0 && !n.mt) {
-          ctx.strokeStyle = col; ctx.globalAlpha = 0.55; ctx.lineWidth = 1.5;
-          ctx.beginPath(); ctx.moveTo(x + padW/2, y); ctx.lineTo(Math.min(W - RIGHT_PAD, xForDt(dt + (n.sus || 0.2))), y + (n.sl > n.f ? -9 : 9)); ctx.stroke();
-          ctx.globalAlpha = 1;
+          const ch = n.sl > n.f ? '/' : '\\';
+          ctx.font = `600 ${fontSize}px "Cambria","Georgia",serif`;
+          ctx.fillStyle = INK; ctx.fillText(ch, x + tw/2 + 3, y + 3);
         }
+        // Bend — caret + label above the note.
         if ((n.bn || 0) > 0 && !n.mt) {
-          const bl = n.bn === 0.5 ? '½' : n.bn === 1 ? '1' : n.bn === 1.5 ? '1½' : '2';
-          const bTop = y - padH / 2 - 22;
-          ctx.strokeStyle = col; ctx.lineWidth = 1.5;
-          ctx.beginPath(); ctx.moveTo(x, y - padH/2); ctx.quadraticCurveTo(x + 10, y - padH/2 - 10, x + 8, bTop + 4); ctx.stroke();
-          ctx.fillStyle = col;
-          ctx.beginPath(); ctx.moveTo(x + 4, bTop); ctx.lineTo(x + 12, bTop); ctx.lineTo(x + 8, bTop + 7); ctx.closePath(); ctx.fill();
-          ctx.font = '700 9px system-ui'; ctx.textAlign = 'center'; ctx.fillText(bl, x + 1, bTop - 4); ctx.textAlign = 'left';
+          ctx.font = '600 9px "Cambria","Georgia",serif'; ctx.fillStyle = INK;
+          ctx.textAlign = 'center';
+          ctx.fillText(`b ${bendLabel(n.bn)}`, x, y - gap * 0.6);
+          ctx.textAlign = 'left';
         }
+        // Palm-mute bracket above the note.
         if (n.pm) {
-          ctx.strokeStyle = 'rgba(248,250,252,0.45)'; ctx.lineWidth = 1.5;
-          ctx.beginPath(); ctx.moveTo(x - padW/2 + 2, y + padH/2 + 5); ctx.lineTo(x - padW/2 + 2, y + padH/2 + 9); ctx.lineTo(x + padW/2 - 2, y + padH/2 + 9); ctx.lineTo(x + padW/2 - 2, y + padH/2 + 5); ctx.stroke();
-          ctx.fillStyle = 'rgba(248,250,252,0.5)'; ctx.font = '700 8px system-ui'; ctx.textAlign = 'center';
-          ctx.fillText('PM', x, y + padH/2 + 19); ctx.textAlign = 'left';
+          ctx.strokeStyle = INK; ctx.lineWidth = 1;
+          const px = x, py = y - gap * 0.5;
+          ctx.beginPath(); ctx.moveTo(px - 4, py + 4); ctx.lineTo(px - 4, py); ctx.lineTo(px + 4, py); ctx.lineTo(px + 4, py + 4); ctx.stroke();
+          ctx.fillStyle = INK; ctx.font = '600 8px "Cambria","Georgia",serif';
+          ctx.textAlign = 'center'; ctx.fillText('P.M.', px, py - 2); ctx.textAlign = 'left';
         }
-        if (n.mt) {
-          const s = padH / 2 - 3; ctx.strokeStyle = col; ctx.lineWidth = 2.5;
-          ctx.beginPath(); ctx.moveTo(x-s, y-s); ctx.lineTo(x+s, y+s); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(x+s, y-s); ctx.lineTo(x-s, y+s); ctx.stroke();
-        } else if (n.hm || n.hp) {
-          ctx.strokeStyle = col; ctx.lineWidth = 2;
-          ctx.beginPath(); ctx.moveTo(x, y - padH/2); ctx.lineTo(x + padW/2, y); ctx.lineTo(x, y + padH/2); ctx.lineTo(x - padW/2, y); ctx.closePath(); ctx.stroke();
-          ctx.fillStyle = '#020617'; ctx.font = '700 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(fretText, x, y + 5); ctx.textAlign = 'left';
-        } else {
-          const atHead = Math.abs(dt) < 0.07;
-          ctx.fillStyle = col; ctx.shadowColor = atHead ? col : 'transparent'; ctx.shadowBlur = atHead ? 14 : 0;
-          ctx.beginPath(); ctx.roundRect(x - padW/2, y - padH/2, padW, padH, 5); ctx.fill();
-          ctx.shadowBlur = 0; ctx.strokeStyle = atHead ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.18)'; ctx.lineWidth = atHead ? 2 : 1; ctx.stroke();
-          ctx.fillStyle = '#020617'; ctx.font = `${n.ac ? '900' : '800'} 13px system-ui`;
-          ctx.textAlign = 'center'; ctx.fillText(fretText, x, y + 5); ctx.textAlign = 'left';
-        }
+        // Vibrato / tremolo glyph above the note.
         if (n.vb || n.tr) {
-          ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '9px system-ui'; ctx.textAlign = 'center';
-          ctx.fillText(n.tr ? '≈' : '~', x, y - padH/2 - 4); ctx.textAlign = 'left';
+          ctx.fillStyle = INK; ctx.font = `600 ${fontSize}px "Cambria","Georgia",serif`;
+          ctx.textAlign = 'center';
+          ctx.fillText(n.tr ? '≈' : '~', x, y - gap * 0.55);
+          ctx.textAlign = 'left';
+        }
+        // Harmonic: angle-brackets around the fret number — redraw with brackets.
+        if ((n.hm || n.hp) && !n.mt) {
+          ctx.fillStyle = INK; ctx.font = `700 ${fontSize}px "Cambria","Georgia",serif`;
+          ctx.textAlign = 'center';
+          ctx.fillText('〈', x - tw/2 - 3, y + 4);
+          ctx.fillText('〉', x + tw/2 + 3, y + 4);
+          ctx.textAlign = 'left';
         }
       }
     }
     function drawHud(bundle, now) {
-      ctx.fillStyle = '#e5e7eb'; ctx.font = '700 13px system-ui'; ctx.fillText(bundle.songInfo?.title || 'SlopScale', 12, 22);
-      ctx.fillStyle = '#64748b'; ctx.font = '11px system-ui';
-      ctx.fillText(`${now.toFixed(2)}s / ${(bundle.songInfo?.duration||0).toFixed(2)}s`, 12, 40);
+      ctx.fillStyle = DIM; ctx.font = 'italic 600 12px "Cambria","Georgia",serif';
+      ctx.fillText(bundle.songInfo?.title || 'SlopScale', 12, 18);
+      ctx.font = '11px "Cambria","Georgia",serif';
+      ctx.fillText(`${now.toFixed(2)}s / ${(bundle.songInfo?.duration||0).toFixed(2)}s`, 12, 34);
     }
     function draw(bundle) {
       if (!ctx || !bundle) return;
       resize();
       const now = bundle.currentTime || 0, nStr = Math.max(1, bundle.stringCount || 6);
+      const { gap, top } = staffMetrics(nStr);
       drawBackground();
-      drawStringLanes(nStr, bundle.openMidis || null);
-      drawBarLines(bundle, now);
-      drawBackingChordRow(bundle, now);
-      drawChordNames(bundle, now);
-      drawSectionMarkers(bundle, now);
-      drawHopoPairs(nStr, now);
-      drawNotes(bundle, now, nStr);
-      drawPlayhead();
       drawHud(bundle, now);
+      drawChordNames(bundle, now, top);
+      drawStaff(nStr, top, gap, bundle.openMidis || null);
+      drawBarLines(bundle, now, nStr, top, gap);
+      drawHopoPairs(now, nStr, top, gap);
+      drawNotes(bundle, now, nStr, top, gap);
+      drawSectionMarkers(bundle, now, top, gap, nStr);
+      drawPlayhead(top, gap, nStr);
     }
     return {
       init(c, bundle) { canvas = c; ctx = c.getContext('2d'); resize(); window.addEventListener('resize', resize); if (bundle?.notes) preprocess(bundle.notes); },
@@ -2292,11 +2367,15 @@
     }
 
     // ── Layout helpers ────────────────────────────────────────────────────
+    // ls = staff line spacing in px. Cap it so the staff stays a sane size on
+    // tall canvases — without the cap, ls scales with notH and the clef/staff
+    // balloon to fill the window. Notation mode is notation-only (no tab pane).
     function staffLayout() {
-      const ratio = mode === 'notation' ? 0.90 : mode === 'tab' ? 0 : 0.56;
+      const ratio = mode === 'notation' ? 1.0 : mode === 'tab' ? 0 : 0.56;
       const notH = Math.floor(H * ratio);
-      const ls = Math.max(7, Math.floor(Math.max(notH, 1) * 0.13));
-      const bottomY = Math.floor(notH * 0.28) + ls * 4;
+      const ls = Math.max(8, Math.min(14, Math.floor(notH * 0.04)));
+      const staffHeight = ls * 4;
+      const bottomY = Math.floor((notH - staffHeight) / 2) + staffHeight;
       return { notH, ls, bottomY };
     }
     function tabLayout() {
@@ -2333,11 +2412,14 @@
     }
 
     // ── Clef ─────────────────────────────────────────────────────────────
+    // Unicode music-symbol glyphs are sized so that a font-size of roughly
+    // 4–5× staff-line-spacing produces a properly-proportioned clef.
     function drawClef(bottomY, ls) {
       const ch = isBass ? '\u{1D122}' : '\u{1D11E}';
-      ctx.font = `${isBass ? ls*5.5 : ls*8}px "Segoe UI Symbol","Apple Symbols","Noto Symbols 2",serif`;
+      const size = isBass ? ls * 4 : ls * 4.5;
+      ctx.font = `${size}px "Segoe UI Symbol","Apple Symbols","Noto Symbols 2",serif`;
       ctx.fillStyle = '#e2e8f0'; ctx.textAlign = 'left';
-      ctx.fillText(ch, 6, isBass ? bottomY - ls*1.4 : bottomY + ls*0.85);
+      ctx.fillText(ch, 8, isBass ? bottomY - ls*1.2 : bottomY + ls*0.85);
     }
 
     // ── Key signature ─────────────────────────────────────────────────────
@@ -2568,8 +2650,8 @@
   function loadScriptOnce(id, src) { return new Promise((resolve, reject) => { if (document.getElementById(id)) return resolve(); const s = document.createElement('script'); s.id = id; s.src = src; s.onload = () => resolve(); s.onerror = () => reject(new Error(`Failed to load ${src}`)); document.head.appendChild(s); }); }
   async function resolveRendererFactory(kind) {
     if (kind === 'builtin_2d') return { factory:makeBuiltin2DRenderer, label:'2D Highway' };
-    if (kind === 'tab_2d') return { factory:makeBuiltin2DTabRenderer, label:'2D Tablature' };
-    if (kind === 'notation_2d') return { factory:makeBuiltin2DNotationRenderer, label:'Notation + Tab' };
+    if (kind === 'tab_2d') return { factory:makeBuiltin2DTabRenderer, label:'Tab' };
+    if (kind === 'notation_2d') return { factory:makeBuiltin2DNotationRenderer, label:'Notation' };
     if (kind === 'highway_3d') {
       if (!window.slopsmithViz_highway_3d) {
         try { await loadScriptOnce('slopscale-highway-3d-loader', '/api/plugins/highway_3d/screen.js'); } catch (_) {}
@@ -3247,13 +3329,6 @@
     document.querySelectorAll('.slopscale-view-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.renderer === kind);
     });
-    const sub = document.getElementById('slopscale-notation-subtoggle');
-    if (sub) sub.style.display = kind === 'notation_2d' ? 'flex' : 'none';
-  }
-  function syncNotationSubtoggle(m) {
-    document.querySelectorAll('.slopscale-sub-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.mode === m);
-    });
   }
 
   async function onViewSwitch(kind) {
@@ -3266,16 +3341,9 @@
     lastExercise.session.renderer = kind;
     try {
       await attachRenderer(lastExercise);
-      if (kind === 'notation_2d') renderer?.setMode?.(notationMode);
     } catch (e) {
       console.error('[SlopScale] renderer switch failed', e);
     }
-  }
-  function onNotationModeSwitch(m) {
-    notationMode = m;
-    localStorage.setItem('slopscale.notationMode', m);
-    syncNotationSubtoggle(m);
-    renderer?.setMode?.(m);
   }
 
   function bind() {
@@ -3305,19 +3373,12 @@
     document.querySelectorAll('.slopscale-view-btn').forEach(btn => {
       btn.addEventListener('click', () => onViewSwitch(btn.dataset.renderer));
     });
-    // Notation sub-toggle (Tab / Both / Notation)
-    document.querySelectorAll('.slopscale-sub-btn').forEach(btn => {
-      btn.addEventListener('click', () => onNotationModeSwitch(btn.dataset.mode));
-    });
     // Restore last-used renderer from localStorage
     const savedRenderer = localStorage.getItem('slopscale.renderer');
     if (savedRenderer) {
       syncViewSwitcher(savedRenderer);
-      syncNotationSubtoggle(notationMode);
       const rendererSel = document.querySelector('[name="renderer"]');
       if (rendererSel) rendererSel.value = savedRenderer;
-    } else {
-      syncNotationSubtoggle(notationMode);
     }
     // Key or fretboardSystem change → repopulate the Shape dropdown for the
     // new (key, system) combination.

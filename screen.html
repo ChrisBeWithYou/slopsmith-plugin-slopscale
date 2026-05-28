@@ -321,7 +321,8 @@
           <select name="renderer">
             <option value="highway_3d" selected>3D Note Highway</option>
             <option value="builtin_2d">2D Highway</option>
-            <option value="tab_2d">2D Tablature</option>
+            <option value="tab_2d">Tab</option>
+            <option value="notation_2d">Notation</option>
           </select>
         </label>
         <label>Fretboard system
@@ -569,14 +570,8 @@
         <span class="slopscale-view-label">View</span>
         <button type="button" class="slopscale-view-btn active" data-renderer="highway_3d">3D Highway</button>
         <button type="button" class="slopscale-view-btn" data-renderer="builtin_2d">2D Highway</button>
-        <button type="button" class="slopscale-view-btn" data-renderer="tab_2d">2D Tab</button>
+        <button type="button" class="slopscale-view-btn" data-renderer="tab_2d">Tab</button>
         <button type="button" class="slopscale-view-btn" data-renderer="notation_2d">Notation</button>
-        <div id="slopscale-notation-subtoggle" class="slopscale-notation-subtoggle" style="display:none" role="group" aria-label="Notation layout">
-          <span class="slopscale-sub-label">Show</span>
-          <button type="button" class="slopscale-sub-btn active" data-mode="both">Tab + Notation</button>
-          <button type="button" class="slopscale-sub-btn" data-mode="tab">Tab only</button>
-          <button type="button" class="slopscale-sub-btn" data-mode="notation">Notation only</button>
-        </div>
       </div>
       <div id="slopscale-render-host" class="slopscale-render-host"><canvas id="slopscale-canvas"></canvas></div>
       <div id="slopscale-pitch-meter" class="slopscale-pitch-meter">
