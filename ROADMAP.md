@@ -92,10 +92,10 @@
 *Immediate next work. Data model and generators exist; UI hookup and a few data-only items remain.*
 
 ### Session UI
-- 🔲 Session selector dropdown in `screen.html` (built-ins + custom)
-- 🔲 "Launch Session" primary button
-- 🔲 Session summary display (total duration, segment count, BPM range)
-- 🔲 Per-segment preview list
+- ✅ Session selector dropdown in `screen.html` (built-ins + custom)
+- ✅ "Launch Session" primary button
+- ✅ Session summary display (total duration, segment count, BPM range)
+- ✅ Per-segment preview list
 
 ### Guide tones UI
 - 🔲 `voices` selector in `screen.html` (`thirds_only` / `sevenths_only` / `both_alternating`)
@@ -197,6 +197,7 @@
 
 | Date | Work done | Key commits |
 |------|-----------|-------------|
+| 2026-05-27 | Session UI: two-mode toggle pill (Single/Session), session selector, summary card (name/desc/stats), segment list with kind-badge cards, Launch Session button, audio toggles. `docs/ui-session.md` design spec. | `e9cec8d` |
 | 2026-05-27 | Mark Levine Jazz Theory Book ingested → `docs/theory-levine-jazz.md`. Practice session data model: `buildSessionChart`, `buildBpmLadderChart`, `buildSegmentConfig`, `generateSession`, `buildGuideTonesExercise`, `nearestPositionForPc`. 5 melodic minor modes added to `SCALE_INTERVALS`. 4 built-in session presets. Session schema doc. | `194be3c`, `81fd6ab` |
 | 2026-05-27 | Roadmap, competitive landscape, Phase 1–6 plan drafted. | — |
 | 2026-05-26 | Shape system rework (CAGED unified data model, 3NPS, Open). Pathway UI (scale picker, Next Variation). Pitch accuracy tracker. Theory docs batch 1+2. | `9d0674f`–`c133c74` |
