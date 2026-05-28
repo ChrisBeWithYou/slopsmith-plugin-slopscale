@@ -1592,7 +1592,7 @@
       subdivision:'eighth', fretboardSystem:'caged', shape:'E', fretMin:0, fretMax:5,
       chordDepth:'seventh', progression:'ii-V-I', chordOverride:'auto',
       chordScaleStrategy:'mode_of_moment', chromaticPattern:'1234', keyCycle:'none',
-      repeatCount:1, advancedMode:true, voices:'thirds_only',
+      repeatCount:1, advancedMode:true, voices:'thirds_only', renderer:'highway_3d',
       audio:{ notes:false, metronome:true, harmony:false },
     }, segment.config || {}, {
       // Always derive these from the session's string setup
@@ -1793,8 +1793,8 @@
         ctx.fillStyle = col;
         ctx.font = '700 13px system-ui';
         const label = openMidis ? stringLabelForMidi(openMidis[s]) : `S${s + 1}`;
-        // lowercase for high e and high b to match conventional notation
-        const display = (s <= 1 && (label === 'E' || label === 'B')) ? label.toLowerCase() : label;
+        // high e (highest string) is lowercase by convention; low E stays uppercase
+        const display = (s === nStr - 1 && label === 'E') ? 'e' : label;
         ctx.fillText(display, 14, y + 5);
       }
     }
@@ -1997,6 +1997,9 @@
     // Guitar Pro / Ultimate Guitar-style horizontal tab staff.
     // Strings stacked top-to-bottom; fret numbers sit ON the string lines.
     // Time scrolls right-to-left through a fixed playhead.
+    // String convention: s=0=lowE (same as the rest of SlopScale).
+    // With invertHighway=false (default): low E at top, high e at bottom.
+    // With invertHighway=true: high e at top, low E at bottom (GP/standard tab layout).
     let canvas = null, ctx = null, W = 0, H = 0;
     const LEFT_PAD = 56, RIGHT_PAD = 28, TOP_PAD = 70, BOTTOM_PAD = 56;
     const AHEAD = 6, BEHIND = 1.2;
@@ -2010,8 +2013,6 @@
       canvas.height = H;
     }
     function laneY(s, count, inverted) {
-      // In Guitar Pro tab, the HIGH e is on TOP, LOW E on BOTTOM. With s=0=highE,
-      // string index 0 maps to the top lane. "inverted" flips the layout.
       const top = TOP_PAD, bottom = H - BOTTOM_PAD;
       const visualIndex = inverted ? (count - 1 - s) : s;
       const step = (bottom - top) / Math.max(1, count - 1);
@@ -2041,7 +2042,7 @@
         ctx.fillStyle = '#3a3528';
         ctx.font = '700 12px ui-monospace, Menlo, Consolas, monospace';
         const label = openMidis ? stringLabelForMidi(openMidis[s]) : `${s + 1}`;
-        const display = (s <= 1 && (label === 'E' || label === 'B')) ? label.toLowerCase() : label;
+        const display = (s === nStr - 1 && label === 'E') ? 'e' : label;
         ctx.textAlign = 'right';
         ctx.fillText(display, LEFT_PAD - 10, y + 4);
         ctx.textAlign = 'left';
