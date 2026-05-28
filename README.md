@@ -38,7 +38,7 @@ The Light/Dark toggle appears on the right side of the view switcher when Tab or
 
 A multi-segment program. Each segment is its own exercise config; the whole session plays back-to-back. Four built-in sessions:
 
-- **ii–V–I Workshop** — Levine's 8-step sequence (guide tones, chord-scales, arpeggios)
+- **ii–V–I Workshop** — structured jazz pedagogy sequence (guide tones, chord-scales, arpeggios)
 - **Daily 30-min Intermediate**
 - **Blues Fundamentals**
 - **Bebop Fundamentals**
@@ -175,7 +175,7 @@ Expected: 2 bars of metronome click, then a D major scale run in DADGAD tuning a
 | `docs/section-looping.md` | A-B loop framework + Slopsmith looping recon |
 | `docs/exercise-schema.md` | Internal generated exercise schema |
 | `docs/practice-pedagogy.md` | Background notes on the curated pathways |
-| `docs/theory-*.md` | Distilled theory knowledge base (CAGED, scales, arpeggios, Levine jazz) |
+| `docs/theory-*.md` | Distilled theory knowledge base (CAGED, scales, arpeggios, advanced jazz) |
 
 ## Roadmap
 

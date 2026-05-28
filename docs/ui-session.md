@@ -41,7 +41,7 @@ Session dropdown
 
 ┌─ Session info card ────────────────────────────────────┐
 │  ii–V–I Workshop                                       │
-│  Levine's 8-step sequence for any progression…         │
+│  Structured jazz learning sequence for any progression… │
 │  [5 segments] [~8 min] [60–90 BPM] [jazz]             │
 └────────────────────────────────────────────────────────┘
 

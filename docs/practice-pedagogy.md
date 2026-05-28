@@ -6,7 +6,7 @@ It is also a teaching reference — beginners reading SlopScale's docs should be
 
 ## Principles of effective practice
 
-Five principles, drawn from music pedagogy (Berklee, Steve Vai's documented routines, Tom Hess methodology), motor-learning research (Anders Ericsson's deliberate practice), and adjacent sports-psychology literature.
+Five principles, drawn from established music pedagogy, motor-learning research (deliberate practice methodology), and adjacent sports-psychology literature.
 
 ### 1. Deliberate practice, not noodling
 Noodling reinforces what you already do. Deliberate practice has four traits:
@@ -101,16 +101,16 @@ Above a basic threshold, soloing over backing tracks, recording yourself, and pl
 
 ## Established practice methods worth automating
 
-### Frank Gambale sweep-picking method
+### Sweep-picking methodology
 Single-direction picking across strings (down-down-down ascending, up-up-up descending). Each arpeggio shape is anchored to a CAGED-derived chord voicing. The plugin can ship 8–12 named sweep templates per chord quality.
 
-### Steve Vai's 10-hour routine (segmented practice)
+### Segmented practice routine
 Practice in **30-minute blocks** with a defined focus per block (technique / theory / ear / sight-reading / improv / composition). Even at 1–2 hours, the *segmented* approach beats freeform jamming. Maps directly onto a "Practice Session" feature: a session = ordered list of exercises with durations.
 
-### Tom Hess two-hand synchronization
+### Two-hand synchronization
 Slow practice of scale figures while *consciously* aligning right-hand pick stroke with left-hand fret. Most "sloppy" fast playing is desynchronized hands, not finger weakness. SlopScale can encode sync drills as low-BPM scale patterns with `ac` (accent) on every pick attack.
 
-### Berklee jazz pedagogy: guide tones first
+### Jazz pedagogy: guide tones first
 Before improvising over a progression, play *only the 3rds and 7ths* through the changes (one note per chord). Then add 9ths and 13ths. Then full lines. This builds chord-tone awareness without the noise of full arpeggios. Direct generator feature.
 
 ### Bebop scale / passing-tone methodology
@@ -142,10 +142,10 @@ Rocksmith's Master Mode fades notes out as you master a section. SlopScale equiv
 | **Sequence patterns** | Post-processor over scale path | Adds melodic variation; intermediate staple | Low — pure array transform |
 | **Chromatic warmup generator** | New exercise type | Universal warmup; every method teaches it | Low — no scale logic needed |
 | **Key cycling wrapper** | Generator wrapper | Forces 12-key fluency | Medium — loop + concat |
-| **Practice Sessions** | New top-level structure | Steve Vai segmented practice | Medium — needs data model + UI |
+| **Practice Sessions** | New top-level structure | Segmented practice methodology | Medium — needs data model + UI |
 | **BPM ladder** | Per-session-segment modifier | Slow-practice principle | Medium — beat-generation change |
-| **Sweep templates** | Pre-baked shape library | Frank Gambale method | Medium — hand-authored table |
-| **Guide tone mode** | Progression mode variant | Berklee jazz pedagogy | Medium — voice-leading logic |
+| **Sweep templates** | Pre-baked shape library | Sweep-picking methodology | Medium — hand-authored table |
+| **Guide tone mode** | Progression mode variant | Jazz pedagogy | Medium — voice-leading logic |
 | **CAGED position-aware paths** | Replaces fallback in `scalePositionsForSystem` | CAGED literacy | Medium — needs offset tables |
 | **Bending drill generator** | New exercise type | Beginner essential | Low — fixed note pattern + `bn` field |
 | **Bebop scale variants** | Add to SCALE_INTERVALS | Bebop pedagogy | Trivial — data only |
@@ -254,11 +254,11 @@ The following build sequence delivers user-visible value in each pass and avoids
 ## References (study material, not citations)
 
 - Anders Ericsson — *Peak: Secrets from the New Science of Expertise* (deliberate practice framework)
-- Frank Gambale — *Speed Picking* and the *Frank Gambale Technique Book* (sweep / economy picking)
-- Tom Hess — published methodology on two-hand synchronization and BPM-ladder practice
-- Troy Grady — *Cracking the Code* (picking mechanics across genres)
-- Berklee jazz curriculum — guide-tone-first chord-tone soloing
-- Steve Vai — published 10-hour and 30-minute-block practice routines
-- David Berkman — *The Jazz Musician's Guide to Creative Practicing* (segmented practice, key cycling)
+- Sweep / economy picking methodology (segmented practice approach)
+- Two-hand synchronization and BPM-ladder methodology
+- Picking mechanics across genres
+- Jazz pedagogy — guide-tone-first chord-tone soloing
+- Segmented practice block routines
+- Jazz improvisation guide (segmented practice, key cycling)
 - Mick Goodrick — *The Advancing Guitarist* (fretboard literacy across CAGED)
 - Pat Martino — linear / parental form pedagogy (one shape, all chords)

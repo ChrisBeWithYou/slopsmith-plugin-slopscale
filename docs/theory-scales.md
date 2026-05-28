@@ -1,17 +1,6 @@
 # Scale Theory Reference
 
-Synthesized from source PDFs in `docs/sources/`. Used to inform SlopScale generator logic, pathway design, and practice sequencing.
-
-## Sources ingested
-
-- A Modern Method For Guitar (Berklee) Vol. 1 — W. Leavitt (full text)
-- A Modern Method For Guitar (Berklee) Vol. 2 — W. Leavitt (full text)
-- A Modern Method For Guitar (Berklee) Vol. 3 — W. Leavitt (notation-heavy, minimal text)
-- Guitar Method: All Scales And Arpeggios (full text, all chapters)
-- Fretboard Theory 2008 — Desi Serna (chapters 1–11 extracted)
-- Mastering Bebop Scales (website, Jan Ghijselen) — bebop scale principle, rules of thumb, chord-tone strong-beat targeting
-- Aebersold Jazz Handbook — Jamey Aebersold (dominant 7th tree, scale syllabus categories, ear training methodology)
-- Playing The Changes: Bass — Paul Del Nero / Berklee (pitch axis concept, tetrachords as four-note scale groupings)
+Synthesized from established guitar and jazz pedagogy. Used to inform SlopScale generator logic, pathway design, and practice sequencing.
 
 ---
 
@@ -23,16 +12,16 @@ All other scales and modes are derived from, or described in relation to, the ma
 
 Half-steps occur only between degrees 3–4 and 7–1 (i.e., E–F and B–C on the natural notes). All other adjacent degrees are whole steps. This is the key invariant: if the half-steps are anywhere else, it's a different scale.
 
-**Position system (Leavitt):** A position on the fretboard occupies four adjacent frets. The first finger determines position (position = fret where first finger plays, indicated by Roman numeral). Notes that fall outside the four-fret window require a finger stretch (F.S.) without shifting the whole hand — stretch 1st finger for low notes (Type I F.S.), 4th finger for high notes (Type IV F.S.).
+**Position system:** A position on the fretboard occupies four adjacent frets. The first finger determines position (position = fret where first finger plays, indicated by Roman numeral). Notes that fall outside the four-fret window require a finger stretch (F.S.) without shifting the whole hand — stretch 1st finger for low notes (Type I F.S.), 4th finger for high notes (Type IV F.S.).
 
-**Four basic major scale fingering types (Leavitt, Vol. 1–2):**
+**Four basic major scale fingering types:**
 - Type 1, Type 2, Type 3, Type 4 — each is a distinct finger pattern for playing a major scale in position.
 - Type 1 has derivative patterns: 1A, 1B, 1C, 1D (five keys possible per position).
 - Type 4 similarly has derivatives: 4A, 4B, 4C, 4D.
 - Types 2 and 3 have NO derivative patterns.
 - All other scale types (natural minor, harmonic minor, melodic minor, jazz minor, modes) are derived from these four major scale fingering types by modifying specific notes — not learned as separate shapes.
 
-**Key insight for SlopScale:** The Leavitt system means a player who knows the 4 fingering types has the infrastructure for every diatonic scale. Pathway progression should build on these types, not treat each scale as an entirely new shape.
+**Key insight for SlopScale:** A player who knows the 4 fingering types has the infrastructure for every diatonic scale. Pathway progression should build on these types, not treat each scale as an entirely new shape.
 
 ### Modes of the major scale
 
@@ -50,7 +39,7 @@ All seven modes are "windows" into the same major scale pattern — they share i
 
 The relative minor (Aeolian) shares the same notes as its parent major — C major = A natural minor. The 6th degree of any major scale is the tonic of its relative minor.
 
-**Practical fingerboard realization (Desi Serna):** The entire major scale can be visualized as an infinite pattern on the fretboard, transposable by starting position. The key name = the note under the first degree. Modes are sub-windows within that same continuous pattern.
+**Practical fingerboard realization:** The entire major scale can be visualized as an infinite pattern on the fretboard, transposable by starting position. The key name = the note under the first degree. Modes are sub-windows within that same continuous pattern.
 
 ### Non-diatonic scale types
 
@@ -91,7 +80,7 @@ These scales are used for color/mood contrast. Each has individual modes like th
 
 ## Pentatonic relationships
 
-Desi Serna's key insight: **the pentatonic scale is a dual-key scale.** Every pentatonic scale can function as either a minor pentatonic (first note = minor root) or a major pentatonic (second note in pattern one = major root). E.g., E minor pentatonic = G major pentatonic — same five notes, same shapes, different tonal center.
+**The pentatonic scale is a dual-key scale.** Every pentatonic scale can function as either a minor pentatonic (first note = minor root) or a major pentatonic (second note in pattern one = major root). E.g., E minor pentatonic = G major pentatonic — same five notes, same shapes, different tonal center.
 
 **The five patterns** connect across the fretboard: pattern 1 → 2 → 3 → 4 → 5 → (back to 1 an octave higher). Patterns must be memorized by shape, not fret number — the shapes never change, only the position.
 
@@ -105,7 +94,7 @@ Desi Serna's key insight: **the pentatonic scale is a dual-key scale.** Every pe
 
 ## Modes
 
-### Chord-scale relationships (from Berklee Voice Leading — John Thomas)
+### Chord-scale relationships
 
 The mode that sounds correct over a given chord is called a "chord scale." The table below maps chord quality to chord scale:
 
@@ -139,7 +128,7 @@ When improvising over a II–V–I, tensions in dominant chords resolve as follo
 
 ## Bebop scales
 
-### The core principle (Mastering Bebop Scales — Ghijselen; Aebersold Jazz Handbook)
+### The core principle
 
 The bebop scale is a diatonic scale with one additional chromatic passing tone inserted so that **chord tones land on strong beats (beats 1, 2, 3, 4)** and non-chord tones fall on weak beats (the "and" subdivisions). This is the fundamental harmonic grammar of bebop improvisation.
 
@@ -150,7 +139,7 @@ The bebop scale is a diatonic scale with one additional chromatic passing tone i
 
 **Result:** Because the scale now has 8 tones, any ascending or descending 8th-note run starting on a chord tone will end on a chord tone on the next beat.
 
-### Bebop rules of thumb (Ghijselen)
+### Bebop rules of thumb
 
 | Starting from | Moving TO a chord tone | Moving AWAY from a chord tone |
 |---|---|---|
@@ -163,7 +152,7 @@ The bebop scale is a diatonic scale with one additional chromatic passing tone i
 - Skip from any non-chord tone to any chord tone: OK.
 - Skip chord-tone to chord-tone OR non-chord-tone to non-chord-tone: insert ONE or an ODD number of notes before continuing.
 
-### Dominant bebop scale applied to other modes (Ghijselen)
+### Dominant bebop scale applied to other modes
 
 The dominant bebop scale can be applied over non-dominant chords by starting it from a different scale degree:
 - **Over Phrygian:** Start dominant bebop from the 3rd of the Phrygian scale.
@@ -173,7 +162,7 @@ The dominant bebop scale can be applied over non-dominant chords by starting it 
 - **Over Altered:** Start the dominant-b6 bebop from the b6 (or #5).
 - **Over Lydian Dominant:** Start dominant-b6 bebop from the 2nd.
 
-### Aebersold's dominant 7th tree — 8 scale choices over V7
+### The dominant 7th tree — 8 scale choices over V7
 
 When a dominant 7th chord resolves up a perfect 4th (e.g., C7 → F), any of these scales may be used over the C7:
 
@@ -188,11 +177,11 @@ When a dominant 7th chord resolves up a perfect 4th (e.g., C7 → F), any of the
 | 7. Spanish/Jewish scale | C Db E F G Ab Bb C | b9 and b6; used in minor key contexts; = F harmonic minor from C |
 | 8. Chromatic | C C# D Eb E F F# G Ab A Bb B C | All 12 tones; catch-all; requires strong target-note awareness |
 
-**Key principle (Aebersold):** The two most important notes in any scale are the 3rd and 7th. The 3rd tells the listener major or minor quality. The 7th tells whether the sound is stable (maj7 = stable) or wants to move (b7 = wants to resolve). The root is "taken for granted."
+**Key principle:** The two most important notes in any scale are the 3rd and 7th. The 3rd tells the listener major or minor quality. The 7th tells whether the sound is stable (maj7 = stable) or wants to move (b7 = wants to resolve). The root is "taken for granted."
 
-### Scale syllabus — five chord/scale families (Aebersold)
+### Scale syllabus — five chord/scale families
 
-Aebersold organizes improvisation scales into five families. Within each family, scale choices are listed from most consonant (top) to most dissonant (bottom):
+Jazz improvisation scales organize into five families. Within each family, scale choices are listed from most consonant (top) to most dissonant (bottom):
 
 1. **Major** — Ionian, Lydian, major bebop, major pentatonic
 2. **Dorian minor** — Dorian, Aeolian (natural minor), harmonic minor, melodic minor, minor pentatonic, blues
@@ -204,7 +193,7 @@ Aebersold organizes improvisation scales into five families. Within each family,
 
 ---
 
-## Tetrachords — four-note scale groupings (Playing the Changes: Bass — Del Nero / Berklee)
+## Tetrachords — four-note scale groupings
 
 A tetrachord is the first or last four notes of a scale. Four types are relevant to improvisation:
 
@@ -225,9 +214,9 @@ A tetrachord is the first or last four notes of a scale. Four types are relevant
 
 ## Practice implications for SlopScale
 
-1. **Build from fingering types, not isolated patterns.** Leavitt's Type 1–4 system means that when a player learns the major scale Types, they can derive all diatonic scales from them. SlopScale pathways should reference or name positions (e.g., "5th position Dorian") rather than treating each scale as a wholly new shape.
+1. **Build from fingering types, not isolated patterns.** When a player learns the 4 major scale fingering types, they can derive all diatonic scales from them. SlopScale pathways should reference or name positions (e.g., "5th position Dorian") rather than treating each scale as a wholly new shape.
 
-2. **Pentatonic first.** Serna's Fretboard Theory explicitly argues guitarists learn better starting from pentatonic than major scale — the "box shapes" are more immediately musical, and the major/minor dual-key relationship teaches relative keys naturally.
+2. **Pentatonic first.** Guitarists learn better starting from pentatonic than major scale — the "box shapes" are more immediately musical, and the major/minor dual-key relationship teaches relative keys naturally.
 
 3. **Blues scale = first extension.** After pentatonic, the blues scale (adding the chromatic passing tone) is the most universally useful next step and is playable within the same box patterns with just one additional note per pattern.
 

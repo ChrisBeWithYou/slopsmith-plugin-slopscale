@@ -234,11 +234,11 @@ All keys valid in `config.scale`:
 | `locrian` | Locrian |
 | `phrygian_dominant` | Phrygian dominant (mode V of harmonic minor) |
 | `lydian_dominant` | Lydian dominant (mode IV of melodic minor) |
-| `dorian_b2` | Dorian b2 (mode II of melodic minor) — Levine |
-| `lydian_augmented` | Lydian augmented (mode III of melodic minor) — Levine |
-| `mixolydian_b6` | Mixolydian b6 (mode V of melodic minor) — Levine |
-| `locrian_sharp2` | Locrian ♮2 (mode VI of melodic minor) — Levine; use over m7b5 |
-| `altered` | Altered / Super-Locrian (mode VII of melodic minor) — Levine; max tension over V7 |
+| `dorian_b2` | Dorian b2 (mode II of melodic minor) |
+| `lydian_augmented` | Lydian augmented (mode III of melodic minor) |
+| `mixolydian_b6` | Mixolydian b6 (mode V of melodic minor) |
+| `locrian_sharp2` | Locrian ♮2 (mode VI of melodic minor); use over m7b5 |
+| `altered` | Altered / Super-Locrian (mode VII of melodic minor); max tension over V7 |
 | `whole_tone` | Whole tone |
 | `diminished` | Diminished (whole-half) |
 | `minor_pentatonic` | Minor pentatonic |

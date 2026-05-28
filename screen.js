@@ -82,7 +82,7 @@
     // Other common jazz scales
     phrygian_dominant:[0,1,4,5,7,8,10], lydian_dominant:[0,2,4,6,7,9,10],
     whole_tone:[0,2,4,6,8,10], diminished:[0,2,3,5,6,8,9,11],
-    // Modes of melodic minor (Levine) — for jazz chord-scale applications
+    // Modes of melodic minor — for jazz chord-scale applications
     dorian_b2:[0,1,3,5,7,9,10],       // mode II: over m7 with half-step root motion above
     lydian_augmented:[0,2,4,6,8,9,11], // mode III: over maj7#5, floating quality
     mixolydian_b6:[0,2,4,5,7,8,10],   // mode V: over V7 resolving to minor
@@ -214,7 +214,7 @@
     },
     dorian_groove: {
       label:'Dorian Groove',
-      goal:'Natural minor with a raised 6th — that one note gives it a brighter, jazzier feel than straight Aeolian. The raised 6th is the money note; resolve to it over the i chord. Santana, Robben Ford, and funk-era Miles Davis all live in Dorian.',
+      goal:'Natural minor with a raised 6th — that one note gives it a brighter, jazzier feel than straight Aeolian. The raised 6th is the money note; resolve to it over the i chord. Dorian is the go-to scale for blues-jazz and funk grooves.',
       scales:['dorian','natural_minor','minor_pentatonic'],
       tempoTiers:[65, 85, 105, 125],
       base:{ practiceType:'scale', scale:'dorian', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'i-VII-VI-VII', chordDepth:'seventh', chordOverride:'min7', key:'A', fretMin:5, fretMax:9 },
@@ -291,14 +291,14 @@
   //   scale | chord_scales | diatonic_arpeggios | progression_arpeggios |
   //   sweep_arpeggios | chromatic | guide_tones | modal_vamp
   //
-  // Built-in sessions are Levine-informed presets. A "ii-V-I Workshop" segment
-  // order follows his recommended learning sequence directly.
+  // Built-in sessions follow established jazz pedagogy. The "ii-V-I Workshop"
+  // segment order follows a standard guide-tone-first learning sequence.
 
   const BUILT_IN_SESSIONS = {
     ii_v_i_workshop: {
       version:1,
       name:'ii–V–I Workshop',
-      description:"Levine's 8-step sequence for any progression: guide tones first (3rds, then 7ths, then alternating), then chord scales, then arpeggios. All in C major / E-shape position.",
+      description:"Structured jazz learning sequence for any progression: guide tones first (3rds, then 7ths, then alternating), then chord scales, then arpeggios. All in C major / E-shape position.",
       stringSetup:'guitar_6_standard',
       tags:['jazz','intermediate'],
       bpmLadder:{ enabled:false },
@@ -319,7 +319,7 @@
     daily_intermediate: {
       version:1,
       name:'Daily 30-min Intermediate',
-      description:'Segmented session after Steve Vai\'s block methodology: chromatic warmup, CAGED scale run, sequence pattern, diatonic arpeggios, sweep arpeggios.',
+      description:'Segmented practice session: chromatic warmup, CAGED scale run, sequence pattern, diatonic arpeggios, sweep arpeggios.',
       stringSetup:'guitar_6_standard',
       tags:['intermediate','technique'],
       bpmLadder:{ enabled:false },
@@ -1705,7 +1705,7 @@
     return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration };
   }
 
-  // Guide tones generator — Levine's entry-point exercise for any progression.
+  // Guide tones generator — jazz entry-point exercise for any progression.
   // Generates only the 3rd and/or 7th of each chord, voice-led so each note
   // moves by the smallest possible interval to the next chord's guide tone.
   // `cfg.voices`: 'thirds_only' | 'sevenths_only' | 'both_alternating'

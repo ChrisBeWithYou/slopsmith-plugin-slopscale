@@ -1,26 +1,23 @@
-# Jazz Theory Reference — Mark Levine, *The Jazz Theory Book*
+# Advanced Jazz Theory Reference
 
-Distilled from training-data coverage of the full text (Sher Music, 1995).
-This doc captures what Levine adds beyond what the existing Aebersold, Berklee,
-and voice-leading sources already cover. Read this alongside `theory-scales.md`
-and `theory-arpeggios.md` — those docs handle the overlapping material; this
-one fills the gaps and corrects any incompleteness.
+Distilled from established jazz theory pedagogy. Read this alongside
+`theory-scales.md` and `theory-arpeggios.md` — those docs handle the
+overlapping material; this one covers melodic minor modes, guide tones,
+pentatonic superimposition, and advanced chord-scale applications.
 
 ---
 
-## Why this book is a cornerstone
+## Why this is a cornerstone
 
-Levine's text is the closest thing jazz education has to a unified field theory.
-It moves from basic chord construction through the full Coltrane/altered-dominant
-vocabulary without ever leaving the practitioner's perspective. Every concept
-is explained in terms of how to *use* it — which chord, which scale, which
-starting point, what it sounds like to the listener.
+Advanced jazz theory moves from basic chord construction through the full
+altered-dominant vocabulary without ever leaving the practitioner's perspective.
+Every concept is explained in terms of how to *use* it — which chord, which
+scale, which starting point, what it sounds like to the listener.
 
-For SlopScale, the book's value is threefold:
+For SlopScale, the value is threefold:
 1. A complete **scale-to-chord matching table** that handles every chord quality
    SlopScale will ever generate an exercise for.
-2. The **melodic minor mode vocabulary** — seven new scales not in any source
-   we've ingested, all load-bearing in jazz.
+2. The **melodic minor mode vocabulary** — seven scales load-bearing in jazz.
 3. A practical **pentatonic superimposition system** that turns five-note scales
    into an advanced improvisation tool.
 
@@ -28,7 +25,7 @@ For SlopScale, the book's value is threefold:
 
 ## The melodic minor scale and its seven modes
 
-Levine treats **melodic minor** (1 2 b3 4 5 6 7 — same as major with only a
+Advanced jazz theory treats **melodic minor** (1 2 b3 4 5 6 7 — same as major with only a
 b3) as the "second parent scale" alongside the major scale. Everything jazz
 adds beyond basic diatonic harmony comes from melodic minor and its modes.
 
@@ -69,7 +66,7 @@ sound or in tune types like "Infant Eyes."
 
 **Mode II — Dorian b2:** Over m7 chords with a half-step root motion above
 (e.g., D-7 when the bass moves E→D). Sounds more dissonant than plain Dorian.
-Levine notes this mode rarely sounds good over a static m7 chord but works in
+This mode rarely sounds good over a static m7 chord but works in
 motion.
 
 **Mode III — Lydian augmented:** Over maj7#5 chords (and occasionally maj7
@@ -88,7 +85,7 @@ Produces a Spanish/flamenco quality. Not common in mainstream jazz; shows up
 in flamenco-inflected jazz and certain standards.
 
 **Mode VI — Locrian ♮2 (sharp 2):** Over m7b5 (half-diminished) chords. The
-standard Locrian has a b2 that clashes badly — Levine says Locrian ♮2 is the
+standard Locrian has a b2 that clashes badly — Locrian ♮2 is the
 correct choice for m7b5 in a minor II-V context. **Critical for minor ii-V-i.**
 
 **Mode VII — Altered scale (Super-Locrian):** Over dominant 7th chords that
@@ -100,7 +97,7 @@ alteration: b9, #9, #11 (=b5), b13 (=#5). Massive tension, must resolve.
 
 ## The complete scale-to-chord matrix
 
-Levine's most practical contribution. For each chord quality, which scale(s)
+The most practical element of this approach. For each chord quality, which scale(s)
 to use, in order of increasing tension (consonant → dissonant):
 
 ### Major tonic chords (Imaj7, IVmaj7)
@@ -111,7 +108,7 @@ to use, in order of increasing tension (consonant → dissonant):
 | Lydian | #4 | More color; the #4 "sings"; preferred by many jazz players over Ionian |
 | Lydian augmented | #4, #5 | Over maj7#5 specifically; floating quality |
 
-**Levine's recommendation:** Lydian is usually better than Ionian over a major
+**Jazz pedagogy recommendation:** Lydian is usually better than Ionian over a major
 chord because the natural 4th (=11th) of Ionian is an avoid note — it creates
 a minor second clash with the major 3rd. Lydian's #4 avoids this problem.
 
@@ -125,15 +122,15 @@ a minor second clash with the major 3rd. Lydian's #4 avoids this problem.
 | Melodic minor | Over im/maj7 specifically; also for "melodic minor feel" |
 | Harmonic minor | Over im7 chords in classical or flamenco context |
 
-**Levine on Dorian vs. Aeolian:** Most jazz musicians default to Dorian even
+**Dorian vs. Aeolian in jazz:** Most jazz musicians default to Dorian even
 when the key signature is "minor" — the raised 6th of Dorian makes the scale
 sound less "minor scale-y" and more improvisable. Aeolian is reserved for
 specific minor tonic sounds where you want the b6.
 
 ### Dominant 7th chords (V7, all unresolved dom7)
 
-This is the core of Levine's contribution. The same Aebersold 8-scale tree
-applies; Levine adds context for each:
+This is the core of the approach. The standard 8-scale tree
+applies, with context for each:
 
 | Scale | Tension | Best when |
 |-------|---------|-----------|
@@ -155,7 +152,7 @@ chord. This is why Lydian dominant (#4 instead of natural 4) is often preferred.
 | Scale | Notes |
 |-------|-------|
 | Locrian | Standard; avoid the b2 on strong beats |
-| Locrian ♮2 | Levine's recommendation — the ♮2 is the b9 of the following V7, so it creates forward motion |
+| Locrian ♮2 | Preferred choice — the ♮2 is the b9 of the following V7, so it creates forward motion |
 
 ### Diminished chords (dim7, fully diminished)
 
@@ -172,7 +169,7 @@ This means a dim7 chord resolves the same way as the V7b9 a half-step below.
 
 ## The major and minor II-V-I progressions
 
-Levine gives both versions equal treatment and considers practicing them in
+Both versions receive equal treatment; consider practicing them in
 all 12 keys the single highest-leverage jazz exercise.
 
 ### Major II-V-I
@@ -211,9 +208,9 @@ degree numerals but the chord qualities must differ.
 
 ---
 
-## Guide tones — Levine's entry point to jazz
+## Guide tones — the jazz entry point
 
-Levine introduces guide tones as the first improvisation exercise for any
+Guide tones are introduced as the first improvisation exercise for any
 progression, before playing scales. The guide tones are the **3rd and 7th**
 of each chord.
 
@@ -237,7 +234,7 @@ The guide tones connect by half-step or common tone — maximum smoothness.
 This is the core voice-leading logic of jazz. **SlopScale's guide-tone
 generator should produce exactly these two voices, alternating or together.**
 
-### Guide tone exercise format (Levine's prescription)
+### Guide tone exercise format
 
 1. Play only the 3rd of each chord as it changes — one whole note per chord.
 2. Then play only the 7th of each chord.
@@ -254,7 +251,7 @@ to a chord tone an octave away when a half-step move is available.
 
 ## Pentatonic superimposition
 
-This is Levine's advanced pentatonic chapter — one of the book's most
+Pentatonic superimposition is one of the most
 widely-cited sections. The idea: instead of playing the "obvious" pentatonic
 scale (minor pentatonic from the root), play a pentatonic scale rooted on a
 *different* note. Each superimposition creates a specific combination of
@@ -393,7 +390,7 @@ progression chord entry would tell the generator to replace V7 with bII7.
 
 ## Avoid notes
 
-Levine formalizes which scale tones to *not land on* on strong beats for each
+Jazz theory formalizes which scale tones to *not land on* on strong beats for each
 chord type. This is distinct from "wrong notes" — avoid notes can be used as
 chromatic passing tones but must not sit on a downbeat.
 
@@ -404,7 +401,7 @@ chromatic passing tones but must not sit on a downbeat.
 | m7 (Dorian) | 6th on some charts | Some players hear the natural 6 as clashing |
 | m7b5 (Locrian) | b2nd | Clashes with the root of the following chord |
 
-**Levine's solution:** Use Lydian (not Ionian) for maj7 chords — the #4 removes
+**Solution:** Use Lydian (not Ionian) for maj7 chords — the #4 removes
 the avoid note. Use Lydian dominant (not Mixolydian) for dom7 chords that don't
 want the altered sound.
 
@@ -417,7 +414,7 @@ jazz musicians actually do.
 
 ## Modal jazz context
 
-Levine dedicates a chapter to modal jazz (Miles Davis's *Kind of Blue* era,
+Modal jazz (Miles Davis's *Kind of Blue* era,
 Coltrane's *My Favorite Things*, etc.). Modal tunes use one or two chords
 sustained for many bars instead of rapid chord changes.
 
@@ -445,7 +442,7 @@ their first mode in depth.
 
 ## The "outside" concept
 
-Levine treats "playing outside" not as random wrong notes but as controlled
+"Playing outside" is treated not as random wrong notes but as controlled
 superimposition. Three main approaches:
 
 1. **Play "in" a different key center** — impose a different key over the
@@ -467,7 +464,7 @@ concept in `practice-pedagogy.md`.
 
 ## Quartal harmony — the "So What" chord
 
-Levine explains McCoy Tyner's quartal voicing vocabulary. Instead of building
+McCoy Tyner's quartal voicing vocabulary. Instead of building
 chords in thirds (C-E-G), build them in fourths (C-F-Bb-Eb).
 
 The "So What" chord (named for the Miles Davis tune) is:
@@ -483,10 +480,10 @@ generator (future Phase 3), not the current melody/arpeggio generators.
 
 ---
 
-## Levine's recommended practice sequence
+## Recommended practice sequence
 
 This is the most directly actionable section for SlopScale's session framework.
-Levine prescribes a learning order that applies universally regardless of level:
+This learning order applies universally regardless of level:
 
 ### For any new progression or standard:
 
@@ -546,14 +543,14 @@ altered:          [0, 1, 3, 4, 6, 8, 10],
 
 | `practiceType` | Description |
 |----------------|-------------|
-| `guide_tones` | 3rds and/or 7ths of each chord in Levine's 4-step sequence |
+| `guide_tones` | 3rds and/or 7ths of each chord in the standard 4-step sequence |
 | `modal_vamp` | One chord, one scale, melodic development focus |
 | `pent_superimposition` | Pentatonic from a non-root starting point over a chord type |
 | `shell_voicings` | Two-note (3rd + 7th) comping exercise (Phase 3, chord focus) |
 
 ### Session structure implication
 
-Levine's 8-step sequence maps directly onto a Practice Session template:
+The 8-step jazz learning sequence maps directly onto a Practice Session template:
 
 ```json
 {
@@ -571,12 +568,12 @@ Levine's 8-step sequence maps directly onto a Practice Session template:
 ```
 
 This is a concrete, pedagogically sound session template that can ship as a
-built-in preset. The structure comes directly from Levine's chapter on learning
+built-in preset. The structure follows established jazz pedagogy for learning
 progressions.
 
 ### Default scale choice corrections
 
-Per Levine, SlopScale should update these defaults:
+SlopScale should update these defaults:
 - **maj7 chords:** prefer Lydian over Ionian (avoids the avoid note on the 4th)
 - **dom7 resolving to major:** prefer Lydian dominant over Mixolydian (same reason)
 - **dom7 resolving to minor:** use Mixolydian b6 or Altered
@@ -586,9 +583,7 @@ Per Levine, SlopScale should update these defaults:
 
 ---
 
-## Sources
+## Notes for Phase 3
 
-Mark Levine, *The Jazz Theory Book* (Sher Music, 1995).
-Companion reference: *The Jazz Piano Book* (Levine, 1989) — covers voicings
-and comping patterns not in the Theory Book. Consider ingesting separately
-for Phase 3 chord/comping generator work.
+Chord voicings and comping patterns are not covered here. Consider a separate
+reference doc for Phase 3 chord/comping generator work.

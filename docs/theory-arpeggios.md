@@ -1,14 +1,6 @@
 # Arpeggio Theory Reference
 
-Synthesized from source PDFs in `docs/sources/`. Used to inform SlopScale arpeggio generators, sweep patterns, and pathway design.
-
-## Sources ingested
-
-- Guitar Method: All Scales And Arpeggios (full text — all chord/arpeggio types with formulas)
-- A Modern Method For Guitar (Berklee) Vol. 1 — W. Leavitt (arpeggio studies in keys C, F, G, D, A)
-- A Modern Method For Guitar (Berklee) Vol. 2 — W. Leavitt (diminished, augmented, melodic minor arpeggios)
-- Fretboard Theory 2008 — Desi Serna (CAGED arpeggio patterns per shape)
-- Berklee Voice Leading For Guitar — John Thomas (chord tone resolution rules)
+Synthesized from established guitar pedagogy. Used to inform SlopScale arpeggio generators, sweep patterns, and pathway design.
 
 ---
 
@@ -90,7 +82,7 @@ When it's impossible or undesirable to play all notes of an arpeggio formula, th
 
 The Guitar Method: All Scales And Arpeggios presents five example arpeggio positions for each chord type, one for each string where the root can sit (6th, 5th, 4th, 3rd, 2nd strings). These are ordered root-position ascending/descending up the neck. The pattern for a given root-string position is movable — place the root on the named note and the full arpeggio pattern follows.
 
-In Fretboard Theory (CAGED system), each CAGED form has a corresponding arpeggio pattern that maps the chord tones across the fretboard in that shape's home zone.
+In the CAGED system, each CAGED form has a corresponding arpeggio pattern that maps the chord tones across the fretboard in that shape's home zone.
 
 ### Inversions
 
@@ -106,7 +98,7 @@ On guitar, inversions are often created by partial forms — removing fingers fr
 
 ## Sweep mechanics and technique
 
-### The roll technique (Leavitt)
+### The roll technique
 
 When two consecutive notes are on adjacent strings and use the same finger, **roll the fingertip** from one string to the next. Do NOT lift the finger and re-place it. This is essential for fluid arpeggio playing across adjacent strings.
 
@@ -114,11 +106,11 @@ When two consecutive notes are on adjacent strings and use the same finger, **ro
 
 On the guitar, adjacent string pairs have a 4-semitone interval (except G–B which is 3). Arpeggio patterns take advantage of this by locating chord tones efficiently per string — typically 1–2 notes per string in a sweep-style pattern.
 
-### Upstroke and downstroke balance (Leavitt)
+### Upstroke and downstroke balance
 
 When playing arpeggios with a pick, make the upstroke sound as much like the downstroke as possible. On low strings with a downstroke, there's a natural accent; on the upstroke return, favor the lower strings by bringing the pick back across them lightly. This is the sweep-picking mechanical principle.
 
-### Augmented triad arpeggios (Leavitt, Vol. 2)
+### Augmented triad arpeggios
 
 Augmented triads (1, 3, #5) are symmetrical in major thirds — the same arpeggio pattern repeats every 4 frets. Practice augmented triad arpeggios from all possible root positions.
 
@@ -144,7 +136,7 @@ In any major key, the seven degrees each produce a chord and corresponding arpeg
 | VI | Minor | Min 7 |
 | VII | Dim/half-dim | Min 7 b5 |
 
-Cycling through these seven arpeggios in sequence (I through VII) in a single position is a foundational exercise. Leavitt's arpeggio studies in Vol. 1 do exactly this in keys C, F, G, D, and A major.
+Cycling through these seven arpeggios in sequence (I through VII) in a single position is a foundational exercise — covering all diatonic keys in a given position.
 
 ### II–V–I arpeggio movement (Voice Leading)
 
@@ -156,7 +148,7 @@ The most important three-chord sequence in jazz: II–7 → V7 → IMaj7. Chord 
 
 These guide-tone movements create smooth voice leading and can be the basis for both arpeggio exercises and improvised melodic lines.
 
-### Chord tones as phrase anchors (Aebersold)
+### Chord tones as phrase anchors
 
 Chord tones (1, 3, 5, 7) are the most natural notes to begin and end melodic phrases with. The ear hears these first and registers them as harmonically stable. Scale tones and tensions work as passing/approach notes between chord tones.
 
@@ -186,7 +178,7 @@ These same approaches apply when playing arpeggios as melodic lines. Multi-dimen
 
 4. **II–V–I arpeggio drills are a natural exercise type.** Cycling through min7 → dom7 → maj7 arpeggios in a II–V–I pattern over a key center is a high-value jazz practice format that could be a SlopScale pathway or exercise variant.
 
-5. **Diatonic 7th arpeggios as a sequence exercise.** Generate all seven diatonic arpeggios in one key, one per measure, cycling through I–VII in a single CAGED position. This is a direct implementation of the Leavitt arpeggio study format.
+5. **Diatonic 7th arpeggios as a sequence exercise.** Generate all seven diatonic arpeggios in one key, one per measure, cycling through I–VII in a single CAGED position.
 
 6. **Approaches as sequence patterns.** The 1-2-3 and 3-2-1 approaches map directly to SlopScale's SEQUENCE_PATTERNS concept. Adding arpeggio-specific approaches (not just scale runs) would enrich the generator.
 

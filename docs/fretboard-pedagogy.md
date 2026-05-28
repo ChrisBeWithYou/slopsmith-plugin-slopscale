@@ -4,7 +4,7 @@ This document is the authoritative reference for how SlopScale should think abou
 
 Every position/shape decision in SlopScale should be traceable back to a principle in this doc. If it isn't, we're making it up.
 
-Sources synthesized: the **CAGED system** (the canonical 5-shape major-scale fingering taught across nearly every modern method — Justin Guitar, Applied Guitar Theory, Hal Leonard, Mel Bay, Jens Larsen, etc.), the **3-notes-per-string (3NPS) system** (Frank Gambale, Paul Gilbert, modern rock/fusion pedagogy), Gambale's full-neck modal maps (*Modes: No More Mysteries*), Barrett Tagliarino's *Guitar Fretboard Workbook*, Joe Pass's chord vocabulary and string-group voicings, and the Jimmy Bruno Guitar Institute's I-vi-ii-V / ii-V-I line-creation method.
+Sources synthesized: the **CAGED system** (the canonical 5-shape major-scale fingering taught across nearly every modern method), the **3-notes-per-string (3NPS) system** (modern rock/fusion pedagogy), full-neck modal maps, chord vocabulary and string-group voicings, and jazz line-creation methodology.
 
 ---
 
@@ -103,9 +103,9 @@ For any given key, all three systems describe the *same* notes on the *same* nec
 
 **Implication for SlopScale:** the fretboard-system selector is real and load-bearing. Picking CAGED vs 3NPS vs Open for the same key+scale produces different exercises with different fret windows and different fingerings.
 
-### Gambale's full-neck map (not a 4th system)
+### Full-neck modal map (not a 4th system)
 
-Frank Gambale's *Modes: No More Mysteries* shows each mode as a single full-neck diagram with every scale note labeled by scale degree (1, 2, 3, etc.). This is **not a competing position system** — it's a different *view* of the same fretboard. The position systems are partitions of this map.
+The full-neck modal map approach shows each mode as a single full-neck diagram with every scale note labeled by scale degree (1, 2, 3, etc.). This is **not a competing position system** — it's a different *view* of the same fretboard. The position systems are partitions of this map.
 
 SlopScale should support both views:
 - **Position view** — one shape highlighted at a time (CAGED / 3NPS / Open).

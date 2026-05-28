@@ -25,7 +25,7 @@ The plugin has no build step. There is no `package.json`, no compiler, no bundle
 | `docs/fretboard-pedagogy.md` | Guitar fretboard system reference (CAGED, 3NPS, etc.). |
 | `docs/position-system-rework.md` | Design notes on the unified position system (CAGED_SHAPES consolidation history). |
 | `docs/session-schema.md` | Session/segment data model used by `BUILT_IN_SESSIONS`. |
-| `docs/theory-caged.md` / `theory-scales.md` / `theory-arpeggios.md` / `theory-levine-jazz.md` | Distilled theory knowledge base (Berklee, Serna, Aebersold, Levine). |
+| `docs/theory-caged.md` / `theory-scales.md` / `theory-arpeggios.md` / `theory-jazz-advanced.md` | Distilled theory knowledge base (CAGED, scales, arpeggios, advanced jazz). |
 | `docs/ui-session.md` | Session UI design notes. |
 | `docs/session-2026-05-26-shape-system.md` | Shape-system unification session log. |
 | `docs/sources/` | Source PDFs — reference material only. |

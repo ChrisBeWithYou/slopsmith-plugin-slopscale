@@ -10,7 +10,7 @@ This file is the index for the session. The actual reference material lives in t
 
 Read these first if you're touching position, scale, or arpeggio logic:
 
-- **[docs/fretboard-pedagogy.md](./fretboard-pedagogy.md)** — synthesizes the source material (CAGED system from Justin Guitar / Applied Guitar Theory / Mel Bay, 3-notes-per-string from Frank Gambale and Paul Gilbert, Gambale's full-neck modal maps, Barrett Tagliarino's *Guitar Fretboard Workbook*, Joe Pass on chord vocabulary, Jimmy Bruno Guitar Institute on ii-V-I / I-vi-ii-V line construction). Explains the two big ideas: position-as-root-anchor, and the multiple shapes that share each anchor.
+- **[docs/fretboard-pedagogy.md](./fretboard-pedagogy.md)** — synthesizes established guitar pedagogy (CAGED system, 3-notes-per-string methodology, full-neck modal maps, chord vocabulary, jazz line construction). Explains the two big ideas: position-as-root-anchor, and the multiple shapes that share each anchor.
 - **[docs/position-system-rework.md](./position-system-rework.md)** — the implementation proposal that turned the pedagogy into concrete config-model + UI changes. As of this session it's no longer a proposal — it's what was shipped. The acceptance criteria at the bottom are useful for verification.
 
 ---
@@ -21,8 +21,8 @@ Read these first if you're touching position, scale, or arpeggio logic:
 | ------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | ff4cd9a | feat(diagram): static scale fretboard panel above the note highway | First attempt at the static scale diagram the user originally asked for. Bolted on top of the existing `fretMin`/`fretMax` logic.        |
 | 4de3327 | refactor(positions): tighten Position to standard 4-fret hand positions | Reverted the scale diagram (premature) and narrowed Position presets to true 4-fret hand windows. Surfaced a deeper design problem — see below. |
-| 9097f79 | docs: add fretboard pedagogy reference + position-system rework proposal | First draft of both reference docs, written after reading source PDFs from Jimmy Bruno, Frank Gambale, and others.                       |
-| 336c6d9 | docs: lock position-system design — CAGED default + drop Bruno attribution | Resolved the five open questions from the proposal draft; renamed the 5-shape system from Bruno-style attribution to its real-world name (CAGED). |
+| 9097f79 | docs: add fretboard pedagogy reference + position-system rework proposal | First draft of both reference docs, written after reviewing source material on guitar position systems.                       |
+| 336c6d9 | docs: lock position-system design — CAGED default | Resolved the five open questions from the proposal draft; settled on the CAGED system as the default 5-shape framework. |
 | c0d1a4c | feat(shapes): unified CAGED + 3NPS + Open shape data model      | First code change. Added `CAGED_SHAPES`, `THREE_NPS_POSITION_DEFS`, resolver functions, smoke tests. Self-contained and inert.            |
 | d661370 | feat(shapes): wire shape data model into controls UI + chart generator | Wired the data model into the controls panel (Shape dropdown) and chart generator (`scalePositionsForSystem` uses shape note set). All scale/chord/arpeggio pathways migrated from `'position'` to `'caged'` system. |
 
@@ -55,17 +55,7 @@ If you're adding or modifying anything in the scale/arpeggio/position area, hold
 
 ## Source material
 
-PDFs synthesized for the pedagogy doc (these live on the user's drive, not in the repo):
-
-- Jimmy Bruno Guitar Institute — *Improv Revealed* Level 1 and 2 (5-shape system, arpeggio extraction, ii-V-I / I-vi-ii-V line construction across 12 keys, Blue Bossa tune analysis, chord-tone targeting, string-group chord studies).
-- Frank Gambale — *Modes: No More Mysteries* (full-neck modal maps), *Technique Book I & II*, *Modal Magic*, *Sweep Picking*, *Monster Licks & Speed Picking*, *Chop Builder*.
-- Barrett Tagliarino — *Guitar Fretboard Workbook* (CAGED foundation, fretboard mapping).
-- Joe Pass — *Guitar Method*, *Jazz Lines*, *Guitar Chords (Mel Bay)*, *Chord Solos*, *Jazz Guitar Solos*.
-- Hal Leonard — *At a Glance Guitar Licks*.
-- Robben Ford — *Rhythm Blues*.
-- Jeff Loomis — *Extreme Lead Guitar*. Paul Gilbert — *Shred Alert*. Brian May — *Star Licks*. Danny Gatton — *Telemaster*.
-- Learn & Master Guitar Manual + Bonus Workshop.
-- Funk Guitar — *The Essential Guide*. Jazz for the Electric Blues Guitarist.
+Pedagogy synthesized from established guitar instructional material covering: jazz improvisation / 5-shape arpeggio systems / line construction across 12 keys; full-neck modal maps and sweep picking methodology; CAGED fretboard mapping; chord vocabulary and string-group voicings; and various genre-specific technique references (blues, metal, jazz, funk).
 
 Web research:
 - [CAGED vs 3 Notes Per String — JustinGuitar](https://www.justinguitar.com/guitar-lessons/caged-vs-3-notes-per-string-3nps-scale-systems-sc-987)

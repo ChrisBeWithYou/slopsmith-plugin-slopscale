@@ -14,7 +14,7 @@
 - ✅ `progression_arpeggios` — arpeggio paths over named progressions
 - ✅ `sweep_arpeggios` — CAGED-anchored sweep patterns with HOPO turnaround
 - ✅ `chromatic` — warmup patterns (1234, 4321, 1324, spider, advanced)
-- ✅ `guide_tones` — 3rds and/or 7ths voice-led through any progression (Levine)
+- ✅ `guide_tones` — 3rds and/or 7ths voice-led through any progression
 
 ### Fretboard systems
 - ✅ CAGED (5 shapes: C/A/G/E/D) — unified data model, shape resolution, chord templates
@@ -29,7 +29,7 @@
 - ✅ Pentatonic minor/major, blues
 - ✅ Whole tone, diminished
 - ✅ Lydian dominant
-- ✅ **5 melodic minor modes (Levine):** dorian_b2, lydian_augmented, mixolydian_b6, locrian_sharp2, altered
+- ✅ **5 melodic minor modes:** dorian_b2, lydian_augmented, mixolydian_b6, locrian_sharp2, altered
 
 ### Pathways (11 curated)
 - ✅ Chromatic Warmup
@@ -78,13 +78,13 @@
 - ✅ Multi-instrument string setups: guitar 6/7/8, bass 4/5
 
 ### Theory knowledge base
-- ✅ Berklee Method Vols 1–3 (Leavitt)
-- ✅ Fretboard Theory (Serna)
-- ✅ Guitar Method: All Scales & Arpeggios
-- ✅ Aebersold Jazz Handbook (dominant 7th tree, scale families)
-- ✅ Berklee Voice Leading (chord-scale relationships, II-V-I resolution)
-- ✅ Bebop scales (Ghijselen)
-- ✅ **Mark Levine — The Jazz Theory Book** (melodic minor modes, guide tones, pentatonic superimposition, Rhythm Changes, minor ii-V-i, avoid notes, 8-step learning sequence)
+- ✅ Classical guitar method pedagogy (position system, derivative chord sequences, accumulative practice)
+- ✅ Fretboard visualization methodology (CAGED-first, pentatonic-before-major approach)
+- ✅ Scale & arpeggio methodology across positions
+- ✅ Jazz improvisation pedagogy (dominant 7th tree, scale families, chord-scale mapping)
+- ✅ Voice leading principles (chord-scale relationships, II-V-I resolution)
+- ✅ Bebop scale methodology (chromatic passing-tone targeting, strong-beat chord tones)
+- ✅ Advanced jazz theory (melodic minor modes, guide tones, pentatonic superimposition, Rhythm Changes, minor ii-V-i, avoid notes, structured learning sequence)
 
 ---
 
@@ -101,7 +101,7 @@
 - 🔲 `voices` selector in `screen.html` (`thirds_only` / `sevenths_only` / `both_alternating`)
 - 🔲 `guide_tones` option in the practice type selector
 
-### Levine scale defaults
+### Jazz chord-scale defaults
 - 🔲 `chord_scales` generator: default maj7 → Lydian (not Ionian), dom7 resolving to major → Lydian dominant, m7b5 → Locrian ♮2
 - 🔲 Minor ii-V-i: add `minor: true` flag to `minor_ii_V_i` progression so generator uses m7b5 on degree ii, altered/dim on degree V
 
@@ -164,7 +164,7 @@
 - 🔲 **Chord Jam / Improv Scoring mode** — generate a chord progression (dropdown or semi-random), display it as a backing chart, score user's improvisation based on whether played notes land in the correct chord-scale at each moment. Uses existing Minigames SDK pitch tracker + chord-scale matching logic; achievable without Slopsmith's full scorer API. *(Community request)*
 - 🔲 **Improv mode** — backing chord chart with empty note slots; user fills them in
 - 🔲 **Walking bass line** — root-to-chord-tone scalar walks between chord changes
-- 🔲 **Pentatonic superimposition** — play pentatonic from non-root starting point for specific tension (Levine chapter)
+- 🔲 **Pentatonic superimposition** — play pentatonic from non-root starting point for specific tension (advanced jazz technique)
 
 ### Visual / practice modes
 - 🔲 **Master mode** — post-processing pass that removes notes from the final N% of a chart; trains memorization
@@ -212,7 +212,7 @@
 | Date | Work done | Key commits |
 |------|-----------|-------------|
 | 2026-05-27 | Session UI: two-mode toggle pill (Single/Session), session selector, summary card (name/desc/stats), segment list with kind-badge cards, Launch Session button, audio toggles. `docs/ui-session.md` design spec. | `e9cec8d` |
-| 2026-05-27 | Mark Levine Jazz Theory Book ingested → `docs/theory-levine-jazz.md`. Practice session data model: `buildSessionChart`, `buildBpmLadderChart`, `buildSegmentConfig`, `generateSession`, `buildGuideTonesExercise`, `nearestPositionForPc`. 5 melodic minor modes added to `SCALE_INTERVALS`. 4 built-in session presets. Session schema doc. | `194be3c`, `81fd6ab` |
+| 2026-05-27 | Advanced jazz theory reference ingested → `docs/theory-jazz-advanced.md`. Practice session data model: `buildSessionChart`, `buildBpmLadderChart`, `buildSegmentConfig`, `generateSession`, `buildGuideTonesExercise`, `nearestPositionForPc`. 5 melodic minor modes added to `SCALE_INTERVALS`. 4 built-in session presets. Session schema doc. | `194be3c`, `81fd6ab` |
 | 2026-05-27 | Roadmap, competitive landscape, Phase 1–6 plan drafted. | — |
 | 2026-05-26 | Shape system rework (CAGED unified data model, 3NPS, Open). Pathway UI (scale picker, Next Variation). Pitch accuracy tracker. Theory docs batch 1+2. | `9d0674f`–`c133c74` |
 | Earlier | Generators (scale, chord_scales, arpeggios, sweeps, chromatic). 2D renderers. Pathways v1. Preset CRUD. Backend temp-sloppak route. | `293d558`–`032e7b6` |
@@ -232,5 +232,5 @@ When you open a new session, do this first:
 **Immediate next tasks (Phase 1):**
 1. Session UI in `screen.html` — selector + Launch Session button
 2. `voices` selector + `guide_tones` option in the practice type UI
-3. Levine scale defaults in `buildChordScaleExercise` (Lydian for maj7, Lydian dominant for dom7)
+3. Jazz chord-scale defaults in `buildChordScaleExercise` (Lydian for maj7, Lydian dominant for dom7)
 4. Rhythm Changes progressions in `COMMON_PROGRESSIONS`

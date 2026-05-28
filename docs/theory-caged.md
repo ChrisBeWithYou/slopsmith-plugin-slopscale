@@ -1,16 +1,6 @@
 # CAGED System Reference
 
-Synthesized from source PDFs in `docs/sources/`. Supplements the overview in `fretboard-pedagogy.md` with deeper detail on shape mechanics, chord-scale relationships, and teaching order.
-
-## Sources ingested
-
-- Fretboard Theory 2008 — Desi Serna (Chapter 3: CAGED Template Chord System; Chapter 4: Five Is the Magic Number; full extracted text)
-- Guitar Method: All Scales And Arpeggios (five arpeggio positions per chord type)
-- A Modern Method For Guitar (Berklee) Vol. 1–2 — W. Leavitt (position system, movable chord forms, derivative chord sequences)
-- Berklee Voice Leading For Guitar — John Thomas (drop-2 voicings, chord families)
-- Guitar Building Blocks — Patrick Stefurak (derivation framework: notes → pentatonic → chords → CAGED; fretboard visualization; BCEF triangles)
-- Berklee Jazz Guitar Chord Dictionary — Rick Peckham (guide tone chords, movable 7th chord shapes, voicings for all qualities, quartal voicings, bebop scale exercises)
-- Berklee Reharmonization Techniques — Berklee Press (three chord families: tonic/subdominant/dominant; simple substitution logic)
+Synthesized from established guitar pedagogy. Supplements the overview in `fretboard-pedagogy.md` with deeper detail on shape mechanics, chord-scale relationships, and teaching order.
 
 ---
 
@@ -61,7 +51,7 @@ Breaking a full CAGED form into a partial form creates:
 - Easier-to-play voicings
 - Unique shapes and sounds used extensively in popular music
 
-**C-form partial examples (Desi Serna):**
+**C-form partial examples:**
 - Remove pinky → 4-note voicing on strings 1–4 ("Stairway to Heaven" intro)
 - Remove pinky + ring → 3-note voicing on strings 1–3 (same triangular shape as partial D-form; "Hole Hearted" by Extreme)
 - C-form and D-form share this triangular partial shape
@@ -78,20 +68,20 @@ When playing a partial form that omits the root, always visualize where the root
 
 ## Chord-scale relationships per shape
 
-### Pentatonic patterns anchored to CAGED shapes (Desi Serna)
+### Pentatonic patterns anchored to CAGED shapes
 
 The five pentatonic patterns align with the five CAGED shapes. Each CAGED shape "lives" in the same fretboard zone as one of the five pentatonic patterns. This alignment is why the CAGED system and pentatonic patterns reinforce each other — learning both systems simultaneously is more efficient than learning them separately.
 
 **Key connection:** Pentatonic pattern 1 aligns with the E-form CAGED shape. The root of pattern 1 (minor root) corresponds to the E-form root on string 6. The major root in pattern 1 corresponds to the D-form or G-form root in that zone.
 
-### Scale extensions from CAGED shapes (Leavitt)
+### Scale extensions from CAGED shapes
 
 The four major scale fingering types (Types 1–4) correspond to CAGED-zone positions:
 - Each fingering type is playable in a specific CAGED shape's home zone.
 - Converting a major scale type to Dorian, Phrygian, or other modes requires modifying specific notes within the same hand position.
 - This means: **the CAGED system provides the positional anchor, and the scale type provides the note choice within that anchor.**
 
-### Drop-2 voicings per chord scale (Voice Leading — John Thomas)
+### Drop-2 voicings per chord scale
 
 Drop-2 voicings are derived from CAGED-zone chord shapes. They are built by taking a close-position 4-note chord and dropping the second highest voice one octave. This creates guitar-friendly voicings across strings 2–5 or 1–4.
 
@@ -107,7 +97,7 @@ For each chord function (Ionian, Dorian, Mixolydian, etc.), the drop-2 voicings 
 
 ## Teaching order and common progressions through shapes
 
-### Open chord sequence (Leavitt, Fretboard Theory)
+### Open chord sequence
 
 The natural learning progression for open-position chords:
 1. **E and A forms** — most common barre chord forms; root on 6th and 5th string respectively. Start here.
@@ -115,7 +105,7 @@ The natural learning progression for open-position chords:
 3. **C form** — the most challenging full barre; usually learned as a partial form first.
 4. **G form** — introduces the full 6-string barre with root on 6th string at a different shape.
 
-Leavitt's derivative chord sequence (Vol. 1): New chord forms are presented in a sequence where each new form is directly related to one or more preceding forms (by moving or removing specific fingers). This "derivative" approach means: **memorize the fingering relationship, not isolated shapes**.
+The derivative chord sequence: new chord forms are presented in a sequence where each new form is directly related to one or more preceding forms (by moving or removing specific fingers). This "derivative" approach means: **memorize the fingering relationship, not isolated shapes**.
 
 ### The CAGED sequence as a practice tool
 
@@ -145,13 +135,13 @@ Recommended introduction order for SlopScale CAGED-based pathways:
 4. **C-shape** — harder barre; pentatonic pattern 4 zone
 5. **G-shape** — large stretch; pentatonic pattern 5 zone
 
-This mirrors the SlopScale current CAGED_SHAPES implementation and is validated by both Leavitt (E and A forms first for barre chord practice) and Fretboard Theory (E-form as default starting CAGED shape).
+This mirrors the SlopScale current CAGED_SHAPES implementation — E and A forms first for barre chord practice, with E-form as the default starting CAGED shape.
 
 ---
 
-## Derivation framework: six guitar building blocks (Guitar Building Blocks — Stefurak)
+## Derivation framework: six guitar building blocks
 
-Stefurak's method identifies six fundamental building blocks from which all guitar knowledge derives. Each block is a logical extension of the previous:
+The derivation framework identifies six fundamental building blocks from which all guitar knowledge derives. Each block is a logical extension of the previous:
 
 1. **Notes on the neck** — know every natural note name by string/fret position (not just EADGBE and patterns)
 2. **Major, minor, dominant chord forms** — CAGED shapes in all five positions; derived from the pentatonic and major scale
@@ -165,7 +155,7 @@ The derivation logic:
 
 **SlopScale implication:** This derivation chain is a powerful mental model — all five CAGED positions are implicit in the pentatonic patterns, which are implicit in the major scale patterns. A player who knows the major scale "already knows" where the pentatonic lives and where the chord forms live, once the derivation is explained.
 
-### Fretboard visualization principles (Stefurak)
+### Fretboard visualization principles
 
 **BCEF triangular clusters:** On the guitar neck, B and C are adjacent (no accidental between them), as are E and F. These four notes cluster together and appear in diagonal groupings across the fretboard. Visualizing the BCEF groups (at the 7th fret as the "bull's-eye" target) anchors note memorization in the center of the neck.
 
@@ -177,7 +167,7 @@ The derivation logic:
 
 ---
 
-## Chord function families (Berklee Reharmonization Techniques)
+## Chord function families
 
 Diatonic chords in any major key fall into three function families:
 
@@ -197,7 +187,7 @@ Diatonic chords in any major key fall into three function families:
 
 ---
 
-## Guide tone chords (Berklee Jazz Guitar Chord Dictionary — Peckham)
+## Guide tone chords
 
 Guide tones are the 3rd and 7th of any chord — the two tones that define chord quality and function. A "guide tone chord" is a stripped voicing containing only Root + 3 + 7 (or Root + 7 + 3), voiced across two or three adjacent strings.
 
@@ -210,13 +200,13 @@ Guide tones are the 3rd and 7th of any chord — the two tones that define chord
 
 These two layouts cover all seven chord qualities: Maj7, Dom7, Min7, Min7b5, Maj6, Min6, Dim7. The guide tones form the skeleton of a jazz chord — all other notes (5th, 9th, 11th, 13th) are color additions to this skeleton.
 
-**Movable 7th chord shape summary (Peckham):** Standard jazz chord vocabulary uses movable shapes built on four string sets (6–4–3–2, 5–4–3–2, 4–3–2–1, 5–3–2–1). For each quality, root placement determines which string set is practical:
+**Movable 7th chord shape summary:** Standard jazz chord vocabulary uses movable shapes built on four string sets (6–4–3–2, 5–4–3–2, 4–3–2–1, 5–3–2–1). For each quality, root placement determines which string set is practical:
 - Root on 6th string: E-form barre chord base
 - Root on 5th string: A-form barre chord base
 - Root on 4th string: D-form barre chord base
 - Root on 2nd string: high-string voicings (practical for solo guitar)
 
-**Three stages of chord development (Peckham):**
+**Three stages of chord development:**
 1. Physical Stamina — building hand muscles (this comes first; don't rush it)
 2. Muscle Memory — memorizing the chord voicing shapes
 3. Informed Musical Instincts — using the chords to make music (this is the actual goal)
@@ -231,7 +221,7 @@ These two layouts cover all seven chord qualities: Maj7, Dom7, Min7, Min7b5, Maj
 
 3. **Partial forms are the most practical guitar reality.** Full barre chords (especially C-form) are often not how experienced players voice chords. SlopScale chord-tone exercises could favor partial forms and inversions over always requiring the full shape.
 
-4. **Derivative chord learning reduces memorization burden.** Teaching chord forms as modifications of a base form (add a finger, move a finger) rather than as isolated new shapes aligns with Leavitt and reduces total memorization load. This philosophy should inform how SlopScale presents "Next Shape" in a pathway.
+4. **Derivative chord learning reduces memorization burden.** Teaching chord forms as modifications of a base form (add a finger, move a finger) rather than as isolated new shapes reduces total memorization load. This philosophy should inform how SlopScale presents "Next Shape" in a pathway.
 
 5. **Five-shape coverage should be the long-term goal of any pathway.** No pathway is complete until the student can play the same material in all five CAGED zones. Pathways with `vary[]` should cycle through shapes systematically, not randomly.
 
