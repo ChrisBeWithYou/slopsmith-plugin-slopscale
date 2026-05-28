@@ -827,6 +827,63 @@
   let audioCtx = null, audioNodes = [];
   // Notation renderer is notation-only — tab is its own renderer now.
   const notationMode = 'notation';
+
+  // Theme palette for the Tab and Notation renderers. The light theme is the
+  // parchment-and-ink look we shipped for Tab; the dark theme mirrors it on a
+  // navy ground. The 3D Highway and 2D Highway renderers are not affected —
+  // they have their own color identities.
+  const RENDER_THEMES = {
+    light: {
+      bg: '#fbf8ef',          // parchment
+      bgAlt: '#fbf8ef',
+      ink: '#1a1a1a',          // primary text + strokes
+      inkSoft: '#3f3f3f',
+      dim: '#6b6b6b',           // secondary text (HUD, measure numbers)
+      ledger: '#1a1a1a',
+      noteFill: '#1a1a1a',
+      noteOutline: '#1a1a1a',
+      stem: '#1a1a1a',
+      beam: '#1a1a1a',
+      keysig: '#1a1a1a',
+      accidental: '#1a1a1a',
+      chordName: '#1a1a1a',
+      sectionLabel: '#1a1a1a',
+      hopo: '#1a1a1a',
+      bend: '#1a1a1a',
+      playhead: '#b91c1c',     // red playhead
+      faintLine: 'rgba(0,0,0,0.25)',
+    },
+    dark: {
+      bg: '#0a1322',           // navy ground
+      bgAlt: '#070c18',
+      ink: '#e2e8f0',
+      inkSoft: '#cbd5e1',
+      dim: '#94a3b8',
+      ledger: '#cbd5e1',
+      noteFill: '#e2e8f0',
+      noteOutline: '#e2e8f0',
+      stem: '#e2e8f0',
+      beam: '#e2e8f0',
+      keysig: '#e2e8f0',
+      accidental: '#e2e8f0',
+      chordName: '#bfdbfe',
+      sectionLabel: '#fbcfe8',
+      hopo: '#cbd5e1',
+      bend: '#cbd5e1',
+      playhead: '#f87171',
+      faintLine: 'rgba(226,232,240,0.18)',
+    },
+  };
+  // Active theme for renderers that participate. Light is the default.
+  let currentRenderTheme = (typeof localStorage !== 'undefined' && localStorage.getItem('slopscale.renderTheme')) || 'light';
+  if (currentRenderTheme !== 'light' && currentRenderTheme !== 'dark') currentRenderTheme = 'light';
+  function getRenderTheme() { return RENDER_THEMES[currentRenderTheme] || RENDER_THEMES.light; }
+  function setRenderTheme(name) {
+    if (name !== 'light' && name !== 'dark') return;
+    currentRenderTheme = name;
+    try { localStorage.setItem('slopscale.renderTheme', name); } catch (_) {}
+    if (renderer && activeBundle) drawOnce();
+  }
   // Pitch tracker state — wraps slopsmithMinigames.scoring.createContinuous (no registration required)
   let _ptHandle = null, _ptNotes = [], _ptOpenMidis = [], _ptScored = new Set();
   // Active pathway state — tracks which pathway is showing and which variation
@@ -2065,14 +2122,14 @@
   }
 
   function makeBuiltin2DTabRenderer() {
-    // Standard guitar-tab look: light parchment background, six black string
-    // lines, fret numbers sitting on the strings with the line broken behind
-    // each number, plain bar lines, chord names above the staff, HOPO arcs,
-    // slides and bends as inline glyphs. No colors, no pills, no glow.
+    // Standard guitar-tab look: paper background, string lines, fret numbers
+    // sitting on the strings with the line broken behind each number, plain
+    // bar lines, chord names above the staff, HOPO arcs, slides and bends as
+    // inline glyphs. Light/dark theme via getRenderTheme().
     let canvas = null, ctx = null, W = 0, H = 0;
     let hopoPairs = [];
+    let t = RENDER_THEMES.light;  // refreshed at the top of each draw()
     const LEFT_PAD = 56, RIGHT_PAD = 20, AHEAD = 5, BEHIND = 1.5;
-    const PAPER = '#fbf8ef', INK = '#1a1a1a', DIM = '#6b6b6b', PLAYHEAD = '#b91c1c';
 
     function resize() {
       if (!canvas) return;
@@ -2111,16 +2168,16 @@
       }
     }
     function drawBackground() {
-      ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = t.bg; ctx.fillRect(0, 0, W, H);
     }
     function drawStaff(nStr, top, gap, openMidis) {
-      ctx.strokeStyle = INK; ctx.lineWidth = 1;
+      ctx.strokeStyle = t.ink; ctx.lineWidth = 1;
       for (let s = 0; s < nStr; s++) {
         const y = laneY(s, nStr, top, gap);
         ctx.beginPath(); ctx.moveTo(LEFT_PAD, y); ctx.lineTo(W - RIGHT_PAD, y); ctx.stroke();
       }
       // Left-edge string-tuning labels (e.g. e B G D A E).
-      ctx.fillStyle = INK; ctx.font = '600 11px "Cambria","Georgia",serif';
+      ctx.fillStyle = t.ink; ctx.font = '600 11px "Cambria","Georgia",serif';
       ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
       for (let s = 0; s < nStr; s++) {
         const y = laneY(s, nStr, top, gap);
@@ -2131,7 +2188,7 @@
       ctx.textBaseline = 'alphabetic';
       // "TAB" letter stack at the left, mimicking a clef position.
       const midY = (top + (top + gap * (nStr - 1))) / 2;
-      ctx.fillStyle = INK; ctx.font = 'italic 700 18px "Cambria","Georgia",serif';
+      ctx.fillStyle = t.ink; ctx.font = 'italic 700 18px "Cambria","Georgia",serif';
       ctx.textAlign = 'center';
       ctx.fillText('T', LEFT_PAD - 28, midY - gap * 0.9);
       ctx.fillText('A', LEFT_PAD - 28, midY + gap * 0.2);
@@ -2141,7 +2198,7 @@
     function drawBarLines(bundle, now, nStr, top, gap) {
       const yTop = laneY(nStr - 1, nStr, top, gap);
       const yBot = laneY(0, nStr, top, gap);
-      ctx.strokeStyle = INK; ctx.fillStyle = DIM;
+      ctx.strokeStyle = t.ink; ctx.fillStyle = t.dim;
       for (const b of bundle.beats || []) {
         const dt = b.time - now;
         if (dt < -BEHIND || dt > AHEAD) continue;
@@ -2157,11 +2214,11 @@
       const x = xForDt(0);
       const yTop = laneY(nStr - 1, nStr, top, gap);
       const yBot = laneY(0, nStr, top, gap);
-      ctx.strokeStyle = PLAYHEAD; ctx.lineWidth = 1.5;
+      ctx.strokeStyle = t.playhead; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(x, yTop - 14); ctx.lineTo(x, yBot + 8); ctx.stroke();
     }
     function drawChordNames(bundle, now, top) {
-      ctx.fillStyle = INK; ctx.font = 'italic 600 13px "Cambria","Georgia",serif';
+      ctx.fillStyle = t.chordName; ctx.font = 'italic 600 13px "Cambria","Georgia",serif';
       ctx.textAlign = 'center';
       for (const ch of bundle.chords || []) {
         const dt = ch.t - now;
@@ -2174,7 +2231,7 @@
     }
     function drawSectionMarkers(bundle, now, top, gap, nStr) {
       const yBot = laneY(0, nStr, top, gap);
-      ctx.fillStyle = INK; ctx.font = 'italic 600 11px "Cambria","Georgia",serif';
+      ctx.fillStyle = t.sectionLabel; ctx.font = 'italic 600 11px "Cambria","Georgia",serif';
       ctx.textAlign = 'center';
       for (const sec of bundle.sections || []) {
         const dt = sec.time - now;
@@ -2184,7 +2241,7 @@
       ctx.textAlign = 'left';
     }
     function drawHopoPairs(now, nStr, top, gap) {
-      ctx.strokeStyle = INK; ctx.fillStyle = INK;
+      ctx.strokeStyle = t.hopo; ctx.fillStyle = t.hopo;
       for (const p of hopoPairs) {
         const dtFrom = p.from.t - now, dtTo = p.to.t - now;
         if (dtFrom < -BEHIND - 0.1 || dtTo > AHEAD + 0.1 || p.from.s !== p.to.s) continue;
@@ -2205,13 +2262,13 @@
     function drawSustainTie(x, y, x2) {
       // A short horizontal tie line on the string, drawn in ink with the
       // string line still visible beneath — minimal styling.
-      ctx.strokeStyle = INK; ctx.lineWidth = 1;
+      ctx.strokeStyle = t.ink; ctx.lineWidth = 1;
       ctx.setLineDash([2, 2]);
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x2, y); ctx.stroke();
       ctx.setLineDash([]);
     }
     function drawNotes(bundle, now, nStr, top, gap) {
-      ctx.fillStyle = INK;
+      ctx.fillStyle = t.ink;
       const fontSize = Math.max(11, Math.min(14, gap - 4));
       for (const n of bundle.notes || []) {
         const dt = n.t - now;
@@ -2221,8 +2278,8 @@
         // "Erase" the string line behind the fret number so the digit reads cleanly.
         ctx.font = `700 ${fontSize}px ui-monospace,"Consolas","Courier New",monospace`;
         const tw = ctx.measureText(fretText).width;
-        ctx.fillStyle = PAPER; ctx.fillRect(x - tw/2 - 2, y - fontSize/2 - 1, tw + 4, fontSize + 2);
-        ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = t.bg; ctx.fillRect(x - tw/2 - 2, y - fontSize/2 - 1, tw + 4, fontSize + 2);
+        ctx.fillStyle = t.ink; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(fretText, x, y);
         ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
 
@@ -2235,33 +2292,33 @@
         if ((n.sl ?? -1) >= 0 && !n.mt) {
           const ch = n.sl > n.f ? '/' : '\\';
           ctx.font = `600 ${fontSize}px "Cambria","Georgia",serif`;
-          ctx.fillStyle = INK; ctx.fillText(ch, x + tw/2 + 3, y + 3);
+          ctx.fillStyle = t.ink; ctx.fillText(ch, x + tw/2 + 3, y + 3);
         }
         // Bend — caret + label above the note.
         if ((n.bn || 0) > 0 && !n.mt) {
-          ctx.font = '600 9px "Cambria","Georgia",serif'; ctx.fillStyle = INK;
+          ctx.font = '600 9px "Cambria","Georgia",serif'; ctx.fillStyle = t.bend;
           ctx.textAlign = 'center';
           ctx.fillText(`b ${bendLabel(n.bn)}`, x, y - gap * 0.6);
           ctx.textAlign = 'left';
         }
         // Palm-mute bracket above the note.
         if (n.pm) {
-          ctx.strokeStyle = INK; ctx.lineWidth = 1;
+          ctx.strokeStyle = t.ink; ctx.lineWidth = 1;
           const px = x, py = y - gap * 0.5;
           ctx.beginPath(); ctx.moveTo(px - 4, py + 4); ctx.lineTo(px - 4, py); ctx.lineTo(px + 4, py); ctx.lineTo(px + 4, py + 4); ctx.stroke();
-          ctx.fillStyle = INK; ctx.font = '600 8px "Cambria","Georgia",serif';
+          ctx.fillStyle = t.ink; ctx.font = '600 8px "Cambria","Georgia",serif';
           ctx.textAlign = 'center'; ctx.fillText('P.M.', px, py - 2); ctx.textAlign = 'left';
         }
         // Vibrato / tremolo glyph above the note.
         if (n.vb || n.tr) {
-          ctx.fillStyle = INK; ctx.font = `600 ${fontSize}px "Cambria","Georgia",serif`;
+          ctx.fillStyle = t.ink; ctx.font = `600 ${fontSize}px "Cambria","Georgia",serif`;
           ctx.textAlign = 'center';
           ctx.fillText(n.tr ? '≈' : '~', x, y - gap * 0.55);
           ctx.textAlign = 'left';
         }
         // Harmonic: angle-brackets around the fret number — redraw with brackets.
         if ((n.hm || n.hp) && !n.mt) {
-          ctx.fillStyle = INK; ctx.font = `700 ${fontSize}px "Cambria","Georgia",serif`;
+          ctx.fillStyle = t.ink; ctx.font = `700 ${fontSize}px "Cambria","Georgia",serif`;
           ctx.textAlign = 'center';
           ctx.fillText('〈', x - tw/2 - 3, y + 4);
           ctx.fillText('〉', x + tw/2 + 3, y + 4);
@@ -2270,7 +2327,7 @@
       }
     }
     function drawHud(bundle, now) {
-      ctx.fillStyle = DIM; ctx.font = 'italic 600 12px "Cambria","Georgia",serif';
+      ctx.fillStyle = t.dim; ctx.font = 'italic 600 12px "Cambria","Georgia",serif';
       ctx.fillText(bundle.songInfo?.title || 'SlopScale', 12, 18);
       ctx.font = '11px "Cambria","Georgia",serif';
       ctx.fillText(`${now.toFixed(2)}s / ${(bundle.songInfo?.duration||0).toFixed(2)}s`, 12, 34);
@@ -2278,6 +2335,7 @@
     function draw(bundle) {
       if (!ctx || !bundle) return;
       resize();
+      t = getRenderTheme();
       const now = bundle.currentTime || 0, nStr = Math.max(1, bundle.stringCount || 6);
       const { gap, top } = staffMetrics(nStr);
       drawBackground();
@@ -2298,13 +2356,16 @@
   }
 
   function makeBuiltin2DNotationRenderer() {
-    // Combined scrolling: standard staff notation (top 56%) + tablature (bottom 38%).
-    // Treble clef for guitar (8va transposing), bass clef for bass instruments.
-    // Key signature, note heads, stems, beams (8th/16th groups), ledger lines, accidentals.
+    // Standard staff notation: treble clef for guitar (8va transposing) or
+    // bass clef for bass. Key signature, note heads, stems, beams (8th/16th
+    // groups), ledger lines, accidentals. Light/dark theme via
+    // getRenderTheme() — light is the parchment-and-ink look that matches
+    // the Tab renderer; dark is a navy ground with white ink.
     let canvas = null, ctx = null, W = 0, H = 0;
     let beatDur = 0.5, numAcc = 0, isFlats = false, isBass = false;
     let keyAccMap = {}, beamGroups = [];
     let mode = 'both'; // 'both' | 'tab' | 'notation'
+    let t = RENDER_THEMES.light;  // refreshed at the top of each draw()
     const LEFT_PAD = 68, RIGHT_PAD = 24, AHEAD = 5, BEHIND = 1.5;
 
     function resize() {
@@ -2406,22 +2467,27 @@
     }
 
     // ── Backgrounds ───────────────────────────────────────────────────────
+    // Flat ground in light mode (looks like paper), a soft gradient in dark
+    // (gives the staff some depth on a low-contrast ink).
     function drawBg(notH, tabTop, tabH) {
-      let g = ctx.createLinearGradient(0,0,0,notH);
-      g.addColorStop(0,'#070c18'); g.addColorStop(1,'#050910');
-      ctx.fillStyle = g; ctx.fillRect(0, 0, W, notH);
-      g = ctx.createLinearGradient(0,tabTop,0,tabTop+tabH);
-      g.addColorStop(0,'#040709'); g.addColorStop(1,'#030508');
-      ctx.fillStyle = g; ctx.fillRect(0, tabTop, W, tabH);
-      ctx.fillStyle = '#020406'; ctx.fillRect(0, notH, W, tabTop - notH);
-      ctx.strokeStyle = 'rgba(75,85,99,0.4)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(0,notH); ctx.lineTo(W,notH); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0,tabTop); ctx.lineTo(W,tabTop); ctx.stroke();
+      if (t.bg === t.bgAlt) {
+        ctx.fillStyle = t.bg; ctx.fillRect(0, 0, W, H);
+      } else {
+        const g = ctx.createLinearGradient(0,0,0,H);
+        g.addColorStop(0, t.bgAlt); g.addColorStop(1, t.bg);
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      }
+      // Divider between notation and (currently disabled) tab pane.
+      if (mode === 'both' && tabH > 0) {
+        ctx.strokeStyle = t.faintLine; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0,notH); ctx.lineTo(W,notH); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0,tabTop); ctx.lineTo(W,tabTop); ctx.stroke();
+      }
     }
 
     // ── Staff lines ───────────────────────────────────────────────────────
     function drawStaff(bottomY, ls) {
-      ctx.strokeStyle = 'rgba(226,232,240,0.65)'; ctx.lineWidth = 1;
+      ctx.strokeStyle = t.ink; ctx.lineWidth = 1;
       for (let i = 0; i < 5; i++) {
         const y = bottomY - i * ls;
         ctx.beginPath(); ctx.moveTo(LEFT_PAD - 4, y); ctx.lineTo(W - RIGHT_PAD, y); ctx.stroke();
@@ -2435,7 +2501,7 @@
       const ch = isBass ? '\u{1D122}' : '\u{1D11E}';
       const size = isBass ? ls * 4 : ls * 4.5;
       ctx.font = `${size}px "Segoe UI Symbol","Apple Symbols","Noto Symbols 2",serif`;
-      ctx.fillStyle = '#e2e8f0'; ctx.textAlign = 'left';
+      ctx.fillStyle = t.ink; ctx.textAlign = 'left';
       ctx.fillText(ch, 8, isBass ? bottomY - ls*1.2 : bottomY + ls*0.85);
     }
 
@@ -2444,7 +2510,7 @@
       const n = Math.min(Math.abs(numAcc), 7); if (!n) return;
       const steps = isFlats ? (isBass ? B_FLAT : T_FLAT) : (isBass ? B_SHARP : T_SHARP);
       const ch = isFlats ? '♭' : '♯';
-      ctx.fillStyle = '#e2e8f0'; ctx.font = `${ls*1.4}px serif`; ctx.textAlign = 'center';
+      ctx.fillStyle = t.keysig; ctx.font = `${ls*1.4}px serif`; ctx.textAlign = 'center';
       for (let i = 0; i < n; i++) ctx.fillText(ch, 38 + i*ls*1.15, stepToY(steps[i],bottomY,ls) + ls*0.38);
       ctx.textAlign = 'left';
     }
@@ -2456,24 +2522,24 @@
         if (b.measure < 0) continue;
         const dt = b.time - now; if (dt < -BEHIND || dt > AHEAD) continue;
         const x = xForDt(dt);
-        ctx.strokeStyle = 'rgba(226,232,240,0.5)'; ctx.lineWidth = 1.5;
+        ctx.strokeStyle = t.ink; ctx.lineWidth = 1.2;
         ctx.beginPath(); ctx.moveTo(x, staffTop); ctx.lineTo(x, bottomY); ctx.stroke();
-        ctx.fillStyle = '#94a3b8'; ctx.font = '10px system-ui'; ctx.fillText(String(b.measure), x+3, staffTop-4);
+        ctx.fillStyle = t.dim; ctx.font = '10px "Cambria","Georgia",serif'; ctx.fillText(String(b.measure), x+3, staffTop-4);
       }
     }
 
     // ── Note rendering ────────────────────────────────────────────────────
     function noteHead(x, y, nv, ls) {
       ctx.save(); ctx.translate(x, y); ctx.rotate(-0.18);
-      if (nv.filled) { ctx.fillStyle = '#e2e8f0'; ctx.beginPath(); ctx.ellipse(0,0,ls*0.6,ls*0.42,0,0,Math.PI*2); ctx.fill(); }
-      else { ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.ellipse(0,0,ls*0.6,ls*0.42,0,0,Math.PI*2); ctx.stroke(); }
+      if (nv.filled) { ctx.fillStyle = t.noteFill; ctx.beginPath(); ctx.ellipse(0,0,ls*0.6,ls*0.42,0,0,Math.PI*2); ctx.fill(); }
+      else { ctx.strokeStyle = t.noteOutline; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.ellipse(0,0,ls*0.6,ls*0.42,0,0,Math.PI*2); ctx.stroke(); }
       ctx.restore();
     }
     function noteStemAndFlag(x, y, up, nv, ls) {
       const sx = x + (up ? ls*0.58 : -ls*0.58);
       const len = ls * 3.2;
       const tipY = y + (up ? -len : len);
-      ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1.5;
+      ctx.strokeStyle = t.stem; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(sx, y + (up ? -ls*0.38 : ls*0.38)); ctx.lineTo(sx, tipY); ctx.stroke();
       if (nv.flags) {
         const dir = up ? 1 : -1;
@@ -2487,13 +2553,13 @@
       return { sx, tipY };
     }
     function ledgerLines(x, step, bottomY, ls) {
-      const rw = ls * 0.7; ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+      const rw = ls * 0.7; ctx.strokeStyle = t.ledger; ctx.lineWidth = 1;
       for (let s = -2; s >= step; s -= 2) { const y = stepToY(s,bottomY,ls); ctx.beginPath(); ctx.moveTo(x-rw,y); ctx.lineTo(x+rw,y); ctx.stroke(); }
       for (let s = 10; s <= step; s += 2) { const y = stepToY(s,bottomY,ls); ctx.beginPath(); ctx.moveTo(x-rw,y); ctx.lineTo(x+rw,y); ctx.stroke(); }
     }
     function drawAccidental(x, y, type, ls) {
       const ch = type === 'sharp' ? '♯' : type === 'flat' ? '♭' : '♮';
-      ctx.fillStyle = '#e2e8f0'; ctx.font = `${ls*1.1}px serif`; ctx.textAlign = 'right';
+      ctx.fillStyle = t.accidental; ctx.font = `${ls*1.1}px serif`; ctx.textAlign = 'right';
       ctx.fillText(ch, x - ls*0.1, y + ls*0.35); ctx.textAlign = 'left';
     }
 
@@ -2516,13 +2582,13 @@
           const tipY = hy + (up ? -ls*3.2 : ls*3.2);
           return { sx, tipY, hy, up, nv: quantize(n.sus || beatDur*0.5) };
         });
-        ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = ls * 0.38; ctx.lineCap = 'butt';
+        ctx.strokeStyle = t.beam; ctx.lineWidth = ls * 0.38; ctx.lineCap = 'butt';
         ctx.beginPath(); ctx.moveTo(stems[0].sx, stems[0].tipY); ctx.lineTo(stems[stems.length-1].sx, stems[stems.length-1].tipY); ctx.stroke();
         if (stems.some(s => s.nv.flags >= 2)) {
           const off = stems[0].up ? ls*0.42 : -ls*0.42; ctx.lineWidth = ls*0.35;
           ctx.beginPath(); ctx.moveTo(stems[0].sx, stems[0].tipY+off); ctx.lineTo(stems[stems.length-1].sx, stems[stems.length-1].tipY+off); ctx.stroke();
         }
-        ctx.lineCap = 'round'; ctx.lineWidth = 1.5;
+        ctx.strokeStyle = t.stem; ctx.lineCap = 'round'; ctx.lineWidth = 1.5;
         for (const sd of stems) { ctx.beginPath(); ctx.moveTo(sd.sx, sd.hy+(sd.up?-ls*0.38:ls*0.38)); ctx.lineTo(sd.sx, sd.tipY); ctx.stroke(); }
       }
     }
@@ -2550,13 +2616,14 @@
     // ── Playhead ──────────────────────────────────────────────────────────
     function drawNotationPlayhead(notH, bottomY, ls) {
       const x = xForDt(0), staffTop = bottomY - ls*4;
-      ctx.strokeStyle = 'rgba(248,250,252,0.85)'; ctx.lineWidth = 2;
+      ctx.strokeStyle = t.playhead; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(x, staffTop-22); ctx.lineTo(x, notH-4); ctx.stroke();
-      ctx.fillStyle = '#f8fafc';
+      ctx.fillStyle = t.playhead;
       ctx.beginPath(); ctx.moveTo(x-5,staffTop-24); ctx.lineTo(x+5,staffTop-24); ctx.lineTo(x,staffTop-16); ctx.closePath(); ctx.fill();
     }
 
-    // ── Tab section ───────────────────────────────────────────────────────
+    // ── Tab section (only used if mode != 'notation'; currently always
+    //    'notation' since the sub-toggle was removed, but kept for safety.) ──
     function drawTabSection(bundle, now) {
       const { tabTop, tabH } = tabLayout();
       const nStr = Math.max(1, bundle.stringCount || 6);
@@ -2564,63 +2631,65 @@
       const topLane = tabLaneY(nStr-1, nStr, tabTop, tabH);
       const botLane = tabLaneY(0,       nStr, tabTop, tabH);
       for (let s = 0; s < nStr; s++) {
-        const y = tabLaneY(s, nStr, tabTop, tabH), col = STRING_COLORS[s] || '#94a3b8';
-        ctx.strokeStyle = 'rgba(100,116,139,0.3)'; ctx.lineWidth = 1;
+        const y = tabLaneY(s, nStr, tabTop, tabH);
+        ctx.strokeStyle = t.faintLine; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(LEFT_PAD-4, y); ctx.lineTo(W-RIGHT_PAD, y); ctx.stroke();
-        ctx.fillStyle = col; ctx.font = '700 11px system-ui';
+        ctx.fillStyle = t.inkSoft; ctx.font = '600 11px "Cambria","Georgia",serif';
         const label = openMidis ? stringLabelForMidi(openMidis[s]) : `S${s+1}`;
         ctx.textAlign = 'right'; ctx.fillText((s===nStr-1&&label==='E')?'e':label, LEFT_PAD-10, y+4); ctx.textAlign = 'left';
       }
-      ctx.fillStyle = 'rgba(100,116,139,0.45)'; ctx.font = '700 9px system-ui'; ctx.textAlign = 'right';
+      ctx.fillStyle = t.dim; ctx.font = 'italic 700 11px "Cambria","Georgia",serif'; ctx.textAlign = 'right';
       ctx.fillText('TAB', LEFT_PAD-2, tabTop+tabH*0.5); ctx.textAlign = 'left';
       for (const b of bundle.beats || []) {
         if (b.measure < 0) continue;
         const dt = b.time - now; if (dt < -BEHIND || dt > AHEAD) continue;
         const x = xForDt(dt);
-        ctx.strokeStyle = 'rgba(100,116,139,0.3)'; ctx.lineWidth = 1;
+        ctx.strokeStyle = t.faintLine; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(x, topLane); ctx.lineTo(x, botLane); ctx.stroke();
       }
       for (const n of bundle.notes || []) {
         const dt = n.t - now; if (dt < -BEHIND || dt > AHEAD) continue;
         const x = xForDt(dt), y = tabLaneY(n.s, nStr, tabTop, tabH);
-        const col = STRING_COLORS[n.s] || '#94a3b8';
         const fretText = n.mt ? 'x' : String(n.f);
         const pw = Math.max(14, fretText.length*8+4);
-        ctx.fillStyle = '#040709'; ctx.fillRect(x-pw/2, y-7, pw, 14);
-        ctx.fillStyle = col; ctx.font = '700 12px ui-monospace,monospace'; ctx.textAlign = 'center';
+        ctx.fillStyle = t.bg; ctx.fillRect(x-pw/2, y-7, pw, 14);
+        ctx.fillStyle = t.ink; ctx.font = '700 12px ui-monospace,monospace'; ctx.textAlign = 'center';
         ctx.fillText(fretText, x, y+5); ctx.textAlign = 'left';
       }
       const x = xForDt(0);
-      ctx.strokeStyle = 'rgba(248,250,252,0.55)'; ctx.lineWidth = 1.5;
+      ctx.strokeStyle = t.playhead; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(x, tabTop+4); ctx.lineTo(x, botLane+8); ctx.stroke();
     }
 
     // ── Chord names + section markers + HUD ──────────────────────────────
+    // Plain italic chord names floating above the staff, no pill background
+    // — matches the Tab renderer's typography.
     function drawChordNames(bundle, now, notH) {
+      ctx.fillStyle = t.chordName; ctx.font = 'italic 600 13px "Cambria","Georgia",serif';
+      ctx.textAlign = 'center';
       for (const ch of bundle.chords || []) {
         const dt = ch.t - now; if (dt < -BEHIND || dt > AHEAD) continue;
         const name = bundle.chordTemplates?.[ch.id]?.displayName || bundle.chordTemplates?.[ch.id]?.name || '';
         if (!name) continue;
-        const x = xForDt(dt); ctx.font = '700 12px system-ui'; const tw = ctx.measureText(name).width;
-        ctx.fillStyle = 'rgba(30,64,175,0.5)'; ctx.fillRect(x-tw/2-3, notH-26, tw+6, 18);
-        ctx.fillStyle = '#bfdbfe'; ctx.textAlign = 'center'; ctx.fillText(name, x, notH-13); ctx.textAlign = 'left';
+        ctx.fillText(name, xForDt(dt), notH-12);
       }
+      ctx.textAlign = 'left';
     }
     function drawSectionMarkers(bundle, now) {
+      ctx.fillStyle = t.sectionLabel; ctx.font = 'italic 600 11px "Cambria","Georgia",serif';
+      ctx.textAlign = 'center';
       for (const sec of bundle.sections || []) {
         const dt = sec.time - now; if (dt < -BEHIND || dt > AHEAD) continue;
-        const x = xForDt(dt);
-        ctx.strokeStyle = 'rgba(244,114,182,0.7)'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(x, H-28); ctx.lineTo(x, H-16); ctx.stroke();
-        ctx.fillStyle = '#fbcfe8'; ctx.font = '700 10px system-ui'; ctx.textAlign = 'center';
-        ctx.fillText(sec.name||'·', x, H-4); ctx.textAlign = 'left';
+        ctx.fillText(sec.name||'·', xForDt(dt), H-6);
       }
+      ctx.textAlign = 'left';
     }
     function drawHud(bundle, now, notH) {
-      ctx.fillStyle = '#e5e7eb'; ctx.font = '700 12px system-ui'; ctx.fillText(bundle.songInfo?.title||'SlopScale', 8, 18);
-      ctx.fillStyle = '#64748b'; ctx.font = '10px system-ui';
+      ctx.fillStyle = t.dim; ctx.font = 'italic 600 12px "Cambria","Georgia",serif';
+      ctx.fillText(bundle.songInfo?.title||'SlopScale', 8, 18);
+      ctx.font = '11px "Cambria","Georgia",serif';
       ctx.fillText(`${now.toFixed(1)}s / ${(bundle.songInfo?.duration||0).toFixed(1)}s`, 8, 32);
-      ctx.fillStyle = '#475569'; ctx.font = '700 9px system-ui';
+      ctx.font = '600 10px "Cambria","Georgia",serif';
       ctx.fillText(isBass ? 'Bass Clef (8va)' : 'Treble Clef (8va)', 8, notH-6);
     }
 
@@ -2628,6 +2697,7 @@
     function draw(bundle) {
       if (!ctx || !bundle) return;
       resize();
+      t = getRenderTheme();
       const now = bundle.currentTime || 0, openMidis = bundle.openMidis || null;
       const { notH, ls, bottomY } = staffLayout();
       const { tabTop, tabH } = tabLayout();
@@ -3387,6 +3457,15 @@
     document.querySelectorAll('.slopscale-view-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.renderer === kind);
     });
+    // Theme toggle is only meaningful for the themed renderers (Tab,
+    // Notation); the highway renderers have their own visual identity.
+    const root = $('slopscale-root');
+    if (root) root.classList.toggle('slopscale-theme-renderer', kind === 'tab_2d' || kind === 'notation_2d');
+  }
+  function syncThemeButtons() {
+    document.querySelectorAll('.slopscale-theme-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.theme === currentRenderTheme);
+    });
   }
 
   async function onViewSwitch(kind) {
@@ -3534,6 +3613,11 @@
     document.querySelectorAll('.slopscale-view-btn').forEach(btn => {
       btn.addEventListener('click', () => onViewSwitch(btn.dataset.renderer));
     });
+    // Theme toggle (Light / Dark) for Tab + Notation.
+    document.querySelectorAll('.slopscale-theme-btn').forEach(btn => {
+      btn.addEventListener('click', () => { setRenderTheme(btn.dataset.theme); syncThemeButtons(); });
+    });
+    syncThemeButtons();
     // Restore last-used renderer from localStorage
     const savedRenderer = localStorage.getItem('slopscale.renderer');
     if (savedRenderer) {

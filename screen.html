@@ -169,6 +169,23 @@
     position: absolute; left: 14%; right: 14%; bottom: -8px; height: 2px;
     background: #60a5fa; border-radius: 1px;
   }
+  /* Theme toggle — light/dark for Tab + Notation. Sits at the right edge
+     of the view-switcher row, only visible when one of the themed
+     renderers is active (see CSS rule below + the syncThemeToggleVisibility
+     JS hook). */
+  .slopscale-theme-toggle {
+    display: none; align-items: center; gap: 2px; margin-left: auto;
+    background: #050b18; border: 1px solid #334155; border-radius: 8px; padding: 2px;
+  }
+  .slopscale-root.slopscale-theme-renderer .slopscale-theme-toggle { display: flex; }
+  .slopscale-theme-btn {
+    min-height: 24px; border: 1px solid transparent; border-radius: 6px;
+    background: transparent; color: #94a3b8; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.02em; cursor: pointer; padding: 0 10px;
+    transition: background 0.1s, color 0.1s, border-color 0.1s;
+  }
+  .slopscale-theme-btn:hover { color: #e2e8f0; border-color: #475569; }
+  .slopscale-theme-btn.active { background: #1e293b; color: #f8fafc; border-color: #475569; }
   .slopscale-notation-subtoggle { display: flex; align-items: center; gap: 4px; padding: 0 0 0 10px; border-left: 1px solid #334155; margin-left: 4px; }
   .slopscale-sub-label { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #475569; margin-right: 2px; white-space: nowrap; }
   .slopscale-sub-btn { min-height: 22px; border: 1px solid #1e293b; border-radius: 4px; background: #0a1120; color: #475569; font-size: 10px; font-weight: 700; cursor: pointer; padding: 0 8px; transition: background 0.1s, color 0.1s, border-color 0.1s; white-space: nowrap; }
@@ -622,6 +639,12 @@
         <button type="button" class="slopscale-view-btn" data-renderer="builtin_2d">2D Highway</button>
         <button type="button" class="slopscale-view-btn" data-renderer="tab_2d">Tab</button>
         <button type="button" class="slopscale-view-btn" data-renderer="notation_2d">Notation</button>
+        <!-- Theme toggle for Tab + Notation only. Hidden via CSS when the
+             active renderer is one of the highway views. -->
+        <div id="slopscale-theme-toggle" class="slopscale-theme-toggle" role="group" aria-label="Renderer theme">
+          <button type="button" class="slopscale-theme-btn active" data-theme="light" title="Parchment + ink">Light</button>
+          <button type="button" class="slopscale-theme-btn" data-theme="dark" title="Navy + ink">Dark</button>
+        </div>
       </div>
       <div id="slopscale-render-host" class="slopscale-render-host"><canvas id="slopscale-canvas"></canvas></div>
       <div id="slopscale-pitch-meter" class="slopscale-pitch-meter">
