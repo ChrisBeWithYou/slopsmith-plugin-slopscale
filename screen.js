@@ -2952,6 +2952,36 @@
     // shape-defined). updateShapeButton() picks the right label based on the
     // active fretboard system (forced to 'position' above for bass).
     updateShapeButton();
+    // Mirror the underlying instrument value into the top-level family
+    // selector so all three controls (family chip, instrument select,
+    // string-setup select) stay in sync regardless of which one drove the
+    // change.
+    syncInstrumentFamilyButtons();
+  }
+
+  // Top-level instrument selector (Bass / Guitar / Piano) — paints the active
+  // chip from the current underlying instrument. Piano is scaffolded UI; the
+  // generators don't emit keyboard data yet, so its button is disabled in
+  // HTML and we never paint it active.
+  function syncInstrumentFamilyButtons() {
+    const instr = document.querySelector('[name="instrument"]');
+    const fam = instr ? instr.value : 'guitar';
+    document.querySelectorAll('.slopscale-instr-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.instrument === fam);
+    });
+  }
+  // Click handler for the family chips. Drives the existing [name="instrument"]
+  // select and fires its 'change' event so every downstream sync (string
+  // setup, instrument class, shape dropdown, renderer fallback for bass)
+  // runs through the same code path as the in-form change.
+  function onInstrumentFamilyClick(family) {
+    if (family === 'piano') return;  // disabled — coming in a future release
+    const instr = document.querySelector('[name="instrument"]');
+    if (!instr || instr.value === family) { syncInstrumentFamilyButtons(); return; }
+    instr.value = family;
+    instr.dispatchEvent(new Event('change', { bubbles: true }));
+    try { localStorage.setItem('slopscale.instrumentFamily', family); } catch (_) {}
+    syncInstrumentFamilyButtons();
   }
   function syncAdvancedMode() {
     const root = $('slopscale-root'), toggle = $('slopscale-advanced-toggle');
@@ -3587,6 +3617,22 @@
       if (activeBundle) onGenerate();
     });
     setup?.addEventListener('change', () => { syncStringSetupControls(); syncInstrumentClass(); });
+    // Top-level instrument-family chips (Bass / Guitar / Piano).
+    document.querySelectorAll('.slopscale-instr-btn').forEach(btn => {
+      btn.addEventListener('click', () => onInstrumentFamilyClick(btn.dataset.instrument));
+    });
+    // Restore the last-used family before first sync, so reload lands on
+    // bass-instrument state immediately (renderer fallback, shape selector
+    // hidden, etc.) rather than guitar-then-bass flicker.
+    try {
+      const saved = localStorage.getItem('slopscale.instrumentFamily');
+      if (saved === 'bass' || saved === 'guitar') {
+        if (instrument && instrument.value !== saved) {
+          instrument.value = saved;
+          if (setup) setup.value = saved === 'bass' ? 'bass_4_standard' : 'guitar_6_standard';
+        }
+      }
+    } catch (_) {}
     syncStringSetupControls();
     syncInstrumentClass();
     advancedToggle?.addEventListener('change', syncAdvancedMode); syncAdvancedMode(); syncChromaticVisibility();

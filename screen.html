@@ -228,6 +228,17 @@
   .slopscale-tier-btn.active { background: linear-gradient(180deg, #1e40af, #1d4ed8); border-color: #60a5fa; color: #f8fafc; }
 
   /* Single ↔ Session mode toggle pill */
+  /* Instrument family selector — three-way segmented control above the
+     mode toggle. Same shape as .slopscale-mode-toggle so the two read as
+     a stacked control pair, but visually subordinate (no gradient on the
+     active segment, only a tinted background). */
+  .slopscale-instrument-toggle { display: flex; gap: 4px; background: #050b18; border: 1px solid #334155; border-radius: 12px; padding: 4px; margin-bottom: 8px; }
+  .slopscale-instr-btn { flex: 1; min-height: 30px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #94a3b8; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
+  .slopscale-instr-btn:not(:disabled):hover { color: #e2e8f0; border-color: #475569; }
+  .slopscale-instr-btn.active { background: #1e293b; color: #f8fafc; border-color: #475569; }
+  .slopscale-instr-btn:disabled { color: #475569; cursor: not-allowed; }
+  .slopscale-instr-btn:disabled::after { content: " ·"; opacity: 0.6; }
+
   /* Segmented control: pill background with one filled "selected" segment
      and one bordered "deselected" segment. Both states need visible weight
      so the user can tell at a glance that this is a toggle, not a label. */
@@ -316,6 +327,16 @@
 
   <section class="slopscale-layout">
     <form id="slopscale-controls" class="slopscale-panel slopscale-controls">
+
+      <!-- Instrument family selector — always visible at top of left panel.
+           Drives the existing #slopscale-controls [name="instrument"] field
+           via syncInstrumentFamily() in screen.js. Piano is scaffolded UI;
+           generators don't yet emit keyboard data (see ROADMAP Phase 5). -->
+      <div class="slopscale-instrument-toggle" role="group" aria-label="Instrument">
+        <button type="button" class="slopscale-instr-btn" data-instrument="bass">Bass</button>
+        <button type="button" class="slopscale-instr-btn active" data-instrument="guitar">Guitar</button>
+        <button type="button" class="slopscale-instr-btn" data-instrument="piano" disabled title="Piano support is coming in a future release">Piano</button>
+      </div>
 
       <!-- Mode toggle — always visible at top of left panel -->
       <div class="slopscale-mode-toggle" role="group" aria-label="Practice mode">

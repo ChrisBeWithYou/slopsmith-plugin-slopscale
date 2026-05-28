@@ -15,4 +15,5 @@ docs/sources/
 .claude/skills/run-slopscale/probe-loop.mjs
 .claude/skills/run-slopscale/probe-blank-load.mjs
 .claude/skills/run-slopscale/probe-themes.mjs
+.claude/skills/run-slopscale/probe-instr.mjs
 .slopscale-shots/blank-load.png
