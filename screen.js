@@ -1974,7 +1974,9 @@
       else { bn = mixToggle ? 0.5 : 1; mixToggle = !mixToggle; }
       const semitones = bn < 1 ? 1 : 2;    // frets below the target pitch
       const preFret = pos.f - semitones;
-      if (preFret < 0) continue;            // can't bend from below open string
+      // Need a fretted note to bend: fret >= 1. preFret 0 would be an open
+      // string, which has no fret behind it to push — physically impossible.
+      if (preFret < 1) continue;
       events.push({ s: pos.s, f: preFret, bn });
     }
     if (!events.length) throw new Error('No bendable notes in this position. Try a higher fret range or CAGED shape.');
@@ -4229,6 +4231,16 @@
     if (!root || !setup) return;
     const isBass = (STRING_SETUPS[setup.value] || {}).instrument === 'bass';
     root.classList.toggle('slopscale-bass-instrument', isBass);
+    // Bending is a guitar-only technique (and has no bass backing) — remove it
+    // from the Custom practice-type list on bass, and switch off it if selected.
+    const ptSel = document.querySelector('[name="practiceType"]');
+    if (ptSel) {
+      const bendOpt = ptSel.querySelector('option[value="bending"]');
+      if (bendOpt) { bendOpt.hidden = isBass; bendOpt.disabled = isBass; }
+      if (isBass && ptSel.value === 'bending') { ptSel.value = 'scale'; ptSel.dispatchEvent(new Event('change', { bubbles: true })); }
+    }
+    // Re-render the skill tree so the Bending node hides/shows with the instrument.
+    renderSkillTree();
     if (isBass) {
       const fs = document.querySelector('[name="fretboardSystem"]');
       if (fs && (fs.value === 'caged' || fs.value === '3nps')) fs.value = 'position';
@@ -4911,6 +4923,10 @@
     const container = $('slopscale-skill-tree');
     if (!container) return;
     const ptData = pathwayTiersLoad();
+    // Bending is a guitar technique — hide its node (and any edges to it) on bass.
+    const setup = document.querySelector('[name="stringSetup"]');
+    const isBass = setup && (STRING_SETUPS[setup.value] || {}).instrument === 'bass';
+    const hiddenNode = id => isBass && id === 'bend_drill';
     // Build inner wrapper + SVG edge layer + node buttons
     container.innerHTML = '<div class="slopscale-tree-inner" id="slopscale-tree-inner"></div>';
     const inner = container.firstChild;
@@ -4923,7 +4939,7 @@
     const nodeMap = Object.fromEntries(SKILL_TREE_NODES.map(n => [n.id, n]));
     SKILL_TREE_EDGES.forEach(([aId, bId]) => {
       const a = nodeMap[aId], b = nodeMap[bId];
-      if (!a || !b) return;
+      if (!a || !b || hiddenNode(aId) || hiddenNode(bId)) return;
       const line = document.createElementNS(NS, 'line');
       line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
       line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
@@ -4934,7 +4950,7 @@
     // Draw nodes
     SKILL_TREE_NODES.forEach(node => {
       const pw = PATHWAYS[node.id];
-      if (!pw) return;
+      if (!pw || hiddenNode(node.id)) return;
       const highestTier = (ptData[node.id] || {}).highest_tier ?? -1;
       const isActive = node.id === activePathwayId;
       const wrapper = document.createElement('div');
