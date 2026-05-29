@@ -3704,6 +3704,10 @@
       const saved = localStorage.getItem('slopscale.renderer');
       if (saved) cfg.renderer = saved;
     }
+    // The host 3D highway only supports 6 strings — force 2D for bass / extended
+    // range. Transient (per-render), never persisted, so it can't strand a later
+    // 6-string session on 2D.
+    if (cfg.renderer === 'highway_3d' && (cfg.stringCount || 6) !== 6) cfg.renderer = 'builtin_2d';
     stopRenderer(); activeBundle = makeBundle(exercise); currentPracticeTime = 0;
     const canvas = replaceCanvas(), resolved = await resolveRendererFactory(cfg.renderer);
     renderer = resolved.factory();
@@ -4252,11 +4256,13 @@
     if (isBass) {
       const fs = document.querySelector('[name="fretboardSystem"]');
       if (fs && (fs.value === 'caged' || fs.value === '3nps')) fs.value = 'position';
+      // The host 3D highway only supports 6 strings, so show 2D on bass — but
+      // do NOT persist it. attachRenderer forces 2D at render time for any
+      // non-6-string chart; writing localStorage here used to strand 6-string
+      // guitar sessions on 2D afterwards.
       const rendererSel = document.querySelector('[name="renderer"]');
-      const currentRenderer = rendererSel?.value || localStorage.getItem('slopscale.renderer') || 'highway_3d';
-      if (currentRenderer === 'highway_3d') {
+      if ((rendererSel?.value || 'highway_3d') === 'highway_3d') {
         if (rendererSel) rendererSel.value = 'builtin_2d';
-        localStorage.setItem('slopscale.renderer', 'builtin_2d');
         syncViewSwitcher('builtin_2d');
       }
     }
@@ -5728,6 +5734,17 @@
       btn.addEventListener('click', () => { setRenderTheme(btn.dataset.theme); syncThemeButtons(); });
     });
     syncThemeButtons();
+    // One-time migration: an earlier bug let the bass auto-switch persist
+    // 'builtin_2d' as the renderer preference, stranding 6-string guitar users
+    // on the 2D highway every startup. Clear that stale value once so the 3D
+    // default returns; explicit view choices made afterward still persist
+    // (bass no longer writes the preference).
+    try {
+      if (!localStorage.getItem('slopscale.rendererMigratedV1')) {
+        if (localStorage.getItem('slopscale.renderer') === 'builtin_2d') localStorage.removeItem('slopscale.renderer');
+        localStorage.setItem('slopscale.rendererMigratedV1', '1');
+      }
+    } catch (_) {}
     // Restore last-used renderer from localStorage
     const savedRenderer = localStorage.getItem('slopscale.renderer');
     if (savedRenderer) {
