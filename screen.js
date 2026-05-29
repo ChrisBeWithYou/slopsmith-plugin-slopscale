@@ -140,6 +140,22 @@
     rhythm_changes_a:    { 6:'dom7' },
     rhythm_changes_bridge:{ 3:'dom7', 6:'dom7', 2:'dom7', 5:'dom7' }
   };
+  // Minor-spelled progressions: their Roman numerals (bVI / bIII / bVII) are
+  // spelled against the NATURAL-minor (Aeolian) degrees. Harmonic and melodic
+  // minor RAISE the 7th (and melodic also the 6th) — those are MELODIC devices
+  // (the leading tone), not chord-root choices. If the chord roots followed
+  // those raised degrees, degree VII would land on the raised leading tone:
+  // e.g. i-VI-III-VII in A over harmonic_minor produced G#7 for the VII instead
+  // of the intended bVII (G). So for these scales we pin the chord ROOTS to
+  // natural minor; chord QUALITY still comes from the chord-scale / overrides.
+  //
+  // Natural minor already gives Aeolian roots (no pinning needed). Dorian and
+  // phrygian are deliberately NOT pinned: their characteristic altered degrees
+  // (dorian's natural 6, phrygian's b2) are the point of choosing them, and the
+  // backing should match the scale the player is actually using rather than be
+  // forced back to Aeolian. Major-scale pairings are likewise left untouched.
+  const MINOR_SPELLED_PROGRESSIONS = new Set(['i-VI-III-VII', 'i-VII-VI-VII', 'minor_ii_V_i']);
+  const ROOT_PIN_NATURAL_MINOR_SCALES = new Set(['harmonic_minor', 'melodic_minor']);
   const FRETBOARD_SYSTEM_LABELS = {
     caged:'CAGED (5 shapes)',
     '3nps':'3 Notes Per String (7 positions)',
@@ -1454,7 +1470,19 @@
     const row = family[depth === 'seventh' ? 'seventh' : 'triad'] || family.triad;
     return row[(degree - 1 + 7) % 7] || 'maj';
   }
-  function chordRootForDegree(cfg, degree) { const keyPc = NOTE_ALIASES[cfg.key] ?? 0; const intervals = SCALE_INTERVALS[cfg.scale] || SCALE_INTERVALS.major; return (keyPc + intervals[(degree - 1 + intervals.length) % intervals.length]) % 12; }
+  function chordRootForDegree(cfg, degree) {
+    const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+    // For a minor-spelled progression played over a minor-family chord-scale,
+    // pin the chord ROOTS to natural minor so bVI/bIII/bVII keep their Aeolian
+    // spelling (harmonic minor's raised 7th, etc. would otherwise move them).
+    // All other cases follow the chosen chord-scale's own degree positions.
+    const useNaturalMinorRoots = cfg.progression
+      && MINOR_SPELLED_PROGRESSIONS.has(cfg.progression)
+      && ROOT_PIN_NATURAL_MINOR_SCALES.has(cfg.scale);
+    const rootScale = useNaturalMinorRoots ? 'natural_minor' : cfg.scale;
+    const intervals = SCALE_INTERVALS[rootScale] || SCALE_INTERVALS.major;
+    return (keyPc + intervals[(degree - 1 + intervals.length) % intervals.length]) % 12;
+  }
   function chordName(rootPc, quality) { const f = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj; return pcName(rootPc) + (f.symbol === 'maj' ? 'maj' : f.symbol); }
   function progressionDegreesForConfig(cfg) { return cfg.mode === 'diatonic_arpeggios' ? COMMON_PROGRESSIONS.diatonic : (COMMON_PROGRESSIONS[cfg.progression] || COMMON_PROGRESSIONS['I-V-vi-IV']); }
 
@@ -2982,6 +3010,7 @@
     let hopoPairs = [];
     let t = RENDER_THEMES.light;  // refreshed at the top of each draw()
     const LEFT_PAD = 56, RIGHT_PAD = 20, AHEAD = 5, BEHIND = 1.5;
+    const BAR_LEAD = 13;          // px the bar line sits left of its downbeat note
 
     function resize() {
       if (!canvas) return;
@@ -3054,7 +3083,9 @@
       for (const b of bundle.beats || []) {
         const dt = b.time - now;
         if (dt < -BEHIND || dt > AHEAD) continue;
-        const x = xForDt(dt);
+        // Bar line sits just left of the downbeat so the downbeat note lands
+        // after it — standard tab (notes lie between bar lines, not on them).
+        const x = xForDt(dt) - BAR_LEAD;
         if (b.measure >= 0) {
           ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, yTop); ctx.lineTo(x, yBot); ctx.stroke();
           ctx.font = '10px "Cambria","Georgia",serif';
@@ -3107,9 +3138,6 @@
         ctx.fillText(p.isHo ? 'h' : 'p', (x1 + x2) / 2, y - 6 - arcH - 2);
         ctx.textAlign = 'left';
       }
-    }
-    function bendLabel(bn) {
-      return bn === 0.5 ? '½' : bn === 1 ? 'full' : bn === 1.5 ? '1½' : '2';
     }
     function drawSustainTie(x, y, x2) {
       // A short horizontal tie line on the string, drawn in ink with the
@@ -3176,6 +3204,21 @@
           ctx.fillText('〉', x + tw/2 + 3, y + 4);
           ctx.textAlign = 'left';
         }
+        // Pinch harmonic gets a "P.H." label above the bracketed fret.
+        if (n.hp && !n.mt) {
+          ctx.fillStyle = t.ink; ctx.font = '600 8px "Cambria","Georgia",serif';
+          ctx.textAlign = 'center'; ctx.fillText('P.H.', x, y - gap * 0.55); ctx.textAlign = 'left';
+        }
+        // Tap — "T" above the note (tapping technique).
+        if (n.tp && !n.mt) {
+          ctx.fillStyle = t.ink; ctx.font = '700 10px "Cambria","Georgia",serif';
+          ctx.textAlign = 'center'; ctx.fillText('T', x, y - gap * 0.6); ctx.textAlign = 'left';
+        }
+        // Accent — ">" above the note.
+        if (n.ac && !n.mt) {
+          ctx.fillStyle = t.ink; ctx.font = '800 11px "Cambria","Georgia",serif';
+          ctx.textAlign = 'center'; ctx.fillText('>', x, y - gap * 0.9); ctx.textAlign = 'left';
+        }
       }
     }
     function drawHud(bundle, now) {
@@ -3215,10 +3258,14 @@
     // the Tab renderer; dark is a navy ground with white ink.
     let canvas = null, ctx = null, W = 0, H = 0;
     let beatDur = 0.5, numAcc = 0, isFlats = false, isBass = false;
-    let keyAccMap = {}, beamGroups = [];
+    let ksAlter = {}, beamGroups = [];
     let mode = 'both'; // 'both' | 'tab' | 'notation'
     let t = RENDER_THEMES.light;  // refreshed at the top of each draw()
     const LEFT_PAD = 68, RIGHT_PAD = 24, AHEAD = 5, BEHIND = 1.5;
+    const STAFF_LEFT = 6;          // staff/tab lines begin here (clef sits on them)
+    const BAR_LEAD = 13;           // px the bar line sits left of its downbeat note
+    let contentLeft = LEFT_PAD;    // x where note content starts; set per draw so
+                                   // the clef + key signature get room on the staff
 
     function resize() {
       if (!canvas) return;
@@ -3228,22 +3275,50 @@
       canvas.width = W; canvas.height = H;
     }
     function xForDt(dt) {
-      return LEFT_PAD + ((dt + BEHIND) / (AHEAD + BEHIND)) * (W - LEFT_PAD - RIGHT_PAD);
+      return contentLeft + ((dt + BEHIND) / (AHEAD + BEHIND)) * (W - contentLeft - RIGHT_PAD);
     }
 
     // ── Pitch / staff mapping ────────────────────────────────────────────
-    const DSTEP = [0,0,1,1,2,3,3,4,4,5,5,6]; // C=0 D=1 E=2 F=3 G=4 A=5 B=6
-    function diatonicFromC0(midi) {
-      const note = ((midi % 12) + 12) % 12, oct = Math.floor(midi / 12) - 1;
-      return oct * 7 + DSTEP[note];
-    }
+    // Each pitch class spells to a staff LETTER (0=C..6=B) + chromatic alter.
+    // Sharp keys spell black keys as lower-letter+sharp (C#); flat keys as
+    // upper-letter+flat (Db) so flat-key notation reads correctly — e.g. Bb
+    // sits on the B line, not the A line.
+    const SHARP_SPELL = [[0,0],[0,1],[1,0],[1,1],[2,0],[3,0],[3,1],[4,0],[4,1],[5,0],[5,1],[6,0]];
+    const FLAT_SPELL  = [[0,0],[1,-1],[1,0],[2,-1],[2,0],[3,0],[4,-1],[4,0],[5,-1],[5,0],[6,-1],[6,0]];
     // Guitar/bass are 8va transposing: display pitch = sounding + 12.
-    // Treble bottom line = E4 (MIDI 64, d=30). Bass bottom line = G2 (MIDI 43, d=18).
-    function midiToStep(soundingMidi) {
+    // Treble bottom line = E4; bass bottom line = G2 (clef-base offsets below).
+    function spellMidi(soundingMidi) {
       const written = soundingMidi + 12;
-      return diatonicFromC0(written) - (isBass ? (2*7+4) : (4*7+2));
+      const pc = ((written % 12) + 12) % 12;
+      const oct = Math.floor(written / 12) - 1;
+      const [letter, alter] = (isFlats ? FLAT_SPELL : SHARP_SPELL)[pc];
+      const step = (oct * 7 + letter) - (isBass ? (2 * 7 + 4) : (4 * 7 + 2));
+      return { step, alter, letter };
     }
+    function midiToStep(soundingMidi) { return spellMidi(soundingMidi).step; }
     function stepToY(step, bottomY, ls) { return bottomY - step * (ls / 2); }
+
+    // Key-signature alteration per staff letter (0=C..6=B): +1 sharp, -1 flat.
+    const SHARP_LETTERS = [3, 0, 4, 1, 5, 2, 6]; // F C G D A E B
+    const FLAT_LETTERS  = [6, 2, 5, 1, 4, 0, 3]; // B E A D G C F
+    function keySigLetterAlter() {
+      const map = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+      const n = Math.min(Math.abs(numAcc), 7);
+      const order = numAcc >= 0 ? SHARP_LETTERS : FLAT_LETTERS;
+      const alt = numAcc >= 0 ? 1 : -1;
+      for (let i = 0; i < n; i++) map[order[i]] = alt;
+      return map;
+    }
+    // Accidental a note needs on the roll: null when the key signature already
+    // accounts for it; else 'sharp' | 'flat' | 'natural' (natural cancels a
+    // key-sig accidental on that letter, e.g. the raised 7th G# in A minor, or
+    // an F♮ in G major).
+    function noteAccidental(soundingMidi, ksAlter) {
+      const { alter, letter } = spellMidi(soundingMidi);
+      const sig = ksAlter[letter] || 0;
+      if (alter === sig) return null;
+      return alter > 0 ? 'sharp' : alter < 0 ? 'flat' : 'natural';
+    }
 
     // ── Key signature ─────────────────────────────────────────────────────
     const KEY_ACC = {C:0,'C#':7,Db:-5,D:2,'D#':9,Eb:-3,E:4,F:-1,'F#':6,Gb:-6,G:1,'G#':8,Ab:-4,A:3,'A#':10,Bb:-2,B:5,Cb:-7};
@@ -3259,13 +3334,6 @@
       if (scale in MODE_PARENT)
         return KEY_ACC[NOTE_NAMES[((root + MODE_PARENT[scale]) % 12 + 12) % 12]] ?? 0;
       return KEY_ACC[key] ?? 0; // major, pentatonic, blues → use tonic key
-    }
-    function buildKeyAccMap(key, scale) {
-      const root = NOTE_ALIASES[key] ?? 0;
-      const inKey = new Set((SCALE_INTERVALS[scale] ?? SCALE_INTERVALS.major).map(i => (root + i) % 12));
-      const map = {};
-      for (let pc = 0; pc < 12; pc++) map[pc] = inKey.has(pc) ? 'natural' : (numAcc >= 0 ? 'sharp' : 'flat');
-      return map;
     }
 
     // ── Rhythm / beaming ─────────────────────────────────────────────────
@@ -3342,7 +3410,7 @@
       ctx.strokeStyle = t.ink; ctx.lineWidth = 1;
       for (let i = 0; i < 5; i++) {
         const y = bottomY - i * ls;
-        ctx.beginPath(); ctx.moveTo(LEFT_PAD - 4, y); ctx.lineTo(W - RIGHT_PAD, y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(STAFF_LEFT, y); ctx.lineTo(W - RIGHT_PAD, y); ctx.stroke();
       }
     }
 
@@ -3351,10 +3419,15 @@
     // 4–5× staff-line-spacing produces a properly-proportioned clef.
     function drawClef(bottomY, ls) {
       const ch = isBass ? '\u{1D122}' : '\u{1D11E}';
-      const size = isBass ? ls * 4 : ls * 4.5;
+      const size = isBass ? ls * 4 : ls * 4.6;
       ctx.font = `${size}px "Segoe UI Symbol","Apple Symbols","Noto Symbols 2",serif`;
       ctx.fillStyle = t.ink; ctx.textAlign = 'left';
-      ctx.fillText(ch, 8, isBass ? bottomY - ls*1.2 : bottomY + ls*0.85);
+      // Vertically centre the glyph on the staff (middle line = bottomY - 2·ls)
+      // using a middle baseline, then restore the default baseline so the rest
+      // of the notation text isn't affected.
+      ctx.textBaseline = 'middle';
+      ctx.fillText(ch, 8, bottomY - ls * 2);
+      ctx.textBaseline = 'alphabetic';
     }
 
     // ── Key signature ─────────────────────────────────────────────────────
@@ -3362,8 +3435,9 @@
       const n = Math.min(Math.abs(numAcc), 7); if (!n) return;
       const steps = isFlats ? (isBass ? B_FLAT : T_FLAT) : (isBass ? B_SHARP : T_SHARP);
       const ch = isFlats ? '♭' : '♯';
-      ctx.fillStyle = t.keysig; ctx.font = `${ls*1.4}px serif`; ctx.textAlign = 'center';
-      for (let i = 0; i < n; i++) ctx.fillText(ch, 38 + i*ls*1.15, stepToY(steps[i],bottomY,ls) + ls*0.38);
+      const x0 = STAFF_LEFT + ls * 3.2; // clear of the clef, on the staff
+      ctx.fillStyle = t.keysig; ctx.font = `${ls*1.5}px serif`; ctx.textAlign = 'center';
+      for (let i = 0; i < n; i++) ctx.fillText(ch, x0 + i*ls*1.0, stepToY(steps[i],bottomY,ls) + ls*0.4);
       ctx.textAlign = 'left';
     }
 
@@ -3373,7 +3447,10 @@
       for (const b of bundle.beats || []) {
         if (b.measure < 0) continue;
         const dt = b.time - now; if (dt < -BEHIND || dt > AHEAD) continue;
-        const x = xForDt(dt);
+        // Draw the bar line a hair LEFT of the downbeat so the downbeat note
+        // sits just after it — standard engraving (notes lie between bar lines,
+        // not on them). BAR_LEAD is the measure's small left margin.
+        const x = xForDt(dt) - BAR_LEAD;
         ctx.strokeStyle = t.ink; ctx.lineWidth = 1.2;
         ctx.beginPath(); ctx.moveTo(x, staffTop); ctx.lineTo(x, bottomY); ctx.stroke();
         ctx.fillStyle = t.dim; ctx.font = '10px "Cambria","Georgia",serif'; ctx.fillText(String(b.measure), x+3, staffTop-4);
@@ -3411,8 +3488,8 @@
     }
     function drawAccidental(x, y, type, ls) {
       const ch = type === 'sharp' ? '♯' : type === 'flat' ? '♭' : '♮';
-      ctx.fillStyle = t.accidental; ctx.font = `${ls*1.1}px serif`; ctx.textAlign = 'right';
-      ctx.fillText(ch, x - ls*0.1, y + ls*0.35); ctx.textAlign = 'left';
+      ctx.fillStyle = t.accidental; ctx.font = `bold ${ls*1.45}px serif`; ctx.textAlign = 'right';
+      ctx.fillText(ch, x - ls*0.6, y + ls*0.42); ctx.textAlign = 'left';
     }
 
     // ── Beams ─────────────────────────────────────────────────────────────
@@ -3457,9 +3534,9 @@
         const y = stepToY(step, bottomY, ls);
         const nv = quantize(n.sus || beatDur);
         const up = step < 4;
-        const pc = ((midi % 12) + 12) % 12;
         ledgerLines(x, step, bottomY, ls);
-        if (keyAccMap[pc] !== 'natural') drawAccidental(x, y, keyAccMap[pc], ls);
+        const acc = noteAccidental(midi, ksAlter);
+        if (acc) drawAccidental(x, y, acc, ls);
         noteHead(x, y, nv, ls);
         if (nv.hasStem && !bk.has(`${n.t.toFixed(4)}|${n.s}`)) noteStemAndFlag(x, y, up, nv, ls);
       }
@@ -3553,6 +3630,11 @@
       const now = bundle.currentTime || 0, openMidis = bundle.openMidis || null;
       const { notH, ls, bottomY } = staffLayout();
       const { tabTop, tabH } = tabLayout();
+      // Reserve room for the clef + key signature so notes start clear of them.
+      const nAcc = Math.min(Math.abs(numAcc), 7);
+      contentLeft = (mode === 'tab')
+        ? LEFT_PAD
+        : Math.max(LEFT_PAD, Math.round(STAFF_LEFT + ls * 3.2 + nAcc * ls * 1.0 + ls * 1.6));
       drawBg(notH, tabTop, tabH);
       if (mode !== 'tab') {
         drawStaff(bottomY, ls);
@@ -3576,7 +3658,7 @@
         beatDur = 60 / (cfg.bpm || 120);
         numAcc = resolveKeySig(cfg.key || 'C', cfg.scale || 'major');
         isFlats = numAcc < 0;
-        keyAccMap = buildKeyAccMap(cfg.key || 'C', cfg.scale || 'major');
+        ksAlter = keySigLetterAlter();
         isBass = bundle.songInfo?.arrangement === 'Bass' || (bundle.openMidis?.[0] ?? 40) < 36;
         beamGroups = buildBeamGroups(bundle.notes || []);
       },
@@ -3670,7 +3752,22 @@
     drawOnce(); rafId = requestAnimationFrame(tick);
   }
 
-  function schedulePluckedString(ctx, when, freq, dur, instrument, gainScale) {
+  // Bend-note states → semitones of upward pitch shift. These mirror the visual
+  // bend labels (bendLabel): 0.5 = ½ step (1 semitone), 1 = full/whole step
+  // (2 semitones), 1.5 = 1½ steps (3), 2 = two whole steps (4). The synth ramps
+  // the played pitch up by this many semitones so a bend sounds bent, reaching
+  // the same target pitch the player sees notated above the note.
+  const BEND_SEMITONES = { 0: 0, 0.5: 1, 1: 2, 1.5: 3, 2: 4 };
+  function bendSemitones(bn) {
+    const v = Number(bn) || 0;
+    return BEND_SEMITONES[v] != null ? BEND_SEMITONES[v] : v * 2;
+  }
+  // Standard tab/notation bend label for a bend value (shared by all renderers).
+  function bendLabel(bn) {
+    return bn === 0.5 ? '½' : bn === 1 ? 'full' : bn === 1.5 ? '1½' : '2';
+  }
+
+  function schedulePluckedString(ctx, when, freq, dur, instrument, gainScale, bendSemis) {
     // Triangle-based plucked-string synthesis — clean, audible, no WaveShaper
     // over-drive. Sawtooth + heavy distortion (prior approach) produced
     // click-like transients that were imperceptible as guitar notes on some
@@ -3679,9 +3776,22 @@
     const osc1 = ctx.createOscillator(), osc2 = ctx.createOscillator();
     const preGain = ctx.createGain(), filter = ctx.createBiquadFilter(), gain = ctx.createGain();
     osc1.type = 'triangle'; osc2.type = 'sine';
-    osc1.frequency.setValueAtTime(freq, when);
-    osc2.frequency.setValueAtTime(isBass ? Math.max(25, freq * 0.5) : freq * 2, when);
+    const f1 = freq, f2 = isBass ? Math.max(25, freq * 0.5) : freq * 2;
+    osc1.frequency.setValueAtTime(f1, when);
+    osc2.frequency.setValueAtTime(f2, when);
     osc2.detune.setValueAtTime(isBass ? 0 : 7, when);
+    // Bend: ramp both oscillators up by `bendSemis` semitones so the note is
+    // heard sliding up to its target pitch, like a real string bend. Pick first
+    // (short hold at the fretted pitch), then bend over ~40% of the note.
+    if (bendSemis > 0) {
+      const ratio = Math.pow(2, bendSemis / 12);
+      const bendStart = when + 0.045;
+      const bendEnd = when + Math.min(0.22, Math.max(0.10, dur * 0.4));
+      osc1.frequency.setValueAtTime(f1, bendStart);
+      osc1.frequency.exponentialRampToValueAtTime(f1 * ratio, bendEnd);
+      osc2.frequency.setValueAtTime(f2, bendStart);
+      osc2.frequency.exponentialRampToValueAtTime(f2 * ratio, bendEnd);
+    }
     // Pre-gain mixes the two oscillators at a controlled level
     preGain.gain.setValueAtTime(isBass ? 0.55 : 0.60, when);
     filter.type = 'lowpass';
@@ -3795,7 +3905,7 @@
     if (audio.notes) for (const n of bundle.notes || []) {
       if (n.t < startFrom || n.t > duration + 0.1) continue;
       if (n.s < 0 || n.s >= opens.length || n.f < 0) continue;
-      schedulePluckedString(ctx, base + (n.t - startFrom), midiToFreq(opens[n.s] + n.f), Math.max(0.10, Math.min(0.85, n.sus || 0.24)), instrument, audio.harmony ? 0.9 : 1.25);
+      schedulePluckedString(ctx, base + (n.t - startFrom), midiToFreq(opens[n.s] + n.f), Math.max(0.10, Math.min(0.85, n.sus || 0.24)), instrument, audio.harmony ? 0.9 : 1.25, bendSemitones(n.bn));
     }
     if (audio.metronome) for (const b of bundle.beats || []) { if (b.time < startFrom || b.time > duration + 0.1) continue; scheduleClick(ctx, base + (b.time - startFrom), (b.measure || -1) >= 0); }
   }
