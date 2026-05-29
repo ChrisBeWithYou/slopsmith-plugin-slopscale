@@ -1,13 +1,14 @@
 # SlopScale Roadmap
 
 > Read this at the start of every session. Update it before closing.
-> Current date: 2026-05-27. Total commits: 85.
+> Current date: 2026-05-29. Total commits: 131.
 
 ---
 
 ## Current state — what's actually shipped
 
 ### Generators
+**Core:**
 - ✅ `scale` — scale runs, all positions (CAGED / 3NPS / Open / position / full-neck)
 - ✅ `chord_scales` — scales over chord changes (mode-of-moment + chord-tone-emphasis)
 - ✅ `diatonic_arpeggios` — all 7 diatonic chord arpeggios in sequence
@@ -15,6 +16,12 @@
 - ✅ `sweep_arpeggios` — CAGED-anchored sweep patterns with HOPO turnaround
 - ✅ `chromatic` — warmup patterns (1234, 4321, 1324, spider, advanced)
 - ✅ `guide_tones` — 3rds and/or 7ths voice-led through any progression
+
+**Technique / vocabulary (Phase 4 — all shipped):**
+- ✅ Bending drill, legato runs, vibrato, scale in thirds, scale in sixths, call & response,
+  tremolo picking, tapping, pedal point, string skipping, position shift, rhythmic displacement,
+  chromatic enclosures, bebop scale, arpeggio inversions, walking bass, hybrid picking,
+  triadic pairs, pentatonic superimposition, shell voicings, octave displacement
 
 ### Fretboard systems
 - ✅ CAGED (5 shapes: C/A/G/E/D) — unified data model, shape resolution, chord templates
@@ -37,7 +44,15 @@
 - ✅ Lydian dominant
 - ✅ **5 melodic minor modes:** dorian_b2, lydian_augmented, mixolydian_b6, locrian_sharp2, altered
 
-### Pathways (11 curated)
+### Harmony / chord engine (jazz harmony engine)
+- ✅ `chordDepth` — power (`5`/`5oct`) / triad / seventh / extended (9/11/13, 6, m6, 6/9, sus2, m(maj7))
+- ✅ Auto-diatonic chord depth — stacks true diatonic thirds per degree with exact altered tensions; synthetic memoised `CHORD_FORMULAS` entries
+- ✅ `chordQualityForDegree` / `chordRootForDegree` — quality + root resolution with progression-context overrides
+- ✅ **Tritone substitution** — `tritoneSub` toggle (off / dominant V / all dominants); scale follows to lydian dominant; composes with depth
+- ✅ General `{deg|semis,q,rn}` progression token — chromatic roots no scale degree can express (tritone_sub_ii_V_I, backdoor_ii_V, tadd_dameron presets)
+- ✅ **Voicing engine** (`classifyChordTones` + `voiceChord`) — turns the full interval stack into a playable voicing (drops avoid notes, keeps guide tones + top colour, register windowing); wired into the backing pad. See `docs/musicality-guardrails.md`
+
+### Pathways (14 curated)
 - ✅ Chromatic Warmup
 - ✅ Pentatonic Foundation
 - ✅ Blues Scale Foundation
@@ -50,6 +65,8 @@
 - ✅ ii–V–I Workout
 - ✅ Harmonic Minor Exotic
 - ✅ Sweep Arpeggio Primer
+- ✅ Modal Vamp
+- ✅ Bending Drill (hidden on bass)
 
 ### Session framework
 - ✅ Session data model (`BUILT_IN_SESSIONS`, segment schema)
@@ -58,7 +75,7 @@
 - ✅ `buildSegmentConfig()` — config merge + shape resolution per segment
 - ✅ `generateSession()` — top-level entry point, same output shape as `generateExercise()`
 - ✅ 4 built-in session presets: ii–V–I Workshop, Daily 30-min Intermediate, Blues Fundamentals, Bebop Fundamentals
-- 🔲 Session UI — selector + "Launch Session" button not yet in `screen.html`
+- ✅ Session UI — selector, "Launch Session" button, summary card, per-segment preview list (shipped 2026-05-27)
 
 ### Sequence patterns
 - ✅ Fours (1-2-3-4), triplets, diatonic thirds, broken triads (1-3-5), Yngwie sixes
@@ -68,17 +85,26 @@
 
 ### Audio
 - ✅ Web Audio engine — note synthesis (sine), metronome, harmony backing
+- ✅ Harmony tone selector — Synth pad / E-piano / Organ (pure Web Audio)
 - ✅ Pitch accuracy tracker via Slopsmith Minigames SDK (unregistered as minigame)
 
-### Display
-- ✅ 2D highway preview renderer (built-in canvas)
-- ✅ 2D tab preview renderer
+### Display & UX
+- ✅ Flat top-level mode bar: **Guided · Custom · Session** (shipped 2026-05-29; replaced the nested toggles)
+- ✅ Four preview renderers via `resolveRendererFactory()`: 3D Highway (delegated to host), 2D Highway, Tab, Notation
 - ✅ Static fretboard diagram panel (above highway, shows current shape)
-- ✅ Launch in Slopsmith's main 3D player via `launchInMainPlayer()` + `POST /temp-sloppak`
 - ✅ Escape-return handler (returns to SlopScale from player)
+- 🔲 **Launch in Slopsmith's main 3D player** — NOT wired yet. `screen.js` has no `launchInMainPlayer()` and no `fetch('/api/plugins/slopscale/temp-sloppak')` call; only comments describing the intended `makeBundle → POST /temp-sloppak → playSong` path. The backend route exists and is ready; the frontend launch call is outstanding. (Previously mis-marked ✅ here.)
+
+### Progress / gamification (Phase 2 — soft, opt-in, no content gating)
+- ✅ Session logger — every Play logged to `slopscale.sessions` (mode, pathway, BPM/tier, scale, key, duration, hit/miss); ends on Stop / page unload; sub-2s blips discarded
+- ✅ Streak counter + 7-day calendar grid (local calendar dates)
+- ✅ Per-pathway BPM tier progress (`slopscale.pathway_tiers`) with passive Custom-session attribution; `cleared` + `tier-glow` states; `slopscale:tier:unlocked` SDK emit
+- ✅ Pathway skill tree — SVG node map (14 nodes / 18 edges) replacing the flat dropdown; live tier dots; Custom ↔ Pathways toggle
+- ⏸️ Achievements — ON HOLD (2026-05-29) pending Slopsmith practice-tool framework
 
 ### Infrastructure
 - ✅ Preset CRUD (`GET/POST/DELETE /api/plugins/slopscale/presets`)
+- ✅ Custom-tuning CRUD (`GET/POST/DELETE /api/plugins/slopscale/tunings`) + per-string tuning editor UI
 - ✅ Temp sloppak builder (`POST /api/plugins/slopscale/temp-sloppak`)
 - ✅ Audio stem synthesis (WAV + OGG if ffmpeg available)
 - ✅ Multi-instrument string setups: guitar 6/7/8, bass 4/5
@@ -303,6 +329,7 @@ Framework build order is in that doc §4. These supersede the flat list below.*
 
 | Date | Work done | Key commits |
 |------|-----------|-------------|
+| 2026-05-29 | Doc sync: refreshed ROADMAP "what's shipped" (Phase 4 generators, jazz harmony + voicing engine, harmony tone selector, 14 pathways, flat mode bar, 4 renderers, Phase 2 gamification, tuning CRUD) and corrected the launch-in-main-player line back to 🔲 (not wired). Updated `CLAUDE.md` (screen.js size, renderer count, jazz engine, docs table). | — |
 | 2026-05-29 | UX: unified flat mode bar (Guided/Custom/Session) replacing the nested Single/Session + Guided/Custom toggles; presets folded into Custom (preset picker); compact pathway header; preview-audio 1×4 row; shape stepper (◄ ►); count-in aligned. Mode-architecture decision recorded (flat bar, presets-in-Custom, custom-progression-tool as a Custom control, solo grading reserved as 4th "Improv" mode). | — |
 | 2026-05-29 | Fixes: open-string bends eliminated (pre-bend fret must be ≥ 1); bending hidden on bass (practice-type option + skill-tree node). Audible bends, notation clef/accidentals/key-sig, tab technique parity, bar-lines-between-downbeats, chord-progression audit (G#7→G7). | — |
 | 2026-05-28 | Phase 4: 20 new generators — legato, vibrato, scale thirds/sixths, call+response, tremolo, tapping, pedal point, string skipping, position shift, rhythmic displacement, chromatic enclosures, bebop scale, arpeggio inversions, walking bass, hybrid picking, triadic pairs, pentatonic super, shell voicings, octave displacement. | — |

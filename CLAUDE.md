@@ -25,7 +25,10 @@ The plugin has no build step. There is no `package.json`, no compiler, no bundle
 | `docs/fretboard-pedagogy.md` | Guitar fretboard system reference (CAGED, 3NPS, etc.). |
 | `docs/position-system-rework.md` | Design notes on the unified position system (CAGED_SHAPES consolidation history). |
 | `docs/session-schema.md` | Session/segment data model used by `BUILT_IN_SESSIONS`. |
-| `docs/theory-caged.md` / `theory-scales.md` / `theory-arpeggios.md` / `theory-jazz-advanced.md` | Distilled theory knowledge base (CAGED, scales, arpeggios, advanced jazz). |
+| `docs/theory-caged.md` / `theory-scales.md` / `theory-arpeggios.md` / `theory-jazz-advanced.md` / `theory-progressions.md` | Distilled theory knowledge base (CAGED, scales, arpeggios, advanced jazz, cross-genre progressions). |
+| `docs/genre-framework-guitar.md` | Genre/style framework behind the progression library and random-style generator. |
+| `docs/musicality-guardrails.md` | Spec for keeping generated output musically pleasing, not just theoretically correct (voicing engine rationale). |
+| `docs/section-looping.md` | Section/segment looping design notes. |
 | `docs/ui-session.md` | Session UI design notes. |
 | `docs/session-2026-05-26-shape-system.md` | Shape-system unification session log. |
 | `docs/sources/` | Source PDFs — reference material only. |
@@ -64,21 +67,22 @@ The built-in 2D highway and 2D tab renderers in `screen.js` are **preview surfac
 
 ### screen.js structure
 
-`screen.js` is one IIFE, ~190 KB / 3400+ lines. **Prefer targeted `Grep` to locate a section before reading.** Key sections (in order):
+`screen.js` is one IIFE, ~6100 lines. **Prefer targeted `Grep` to locate a section before reading.** Key sections (in order):
 
-- **Constants** — `NOTE_NAMES`, `STRING_SETUPS`, `SCALE_INTERVALS`, `CHORD_FORMULAS`, `DIATONIC_QUALITIES`, `COMMON_PROGRESSIONS`, `SEQUENCE_PATTERNS`, `CHROMATIC_PATTERNS`, etc.
+- **Constants** — `NOTE_NAMES`, `STRING_SETUPS`, `SCALE_INTERVALS`, `CHORD_FORMULAS`, `DIATONIC_QUALITIES`, `COMMON_PROGRESSIONS`, `SEQUENCE_PATTERNS`, `CHROMATIC_PATTERNS`, etc. `CHORD_FORMULAS` carries the **full interval stack** for each quality (including extensions past the octave for 9/11/13 chords); it is intentionally complete so the voicing engine decides what to actually play.
 - **`CAGED_SHAPES`** — unified source of truth for CAGED shape data. Contains `rootStringIdx`, `scaleFretSpanFromRoot`, and `chordTemplates` per quality. **Do not split this into separate tables.** (Historical note: a previous version had two diverged tables; they were unified on 2026-05-26.)
 - **`PATHWAYS`** — curated pathway definitions: `label`, `goal`, `scales[]`, `tempoTiers[]`, `base` config, and `vary[]` list for Next Variation cycling.
 - **`BUILT_IN_SESSIONS`** — multi-segment session presets (ii–V–I Workshop, Daily 30-min Intermediate, Blues Fundamentals, Bebop Fundamentals).
 - **Exercise builders** — `buildScaleExercise`, `buildChordScaleExercise`, `buildArpeggioExercise`, `buildSweepArpeggioExercise`, `buildChromaticExercise`, `buildGuideTonesExercise`. Each returns an `exercise` object.
 - **`generateExercise(cfg)`** — single-exercise dispatch; routes to the correct builder based on `cfg.practiceType`.
 - **Session builders** — `buildSegmentConfig`, `buildBpmLadderChart`, `buildSessionChart`, `generateSession`. `generateSession()` is parallel to `generateExercise()`; both return the same `{ version, session, chart }` shape so the downstream `makeBundle`/launch path is unchanged.
+- **Jazz harmony engine** — `chordQualityForDegree()` resolves the chord quality per scale degree (honouring `chordDepth` = power/triad/seventh/extended, `chordOverride`, and progression context), with optional **tritone substitution** (`cfg.tritoneSub` = `off` / `dominant_v` / `all_dominants`). `voiceChord(rootPc, intervals, opts)` is the **voicing engine** — it turns a raw interval stack into a playable voicing (voice count, register window, drop/omit decisions) rather than stacking every formula note. This is what keeps generated harmony musical; see `docs/musicality-guardrails.md`.
 - **`makeBundle(exercise)`** — wraps an exercise into a renderer-ready bundle.
-- **Renderer factory system** — `resolveRendererFactory()` selects between `highway_3d` (delegated to host's `window.slopsmithViz_highway_3d`), built-in 2D highway, and `notation_2d`. User selection persisted via `localStorage['slopscale.renderer']`.
-- **Built-in renderers** — `drawHighway2D()`, `drawTab2D()`, the `Renderer` class driving `#slopscale-canvas`.
+- **Renderer factory system** — `resolveRendererFactory(kind)` selects between four renderers: `highway_3d` (delegated to host's `window.slopsmithViz_highway_3d`, with a brief poll for deferred host init, falling back to 2D), `builtin_2d` (2D Highway), `tab_2d` (Tab), and `notation_2d` (Notation). User selection persisted via `localStorage['slopscale.renderer']`. Note: the host 3D highway only supports 6 strings, so `attachRenderer()` transiently forces bass / extended-range charts to `builtin_2d`.
+- **Built-in renderers** — `makeBuiltin2DRenderer`, `makeBuiltin2DTabRenderer`, `makeBuiltin2DNotationRenderer`, plus their draw helpers, driving `#slopscale-canvas`.
 - **Audio engine** — Web Audio API, note synthesis, metronome, harmony backing.
 - **Slopsmith Minigames SDK integration** — pitch tracker via `window.slopsmithMinigames.scoring.createContinuous(...)`. Used as a scoring consumer only; **the plugin is not registered as a Slopsmith minigame.**
-- **Public surface** — `window.SlopScale = { generateExercise, makeBundle, resolveRendererFactory, readConfig }` (around line 3385).
+- **Public surface** — `window.SlopScale = { generateExercise, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop }` (near the end of the file).
 - **`bind()`** — wires all DOM events; called once on DOMContentLoaded.
 
 ### routes.py structure
