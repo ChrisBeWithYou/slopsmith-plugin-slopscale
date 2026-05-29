@@ -3921,7 +3921,7 @@
 
   function replaceCanvas() { const host = $('slopscale-render-host'), old = $('slopscale-canvas'), canvas = document.createElement('canvas'); canvas.id = 'slopscale-canvas'; canvas.style.width = '100%'; canvas.style.height = '100%'; if (old) old.replaceWith(canvas); else host.appendChild(canvas); const rect = host.getBoundingClientRect(); canvas.width = Math.max(640, Math.round(rect.width || 1280)); canvas.height = Math.max(420, Math.round(rect.height || 720)); return canvas; }
   function stopAudio() { for (const n of audioNodes) { try { n.stop && n.stop(0); } catch {} try { n.disconnect && n.disconnect(); } catch {} } audioNodes = []; }
-  function stopRenderer() { playing = false; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } if (renderer && typeof renderer.destroy === 'function') { try { renderer.destroy(); } catch (e) { console.warn('[SlopScale] renderer destroy failed', e); } } renderer = null; }
+  function stopRenderer() { playing = false; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } if (renderer && typeof renderer.destroy === 'function') { try { renderer.destroy(); } catch (e) { console.warn('[SlopScale] renderer destroy failed', e); } } renderer = null; syncPlayButton(); }
 
   async function attachRenderer(exercise) {
     const cfg = exercise.session;
@@ -3956,6 +3956,13 @@
   function tick(nowMs) {
     if (!renderer || !activeBundle) return;
     if (playing) {
+      // If the host navigated away from the SlopScale screen, its container goes
+      // display:none (offsetParent becomes null) — stop playback so the audio
+      // doesn't keep running in the background. Covers the host top-nav and
+      // leaving a tutorial, which bypass SlopScale's own back buttons. The rAF
+      // tick only runs while playing, so this is the natural place to catch it.
+      const screenRoot = $('slopscale-root');
+      if (screenRoot && !screenRoot.offsetParent) { stopPlayback(); return; }
       // Hold the playhead frozen at the start position during count-in.
       // Click sounds were already scheduled in startPlayback; the visible
       // chart only starts moving once the count-in window closes.
