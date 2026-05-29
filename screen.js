@@ -3996,6 +3996,47 @@
     tpA = b[idx].start; tpB = b[idx].end; commitLoop();
   }
 
+  // Nudge to the adjacent bar line. Uses the chart's own measure downbeats
+  // (beats with measure >= 0), so it stays tempo-accurate even across session
+  // segments with different tempos. dir < 0 = back, dir > 0 = forward.
+  function nudgeBar(dir) {
+    if (!activeBundle) return;
+    const downbeats = (activeBundle.beats || []).filter(b => (b.measure || -1) >= 0).map(b => b.time).sort((a, c) => a - c);
+    const t = currentPracticeTime, dur = activeBundle.songInfo?.duration || 0;
+    if (!downbeats.length) { seekTo(t + dir * 2); return; } // fallback if no beat grid
+    if (dir > 0) {
+      const next = downbeats.find(d => d > t + 0.05);
+      seekTo(next != null ? next : dur);
+    } else {
+      const prev = [...downbeats].reverse().find(d => d < t - 0.05);
+      seekTo(prev != null ? prev : 0);
+    }
+  }
+
+  // Keyboard transport, scoped to the SlopScale screen. Ignores keystrokes when
+  // a form field is focused or a modifier is held, and never touches Escape
+  // (Slopsmith owns Escape for return-to-menu). Comma/period are session-only.
+  function onTransportKey(e) {
+    const root = $('slopscale-root');
+    if (!root || !root.offsetParent) return; // screen not the active/visible one
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const tag = (e.target?.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) return;
+    const sessionMode = root.classList.contains('slopscale-session-mode');
+    switch (e.key) {
+      case ' ':          e.preventDefault(); onPlayToggle(); break;
+      case 'ArrowLeft':  e.preventDefault(); nudgeBar(-1); break;
+      case 'ArrowRight': e.preventDefault(); nudgeBar(1); break;
+      case '[':          e.preventDefault(); tpA = currentPracticeTime; commitLoop(); break;
+      case ']':          e.preventDefault(); tpB = currentPracticeTime; commitLoop(); break;
+      case '\\':         e.preventDefault(); resetTransportLoop(); break;
+      case 'Home':       e.preventDefault(); seekTo(0); break;
+      case ',':          if (sessionMode) { e.preventDefault(); prevSegment(); } break;
+      case '.':          if (sessionMode) { e.preventDefault(); nextSegment(); } break;
+      default: return;
+    }
+  }
+
   function summarize(exercise) {
     const cfg = exercise.session, c = exercise.chart, meter = `${cfg.meter.numerator}/${cfg.meter.denominator}`;
     const backingCount = buildBackingEvents(cfg, c.duration).length;
@@ -5378,6 +5419,9 @@
       scrub.addEventListener('pointercancel', endScrub);
     }
     $('slopscale-to-start')?.addEventListener('click', () => seekTo(0));
+    $('slopscale-nudge-back')?.addEventListener('click', () => nudgeBar(-1));
+    $('slopscale-nudge-fwd')?.addEventListener('click', () => nudgeBar(1));
+    if (!window.__slopscaleKeysBound) { window.__slopscaleKeysBound = true; document.addEventListener('keydown', onTransportKey); }
     $('slopscale-loop-a')?.addEventListener('click', () => { tpA = currentPracticeTime; commitLoop(); });
     $('slopscale-loop-b')?.addEventListener('click', () => { tpB = currentPracticeTime; commitLoop(); });
     $('slopscale-loop-clear')?.addEventListener('click', resetTransportLoop);

@@ -927,18 +927,20 @@
           <input type="range" id="slopscale-scrub" class="slopscale-scrub" min="0" max="0" step="0.01" value="0" aria-label="Seek through the chart">
         </div>
         <div class="slopscale-tp-controls">
-          <button type="button" id="slopscale-to-start" class="slopscale-tp-btn" title="Back to start">⏮</button>
-          <button type="button" id="slopscale-prev-seg" class="slopscale-tp-btn slopscale-session-only" title="Previous segment">⏪</button>
-          <button type="button" id="slopscale-play" class="slopscale-tp-play">▶ Play</button>
-          <button type="button" id="slopscale-next-seg" class="slopscale-tp-btn slopscale-session-only" title="Next segment">⏩</button>
+          <button type="button" id="slopscale-to-start" class="slopscale-tp-btn" title="Back to start (Home)">⏮</button>
+          <button type="button" id="slopscale-prev-seg" class="slopscale-tp-btn slopscale-session-only" title="Previous segment (,)">⏪</button>
+          <button type="button" id="slopscale-nudge-back" class="slopscale-tp-btn" title="Nudge back one bar (←)">⟨</button>
+          <button type="button" id="slopscale-play" class="slopscale-tp-play" title="Play / Stop (Space)">▶ Play</button>
+          <button type="button" id="slopscale-nudge-fwd" class="slopscale-tp-btn" title="Nudge forward one bar (→)">⟩</button>
+          <button type="button" id="slopscale-next-seg" class="slopscale-tp-btn slopscale-session-only" title="Next segment (.)">⏩</button>
           <span class="slopscale-tp-time"><span id="slopscale-time-cur">0:00</span> / <span id="slopscale-time-dur">0:00</span></span>
           <span class="slopscale-tp-sep"></span>
           <div class="slopscale-tp-loop" role="group" aria-label="A-B loop">
             <span class="slopscale-tp-lbl">Loop</span>
-            <button type="button" id="slopscale-loop-a" class="slopscale-tp-btn" title="Set loop start at the playhead">A</button>
-            <button type="button" id="slopscale-loop-b" class="slopscale-tp-btn" title="Set loop end at the playhead">B</button>
+            <button type="button" id="slopscale-loop-a" class="slopscale-tp-btn" title="Set loop start at the playhead ([)">A</button>
+            <button type="button" id="slopscale-loop-b" class="slopscale-tp-btn" title="Set loop end at the playhead (])">B</button>
             <button type="button" id="slopscale-loop-seg" class="slopscale-tp-btn slopscale-session-only" title="Loop the current segment">⟳ Seg</button>
-            <button type="button" id="slopscale-loop-clear" class="slopscale-tp-btn" title="Clear the loop">✕</button>
+            <button type="button" id="slopscale-loop-clear" class="slopscale-tp-btn" title="Clear the loop (\)">✕</button>
             <span id="slopscale-loop-count" class="slopscale-tp-loopcount" hidden>Loop 0</span>
           </div>
           <span class="slopscale-tp-sep"></span>
