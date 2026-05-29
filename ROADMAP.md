@@ -165,6 +165,11 @@ The practice surface is organised as a **single flat top-level mode bar** rather
 - ✅ SDK: emits `window.slopsmith 'slopscale:tier:unlocked'` on new high; accuracy gated via `slopsmithMinigames` hit/miss data
 
 ### Achievements
+- ⏸️ **ON HOLD (2026-05-29).** Paused pending more framework from the Slopsmith dev
+  before continuing. The badge/unlock model touches how progress is surfaced
+  host-side; we want Slopsmith's practice-tool framework direction before
+  building the panel so we don't build against a moving target. Resume when that
+  framework lands. Until then, do not start the achievement panel.
 - 🔲 10–15 named badges: "First Rep" (first session), "Blues Initiator", "Circle Rider", "Sweep Starter", "Jazz Chord Tones", "Week Streak", "Speed Demon" (tier 4 on any pathway), etc.
 - 🔲 Unlocked state in localStorage + achievement panel (opt-in, not surfaced in practice flow)
 
@@ -180,6 +185,12 @@ The practice surface is organised as a **single flat top-level mode bar** rather
 
 ## Phase 3 — Audio Enrichment
 *Richer practice audio without turning SlopScale into a backing-track app.*
+
+### Musicality guardrails (spec: `docs/musicality-guardrails.md`)
+- ✅ **Layer 2 — chord voicing engine** (`classifyChordTones` + `voiceChord`): keeps guide tones, drops the avoid-note natural-11 on major/dominant chords (kept on minor), keeps the top colour tension, places tensions on top, avoids muddy low clusters. Wired into `voiceBackingChord` (backing pad). Verified against spec examples + smoke.
+- 🔲 Layer 3 — emphasis/landing-note safety (avoid notes on accents/sustains)
+- 🔲 Layer 4 — random-generator guardrails (functional transitions, mandatory cadence, taste filter) — build with Phase C random generator
+- ℹ️ Layer 1 (progression coherence) covered by curation today; formalised checklist in the spec for authored/generated progressions
 
 ### Harmony tone selector
 - ✅ `harmonyTone` select in both Single and Session audio sections: **Synth pad** / **E-piano** (triangle+bell, percussive decay) / **Organ** (7-drawbar additive sines, instant on/off). Pure Web Audio, no deps. Passed through `readConfig`, `onLaunchSession`, and `scheduleHarmonyPad`.
@@ -238,7 +249,21 @@ The practice surface is organised as a **single flat top-level mode bar** rather
 - 🔲 **Right-hand fingering** hints (alternating index/middle, or slap) — matters more on bass than left-hand shape; not modelled for any instrument yet.
 
 ### Genre pathway packs
+*Cross-genre progression library + random style generator researched in
+`docs/theory-progressions.md` (recommended order A→C→B). The guitar-focused
+complex genres below (prog/metal/fusion/emo/trap-rock) are spec'd separately in
+`docs/genre-framework-guitar.md` — they need new primitives (power-chord quality
+`5`/`5oct`, pedal-point riff mode, polymeter/gallop, drop-tuning presets,
+harmonized twin lines, exotic scales) before their pathway packs can be authored.
+Framework build order is in that doc §4. These supersede the flat list below.*
+- ✅ Power-chord quality `5`/`5oct` + extended chords (9/11/13, 6, m6, 6/9, sus2, m(maj7)) — `CHORD_FORMULAS`, `chordOverride` dropdown, template-path guard, `MODE_FOR_QUALITY` (genre-framework §2.1/§2.1a)
+- ✅ Auto-diatonic chord depth (9th/11th/13th) — stacks true diatonic thirds per degree, exact altered tensions (iii→m13♭9♭13, IV→maj13♯11), synthetic memoised `CHORD_FORMULAS` entries, borrowed-chord promotion via `QUALITY_EXTEND` (genre-framework §2.1c)
+- ✅ **Tritone substitution** — `tritoneSub` toggle (off / dominant V / all dominants); subs dominant chords by +6 semitones in `chordRootForDegree`, scale follows to lydian dominant, composes with depth (G13→D♭13). Verified live (genre-framework §2.1d)
+- ✅ General `{deg|semis,q,rn}` progression token (theory-progressions §1 Phase B) — chromatic roots no degree can express; `chordRootForDegree`/`chordQualityForDegree` accept tokens; 3 presets ship (tritone_sub_ii_V_I, backdoor_ii_V, tadd_dameron); composes with depth. Verified live (genre-framework §2.1e)
+- 🔲 Drop-tuning presets + gallop/grouping meters (genre-framework §2.5/§2.6)
+- 🔲 Pedal-point riff mode + harmonized twin lines (genre-framework §2.3/§2.4)
 - 🔲 Metal pack: alternate picking 160+ BPM, harmonic minor exotic, diminished runs
+- 🔲 Prog rock / prog metal / fusion / metalcore / melodic-death / djent / emo / trap-rock packs (genre-framework §3)
 - 🔲 Jazz pack: guide tones, ii-V-I, Rhythm Changes A+B, bebop connecting tones, altered dominant
 - 🔲 Country pack: major pentatonic hybrid, chicken-pickin' muted note patterns
 - 🔲 Classical/fingerstyle pack: Segovia-style patterns, counterpoint fragments

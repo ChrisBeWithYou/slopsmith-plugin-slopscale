@@ -92,11 +92,41 @@
     locrian_sharp2:[0,2,3,5,6,8,10],  // mode VI: over m7b5 (preferred over plain Locrian)
     altered:[0,1,3,4,6,8,10],         // mode VII: maximum tension over V7alt
   };
+  // Chord qualities defined as semitone intervals from the root. This is a
+  // pitch-primary definition: a chord is a stack of intervals, instrument-agnostic
+  // by design (see ROADMAP Phase 6 — piano). Extensions go ABOVE the octave
+  // (9th = 14, 11th = 17, 13th = 21) so the stack is the complete set of chord
+  // tones. ACTUAL VOICING (which notes to play, octave placement, drop-2, omitting
+  // the 3rd under an 11th, etc.) is a render-time concern, NOT encoded here — the
+  // guitar position-pickers reduce these to pitch classes (% 12); a future piano
+  // voicing engine can read the full stack. `add9` already proved intervals > 12
+  // work end-to-end.
   const CHORD_FORMULAS = {
+    // Triads
     maj:{symbol:'maj', intervals:[0,4,7]}, min:{symbol:'min', intervals:[0,3,7]}, dim:{symbol:'dim', intervals:[0,3,6]}, aug:{symbol:'aug', intervals:[0,4,8]},
+    // Power chords — third-less; the harmonic atom of rock/metal/punk/djent.
+    // `5` = root+5th; `5oct` = root+5th+octave (the "spread across 3 strings" voicing).
+    '5':{symbol:'5', intervals:[0,7]}, '5oct':{symbol:'5', intervals:[0,7,12]},
+    // Suspended
+    sus2:{symbol:'sus2', intervals:[0,2,7]}, sus4:{symbol:'sus4', intervals:[0,5,7]},
+    // Sixths / add
+    '6':{symbol:'6', intervals:[0,4,7,9]}, min6:{symbol:'m6', intervals:[0,3,7,9]},
+    add9:{symbol:'add9', intervals:[0,4,7,14]}, '69':{symbol:'6/9', intervals:[0,4,7,9,14]},
+    // Sevenths
     maj7:{symbol:'maj7', intervals:[0,4,7,11]}, min7:{symbol:'min7', intervals:[0,3,7,10]}, dom7:{symbol:'7', intervals:[0,4,7,10]},
-    min7b5:{symbol:'m7b5', intervals:[0,3,6,10]}, dim7:{symbol:'dim7', intervals:[0,3,6,9]}, sus4:{symbol:'sus4', intervals:[0,5,7]}, add9:{symbol:'add9', intervals:[0,4,7,14]}
+    min7b5:{symbol:'m7b5', intervals:[0,3,6,10]}, dim7:{symbol:'dim7', intervals:[0,3,6,9]}, min_maj7:{symbol:'m(maj7)', intervals:[0,3,7,11]},
+    // Ninths
+    maj9:{symbol:'maj9', intervals:[0,4,7,11,14]}, min9:{symbol:'m9', intervals:[0,3,7,10,14]}, dom9:{symbol:'9', intervals:[0,4,7,10,14]},
+    // Elevenths — 11th chords commonly OMIT the 3rd in real voicings (the 3rd↔11th
+    // ♭9 clash); the full stack is kept here for completeness, voicing decides.
+    maj11:{symbol:'maj11', intervals:[0,4,7,11,14,17]}, min11:{symbol:'m11', intervals:[0,3,7,10,14,17]}, dom11:{symbol:'11', intervals:[0,4,7,10,14,17]},
+    // Thirteenths
+    maj13:{symbol:'maj13', intervals:[0,4,7,11,14,21]}, min13:{symbol:'m13', intervals:[0,3,7,10,14,21]}, dom13:{symbol:'13', intervals:[0,4,7,10,14,21]}
   };
+  // Qualities the CAGED chord-TEMPLATE path can voice (triads + basic 7ths).
+  // Power chords and 9/11/13 extensions are NOT triad/7th shapes — they skip the
+  // template and fall back to interval-derived positions (see cagedShapeQualityKey).
+  const TEMPLATE_QUALITIES = new Set(['maj','min','dim','aug','sus2','sus4','maj7','min7','dom7','min7b5','dim7','min_maj7','add9','6','min6']);
   const DIATONIC_QUALITIES = {
     major:         {triad:['maj','min','min','maj','maj','min','dim'],    seventh:['maj7','min7','min7','maj7','dom7','min7','min7b5']},
     dorian:        {triad:['min','min','maj','maj','min','dim','maj'],    seventh:['min7','min7','maj7','dom7','min7','min7b5','maj7']},
@@ -131,7 +161,15 @@
     // A section: I–VI7–ii–V turnaround × 2 (bars 1–8). VI is a secondary dominant.
     rhythm_changes_a:[1,6,2,5,1,6,2,5],
     // Bridge: chain of secondary dominants resolving III7→VI7→II7→V7→I.
-    rhythm_changes_bridge:[3,6,2,5]
+    rhythm_changes_bridge:[3,6,2,5],
+    // Chromatic / substitution progressions — authored with the {deg|semis,q,rn}
+    // token form. `semis` is a chromatic root offset from the key root; `q` sets the
+    // quality at that position; `rn` is a display-only Roman label. These need roots
+    // no diatonic degree can express (♭II, ♭VII, ♭III, ♭VI). Resolved by
+    // chordRootForDegree / chordQualityForDegree, which accept tokens.
+    tritone_sub_ii_V_I:[2, { semis:1,  q:'dom7', rn:'♭II7' }, 1, 1],                 // Dm7–D♭7–C : tritone-sub V
+    backdoor_ii_V:[{ deg:4, q:'min7' }, { semis:10, q:'dom7', rn:'♭VII7' }, 1, 1],   // Fm7–B♭7–C : backdoor dominant
+    tadd_dameron:[1, { semis:3, q:'dom7', rn:'♭III7' }, { semis:8, q:'maj7', rn:'♭VImaj7' }, { semis:1, q:'dom7', rn:'♭II7' }] // C–E♭7–A♭maj7–D♭7
   };
   // Per-progression chord quality overrides — win over diatonic scale harmony,
   // but lose to a user-specified chordOverride. Used by chordQualityForDegree.
@@ -199,7 +237,16 @@
     min:'dorian',          min7:'dorian',
     dom7:'lydian_dominant',
     dim:'locrian',         min7b5:'locrian_sharp2', dim7:'locrian',
-    aug:'major',           sus4:'mixolydian', add9:'major'
+    aug:'major',           sus4:'mixolydian', add9:'major',
+    // Power chords are third-less; minor pentatonic is the universal "play over a
+    // power chord" choice across rock/metal/blues.
+    '5':'minor_pentatonic', '5oct':'minor_pentatonic',
+    sus2:'mixolydian', '6':'major', min6:'dorian', '69':'major', min_maj7:'melodic_minor',
+    // Extensions follow their parent 7th's chord-scale; the natural-11 dominant
+    // (dom11) takes mixolydian (natural 11) rather than lydian dominant (♯11).
+    maj9:'lydian',          min9:'dorian',          dom9:'lydian_dominant',
+    maj11:'lydian',         min11:'dorian',         dom11:'mixolydian',
+    maj13:'lydian',         min13:'dorian',         dom13:'lydian_dominant'
   };
   const CHROMATIC_PATTERNS = {
     '1234':[0,1,2,3], '4321':[3,2,1,0], '1324':[0,2,1,3], '1342':[0,2,3,1], '2413':[1,3,0,2]
@@ -1181,6 +1228,7 @@
       fretMax,
       bars: Math.max(1, Math.min(32, parseInt(data.get('bars') || '4', 10))),
       chordDepth: advancedMode ? (data.get('chordDepth') || 'triad') : 'triad',
+      tritoneSub: advancedMode ? (data.get('tritoneSub') || 'off') : 'off',
       progression: practiceType === 'guide_tones'
         ? (data.get('guideToneProgression') || 'ii-V-I')
         : (advancedMode ? (data.get('progression') || 'diatonic') : 'diatonic'),
@@ -1218,8 +1266,13 @@
   function fretboardSystemLabel(value) { return FRETBOARD_SYSTEM_LABELS[value] || FRETBOARD_SYSTEM_LABELS.position; }
 
   function cagedShapeQualityKey(quality) {
+    // Power chords + 9/11/13 extensions have no triad template — signal "skip the
+    // template" so callers fall back to interval-derived voicing (root+5th for
+    // power chords, full chord-tone set for extensions). Returning null makes
+    // `def.chordTemplates[null]` undefined → the template functions return null.
+    if (!TEMPLATE_QUALITIES.has(quality)) return null;
     if (quality === 'min' || quality === 'min7' || quality === 'min_maj7') return 'min';
-    if (quality === 'dim' || quality === 'dim7' || quality === 'm7b5') return 'dim';
+    if (quality === 'dim' || quality === 'dim7' || quality === 'min7b5') return 'dim';
     return 'maj';
   }
 
@@ -1462,16 +1515,121 @@
   }
   function buildAnchors(cfg, duration) { const out = [], width = Math.max(3, cfg.fretMax - cfg.fretMin + 1); for (let t = 0; t <= duration + 0.0001; t += 2) out.push({ time: Number(t.toFixed(6)), fret: cfg.fretMin, width }); return out; }
 
+  // --- Chord depth / diatonic extension engine -----------------------------
+  // Depth → number of stacked tones. Extended depths stack further diatonic
+  // thirds on top of the seventh (9th, 11th, 13th).
+  const DEPTH_TONES = { triad:3, seventh:4, ninth:5, eleventh:6, thirteenth:7 };
+  const EXTENDED_DEPTHS = new Set(['ninth','eleventh','thirteenth']);
+  // Promote a NAMED quality to its natural extended form. Used for chords that
+  // are deliberate harmonic choices (progression overrides — secondary dominants,
+  // and future tritone subs) rather than plain diatonic chords: those extend with
+  // conventional natural tensions, NOT by stacking the home key's scale. Unlisted
+  // bases fall through unchanged.
+  const QUALITY_EXTEND = {
+    ninth:      { maj7:'maj9', min7:'min9', dom7:'dom9', maj:'add9', min:'min9', '6':'69' },
+    eleventh:   { maj7:'maj11', min7:'min11', dom7:'dom11', maj:'maj11', min:'min11' },
+    thirteenth: { maj7:'maj13', min7:'min13', dom7:'dom13', maj:'maj13', min:'min13' }
+  };
+  function extendNamedQuality(base, depth) { const m = QUALITY_EXTEND[depth]; return (m && m[base]) || base; }
+  // Build the diatonic chord on `degree` of `scale`, stacked to `tones` notes, as
+  // semitone intervals from the chord root — by stacking scale thirds (every other
+  // scale tone). For heptatonic scales this yields the TRUE diatonic chord at any
+  // extension, including altered tensions (e.g. the iii chord's ♭9/♭13 and the IV
+  // chord's ♯11 in major fall out automatically).
+  function diatonicChordIntervals(scale, degree, tones) {
+    const sc = SCALE_INTERVALS[scale] || SCALE_INTERVALS.major;
+    const n = sc.length, rootIdx = (degree - 1 + n * 99) % n, rootPitch = sc[rootIdx], out = [];
+    for (let k = 0; k < tones; k++) { const step = rootIdx + 2 * k; out.push(sc[step % n] + 12 * Math.floor(step / n) - rootPitch); }
+    return out;
+  }
+  // Derive a readable jazz chord symbol from an interval stack. Base triad/7th +
+  // extension figure + characteristic altered tensions. NOTES are always exact;
+  // the symbol approximates but flags the spicy tensions (♭9 / ♯11 / ♭13 …).
+  function deriveChordSymbol(iv) {
+    const has = x => iv.includes(x);
+    const third = has(4) ? 'M' : has(3) ? 'm' : null;
+    const dim5 = has(6) && !has(7), aug5 = has(8) && !has(7);
+    const maj7 = has(11), b7 = has(10), dd7 = has(9) && !has(10) && !has(11);
+    let stem, special = false;
+    if (third === 'm' && dim5 && b7) { stem = 'm7♭5'; special = true; }
+    else if (dim5 && dd7) { stem = 'dim7'; special = true; }
+    else if (third === 'M' && maj7) stem = 'maj';
+    else if (third === 'M' && b7) stem = '';            // dominant
+    else if (third === 'm' && maj7) { stem = 'm(maj7)'; special = true; }
+    else if (third === 'm') stem = 'm';
+    else if (aug5) { stem = 'aug'; special = true; }
+    else stem = third === 'M' ? 'maj' : 'm';
+    const fig = (has(20) || has(21)) ? '13' : (has(17) || has(18)) ? '11' : (has(13) || has(14) || has(15)) ? '9' : (maj7 || b7 || dd7) ? '7' : '';
+    const alt = [];
+    if (aug5 && !special) alt.push('♯5');                 // augmented-maj7 (III of harmonic/melodic minor)
+    if (dim5 && !special && third === 'M') alt.push('♭5'); // dominant ♭5
+    if (has(13)) alt.push('♭9'); if (has(15)) alt.push('♯9');
+    if (has(18) && !has(17)) alt.push('♯11');
+    if (has(20) && !has(21)) alt.push('♭13');
+    if (special) { const inner = []; if (fig && fig !== '7') inner.push(fig); inner.push(...alt); return stem + (inner.length ? `(${inner.join(',')})` : '') || 'maj'; }
+    return (stem + fig + (alt.length ? `(${alt.join('')})` : '')) || 'maj';
+  }
+  // Register (memoised) a synthetic CHORD_FORMULAS entry for a diatonically-stacked
+  // extended chord; return its key. Consumers read CHORD_FORMULAS[key] exactly like
+  // a static quality, so no call site needs to change. `mode` carries the chord-
+  // scale for mode-of-the-moment (the diatonic mode of the base seventh chord).
+  function diatonicExtendedQuality(scale, degree, depth) {
+    const key = `__d:${scale}:${degree}:${depth}`;
+    if (!CHORD_FORMULAS[key]) {
+      const intervals = diatonicChordIntervals(scale, degree, DEPTH_TONES[depth] || 5);
+      const fam = DIATONIC_QUALITIES[scale] || DIATONIC_QUALITIES.major;
+      const base7 = (fam.seventh || fam.triad)[(degree - 1 + 7) % 7] || 'maj7';
+      CHORD_FORMULAS[key] = { symbol: deriveChordSymbol(intervals), intervals, mode: MODE_FOR_QUALITY[base7] || 'major' };
+    }
+    return key;
+  }
   function chordQualityForDegree(scale, depth, degree, override, progression) {
-    if (override && override !== 'auto') return override;
+    if (override && override !== 'auto') return override;            // explicit override wins fully
+    const ext = EXTENDED_DEPTHS.has(depth);
+    // Progression token: {deg|semis, q, rn}. An explicit q wins (promoted by depth);
+    // a deg-only token defers to the diatonic path; a chromatic semis token with no
+    // quality is assumed dominant (the usual chromatic-chord case).
+    if (degree && typeof degree === 'object') {
+      if (degree.q) return ext ? extendNamedQuality(degree.q, depth) : degree.q;
+      if (degree.deg != null) return chordQualityForDegree(scale, depth, degree.deg, override, progression);
+      return ext ? extendNamedQuality('dom7', depth) : 'dom7';
+    }
     const progOverride = progression && PROGRESSION_QUALITY_OVERRIDES[progression];
-    if (progOverride && progOverride[degree] != null) return progOverride[degree];
+    if (progOverride && progOverride[degree] != null) {
+      const base = progOverride[degree];
+      return ext ? extendNamedQuality(base, depth) : base;          // promote borrowed/secondary chords
+    }
+    // Diatonic chords: extended depths stack true scale thirds (heptatonic scales
+    // only — the DIATONIC_QUALITIES set); triad/seventh use the hand-verified rows.
+    if (ext && DIATONIC_QUALITIES[scale] && (SCALE_INTERVALS[scale] || []).length === 7) {
+      return diatonicExtendedQuality(scale, degree, depth);
+    }
     const family = DIATONIC_QUALITIES[scale] || DIATONIC_QUALITIES.major;
+    if (ext) {
+      // Non-heptatonic scale (pentatonic/blues/etc.): promote the fallback seventh.
+      const base = (family.seventh || family.triad)[(degree - 1 + 7) % 7] || 'maj7';
+      return extendNamedQuality(base, depth);
+    }
     const row = family[depth === 'seventh' ? 'seventh' : 'triad'] || family.triad;
     return row[(degree - 1 + 7) % 7] || 'maj';
   }
+  // A chord is "dominant" if it has a major 3rd + minor 7th and no major 7th —
+  // covers dom7/9/11/13 (named or synthetic). Used to decide tritone-sub targets.
+  function isDominantQuality(quality) {
+    const f = CHORD_FORMULAS[quality];
+    if (!f) return false;
+    const s = new Set(f.intervals.map(i => i % 12));
+    return s.has(4) && s.has(10) && !s.has(11);
+  }
   function chordRootForDegree(cfg, degree) {
     const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+    // Progression token: {deg|semis, …}. An explicit semis is a chromatic root
+    // offset from the key root (and is taken literally — no auto tritone-sub on an
+    // already-authored chromatic chord); a deg-only token routes the normal path.
+    if (degree && typeof degree === 'object') {
+      if (degree.semis != null) return ((keyPc + degree.semis) % 12 + 12) % 12;
+      return chordRootForDegree(cfg, degree.deg != null ? degree.deg : 1);
+    }
     // For a minor-spelled progression played over a minor-family chord-scale,
     // pin the chord ROOTS to natural minor so bVI/bIII/bVII keep their Aeolian
     // spelling (harmonic minor's raised 7th, etc. would otherwise move them).
@@ -1481,7 +1639,19 @@
       && ROOT_PIN_NATURAL_MINOR_SCALES.has(cfg.scale);
     const rootScale = useNaturalMinorRoots ? 'natural_minor' : cfg.scale;
     const intervals = SCALE_INTERVALS[rootScale] || SCALE_INTERVALS.major;
-    return (keyPc + intervals[(degree - 1 + intervals.length) % intervals.length]) % 12;
+    let rootPc = (keyPc + intervals[(degree - 1 + intervals.length) % intervals.length]) % 12;
+    // Tritone substitution: replace a dominant chord with the dominant a tritone
+    // (6 semitones) away — G7 → D♭7. Quality stays dominant (so the name follows
+    // the new root) and mode-of-the-moment over it resolves to that root's lydian
+    // dominant, which is the classic altered-scale relationship. Extended depths
+    // ride along automatically (G13 → D♭13). Subs only fire on actual dominant-7th
+    // chords, so it needs Seventh-or-richer depth (or a dominant override).
+    if (cfg.tritoneSub && cfg.tritoneSub !== 'off') {
+      const q = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride, cfg.progression);
+      const inScope = cfg.tritoneSub === 'all_dominants' || (cfg.tritoneSub === 'dominant_v' && degree === 5);
+      if (inScope && isDominantQuality(q)) rootPc = (rootPc + 6) % 12;
+    }
+    return rootPc;
   }
   function chordName(rootPc, quality) { const f = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj; return pcName(rootPc) + (f.symbol === 'maj' ? 'maj' : f.symbol); }
   function progressionDegreesForConfig(cfg) { return cfg.mode === 'diatonic_arpeggios' ? COMMON_PROGRESSIONS.diatonic : (COMMON_PROGRESSIONS[cfg.progression] || COMMON_PROGRESSIONS['I-V-vi-IV']); }
@@ -1561,20 +1731,75 @@
     return { name, displayName:name, arp:!!arp, fingers, frets };
   }
 
-  function voiceBackingChord(rootPc, intervals, instrument) {
-    const bassMin = instrument === 'bass' ? 23 : 36;
-    const bassMax = instrument === 'bass' ? 38 : 48;
-    let bass = rootPc;
-    while (bass < bassMin) bass += 12;
-    while (bass > bassMax) bass -= 12;
-    const midis = [bass];
-    for (const interval of intervals.slice(0, 4)) {
-      let midi = rootPc + interval;
-      while (midi < 48) midi += 12;
-      while (midi > 67) midi -= 12;
-      if (!midis.includes(midi)) midis.push(midi);
+  // --- Voicing engine (docs/musicality-guardrails.md Layer 2) ----------------
+  // Classify each chord-tone pitch class (mod 12) into a role + inclusion rank
+  // (lower = kept first). Context resolves ambiguity: a minor 3rd is a ♯9 when a
+  // major 3rd is also present; the ♭5/♯5 vs ♯11/♭13 split depends on the natural 5th;
+  // the natural 11 is a low-priority avoid-note on major/dominant chords but a kept
+  // colour on minor chords; the plain 5th is mandatory only when there is no 7th.
+  function classifyChordTones(intervals) {
+    const pcs = new Set(intervals.map(i => ((i % 12) + 12) % 12));
+    const M3 = pcs.has(4), m3 = pcs.has(3), P5 = pcs.has(7);
+    const seventh = pcs.has(11) ? 11 : pcs.has(10) ? 10 : (pcs.has(9) && m3 && pcs.has(6)) ? 9 : null;
+    const roles = [];
+    for (const pc of pcs) {
+      let kind, rank;
+      switch (pc) {
+        case 0:  kind = 'root'; rank = 0; break;
+        case 4:  kind = '3rd';  rank = 1; break;
+        case 3:  if (M3) { kind = '#9'; rank = 3; } else { kind = '3rd'; rank = 1; } break;
+        case 11: kind = '7th';  rank = 1; break;
+        case 10: kind = '7th';  rank = 1; break;
+        case 9:  if (pc === seventh) { kind = 'dim7'; rank = 1; } else { kind = '13'; rank = 3; } break;
+        case 7:  kind = '5th';  rank = seventh === null ? 1 : 5; break;  // complete the triad only when there's no 7th
+        case 6:  if (P5) { kind = '#11'; rank = 3; } else { kind = 'b5'; rank = 2; } break;
+        case 8:  if (P5) { kind = 'b13'; rank = 3; } else { kind = '#5'; rank = 2; } break;
+        case 2:  kind = '9';   rank = 4; break;
+        case 1:  kind = 'b9';  rank = 3; break;
+        case 5:  kind = '11';  rank = M3 ? 90 : 3; break;   // avoid-note on major/dominant; consonant on minor
+        default: kind = 'other'; rank = 6;
+      }
+      roles.push({ pc, kind, rank });
     }
-    return midis.sort((a,b) => a - b);
+    return roles;
+  }
+  // Turn a chord (root pc + tertian interval stack) into a good-sounding block
+  // voicing: keep guide tones, drop the avoid-note 11 on major/dominant chords,
+  // keep the top colour tension, avoid muddy low clusters, tensions on top.
+  // Block/backing only — arpeggios sweep all tones elsewhere.
+  const VOICE_ORDER = { '3rd':0, 'b5':1, '5th':1, '#5':1, '7th':2, 'dim7':2, 'b9':3, '9':3, '#9':3, '11':4, '#11':4, '13':5, 'b13':5 };
+  function voiceChord(rootPc, intervals, opts) {
+    const o = opts || {};
+    const maxVoices = o.maxVoices || 4;
+    const bassLow = o.bassLow ?? 36, bassHigh = o.bassHigh ?? 48;
+    const upperLow = o.upperLow ?? 48, upperHigh = o.upperHigh ?? 74;
+    // Hard-drop the natural 11 when a major 3rd is present (rank 90 sentinel).
+    const roles = classifyChordTones(intervals).filter(r => r.rank < 90);
+    // Mandatory guide tones (rank ≤ 1) always kept; fill remaining slots by rank.
+    const mandatory = roles.filter(r => r.rank <= 1);
+    const optional = roles.filter(r => r.rank > 1).sort((a, b) => a.rank - b.rank);
+    const keep = mandatory.slice();
+    for (const r of optional) { if (keep.length >= maxVoices) break; keep.push(r); }
+    // Bass = root, folded into the bass window.
+    let bass = ((rootPc % 12) + 12) % 12;
+    while (bass < bassLow) bass += 12;
+    while (bass > bassHigh) bass -= 12;
+    const out = [bass];
+    // Upper voices: core (3rd/5th/7th) low, tensions high — placed ascending so
+    // colour tones naturally land on top; min gap in the low region kills mud.
+    const upper = keep.filter(r => r.kind !== 'root').sort((a, b) => (VOICE_ORDER[a.kind] ?? 9) - (VOICE_ORDER[b.kind] ?? 9));
+    let cursor = Math.max(bass + 3, upperLow);
+    for (const r of upper) {
+      let midi = cursor + ((((r.pc - cursor) % 12) + 12) % 12);   // lowest MIDI ≥ cursor with this pitch class
+      if (midi > upperHigh) midi -= 12;
+      if (!out.includes(midi)) out.push(midi);
+      cursor = midi + (midi < 52 ? 3 : 2);
+    }
+    return out.sort((a, b) => a - b);
+  }
+  function voiceBackingChord(rootPc, intervals, instrument) {
+    const bassWin = instrument === 'bass' ? { bassLow: 23, bassHigh: 40 } : { bassLow: 36, bassHigh: 48 };
+    return voiceChord(rootPc, intervals, Object.assign({ instrument, maxVoices: 4, upperLow: 48, upperHigh: 74 }, bassWin));
   }
   function buildBackingEvents(cfg, duration) {
     const degrees = progressionDegreesForConfig(cfg);
@@ -1591,7 +1816,7 @@
   }
 
   function chordScalePositions(cfg, rootPc, quality) {
-    const scaleName = MODE_FOR_QUALITY[quality] || 'major';
+    const scaleName = (CHORD_FORMULAS[quality] && CHORD_FORMULAS[quality].mode) || MODE_FOR_QUALITY[quality] || 'major';
     const intervals = SCALE_INTERVALS[scaleName] || SCALE_INTERVALS.major;
     const pcs = new Set(intervals.map(i => (rootPc + i) % 12));
     const opens = openMidisForConfig(cfg), out = [];
@@ -1883,8 +2108,9 @@
     for (let rep = 0; rep < reps; rep++) {
       for (let di = 0; di < degrees.length; di++) {
         const degree = degrees[di];
-        if (degree < 1 || degree > scaleInts.length) { t += mLen; continue; }
-        const chordRootPc = (keyPc + scaleInts[degree - 1]) % 12;
+        const degNum = (degree && typeof degree === 'object') ? degree.deg : degree;
+        if (degNum != null && (degNum < 1 || degNum > scaleInts.length)) { t += mLen; continue; }
+        const chordRootPc = chordRootForDegree(cfg, degree);   // handles {semis|deg} tokens + minor pinning + tritone sub
         const quality = chordQualityForDegree(cfg.scale, chordDepth, degree, cfg.chordOverride, cfg.progression);
         const formula = CHORD_FORMULAS[quality]?.intervals || [0, 4, 7];
         // 3rd = formula[1], 7th = formula[3] (if present, else fall back to 5th)
@@ -2246,7 +2472,7 @@
     const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth || 'triad', 1, cfg.chordOverride, cfg.progression);
     const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj;
     const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
-    const take = cfg.chordDepth === 'seventh' ? 4 : 3;
+    const take = DEPTH_TONES[cfg.chordDepth] || 3;
     const intervals = formula.intervals.slice(0, take);
     const chordPcs = intervals.map(i => (keyPc + i) % 12);
     const opens = openMidisForConfig(cfg);

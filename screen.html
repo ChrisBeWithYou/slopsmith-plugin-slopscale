@@ -839,7 +839,22 @@
       <div class="slopscale-advanced-card slopscale-advanced-only slopscale-custom-only">
         <div class="slopscale-group-title">Arpeggios and harmony</div>
         <label>Chord depth
-          <select name="chordDepth"><option value="triad">Triads</option><option value="seventh">Seventh chords</option></select>
+          <select name="chordDepth">
+            <option value="triad">Triads</option>
+            <option value="seventh">Seventh chords</option>
+            <option value="ninth">Ninth chords</option>
+            <option value="eleventh">Eleventh chords</option>
+            <option value="thirteenth">Thirteenth chords</option>
+          </select>
+          <span class="slopscale-help" style="margin-top:2px;">Extended depths stack true diatonic thirds, so each degree gets its real jazz chord (the iii's ♭9, the IV's ♯11, etc.). Auto-diatonic — set Chord quality override to "Auto" to use it.</span>
+        </label>
+        <label>Tritone substitution
+          <select name="tritoneSub">
+            <option value="off">Off</option>
+            <option value="dominant_v">Dominant V → ♭II7</option>
+            <option value="all_dominants">All dominant chords</option>
+          </select>
+          <span class="slopscale-help" style="margin-top:2px;">Replaces a dominant chord with the dominant a tritone away (G7 → D♭7) and resolves the scale to its lydian dominant. Needs Seventh-or-richer chord depth (or a dominant quality override) — subs only fire on real dominant 7th chords. Composes with extended depth (G13 → D♭13).</span>
         </label>
         <label>Common progression
           <select name="progression">
@@ -863,6 +878,11 @@
             <option value="minor_ii_V_i">Minor ii–V–i</option>
             <option value="rhythm_changes_a">Rhythm Changes A (I–VI7–ii–V × 2)</option>
             <option value="rhythm_changes_bridge">Rhythm Changes bridge (III7–VI7–II7–V7)</option>
+            <optgroup label="Chromatic / substitutions">
+              <option value="tritone_sub_ii_V_I">Tritone sub: ii–♭II7–I</option>
+              <option value="backdoor_ii_V">Backdoor: iv–♭VII7–I</option>
+              <option value="tadd_dameron">Tadd Dameron: I–♭III7–♭VImaj7–♭II7</option>
+            </optgroup>
           </select>
         </label>
         <label>Chord-scale strategy
@@ -874,7 +894,46 @@
         </label>
 
         <label>Chord quality override
-          <select name="chordOverride"><option value="auto">Auto diatonic</option><option value="maj">Major</option><option value="min">Minor</option><option value="dim">Diminished</option><option value="maj7">Maj7</option><option value="min7">Min7</option><option value="dom7">Dominant 7</option><option value="min7b5">m7b5 / half-diminished</option><option value="sus4">Sus4</option><option value="add9">Add9</option></select>
+          <select name="chordOverride">
+            <option value="auto">Auto diatonic</option>
+            <optgroup label="Triads">
+              <option value="maj">Major</option>
+              <option value="min">Minor</option>
+              <option value="dim">Diminished</option>
+              <option value="aug">Augmented</option>
+            </optgroup>
+            <optgroup label="Power (no 3rd)">
+              <option value="5">Power 5 (root+5th)</option>
+              <option value="5oct">Power 5 (root+5th+octave)</option>
+            </optgroup>
+            <optgroup label="Suspended / add">
+              <option value="sus2">Sus2</option>
+              <option value="sus4">Sus4</option>
+              <option value="add9">Add9</option>
+              <option value="6">6</option>
+              <option value="min6">m6</option>
+              <option value="69">6/9</option>
+            </optgroup>
+            <optgroup label="Sevenths">
+              <option value="maj7">Maj7</option>
+              <option value="min7">Min7</option>
+              <option value="dom7">Dominant 7</option>
+              <option value="min7b5">m7b5 / half-diminished</option>
+              <option value="dim7">Diminished 7</option>
+              <option value="min_maj7">m(maj7)</option>
+            </optgroup>
+            <optgroup label="Extended (9 / 11 / 13)">
+              <option value="maj9">Maj9</option>
+              <option value="min9">m9</option>
+              <option value="dom9">9 (dominant)</option>
+              <option value="maj11">Maj11</option>
+              <option value="min11">m11</option>
+              <option value="dom11">11 (dominant)</option>
+              <option value="maj13">Maj13</option>
+              <option value="min13">m13</option>
+              <option value="dom13">13 (dominant)</option>
+            </optgroup>
+          </select>
         </label>
       </div>
 
