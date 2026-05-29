@@ -141,7 +141,12 @@
   #slopscale-paste-share.flash-bad { border-color: #b91c1c; }
   /* ── Playback transport (docked under the render stage) ───────────────── */
   .slopscale-transport { display: flex; flex-direction: column; gap: 8px; padding: 9px 12px; background: rgba(9,15,30,0.92); border-top: 1px solid rgba(75,85,99,0.4); flex-shrink: 0; }
-  .slopscale-root.slopscale-session-mode .slopscale-transport { display: none; }
+  /* Session progress bar — proportional segment chunks, current one lit. */
+  .slopscale-session-progress { display: flex; gap: 3px; align-items: stretch; height: 22px; }
+  .slopscale-session-progress:empty { display: none; }
+  .slopscale-progress-seg { position: relative; flex-basis: 0; min-width: 16px; border: 1px solid #334155; border-radius: 5px; background: #131c2e; color: #94a3b8; font-size: 10px; font-weight: 700; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0 6px; line-height: 20px; text-align: center; }
+  .slopscale-progress-seg:hover { background: #1e293b; color: #e2e8f0; border-color: #475569; }
+  .slopscale-progress-seg.active { background: linear-gradient(180deg, #2563eb, #1d4ed8); border-color: #60a5fa; color: #fff; }
   .slopscale-scrub-row { position: relative; height: 18px; display: flex; align-items: center; }
   .slopscale-scrub-rail { position: absolute; left: 0; right: 0; top: 50%; height: 6px; transform: translateY(-50%); background: #1e293b; border-radius: 3px; pointer-events: none; }
   .slopscale-loop-region { position: absolute; top: 50%; height: 6px; transform: translateY(-50%); background: rgba(96,165,250,0.45); border-radius: 3px; pointer-events: none; }
@@ -327,7 +332,7 @@
 
   /* Segment list and cards */
   .slopscale-segment-list { display: flex; flex-direction: column; gap: 4px; }
-  .slopscale-segment-card { border: 1px solid rgba(75, 85, 99, 0.5); border-radius: 9px; padding: 9px 11px; background: rgba(2, 6, 23, 0.4); display: flex; flex-direction: column; gap: 3px; transition: border-color 0.12s; }
+  .slopscale-segment-card { border: 1px solid rgba(75, 85, 99, 0.5); border-radius: 9px; padding: 9px 11px; background: rgba(2, 6, 23, 0.4); display: flex; flex-direction: column; gap: 3px; transition: border-color 0.12s; cursor: pointer; }
   .slopscale-segment-card:hover { border-color: rgba(96, 165, 250, 0.3); }
   .slopscale-segment-card.active { border-left: 3px solid #3b82f6; border-color: rgba(96, 165, 250, 0.55); background: rgba(30, 64, 175, 0.12); }
   .slopscale-segment-header { display: flex; align-items: center; gap: 7px; }
@@ -915,6 +920,7 @@
       </div>
       <div id="slopscale-render-host" class="slopscale-render-host"><canvas id="slopscale-canvas"></canvas></div>
       <div id="slopscale-transport" class="slopscale-transport" aria-label="Playback transport">
+        <div id="slopscale-session-progress" class="slopscale-session-progress slopscale-session-only" role="group" aria-label="Session segments"></div>
         <div class="slopscale-scrub-row">
           <div class="slopscale-scrub-rail"></div>
           <div id="slopscale-loop-region" class="slopscale-loop-region" hidden></div>
@@ -922,13 +928,16 @@
         </div>
         <div class="slopscale-tp-controls">
           <button type="button" id="slopscale-to-start" class="slopscale-tp-btn" title="Back to start">⏮</button>
+          <button type="button" id="slopscale-prev-seg" class="slopscale-tp-btn slopscale-session-only" title="Previous segment">⏪</button>
           <button type="button" id="slopscale-play" class="slopscale-tp-play">▶ Play</button>
+          <button type="button" id="slopscale-next-seg" class="slopscale-tp-btn slopscale-session-only" title="Next segment">⏩</button>
           <span class="slopscale-tp-time"><span id="slopscale-time-cur">0:00</span> / <span id="slopscale-time-dur">0:00</span></span>
           <span class="slopscale-tp-sep"></span>
           <div class="slopscale-tp-loop" role="group" aria-label="A-B loop">
             <span class="slopscale-tp-lbl">Loop</span>
             <button type="button" id="slopscale-loop-a" class="slopscale-tp-btn" title="Set loop start at the playhead">A</button>
             <button type="button" id="slopscale-loop-b" class="slopscale-tp-btn" title="Set loop end at the playhead">B</button>
+            <button type="button" id="slopscale-loop-seg" class="slopscale-tp-btn slopscale-session-only" title="Loop the current segment">⟳ Seg</button>
             <button type="button" id="slopscale-loop-clear" class="slopscale-tp-btn" title="Clear the loop">✕</button>
             <span id="slopscale-loop-count" class="slopscale-tp-loopcount" hidden>Loop 0</span>
           </div>

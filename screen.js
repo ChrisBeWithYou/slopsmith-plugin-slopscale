@@ -966,6 +966,9 @@
   // may be set before the other); the committed loop lives in segmentLoopA/B.
   // _scrubbing suppresses scrubber write-back while the user drags it.
   let tpA = null, tpB = null, _scrubbing = false, _loopWraps = 0;
+  // Session transport: index of the segment currently under the playhead, so
+  // the highlight only touches the DOM when it actually changes.
+  let _activeSegIdx = -1;
   let audioCtx = null, audioNodes = [];
   // highway_3d's _bgGetAnalyser() creates a fresh AudioContext every call
   // until setup succeeds, then calls ctx.close() in the catch block when
@@ -1619,7 +1622,7 @@
     const intervalPcSet = new Set(formula.intervals.map(iv => (rootPc + iv) % 12));
     const opens = openMidisForConfig(cfg), out = [];
     const fLo = Math.max(0, cfg.fretMin), fHi = Math.min(24, cfg.fretMax);
-    const bassStr = cfg.stringCount - 1; // low E in 0=highE convention = highest s index
+    const bassStr = 0; // SlopScale: s=0 is the LOWEST string (low E) — the sweep's bass anchor
     for (let s = 0; s < cfg.stringCount; s++) {
       let best = null, bestScore = Infinity;
       for (let f = fLo; f <= fHi; f++) {
@@ -1653,12 +1656,15 @@
   }
 
   function buildSweepPathWithHopo(positions, cfg, rootPc, quality) {
-    // positions[0]=s0 (high e), positions[last]=s5 (low E)
-    // Ascending sweep: low E → high e = positions reversed
-    const ascending = positions.slice().reverse();
-    const apexPos = ascending[ascending.length - 1]; // s=0, high e
+    // SlopScale convention: s=0 is the LOWEST string (low E), s=last is the
+    // highest (high e). sweepArpeggioPositions returns them built s=0→s=last,
+    // i.e. ALREADY in low-E→high-e (ascending) order — so the ascending sweep
+    // is the array as-is, NOT reversed.
+    const ascending = positions.slice();          // low E (bass/root) → high e (apex)
+    const apexPos = ascending[ascending.length - 1]; // highest string = apex of the sweep
     const turnaround = apexPos ? sweepTurnaroundNotes(apexPos, cfg, rootPc, quality) : [];
-    // Descending: from s=1 back down to s=stringCount-1 (skip apex — HO/PO handles it)
+    // Descending leg: from the string just below the apex back down to the low E.
+    // Skip the apex itself — the HO/PO turnaround already covers it.
     const descending = ascending.slice(0, -1).reverse();
     if (turnaround.length) {
       return [...ascending, ...turnaround, ...descending];
@@ -1770,7 +1776,9 @@
     // Build a repeating unit: one full pass across all strings per direction leg
     // Direction: 'ascending' = low-E to high-E, 'descending' = reverse,
     //            'up_down' = ascending then descending (classic warmup)
-    const stringsAsc = Array.from({ length: stringCount }, (_, i) => stringCount - 1 - i); // low E first (high index first in 0=highE convention)
+    // SlopScale convention: s=0 is the LOWEST string (low E). "Ascending" across
+    // strings means low E → high e, i.e. s=0 first, climbing to s=stringCount-1.
+    const stringsAsc = Array.from({ length: stringCount }, (_, i) => i); // low E (s=0) first
     const stringsDesc = stringsAsc.slice().reverse();
     let stringOrder;
     if (cfg.direction === 'ascending') stringOrder = stringsAsc;
@@ -1893,16 +1901,26 @@
     return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration };
   }
 
-  // Bending drill — cycles scale tones on upper strings (s=0,1,2: high E, B, G)
-  // with each note bent from a fret below the target pitch.
+  // Bending drill — cycles scale tones on the highest (thinnest) strings, each
+  // note bent from a fret below the target pitch.
   // bn=0.5 (half step) bends 1 semitone; bn=1 (whole step) bends 2 semitones.
+  //
+  // SlopScale convention: s=0 is the LOWEST (thickest) string. Bends are
+  // idiomatic on the thinnest strings, so the practical bending range is the
+  // TOP three string indices (e.g. on a 6-string: s=3=G, s=4=B, s=5=high e).
+  // Bass strings are far too stiff to bend cleanly, so we never target s=0..2
+  // on guitar, and we exclude bass instruments from this drill entirely.
   function buildBendingExercise(cfg) {
     const bendTarget = cfg.bendTarget || 'whole';
     const step = secondsPerDivision(cfg);
     const mLen  = measureSeconds(cfg);
     const totalTime = cfg.bars * mLen;
+    if (cfg.instrument === 'bass') throw new Error('Bending drills are a guitar technique — pick a guitar string setup.');
     const allPos = scalePositionsForSystem(cfg);
-    const BEND_STRINGS = new Set([0, 1, 2]);  // high E, B, G — practical bending range
+    // Top three strings (highest indices). On a 6-string that's G, B, high e.
+    const topStart = Math.max(0, cfg.stringCount - 3);
+    const BEND_STRINGS = new Set();
+    for (let s = topStart; s < cfg.stringCount; s++) BEND_STRINGS.add(s);
     let mixToggle = false;
     const events = [];
     for (const pos of allPos) {
@@ -1934,7 +1952,10 @@
     if (!allPos.length) throw new Error('No notes in range.');
     const byStr = {};
     for (const p of allPos) (byStr[p.s] || (byStr[p.s] = [])).push(p);
-    const strAsc = Object.keys(byStr).map(Number).sort((a, b) => b - a);
+    // SlopScale convention: s=0 is the LOWEST string (low E). An ascending legato
+    // run climbs low E → high e (s=0 → s=last), low fret → high fret per string,
+    // hammering on after the first note on each string.
+    const strAsc = Object.keys(byStr).map(Number).sort((a, b) => a - b);
     const asc = [], desc = [];
     for (const s of strAsc) {
       byStr[s].sort((a, b) => a.f - b.f).forEach((n, i) => asc.push({ s: n.s, f: n.f, ho: i > 0, po: false }));
@@ -2054,7 +2075,7 @@
     if (!allPos.length) throw new Error('No notes in range.');
     const byStr = {};
     for (const p of allPos) (byStr[p.s] || (byStr[p.s] = [])).push(p);
-    const strings = Object.keys(byStr).map(Number).sort();
+    const strings = Object.keys(byStr).map(Number).sort((a, b) => a - b);
     // Interleave even-index and odd-index strings — creates visible cross-string jumps
     const events = [];
     for (const grp of [strings.filter(s => s % 2 === 0), strings.filter(s => s % 2 === 1)]) {
@@ -2188,29 +2209,45 @@
       const nextRootPc = chordRootForDegree(cfg, nextDeg);
       const rootPos = nearestPositionForPc(rootPc, prevMidi, opens, fMin, fMax);
       if (!rootPos) { t += mLen; continue; }
-      notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: rootPos.s, f: rootPos.f, sus: beatStep * 0.9 }));
-      prevMidi = opens[rootPos.s] + rootPos.f;
-      // Find target octave of next root nearest to current midi
+      notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: rootPos.s, f: rootPos.f, sus: beatStep * 0.9, ac: true }));
+      // barRootMidi anchors the straight-line walk toward the next root. We
+      // interpolate from this FIXED point (not the moving prevMidi) so the line
+      // actually travels across the bar instead of stalling on one pitch.
+      const barRootMidi = opens[rootPos.s] + rootPos.f;
+      prevMidi = barRootMidi;
+      // Target octave of next root nearest to the bar's starting root.
       let targetMidi = nextRootPc;
-      while (targetMidi < prevMidi - 6) targetMidi += 12;
-      while (targetMidi > prevMidi + 17) targetMidi -= 12;
+      while (targetMidi < barRootMidi - 6) targetMidi += 12;
+      while (targetMidi > barRootMidi + 17) targetMidi -= 12;
       const beatsPerBar = cfg.meter.numerator;
+      const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
       const scaleInts = SCALE_INTERVALS[cfg.scale] || SCALE_INTERVALS.major;
+      // Candidate scale-tone MIDIs near the line, sorted by distance to a target.
+      const scaleToneNear = (approxMidi) => {
+        const cands = [];
+        for (const iv of scaleInts) {
+          const pc = (keyPc + iv) % 12;
+          const oct = Math.round((approxMidi - pc) / 12);
+          for (const o of [oct - 1, oct, oct + 1]) cands.push(pc + o * 12);
+        }
+        return [...new Set(cands)].sort((a, b) => Math.abs(a - approxMidi) - Math.abs(b - approxMidi));
+      };
       for (let b = 1; b < beatsPerBar; b++) {
         const frac = b / beatsPerBar;
-        const approxMidi = Math.round(prevMidi + (targetMidi - prevMidi) * frac);
-        // Find nearest scale tone to approxMidi
-        let bestPc = 0, bestDist = Infinity;
-        for (const iv of scaleInts) {
-          const pc = ((NOTE_ALIASES[cfg.key] ?? 0) + iv) % 12;
-          const oct = Math.round((approxMidi - pc) / 12);
-          const cand = pc + oct * 12;
-          if (Math.abs(cand - approxMidi) < bestDist) { bestDist = Math.abs(cand - approxMidi); bestPc = pc; }
+        const approxMidi = Math.round(barRootMidi + (targetMidi - barRootMidi) * frac);
+        // Walk to the nearest scale tone to the interpolated point, but never
+        // repeat the immediately preceding pitch — a walking line keeps moving.
+        // Fall through to the next-nearest tone if the closest equals prevMidi.
+        let chosen = null;
+        for (const cand of scaleToneNear(approxMidi)) {
+          if (cand === prevMidi) continue;
+          const pos = nearestPositionForPc(((cand % 12) + 12) % 12, cand, opens, fMin, fMax);
+          if (pos && opens[pos.s] + pos.f === cand) { chosen = pos; break; }
+          if (pos && !chosen) chosen = pos; // best-effort fallback if exact octave unavailable in range
         }
-        const stepPos = nearestPositionForPc(bestPc, prevMidi, opens, fMin, fMax);
-        if (stepPos) {
-          notes.push(noteDefaults({ t: Number((t + b * beatStep).toFixed(6)), s: stepPos.s, f: stepPos.f, sus: beatStep * 0.9 }));
-          prevMidi = opens[stepPos.s] + stepPos.f;
+        if (chosen) {
+          notes.push(noteDefaults({ t: Number((t + b * beatStep).toFixed(6)), s: chosen.s, f: chosen.f, sus: beatStep * 0.9 }));
+          prevMidi = opens[chosen.s] + chosen.f;
         }
       }
       t += mLen;
@@ -2225,7 +2262,9 @@
     if (!allPos.length) throw new Error('No notes in range.');
     const byStr = {};
     for (const p of allPos) (byStr[p.s] || (byStr[p.s] = [])).push(p);
-    const strings = Object.keys(byStr).map(Number).sort((a, b) => b - a); // low E first
+    // SlopScale convention: s=0 is the LOWEST string (low E). Ascending sort puts
+    // the low strings first so strings[i] (pick) sits below strings[i+1] (finger pluck).
+    const strings = Object.keys(byStr).map(Number).sort((a, b) => a - b); // low E (s=0) first
     // Pair consecutive strings: pick low, pluck high, creating the hybrid pattern
     const events = [];
     for (let i = 0; i + 1 < strings.length; i++) {
@@ -2491,6 +2530,9 @@
   // BPM ladder and key cycle are applied per-segment as configured.
   function buildSessionChart(session) {
     const notes = [], chords = [], chordTemplates = [], handShapes = [], sections = [], anchors = [], beats = [];
+    // Per-segment time bounds — drives the session transport (progress bar,
+    // segment jump, active-segment highlight, per-segment loop).
+    const segmentBounds = [];
     let t = 0, tplOffset = 0;
 
     for (const segment of (session.segments || [])) {
@@ -2533,9 +2575,10 @@
       const segBeats = chart.beats || buildBeats(segCfg, dur);
       segBeats.forEach(b => beats.push(Object.assign({}, b, { time:Number((b.time + t).toFixed(6)) })));
       tplOffset += (chart.chordTemplates || []).length;
+      segmentBounds.push({ name:segment.name, kind:segment.kind, start:Number(t.toFixed(6)), end:Number((t + dur).toFixed(6)) });
       t += dur;
     }
-    return { notes, chords, chordTemplates, handShapes, sections, anchors, beats, duration:t };
+    return { notes, chords, chordTemplates, handShapes, sections, anchors, beats, segmentBounds, duration:t };
   }
 
   // Top-level session generator — parallel to generateExercise() for single exercises.
@@ -2561,7 +2604,7 @@
       currentTime:0,
       songInfo:{ title:`SlopScale ${cfg.mode}`, artist:'SlopScale', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'slopscale-practice', fretboardSystem:cfg.fretboardSystem },
       config:cfg,
-    isReady:true, notes:c.notes, chords:c.chords, anchors:c.anchors, beats:c.beats, sections:c.sections, chordTemplates:c.chordTemplates, handShapes:c.handShapes,
+    isReady:true, notes:c.notes, chords:c.chords, anchors:c.anchors, beats:c.beats, sections:c.sections, chordTemplates:c.chordTemplates, handShapes:c.handShapes, segmentBounds:c.segmentBounds || null,
       backingEvents:buildBackingEvents(cfg, c.duration),
       stringCount:cfg.stringCount, tuning:tuningOffsetsForConfig(cfg), openMidis:openMidisForConfig(cfg), capo:0,
       lyrics:[], toneChanges:[], toneBase:'', drumTab:null, mastery:1, hasPhraseData:false,
@@ -3706,6 +3749,13 @@
   // generate one first so the very first click always plays something.
   async function onPlayToggle() {
     if (playing) { stopPlayback(); return; }
+    // In session mode, Play builds + starts the selected session if one isn't
+    // already loaded; otherwise it replays the built session from the playhead.
+    if ($('slopscale-root')?.classList.contains('slopscale-session-mode')) {
+      if (!activeBundle || activeBundle.config?.mode !== 'session') { await onLaunchSession(); return; }
+      startPlayback();
+      return;
+    }
     if (!activeBundle) { await onGenerate(); }
     startPlayback();
   }
@@ -3737,6 +3787,7 @@
     if (cur) cur.textContent = fmtTime(currentPracticeTime);
     const scrub = $('slopscale-scrub');
     if (scrub && !_scrubbing) scrub.value = String(currentPracticeTime);
+    updateActiveSegment();
   }
 
   // Full transport refresh: scrubber range, duration readout, loop region +
@@ -3759,6 +3810,8 @@
     if (lc) { const active = segmentLoopA != null && segmentLoopB != null; lc.hidden = !active; lc.textContent = 'Loop ' + _loopWraps; }
     const ci = document.querySelector('#slopscale-controls [name="countIn"]')?.value || '0';
     document.querySelectorAll('.slopscale-tp-seg').forEach(b => b.classList.toggle('active', b.dataset.countin === ci));
+    renderSessionProgress();
+    _activeSegIdx = -1; updateActiveSegment();
   }
 
   function paintLoopRegion() {
@@ -3791,9 +3844,62 @@
   // Reset all transport loop state — used when a fresh chart is generated and
   // the old A/B times may no longer be valid for the new duration.
   function resetTransportLoop() {
-    tpA = null; tpB = null; _loopWraps = 0;
+    tpA = null; tpB = null; _loopWraps = 0; _activeSegIdx = -1;
     clearSegmentLoop();
     syncTransport();
+  }
+
+  // ── Session transport (segment progress, jump, highlight, per-segment loop) ──
+  function sessionBounds() { return (activeBundle && Array.isArray(activeBundle.segmentBounds)) ? activeBundle.segmentBounds : null; }
+
+  function currentSegmentIndex() {
+    const b = sessionBounds(); if (!b || !b.length) return -1;
+    const t = currentPracticeTime;
+    for (let i = 0; i < b.length; i++) if (t >= b[i].start - 1e-6 && t < b[i].end - 1e-6) return i;
+    return t >= b[b.length - 1].end - 1e-6 ? b.length - 1 : 0;
+  }
+
+  // Render the proportional segment bar (chunk width ∝ segment duration).
+  function renderSessionProgress() {
+    const host = $('slopscale-session-progress'); if (!host) return;
+    const b = sessionBounds(), dur = activeBundle?.songInfo?.duration || 0;
+    if (!b || !b.length || dur <= 0) { host.innerHTML = ''; return; }
+    host.innerHTML = b.map((seg, i) => {
+      const grow = Math.max(0.0001, (seg.end - seg.start) / dur);
+      const label = String(seg.name || `Seg ${i + 1}`).replace(/"/g, '&quot;').replace(/</g, '&lt;');
+      return `<button type="button" class="slopscale-progress-seg" data-seg-index="${i}" style="flex-grow:${grow.toFixed(4)}" title="${label}">${label}</button>`;
+    }).join('');
+  }
+
+  // Cheap per-frame check: only touch the DOM when the active segment changes.
+  function updateActiveSegment() {
+    const idx = currentSegmentIndex();
+    if (idx === _activeSegIdx) return;
+    _activeSegIdx = idx;
+    document.querySelectorAll('#slopscale-session-progress .slopscale-progress-seg').forEach((el, i) => el.classList.toggle('active', i === idx));
+    document.querySelectorAll('#slopscale-segment-list .slopscale-segment-card').forEach((el, i) => el.classList.toggle('active', i === idx));
+  }
+
+  function jumpToSegment(i) { const b = sessionBounds(); if (b && b[i]) seekTo(b[i].start); }
+
+  function prevSegment() {
+    const b = sessionBounds(); if (!b || !b.length) return;
+    const idx = currentSegmentIndex();
+    // >1s into a segment restarts it; otherwise step to the previous one.
+    const target = (currentPracticeTime > b[idx].start + 1 || idx === 0) ? idx : idx - 1;
+    seekTo(b[Math.max(0, target)].start);
+  }
+
+  function nextSegment() {
+    const b = sessionBounds(); if (!b || !b.length) return;
+    const idx = currentSegmentIndex();
+    if (idx + 1 < b.length) seekTo(b[idx + 1].start);
+  }
+
+  function loopCurrentSegment() {
+    const b = sessionBounds(); if (!b || !b.length) return;
+    const idx = currentSegmentIndex(); if (idx < 0) return;
+    tpA = b[idx].start; tpB = b[idx].end; commitLoop();
   }
 
   function summarize(exercise) {
@@ -4842,7 +4948,7 @@
     return bars * (60 / bpm) * (4 / m.denominator) * m.numerator;
   }
 
-  function buildSegmentCard(seg) {
+  function buildSegmentCard(seg, index) {
     const color = KIND_COLORS[seg.kind] || '#94a3b8';
     const label = KIND_LABELS[seg.kind] || seg.kind;
     const dur = segmentEstDuration(seg);
@@ -4868,7 +4974,7 @@
     if (cfg.bpm) parts.push(`${cfg.bpm} BPM`);
     if (cfg.bars) parts.push(`${cfg.bars} bars`);
     parts.push(durStr);
-    return `<div class="slopscale-segment-card" data-kind="${seg.kind}">
+    return `<div class="slopscale-segment-card" data-kind="${seg.kind}" data-seg-index="${index}" title="Jump to this segment">
       <div class="slopscale-segment-header">
         <span class="slopscale-segment-badge" style="color:${color}">${label}</span>
         <span class="slopscale-segment-name">${seg.name || ''}</span>
@@ -4898,7 +5004,7 @@
         <span class="slopscale-session-info-stat">${bpmStr}</span>
         ${tags ? `<span class="slopscale-session-info-stat">${tags}</span>` : ''}
       </div>`;
-    list.innerHTML = segs.map(s => buildSegmentCard(s)).join('');
+    list.innerHTML = segs.map((s, i) => buildSegmentCard(s, i)).join('');
   }
 
   function syncSessionMode(mode) {
@@ -5185,6 +5291,22 @@
       btn.addEventListener('click', () => { setFieldSilent('countIn', btn.dataset.countin); syncTransport(); });
     });
     document.querySelector('#slopscale-controls [name="countIn"]')?.addEventListener('change', syncTransport);
+    // Session transport: segment nav, per-segment loop, and click-to-jump on
+    // both the progress bar and the left-panel segment cards.
+    $('slopscale-prev-seg')?.addEventListener('click', prevSegment);
+    $('slopscale-next-seg')?.addEventListener('click', nextSegment);
+    $('slopscale-loop-seg')?.addEventListener('click', loopCurrentSegment);
+    $('slopscale-session-progress')?.addEventListener('click', (e) => {
+      const seg = e.target.closest('.slopscale-progress-seg');
+      if (seg) jumpToSegment(parseInt(seg.dataset.segIndex, 10));
+    });
+    $('slopscale-segment-list')?.addEventListener('click', async (e) => {
+      const card = e.target.closest('.slopscale-segment-card');
+      if (!card) return;
+      const i = parseInt(card.dataset.segIndex, 10);
+      if (!activeBundle || activeBundle.config?.mode !== 'session') await onLaunchSession();
+      jumpToSegment(i);
+    });
     $('slopscale-regenerate')?.addEventListener('click', onGenerate);
     $('slopscale-next-variation')?.addEventListener('click', rotateToNextVariation);
     $('slopscale-save').addEventListener('click', () => savePreset().catch(e => { $('slopscale-summary').textContent += `\n\nPreset save failed: ${e.message || e}`; }));
@@ -5385,5 +5507,6 @@
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
   window.SlopScale = { generateExercise, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
