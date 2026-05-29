@@ -167,6 +167,17 @@
     broken_triads:'broken triads (1-3-5)',
     yngwie_sixes:'sixes (1-2-3-4-3-2)'
   };
+  // Default chord-scale for "mode of the moment". These follow the codebase's
+  // documented jazz stance (see docs/theory-jazz-advanced.md "Chord-scale
+  // defaults"): prefer scales that dodge the avoid-note a half-step above a
+  // chord tone, even though that's a more advanced choice than the textbook
+  // functional scale.
+  //   maj7  → Lydian        — #11 avoids the Ionian 4th avoid-note.
+  //   dom7  → Lydian dominant — #11 avoids the Mixolydian 4th avoid-note.
+  //   min7  → Dorian        — most consonant minor chord-scale.
+  //   m7b5  → Locrian ♮2     — avoids the plain-Locrian b2 clash.
+  // These are DEFAULTS for auto chord-scale selection; the user can still pick
+  // Ionian / Mixolydian explicitly when a strictly functional sound is wanted.
   const MODE_FOR_QUALITY = {
     maj:'major',           maj7:'lydian',
     min:'dorian',          min7:'dorian',
@@ -1273,10 +1284,14 @@
       }
     }
     if (!options.length) return null;
+    // Closest pitch to prevMidi wins; on a tie (the same pitch is reachable at
+    // two string/fret spots, e.g. D2 at low-E fret 10 or D-string fret 0) prefer
+    // the LOWER fret so lines stay in a comfortable, low hand position instead of
+    // drifting up the neck. Used by walking bass, guide tones, shell voicings.
     let best = options[0], bestDist = Math.abs(options[0].midi - prevMidi);
     for (let i = 1; i < options.length; i++) {
       const d = Math.abs(options[i].midi - prevMidi);
-      if (d < bestDist) { best = options[i]; bestDist = d; }
+      if (d < bestDist || (d === bestDist && options[i].f < best.f)) { best = options[i]; bestDist = d; }
     }
     return best;
   }
@@ -1978,26 +1993,57 @@
     return fillNotesFromSeq(seq, { step: noteStep, totalTime, sus, name: `Vibrato — ${cfg.key} ${cfg.scale}` });
   }
 
-  function buildScaleThirdsExercise(cfg) {
+  // Build a "scale in <interval>" run. For each scale tone (lower voice) we pair
+  // it with the scale tone that sits the requested harmonic interval above it.
+  //
+  // The old implementation stepped by a fixed array index (+2 for a third, +5
+  // for a sixth). That is only correct for a 7-note diatonic scale: in a 5-note
+  // pentatonic, +2 indices is a 4th and +5 indices is an octave. We instead pick
+  // the partner by *pitch* — the scale tone whose interval above the lower voice
+  // is closest to the target semitone distance — so the drill yields real thirds
+  // and sixths in any scale (pentatonic, blues, modes, bebop, …).
+  //   minSemis/maxSemis bound the acceptable interval so we never label a 4th a
+  //   "third"; if no scale tone falls in range above a given lower voice (e.g.
+  //   the top of the range), that lower voice is skipped.
+  function buildScaleHarmonyRun(cfg, label, targetSemis, minSemis, maxSemis) {
     const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
     const sorted = scalePositionsForSystem(cfg).slice().sort((a, b) => a.midi - b.midi || a.s - b.s);
-    if (sorted.length < 3) throw new Error('Need ≥ 3 notes for thirds — expand fret range.');
+    if (sorted.length < 2) throw new Error(`Need more scale notes for ${label} — expand fret range.`);
     const asc = [];
-    for (let i = 0; i + 2 < sorted.length; i++) { asc.push(sorted[i]); asc.push(sorted[i + 2]); }
-    const seq = orientSeq(asc, cfg.direction);
+    for (let i = 0; i < sorted.length; i++) {
+      const lo = sorted[i];
+      // Find the scale tone whose pitch sits closest to targetSemis above `lo`,
+      // searching only notes higher than `lo` and within [minSemis, maxSemis].
+      let partner = null, bestErr = Infinity;
+      for (let j = i + 1; j < sorted.length; j++) {
+        const interval = sorted[j].midi - lo.midi;
+        if (interval < minSemis) continue;
+        if (interval > maxSemis) break; // sorted ascending — no closer match beyond here
+        const err = Math.abs(interval - targetSemis);
+        if (err < bestErr) { bestErr = err; partner = sorted[j]; }
+      }
+      if (partner) { asc.push(lo); asc.push(partner); }
+    }
+    if (asc.length < 2) throw new Error(`No ${label} available in this position — widen the fret range.`);
+    // In a "run of thirds/sixths" each dyad's upper voice is frequently the next
+    // dyad's lower voice (…A-C, C-E…). Played as a single-note line that yields a
+    // repeated pitch (…C, C…). A player never re-articulates the same note there,
+    // so collapse any immediate same-position repeat into one event.
+    const cleaned = asc.filter((p, i) => i === 0 || p.s !== asc[i - 1].s || p.f !== asc[i - 1].f);
+    const seq = orientSeq(cleaned, cfg.direction);
     const sus = Math.max(0.05, step * 0.88);
-    return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Scale in thirds — ${cfg.key} ${cfg.scale}` });
+    return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Scale in ${label} — ${cfg.key} ${cfg.scale}` });
   }
 
+  // Diatonic third ≈ 3–4 semitones (m3/M3). Target 4 (M3) so major-leaning
+  // scales prefer the major third where both are available.
+  function buildScaleThirdsExercise(cfg) {
+    return buildScaleHarmonyRun(cfg, 'thirds', 4, 3, 4);
+  }
+
+  // Diatonic sixth ≈ 8–9 semitones (m6/M6). Target 9 (M6).
   function buildScaleSixthsExercise(cfg) {
-    const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
-    const sorted = scalePositionsForSystem(cfg).slice().sort((a, b) => a.midi - b.midi || a.s - b.s);
-    if (sorted.length < 6) throw new Error('Need ≥ 6 notes for sixths — expand fret range.');
-    const asc = [];
-    for (let i = 0; i + 5 < sorted.length; i++) { asc.push(sorted[i]); asc.push(sorted[i + 5]); }
-    const seq = orientSeq(asc, cfg.direction);
-    const sus = Math.max(0.05, step * 0.88);
-    return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Scale in sixths — ${cfg.key} ${cfg.scale}` });
+    return buildScaleHarmonyRun(cfg, 'sixths', 9, 8, 9);
   }
 
   function buildCallResponseExercise(cfg) {
@@ -2135,7 +2181,11 @@
       if (tgt.f + 1 <= 24) events.push({ s: tgt.s, f: tgt.f + 1 });
       events.push({ s: tgt.s, f: tgt.f });
     }
-    const seq = orientSeq(events, cfg.direction);
+    // One target's resolution often equals the next target's lower approach
+    // (e.g. resolve to B, then approach C from B) — collapse the back-to-back
+    // identical position so the line doesn't re-pick the same note.
+    const cleaned = events.filter((p, i) => i === 0 || p.s !== events[i - 1].s || p.f !== events[i - 1].f);
+    const seq = orientSeq(cleaned, cfg.direction);
     const sus = Math.max(0.05, step * 0.88);
     return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Chromatic enclosures — ${cfg.key}` });
   }
@@ -2180,12 +2230,31 @@
       }
     allTones.sort((a, b) => a.midi - b.midi);
     if (!allTones.length) throw new Error('No chord tones in range.');
-    // Build inversions: for each chord step as starting point, ascend from there
+    // Build clean inversions: each inversion is ONE ascending arpeggio of
+    // `intervals.length` notes, stepping through the chord tones in order from
+    // a different starting chord-tone each time:
+    //   root position : 1-3-5(-7)
+    //   1st inversion : 3-5(-7)-1
+    //   2nd inversion : 5(-7)-1-3 …
+    // For each note we take the next chord tone strictly higher than the
+    // previous, so the line climbs through the inversion instead of replaying an
+    // overlapping window of the whole chord-tone pool.
+    const n = intervals.length;
     const events = [];
-    for (let inv = 0; inv < intervals.length; inv++) {
-      const start = allTones.find(t => t.ci === inv);
-      if (!start) continue;
-      allTones.filter(t => t.midi >= start.midi).slice(0, intervals.length * 2).forEach(n => events.push(n));
+    for (let inv = 0; inv < n; inv++) {
+      let prevMidi = -1;
+      let placed = 0;
+      for (let step = 0; step < n; step++) {
+        const ci = (inv + step) % n;
+        const cand = allTones.find(t => t.ci === ci && t.midi > prevMidi);
+        if (!cand) break;
+        events.push(cand);
+        prevMidi = cand.midi;
+        placed++;
+      }
+      // If an inversion couldn't complete in range, drop its partial fragment so
+      // we don't emit a malformed group.
+      if (placed < n) events.length -= placed;
     }
     if (!events.length) throw new Error('Could not build inversions in range.');
     const seq = orientSeq(events, cfg.direction);
@@ -2288,9 +2357,16 @@
     const scaleInts = SCALE_INTERVALS[cfg.scale] || SCALE_INTERVALS.major;
     const opens = openMidisForConfig(cfg);
     const fMin = cfg.fretMin || 0, fMax = cfg.fretMax || 12;
-    // Triad 1: degrees 1-3-5 (indices 0,2,4); Triad 2: degrees 3-5-7 (indices 2,4,6)
+    // The "triad pair" device (Lydian / Bebop pedagogy) alternates two ADJACENT
+    // triads that share NO common tones, so the two triads together spell six
+    // distinct scale tones. The I and ii triads do exactly that:
+    //   Triad 1 = I  : degrees 1-3-5 (indices 0,2,4)
+    //   Triad 2 = ii : degrees 2-4-6 (indices 1,3,5)
+    // The previous version paired I (1-3-5) with iii (3-5-7); those share the
+    // 3rd and 5th, producing duplicate pitches back-to-back and only four
+    // distinct tones — not a real triad pair.
     const t1Pcs = [0, 2, 4].map(i => (keyPc + scaleInts[i % scaleInts.length]) % 12);
-    const t2Pcs = [2, 4, 6].map(i => (keyPc + scaleInts[i % scaleInts.length]) % 12);
+    const t2Pcs = [1, 3, 5].map(i => (keyPc + scaleInts[i % scaleInts.length]) % 12);
     function findNotes(pcs) {
       const out = [];
       for (let s = 0; s < opens.length; s++)
@@ -2302,10 +2378,15 @@
     }
     const t1 = findNotes(t1Pcs), t2 = findNotes(t2Pcs);
     if (!t1.length || !t2.length) throw new Error('Not enough chord tones for triadic pairs.');
+    // Play triad 1 ascending in full, then triad 2 ascending in full — the
+    // idiomatic "run one triad then the next" articulation — guarding against a
+    // back-to-back identical physical position at the seam.
     const events = [];
-    const len = Math.max(t1.length, t2.length);
-    for (let i = 0; i < len; i++) { events.push(t1[i % t1.length]); events.push(t2[i % t2.length]); }
-    const seq = orientSeq(events, cfg.direction);
+    for (const p of t1) events.push(p);
+    for (const p of t2) events.push(p);
+    // De-dup any accidental immediate repeat of the same string+fret.
+    const deduped = events.filter((p, i) => i === 0 || p.s !== events[i - 1].s || p.f !== events[i - 1].f);
+    const seq = orientSeq(deduped, cfg.direction);
     const sus = Math.max(0.05, step * 0.88);
     return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Triadic pairs — ${cfg.key} ${cfg.scale}` });
   }
@@ -2377,12 +2458,25 @@
         for (let f = fMin; f <= fMax; f++)
           if (((opens[s] + f) % 12 + 12) % 12 === pc) instances.push({ s, f, midi: opens[s] + f });
       instances.sort((a, b) => a.midi - b.midi);
-      // Find a pair exactly one octave apart
+      // Find a pair exactly one octave apart, preferring the cross-string octave
+      // with the SMALLEST fret span — the compact octave grip players actually
+      // use (e.g. low-E fret 8 + G-string fret 5), not the same-string +12 pair
+      // which is a 12-fret leap no one plays. Fall back to a same-string pair
+      // only if no cross-string octave exists in range.
+      let pair = null, pairSpan = Infinity, sameStringPair = null;
       for (let i = 0; i + 1 < instances.length; i++) {
-        if (instances[i + 1].midi - instances[i].midi === 12) {
-          events.push(instances[i]); events.push(instances[i + 1]); break;
+        for (let j = i + 1; j < instances.length; j++) {
+          if (instances[j].midi - instances[i].midi !== 12) continue;
+          if (instances[j].s !== instances[i].s) {
+            const span = Math.abs(instances[j].f - instances[i].f);
+            if (span < pairSpan) { pair = [instances[i], instances[j]]; pairSpan = span; }
+          } else if (!sameStringPair) {
+            sameStringPair = [instances[i], instances[j]];
+          }
         }
       }
+      pair = pair || sameStringPair;
+      if (pair) { events.push(pair[0]); events.push(pair[1]); }
     }
     if (!events.length) throw new Error('No octave pairs in range — expand fret range.');
     const seq = orientSeq(events, cfg.direction);

@@ -305,3 +305,107 @@ These were the open questions in the original draft; the user has answered all f
 5. **Next Variation:** cycles shapes within the same key (e.g., C-shape → A-shape → G-shape → E-shape → D-shape, in order).
 
 These decisions are now baked into [position-system-rework.md](./position-system-rework.md).
+
+---
+
+## Generator pedagogy rules (audit 2026-05-28)
+
+A full audit of every pattern generator surfaced a handful of places where the
+code produced theoretically-wrong or unplayable note choices. These are the
+rules the corrected generators now follow. Each is a principle, not a special
+case — they apply to *any* key, scale, and string setup.
+
+### 1. Harmonic intervals are chosen by PITCH, not by array index
+
+"Scale in thirds" and "scale in sixths" pair each scale tone with the tone a
+third (or sixth) above it. The naive implementation stepped by a fixed array
+index (`+2` for a third, `+5` for a sixth). **That is only correct for a 7-note
+diatonic scale.** In a 5-note pentatonic, `+2` indices is a 4th and `+5` is an
+octave — so "A minor pentatonic in sixths" was silently producing octaves.
+
+**Rule:** pick the partner whose *pitch* is closest to the target interval above
+the lower voice (third ≈ 3–4 semitones, sixth ≈ 8–9 semitones), bounded so a 4th
+never gets labelled a "third". This yields real thirds/sixths in pentatonic,
+blues, modal, and bebop scales alike.
+
+A run of thirds/sixths frequently makes each dyad's upper voice the next dyad's
+lower voice (…A-C, C-E…). Rendered as a single-note line that produces a
+repeated pitch (…C, C…). **A player never re-articulates that note**, so the
+generator collapses immediate same-position repeats.
+
+### 2. Triad pairs use two triads with NO shared tones
+
+The "triad pair" device alternates two adjacent triads. To be a real triad pair
+the two triads must share **no** common tones, so together they spell six
+distinct scale tones. Use **I and ii** (1-3-5 and 2-4-6). The earlier code paired
+I (1-3-5) with iii (3-5-7), which share the 3rd and 5th — producing back-to-back
+duplicate pitches and only four distinct tones. Run one triad ascending in full,
+then the other.
+
+### 3. Arpeggio inversions are clean, non-overlapping groups
+
+An inversions drill plays root position (1-3-5-7), then 1st inversion
+(3-5-7-1), then 2nd (5-7-1-3)… as **distinct ascending groups of exactly N
+notes**, each note the next chord tone strictly higher than the last. Don't emit
+overlapping windows of the whole chord-tone pool.
+
+### 4. Octave shapes are cross-string and compact
+
+An octave on guitar is the compact two-finger grip (e.g. low-E fret 8 + D-string
+fret 10 / G-string fret 5), **not** a 12-fret leap on one string. The octave
+generator prefers the cross-string octave with the smallest fret span and only
+falls back to a same-string +12 pair if no cross-string octave exists in range.
+
+### 5. Voice-led lines stay in a low, comfortable position
+
+When two fret positions reach the same pitch at equal distance from the previous
+note (e.g. D2 at low-E fret 10 or D-string fret 0), prefer the **lower fret**.
+This keeps walking-bass lines, guide-tone lines, and shell voicings from
+drifting up the neck. (Implemented in the shared `nearestPositionForPc` tie-break.)
+
+### 6. Chromatic enclosures don't re-pick the target
+
+One target's resolution is often the next target's lower chromatic approach
+(resolve to B, then approach C from B). Collapse the back-to-back identical
+position so the line keeps moving.
+
+### 7. Default chord-scales for "mode of the moment" (verified, unchanged)
+
+This was reviewed and **kept as-is** — it is a deliberate, documented choice, not
+a bug. Per [theory-jazz-advanced.md](./theory-jazz-advanced.md) the defaults
+favour avoid-note avoidance over the strictly-functional scale:
+
+| Quality | Default scale | Rationale |
+| --- | --- | --- |
+| maj7 | Lydian | #11 dodges the Ionian 4th avoid-note. |
+| dom7 | Lydian dominant | #11 dodges the Mixolydian 4th avoid-note. |
+| min7 | Dorian | Most consonant minor chord-scale. |
+| m7b5 | Locrian ♮2 | Avoids the plain-Locrian b2 clash. |
+
+These are *auto-selection* defaults; the user can still pick Ionian / Mixolydian
+explicitly when a strictly functional sound is wanted.
+
+Reminder from "How lines are built": for a **diatonic** ii-V-I, `chord_tone_emphasis`
+(stay in the parent scale, accent chord tones) is the pedagogically correct
+default. `mode_of_moment` is reserved for non-diatonic / modal cycles. The
+`ii–V–I Workout` pathway intentionally uses `mode_of_moment` as a *teaching
+device* (to make Dorian/Mixolydian/Ionian audibly land per chord), which is a
+deliberate exception, not the general rule.
+
+### 8. Bebop passing tones keep chord tones on the strong beats
+
+- **Bebop dominant** `[0,2,4,5,7,9,10,11]` — Mixolydian + natural-7 passing tone.
+- **Bebop major** `[0,2,4,5,7,8,9,11]` — Ionian + #5/b6 passing tone.
+- **Bebop dorian / minor** `[0,2,3,4,5,7,9,10]` — Dorian + natural-3 passing
+  tone between b3 and 4; **keeps the b3** so it sits over minor tonalities.
+
+Routing from a source scale: a minor 3rd in the source → bebop dorian; a major
+3rd with a b7 (Mixolydian) → bebop dominant; otherwise → bebop major.
+
+### Things confirmed correct (not changed)
+
+- CAGED chord templates (C/A/G/E/D, maj/min/dim) — intervals and fingerings verified.
+- 3NPS positions — per-string spans of 3–4 frets, the characteristic 3NPS stretch; tiles the neck correctly. (Big stretches low on the neck, e.g. F major Position 1, are inherent to 3NPS, not a bug.)
+- Sweep arpeggios — one chord tone per string, low-E root anchor, HO/PO turnaround at the apex; rolls on same-fret adjacent strings are correct.
+- Bends restricted to the top three strings (guitar only); pre-fret = target − bend distance.
+- Legato hammer-ons/pull-offs only between notes on the same string.
