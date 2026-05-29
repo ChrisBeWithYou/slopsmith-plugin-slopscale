@@ -3676,8 +3676,16 @@
     if (kind === 'tab_2d') return { factory:makeBuiltin2DTabRenderer, label:'Tab' };
     if (kind === 'notation_2d') return { factory:makeBuiltin2DNotationRenderer, label:'Notation' };
     if (kind === 'highway_3d') {
-      if (!window.slopsmithViz_highway_3d) {
+      if (typeof window.slopsmithViz_highway_3d !== 'function') {
         try { await loadScriptOnce('slopscale-highway-3d-loader', '/api/plugins/highway_3d/screen.js'); } catch (_) {}
+        // The host plugin may register its global a tick or two after the
+        // script's onload fires (deferred init). Poll briefly before giving up
+        // to the 2D fallback — otherwise the first render on startup shows 2D
+        // while the 3D Highway tab is (correctly) selected.
+        const start = Date.now();
+        while (typeof window.slopsmithViz_highway_3d !== 'function' && Date.now() - start < 3000) {
+          await new Promise(r => setTimeout(r, 50));
+        }
       }
       if (typeof window.slopsmithViz_highway_3d === 'function') return { factory:window.slopsmithViz_highway_3d, label:'3D Note Highway' };
       return { factory:makeBuiltin2DRenderer, label:'2D Highway (fallback)' };
@@ -5792,6 +5800,18 @@
     syncViewSwitcher(document.querySelector('[name="renderer"]')?.value || 'highway_3d');
     window.addEventListener('storage', (ev) => { if (ev.key === 'invertHighway' || ev.key === 'lefty' || ev.key === 'renderScale') refreshForHostSettingChange(); });
     window.addEventListener('focus', refreshForHostSettingChange);
+    // On window resize the renderers re-size their canvas (which clears it) but
+    // don't redraw — so a paused view goes blank. Redraw after a debounce, which
+    // also lands AFTER the renderers' own synchronous resize handlers. While
+    // playing, the rAF loop already redraws, so this is a no-op there.
+    let _resizeT = null;
+    window.addEventListener('resize', () => {
+      if (_resizeT) clearTimeout(_resizeT);
+      _resizeT = setTimeout(() => {
+        _resizeT = null;
+        if (renderer && activeBundle && !playing) { try { renderer.resize && renderer.resize(); } catch (_) {} drawOnce(); }
+      }, 120);
+    });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshForHostSettingChange(); });
     // Flush any in-progress session on page hide / unload so duration is saved
     // even if the user closes the tab or navigates away while the preview plays.
