@@ -4630,9 +4630,43 @@
     const root = $('slopscale-root');
     if (!root) return;
     root.classList.toggle('slopscale-pathway-mode', !!isPathway);
-    // Keep the Guided/Custom segmented toggle in sync with the active mode.
-    $('slopscale-guided-btn')?.classList.toggle('active', !!isPathway);
-    $('slopscale-custom-btn')?.classList.toggle('active', !isPathway);
+    syncModeBar();
+  }
+
+  // The unified mode bar (Guided / Custom / Session) is a view of two root
+  // classes: session-mode wins; otherwise pathway-mode ⇒ Guided, else Custom.
+  function syncModeBar() {
+    const root = $('slopscale-root'); if (!root) return;
+    const mode = root.classList.contains('slopscale-session-mode') ? 'session'
+      : root.classList.contains('slopscale-pathway-mode') ? 'guided' : 'custom';
+    document.querySelectorAll('.slopscale-mode-bar .slopscale-mode-btn').forEach(b => {
+      const on = b.dataset.mode === mode;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
+  // Switch top-level practice mode. Guided/Custom drive the hidden pathway
+  // select (its change handler applies the pathway / custom + regenerates);
+  // Session swaps to the session panel.
+  function selectMode(mode) {
+    if (mode === 'session') {
+      syncSessionMode('session');
+      const s = $('slopscale-session-select');
+      if (s) syncSessionSummary(s.value);
+      return;
+    }
+    syncSessionMode('single');
+    const sel = $('slopscale-pathway');
+    if (!sel) { setPathwayModeClass(mode === 'guided'); return; }
+    if (mode === 'custom') {
+      sel.value = 'custom';
+    } else {
+      let stored = null; try { stored = localStorage.getItem(PATHWAY_STORAGE_KEY); } catch (_) {}
+      const valid = stored && stored !== 'custom' && Array.from(sel.options).some(o => o.value === stored);
+      sel.value = valid ? stored : (activePathwayId && activePathwayId !== 'custom' ? activePathwayId : 'pent_foundation');
+    }
+    sel.dispatchEvent(new Event('change'));
   }
 
   function updatePathwayGoalCard(pathwayId, modified, favoritePreset) {
@@ -4804,6 +4838,7 @@
   function loadPathwayFavorites() {
     const select = $('slopscale-pathway'); if (!select) return;
     const favoritesGroup = select.querySelector('optgroup[label="Favorites"]'); if (!favoritesGroup) return;
+    const picker = $('slopscale-preset-picker');
     fetch('/api/plugins/slopscale/presets').then(r => r.ok ? r.json() : null).then(data => {
       const presets = (data && Array.isArray(data.presets)) ? data.presets : [];
       if (!presets.length) return;
@@ -4812,11 +4847,19 @@
         if (!p || !p.id) return;
         const key = 'fav__' + p.id;
         window.__slopscaleFavorites[key] = p;
-        if (favoritesGroup.querySelector('option[value="' + key + '"]')) return;
-        const opt = document.createElement('option'); opt.value = key; opt.textContent = p.name || p.id;
-        favoritesGroup.appendChild(opt);
+        if (!favoritesGroup.querySelector('option[value="' + key + '"]')) {
+          const opt = document.createElement('option'); opt.value = key; opt.textContent = p.name || p.id;
+          favoritesGroup.appendChild(opt);
+        }
+        // Mirror saved presets into the Custom-mode preset picker.
+        if (picker && !picker.querySelector('option[value="' + key + '"]')) {
+          const o = document.createElement('option'); o.value = key; o.textContent = p.name || p.id;
+          picker.appendChild(o);
+        }
       });
       if (favoritesGroup.children.length) favoritesGroup.hidden = false;
+      const wrap = $('slopscale-preset-picker-wrap');
+      if (wrap && picker && picker.options.length > 1) wrap.hidden = false;
     }).catch(() => {});
   }
   function applyInitialPathway() {
@@ -5271,9 +5314,7 @@
   function syncSessionMode(mode) {
     const root = $('slopscale-root'); if (!root) return;
     root.classList.toggle('slopscale-session-mode', mode === 'session');
-    const btnSingle = $('slopscale-mode-single'), btnSession = $('slopscale-mode-session');
-    if (btnSingle) { btnSingle.classList.toggle('active', mode !== 'session'); btnSingle.setAttribute('aria-pressed', mode !== 'session' ? 'true' : 'false'); }
-    if (btnSession) { btnSession.classList.toggle('active', mode === 'session'); btnSession.setAttribute('aria-pressed', mode === 'session' ? 'true' : 'false'); }
+    syncModeBar();
   }
 
   async function onLaunchSession() {
@@ -5672,6 +5713,17 @@
     }
     // Key or fretboardSystem change → repopulate the Shape dropdown for the
     // new (key, system) combination.
+    // Shape stepper: ◄ / ► walk the #slopscale-shape options. A bubbling
+    // 'change' reaches the #slopscale-controls listener (sync + regenerate).
+    const shapeStep = (dir) => {
+      const sel = $('slopscale-shape');
+      if (!sel || !sel.options.length) return;
+      const n = sel.options.length;
+      sel.selectedIndex = (sel.selectedIndex + dir + n) % n;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    $('slopscale-shape-prev')?.addEventListener('click', () => shapeStep(-1));
+    $('slopscale-shape-next')?.addEventListener('click', () => shapeStep(1));
     $('slopscale-fretboard-system')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); });
     $('slopscale-controls')?.querySelector('[name="key"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); });
     $('slopscale-controls')?.querySelector('[name="scale"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); });
@@ -5684,31 +5736,15 @@
       // does not feel sluggish.
       if (activeBundle) onGenerate();
     });
-    // Skill tree mode-switch buttons
-    // Guided/Custom toggle. Custom → full exercise builder; Guided → restore
-    // the last real pathway (or a sensible default) so the skill tree returns.
-    $('slopscale-custom-btn')?.addEventListener('click', () => {
-      const sel = $('slopscale-pathway');
-      if (sel) { sel.value = 'custom'; sel.dispatchEvent(new Event('change')); }
+    // Unified mode bar: Guided / Custom / Session.
+    ['guided', 'custom', 'session'].forEach(m => {
+      $('slopscale-mode-' + m)?.addEventListener('click', () => selectMode(m));
     });
-    $('slopscale-guided-btn')?.addEventListener('click', () => {
-      const sel = $('slopscale-pathway');
-      if (!sel) return;
-      let stored = null;
-      try { stored = localStorage.getItem(PATHWAY_STORAGE_KEY); } catch (_) {}
-      const valid = stored && stored !== 'custom' && Array.from(sel.options).some(o => o.value === stored);
-      sel.value = valid ? stored : 'pent_foundation';
-      sel.dispatchEvent(new Event('change'));
-    });
-    // Session mode toggle
-    $('slopscale-mode-single')?.addEventListener('click', () => {
-      syncSessionMode('single');
-      if (activeBundle) onGenerate();
-    });
-    $('slopscale-mode-session')?.addEventListener('click', () => {
-      syncSessionMode('session');
-      const sel = $('slopscale-session-select');
-      if (sel) syncSessionSummary(sel.value);
+    // Preset picker (Custom): load a saved preset's config into the form.
+    $('slopscale-preset-picker')?.addEventListener('change', (ev) => {
+      const key = ev.target.value; if (!key) return;
+      const preset = window.__slopscaleFavorites && window.__slopscaleFavorites[key];
+      if (preset && preset.config) { applyPathwayConfig(preset.config); if (activeBundle) onGenerate(); }
     });
     $('slopscale-session-select')?.addEventListener('change', ev => syncSessionSummary(ev.target.value));
     $('slopscale-launch-session')?.addEventListener('click', onLaunchSession);

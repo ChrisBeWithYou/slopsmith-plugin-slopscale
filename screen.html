@@ -51,6 +51,17 @@
     border-radius: 12px;
     background: rgba(15, 23, 42, 0.86);
   }
+  /* 1×4 horizontal preview-audio row: 3 toggles + a shrunk tone dropdown. */
+  .slopscale-audio-row { grid-template-columns: repeat(4, 1fr); align-items: center; }
+  .slopscale-audio-row .slopscale-toggle { font-size: 11px; }
+  .slopscale-audio-tone { font-size: 10px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: #94a3b8; display: flex; flex-direction: column; gap: 3px; }
+  .slopscale-audio-tone select { width: 100%; min-height: 30px; font-size: 12px; }
+  /* Shape stepper — ◄ / ► walk through CAGED/3NPS shapes. */
+  .slopscale-shape-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+  .slopscale-shape-row-label { font-size: 12px; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; color: #94a3b8; }
+  .slopscale-shape-select { flex: 1; min-height: 34px; }
+  .slopscale-shape-step { min-height: 34px; min-width: 36px; border: 1px solid #475569; border-radius: 8px; background: #172033; color: #cbd5e1; font-weight: 700; font-size: 13px; cursor: pointer; }
+  .slopscale-shape-step:hover { background: #24324a; border-color: #64748b; }
   .slopscale-advanced-card {
     border: 1px solid rgba(148, 163, 184, 0.28);
     border-radius: 12px;
@@ -373,8 +384,8 @@
   }
   .slopscale-tier-btn.tier-glow { animation: slopscale-tier-glow 1.8s ease-out forwards; }
   /* Skill tree */
-  .slopscale-skill-tree { height: 210px; overflow-x: auto; overflow-y: hidden; border: 1px solid #1e293b; border-radius: 10px; background: rgba(9,14,26,0.5); }
-  .slopscale-tree-inner { position: relative; min-width: 580px; height: 100%; }
+  .slopscale-skill-tree { height: 264px; overflow-x: auto; overflow-y: hidden; border: 1px solid #1e293b; border-radius: 10px; background: rgba(9,14,26,0.5); }
+  .slopscale-tree-inner { position: relative; min-width: 560px; height: 100%; }
   .slopscale-tree-edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .tree-edge { stroke: rgba(51,65,85,0.6); stroke-width: 1; vector-effect: non-scaling-stroke; }
   .slopscale-tree-node { position: absolute; transform: translate(-50%,-50%); z-index: 1; }
@@ -499,10 +510,16 @@
         <input type="hidden" name="customOpenMidis" id="slopscale-custom-open-midis" value="">
       </div>
 
-      <!-- Mode toggle — always visible at top of left panel -->
-      <div class="slopscale-mode-toggle" role="group" aria-label="Practice mode">
-        <button type="button" id="slopscale-mode-single" class="slopscale-mode-btn active" aria-pressed="true">Single exercise</button>
-        <button type="button" id="slopscale-mode-session" class="slopscale-mode-btn" aria-pressed="false">Session</button>
+      <!-- Unified practice-mode bar (always visible at top of left panel).
+           Guided  = curated skill-tree pathways
+           Custom  = full exercise builder (+ saved presets)
+           Session = multi-segment program
+           A 4th "Improv" solo-grading mode is planned (see ROADMAP) and will
+           slot in here as another segment. -->
+      <div class="slopscale-mode-toggle slopscale-mode-bar" role="group" aria-label="Practice mode">
+        <button type="button" id="slopscale-mode-guided"  class="slopscale-mode-btn active" data-mode="guided"  aria-pressed="true">Guided</button>
+        <button type="button" id="slopscale-mode-custom"  class="slopscale-mode-btn" data-mode="custom"  aria-pressed="false">Custom</button>
+        <button type="button" id="slopscale-mode-session" class="slopscale-mode-btn" data-mode="session" aria-pressed="false">Session</button>
       </div>
 
       <!-- Progress strip — streak + 7-day calendar, always visible -->
@@ -520,7 +537,7 @@
       <!-- Single exercise mode — pathway + custom controls -->
       <div class="slopscale-single-only">
 
-      <div class="slopscale-group-title">Pathway</div>
+      <div class="slopscale-group-title slopscale-pathway-only">Pathway</div>
       <!-- Hidden select keeps all existing onChange / applyPathwayById logic intact -->
       <select name="pathway" id="slopscale-pathway" style="display:none;">
         <option value="custom">Custom — full control</option>
@@ -542,12 +559,6 @@
         </optgroup>
         <optgroup label="Favorites" hidden=""></optgroup>
       </select>
-      <!-- Guided (skill tree) vs Custom (full exercise builder) — a co-equal
-           choice, mirroring the Single/Session toggle so it reads instantly. -->
-      <div class="slopscale-mode-toggle slopscale-guided-toggle" role="group" aria-label="Pathway type">
-        <button type="button" id="slopscale-guided-btn" class="slopscale-mode-btn active">Guided</button>
-        <button type="button" id="slopscale-custom-btn" class="slopscale-mode-btn">Custom — full control</button>
-      </div>
       <div id="slopscale-skill-tree" class="slopscale-skill-tree slopscale-pathway-only"></div>
 
       <div class="slopscale-pathway-goal-card slopscale-pathway-only" id="slopscale-pathway-goal-card">
@@ -557,7 +568,13 @@
       <div class="slopscale-group-title slopscale-pathway-only">Speed</div>
       <div class="slopscale-tier-buttons slopscale-pathway-only" id="slopscale-tier-buttons"></div>
 
-      <div class="slopscale-help slopscale-custom-only">Custom mode — every control below is yours to set. Saved presets appear under Favorites.</div>
+      <div class="slopscale-help slopscale-custom-only">Custom mode — every control below is yours to set. Load a saved preset to recall a routine, or build one from scratch.</div>
+
+      <label class="slopscale-custom-only" id="slopscale-preset-picker-wrap" hidden>Load preset
+        <select id="slopscale-preset-picker">
+          <option value="">— Saved presets —</option>
+        </select>
+      </label>
 
       <div class="slopscale-group-title slopscale-custom-only">Routine</div>
       <label class="slopscale-toggle slopscale-custom-only"><input name="advancedMode" id="slopscale-advanced-toggle" type="checkbox"> Advanced controls</label>
@@ -686,6 +703,14 @@
         <div class="slopscale-help">Fretboard system, CAGED shape, and sequence pattern are passed into the generated exercise config. Full CAGED/3NPS pattern logic is built up in subsequent passes.</div>
       </div>
 
+      <!-- Shape stepper — click ◄ / ► to walk through the CAGED/3NPS shapes.
+           Hidden #slopscale-shape select still holds the value for the form. -->
+      <div class="slopscale-shape-row slopscale-pathway-only slopscale-guitar-only">
+        <span class="slopscale-shape-row-label">Shape</span>
+        <button type="button" id="slopscale-shape-prev" class="slopscale-shape-step" aria-label="Previous shape">◄</button>
+        <select name="shape" id="slopscale-shape" class="slopscale-shape-select"><!-- populated by syncShapeDropdown() --></select>
+        <button type="button" id="slopscale-shape-next" class="slopscale-shape-step" aria-label="Next shape">►</button>
+      </div>
       <div class="slopscale-group-title">Key</div>
       <div class="slopscale-grid-3">
         <label>Key
@@ -693,15 +718,6 @@
         </label>
         <label class="slopscale-pathway-only" id="slopscale-pathway-scale-wrap">Scale
           <select id="slopscale-pathway-scale"><!-- populated by syncScaleDropdown() --></select>
-        </label>
-        <label class="slopscale-pathway-only slopscale-guitar-only">Shape
-          <select name="shape" id="slopscale-shape">
-            <!-- Populated dynamically by syncShapeDropdown() based on the
-                 current key + fretboard system. Each option's value is the
-                 shape identifier ('C'/'A'/'G'/'E'/'D' for CAGED, 1-7 for
-                 3NPS, 'open' for Open). Labels include the resolved fret
-                 range for the current key. -->
-          </select>
         </label>
         <label class="slopscale-custom-only" style="grid-column: span 2">Scale
           <select name="scale">
@@ -765,7 +781,7 @@
 
       <div class="slopscale-group-title">Tempo (BPM)</div>
       <div class="slopscale-grid-3">
-        <label><input name="bpm" type="number" min="30" max="260" step="1" value="100"></label>
+        <label>BPM<input name="bpm" type="number" min="30" max="260" step="1" value="100"></label>
         <label>Count-in
           <select name="countIn">
             <option value="0" selected>None</option>
@@ -783,18 +799,18 @@
       </div>
 
       <div class="slopscale-group-title">Preview audio</div>
-      <div class="slopscale-audio-options" aria-label="Generated audio options">
+      <div class="slopscale-audio-options slopscale-audio-row" aria-label="Generated audio options">
         <label class="slopscale-toggle"><input name="audioNotes" type="checkbox" checked> Hear generated notes</label>
         <label class="slopscale-toggle"><input name="audioMetronome" type="checkbox" checked> Metronome click</label>
         <label class="slopscale-toggle"><input name="audioHarmony" type="checkbox" checked> Harmony backing</label>
+        <label class="slopscale-audio-tone">Harmony tone
+          <select name="harmonyTone">
+            <option value="pad">Synth pad</option>
+            <option value="epiano">E-piano</option>
+            <option value="organ">Organ</option>
+          </select>
+        </label>
       </div>
-      <label>Harmony tone
-        <select name="harmonyTone">
-          <option value="pad">Synth pad</option>
-          <option value="epiano">E-piano</option>
-          <option value="organ">Organ</option>
-        </select>
-      </label>
       <div class="slopscale-help slopscale-custom-only">Harmony backing is generated from the selected key, scale, and progression.</div>
 
       <div class="slopscale-grid-3 slopscale-custom-only">
