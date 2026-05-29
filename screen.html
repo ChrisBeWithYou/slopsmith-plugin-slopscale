@@ -147,6 +147,14 @@
   .slopscale-progress-seg { position: relative; flex-basis: 0; min-width: 16px; border: 1px solid #334155; border-radius: 5px; background: #131c2e; color: #94a3b8; font-size: 10px; font-weight: 700; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0 6px; line-height: 20px; text-align: center; }
   .slopscale-progress-seg:hover { background: #1e293b; color: #e2e8f0; border-color: #475569; }
   .slopscale-progress-seg.active { background: linear-gradient(180deg, #2563eb, #1d4ed8); border-color: #60a5fa; color: #fff; }
+  /* DAW-style loop lane — drag to paint an A–B loop region above the scrubber. */
+  .slopscale-loop-lane { position: relative; height: 16px; border-radius: 5px; background: #0c1322; border: 1px solid #1e293b; cursor: crosshair; touch-action: none; }
+  .slopscale-loop-lane::before { content: 'LOOP · drag to set'; position: absolute; left: 8px; top: 50%; transform: translateY(-50%); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: #475569; pointer-events: none; }
+  .slopscale-loop-lane.has-loop::before { display: none; }
+  .slopscale-loop-lane-region { position: absolute; top: 0; bottom: 0; background: rgba(96,165,250,0.35); border: 1px solid #60a5fa; border-radius: 4px; cursor: grab; }
+  .slopscale-loop-handle { position: absolute; top: 0; bottom: 0; width: 7px; background: #60a5fa; cursor: ew-resize; }
+  .slopscale-loop-handle[data-edge="a"] { left: -1px; border-radius: 4px 0 0 4px; }
+  .slopscale-loop-handle[data-edge="b"] { right: -1px; border-radius: 0 4px 4px 0; }
   .slopscale-scrub-row { position: relative; height: 18px; display: flex; align-items: center; }
   .slopscale-scrub-rail { position: absolute; left: 0; right: 0; top: 50%; height: 6px; transform: translateY(-50%); background: #1e293b; border-radius: 3px; pointer-events: none; }
   .slopscale-loop-region { position: absolute; top: 50%; height: 6px; transform: translateY(-50%); background: rgba(96,165,250,0.45); border-radius: 3px; pointer-events: none; }
@@ -534,9 +542,13 @@
         </optgroup>
         <optgroup label="Favorites" hidden=""></optgroup>
       </select>
+      <!-- Guided (skill tree) vs Custom (full exercise builder) — a co-equal
+           choice, mirroring the Single/Session toggle so it reads instantly. -->
+      <div class="slopscale-mode-toggle slopscale-guided-toggle" role="group" aria-label="Pathway type">
+        <button type="button" id="slopscale-guided-btn" class="slopscale-mode-btn active">Guided</button>
+        <button type="button" id="slopscale-custom-btn" class="slopscale-mode-btn">Custom — full control</button>
+      </div>
       <div id="slopscale-skill-tree" class="slopscale-skill-tree slopscale-pathway-only"></div>
-      <button type="button" id="slopscale-tree-custom" class="slopscale-tree-switch-link slopscale-pathway-only tree-switch-right">Custom mode →</button>
-      <button type="button" id="slopscale-tree-back" class="slopscale-tree-switch-link slopscale-custom-only">← Pathways</button>
 
       <div class="slopscale-pathway-goal-card slopscale-pathway-only" id="slopscale-pathway-goal-card">
         <div><span class="pathway-tag" id="slopscale-pathway-tag">Goal</span><span class="pathway-title" id="slopscale-pathway-title">Pentatonic Foundation</span></div>
@@ -921,6 +933,12 @@
       <div id="slopscale-render-host" class="slopscale-render-host"><canvas id="slopscale-canvas"></canvas></div>
       <div id="slopscale-transport" class="slopscale-transport" aria-label="Playback transport">
         <div id="slopscale-session-progress" class="slopscale-session-progress slopscale-session-only" role="group" aria-label="Session segments"></div>
+        <div class="slopscale-loop-lane" id="slopscale-loop-lane" title="Drag to set an A–B loop · hold Alt for free (un-snapped) placement">
+          <div class="slopscale-loop-lane-region" id="slopscale-loop-lane-region" hidden>
+            <span class="slopscale-loop-handle" data-edge="a"></span>
+            <span class="slopscale-loop-handle" data-edge="b"></span>
+          </div>
+        </div>
         <div class="slopscale-scrub-row">
           <div class="slopscale-scrub-rail"></div>
           <div id="slopscale-loop-region" class="slopscale-loop-region" hidden></div>

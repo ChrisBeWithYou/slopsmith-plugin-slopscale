@@ -3908,18 +3908,31 @@
     _activeSegIdx = -1; updateActiveSegment();
   }
 
+  // Paint the loop region onto BOTH the scrubber overlay and the drag lane,
+  // and flag the lane so its "drag to set" hint hides while a loop exists.
   function paintLoopRegion() {
-    const region = $('slopscale-loop-region');
-    if (!region) return;
     const dur = activeBundle?.songInfo?.duration || 0;
-    if (tpA != null && tpB != null && dur > 0 && Math.abs(tpA - tpB) > 0.02) {
-      const a = Math.min(tpA, tpB), b = Math.max(tpA, tpB);
-      region.hidden = false;
-      region.style.left = (a / dur * 100) + '%';
-      region.style.width = ((b - a) / dur * 100) + '%';
-    } else {
-      region.hidden = true;
+    const active = tpA != null && tpB != null && dur > 0 && Math.abs(tpA - tpB) > 0.02;
+    const a = active ? Math.min(tpA, tpB) : 0, b = active ? Math.max(tpA, tpB) : 0;
+    const leftPct = dur ? (a / dur * 100) : 0, widthPct = dur ? ((b - a) / dur * 100) : 0;
+    for (const id of ['slopscale-loop-region', 'slopscale-loop-lane-region']) {
+      const el = $(id); if (!el) continue;
+      el.hidden = !active;
+      if (active) { el.style.left = leftPct + '%'; el.style.width = widthPct + '%'; }
     }
+    $('slopscale-loop-lane')?.classList.toggle('has-loop', active);
+  }
+
+  // Measure downbeats (bar lines) of the active chart, ascending.
+  function chartDownbeats() {
+    return (activeBundle?.beats || []).filter(b => (b.measure || -1) >= 0).map(b => b.time).sort((x, y) => x - y);
+  }
+  // Snap a time to the nearest bar line, unless `free` (Alt held) or no grid.
+  function snapToDownbeat(t, free) {
+    if (free) return t;
+    const d = chartDownbeats();
+    if (!d.length) return t;
+    return d.reduce((best, x) => Math.abs(x - t) < Math.abs(best - t) ? x : best, d[0]);
   }
 
   // Commit the A/B points to the loop engine once both are set and distinct;
@@ -4507,6 +4520,9 @@
     const root = $('slopscale-root');
     if (!root) return;
     root.classList.toggle('slopscale-pathway-mode', !!isPathway);
+    // Keep the Guided/Custom segmented toggle in sync with the active mode.
+    $('slopscale-guided-btn')?.classList.toggle('active', !!isPathway);
+    $('slopscale-custom-btn')?.classList.toggle('active', !isPathway);
   }
 
   function updatePathwayGoalCard(pathwayId, modified, favoritePreset) {
@@ -5418,6 +5434,60 @@
       scrub.addEventListener('pointerup', endScrub);
       scrub.addEventListener('pointercancel', endScrub);
     }
+    // DAW-style drag-loop lane. Drag empty lane = paint a new loop; drag an edge
+    // handle = resize; drag the region body = move. Snaps to bar lines (Alt =
+    // free). A click with no drag leaves any existing loop untouched. All paths
+    // feed the same tpA/tpB + commitLoop() the A/B buttons use — one loop system.
+    const lane = $('slopscale-loop-lane');
+    if (lane) {
+      let mode = null, anchorT = 0, startTpA = 0, startTpB = 0, prevA = null, prevB = null;
+      const timeAt = (clientX) => {
+        const r = lane.getBoundingClientRect();
+        const dur = activeBundle?.songInfo?.duration || 0;
+        return Math.max(0, Math.min(dur, (clientX - r.left) / Math.max(1, r.width) * dur));
+      };
+      lane.addEventListener('pointerdown', (e) => {
+        if (!activeBundle) return;
+        e.preventDefault();
+        try { lane.setPointerCapture(e.pointerId); } catch (_) {}
+        prevA = tpA; prevB = tpB;
+        const handle = e.target.closest('.slopscale-loop-handle');
+        const onRegion = e.target.closest('.slopscale-loop-lane-region');
+        if (handle) {
+          mode = handle.dataset.edge === 'a' ? 'resizeA' : 'resizeB';
+        } else if (onRegion && tpA != null && tpB != null) {
+          mode = 'move'; anchorT = timeAt(e.clientX); startTpA = Math.min(tpA, tpB); startTpB = Math.max(tpA, tpB);
+        } else {
+          mode = 'new'; anchorT = snapToDownbeat(timeAt(e.clientX), e.altKey); tpA = anchorT; tpB = anchorT; paintLoopRegion();
+        }
+      });
+      lane.addEventListener('pointermove', (e) => {
+        if (!mode) return;
+        const dur = activeBundle?.songInfo?.duration || 0;
+        const raw = timeAt(e.clientX), t = snapToDownbeat(raw, e.altKey);
+        if (mode === 'new') { tpA = Math.min(anchorT, t); tpB = Math.max(anchorT, t); }
+        else if (mode === 'resizeA') { tpA = t; }
+        else if (mode === 'resizeB') { tpB = t; }
+        else if (mode === 'move') {
+          const width = startTpB - startTpA;
+          let na = snapToDownbeat(startTpA + (raw - anchorT), e.altKey);
+          na = Math.max(0, Math.min(Math.max(0, dur - width), na));
+          tpA = na; tpB = na + width;
+        }
+        paintLoopRegion();
+      });
+      const endLane = (e) => {
+        if (!mode) return;
+        const wasNew = mode === 'new';
+        mode = null;
+        try { lane.releasePointerCapture(e.pointerId); } catch (_) {}
+        // A click (no real drag) on empty lane shouldn't wipe an existing loop.
+        if (wasNew && Math.abs((tpA ?? 0) - (tpB ?? 0)) < 0.02) { tpA = prevA; tpB = prevB; }
+        commitLoop();
+      };
+      lane.addEventListener('pointerup', endLane);
+      lane.addEventListener('pointercancel', endLane);
+    }
     $('slopscale-to-start')?.addEventListener('click', () => seekTo(0));
     $('slopscale-nudge-back')?.addEventListener('click', () => nudgeBar(-1));
     $('slopscale-nudge-fwd')?.addEventListener('click', () => nudgeBar(1));
@@ -5505,11 +5575,13 @@
       if (activeBundle) onGenerate();
     });
     // Skill tree mode-switch buttons
-    $('slopscale-tree-custom')?.addEventListener('click', () => {
+    // Guided/Custom toggle. Custom → full exercise builder; Guided → restore
+    // the last real pathway (or a sensible default) so the skill tree returns.
+    $('slopscale-custom-btn')?.addEventListener('click', () => {
       const sel = $('slopscale-pathway');
       if (sel) { sel.value = 'custom'; sel.dispatchEvent(new Event('change')); }
     });
-    $('slopscale-tree-back')?.addEventListener('click', () => {
+    $('slopscale-guided-btn')?.addEventListener('click', () => {
       const sel = $('slopscale-pathway');
       if (!sel) return;
       let stored = null;
