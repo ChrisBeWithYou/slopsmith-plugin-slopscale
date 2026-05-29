@@ -384,8 +384,10 @@
   }
   .slopscale-tier-btn.tier-glow { animation: slopscale-tier-glow 1.8s ease-out forwards; }
   /* Skill tree */
-  .slopscale-skill-tree { height: 264px; overflow-x: auto; overflow-y: hidden; border: 1px solid #1e293b; border-radius: 10px; background: rgba(9,14,26,0.5); }
-  .slopscale-tree-inner { position: relative; min-width: 560px; height: 100%; }
+  .slopscale-skill-tree { height: 264px; overflow: hidden; border: 1px solid #1e293b; border-radius: 10px; background: rgba(9,14,26,0.5); }
+  /* Fill the available width (min-width:0 so it never forces horizontal scroll);
+     nodes are %-positioned, so they spread to whatever width the tree gets. */
+  .slopscale-tree-inner { position: relative; min-width: 0; width: 100%; height: 100%; }
   .slopscale-tree-edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .tree-edge { stroke: rgba(51,65,85,0.6); stroke-width: 1; vector-effect: non-scaling-stroke; }
   .slopscale-tree-node { position: absolute; transform: translate(-50%,-50%); z-index: 1; }
@@ -393,8 +395,8 @@
     display: flex; flex-direction: column; align-items: center; gap: 3px;
     padding: 4px 6px; border-radius: 6px; border: 1px solid #1e293b;
     background: rgba(15,23,42,0.92); color: #64748b; font-family: inherit;
-    font-size: 9px; font-weight: 600; cursor: pointer; text-align: center;
-    line-height: 1.25; max-width: 68px; white-space: normal;
+    font-size: 8.5px; font-weight: 600; cursor: pointer; text-align: center;
+    line-height: 1.2; max-width: 54px; white-space: normal;
     transition: border-color 0.12s, color 0.12s, background 0.12s;
   }
   .slopscale-tree-node-btn:hover { border-color: #475569; color: #cbd5e1; background: rgba(30,41,59,0.95); }
@@ -451,6 +453,9 @@
     .slopscale-single-only > .slopscale-actions-secondary,
     .slopscale-single-only > .slopscale-pathway-goal-card,
     .slopscale-single-only > .slopscale-help,
+    .slopscale-single-only > .slopscale-skill-tree,
+    .slopscale-single-only > .slopscale-tier-buttons,
+    .slopscale-single-only > .slopscale-shape-row,
     .slopscale-single-only > .slopscale-advanced-card { grid-column: 1 / -1; }
   }
 </style>
