@@ -21,6 +21,12 @@
 - ✅ 3NPS (7 positions, named by mode)
 - ✅ Open position
 - ✅ Custom fret range / full-neck fallbacks
+- ✅ **Bass uses `position` (movable box), NOT CAGED/3NPS — by design.** CAGED/3NPS
+  are guitar artifacts (the G–B major-3rd breaks the all-4ths symmetry; CAGED is
+  the workaround). Bass is tuned in straight perfect 4ths, so scale/arpeggio
+  fingerings are fully symmetric and a single movable box suffices. On a bass
+  setup `syncInstrumentClass` force-switches CAGED/3NPS → position and hides the
+  shape controls. This is the correct baseline — do not impose CAGED on bass.
 
 ### Scale library
 - ✅ Major, natural minor, harmonic minor, melodic minor
@@ -218,6 +224,18 @@ The practice surface is organised as a **single flat top-level mode bar** rather
 ### Visual / practice modes
 - 🔲 **Master mode** — post-processing pass that removes notes from the final N% of a chart; trains memorization
 - 🔲 **Position shift exercises** — scale runs that cross CAGED shape boundaries at a specified connection point
+
+### Bass-specific pedagogy
+*Bass works on position-mode box patterns today (see Fretboard systems) — that's the correct baseline, so this is "serve bass well," not "fix bass." Reuses the existing position + walking-bass generators.*
+- 🔲 **Bass pathway pack** (the curated pathways are all guitar/CAGED-framed). How bass is actually taught:
+  - Root–octave foundation (the octave-box + fifth shape — the first navigation a bassist learns)
+  - Movable box scales (major/minor/pentatonic/modes as one repeatable pattern)
+  - Arpeggio outlining over changes (1-3-5-7 chord tones to spell the harmony — the bassist's core job)
+  - Walking bass — promote the existing `walking_bass` generator from a Custom practice-type to a headline bass pathway
+  - Modal / pentatonic grooves (riff-and-feel, not scale runs)
+- 🔲 **Hide/relabel guitar-only nodes on bass** — `sweep_arpeggio_primer` (sweep *picking* is a guitar technique; bassists play arpeggios fingerstyle) should hide on bass the way bending now does.
+- 🔲 **Slap & pop technique** — thumb slap + finger pop; new technique flags + tab rendering (the `docs/sources/canvas.png` legend already includes slap/pop symbols). Marquee bass technique currently unmodelled.
+- 🔲 **Right-hand fingering** hints (alternating index/middle, or slap) — matters more on bass than left-hand shape; not modelled for any instrument yet.
 
 ### Genre pathway packs
 - 🔲 Metal pack: alternate picking 160+ BPM, harmonic minor exotic, diminished runs
