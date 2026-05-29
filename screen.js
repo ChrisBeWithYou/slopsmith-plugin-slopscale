@@ -962,6 +962,10 @@
   // A-B segment loop endpoints in chart-time seconds. Null = no loop.
   // See docs/section-looping.md for the design + phasing.
   let segmentLoopA = null, segmentLoopB = null;
+  // Transport UI state: tpA/tpB are the user's chosen A/B loop points (either
+  // may be set before the other); the committed loop lives in segmentLoopA/B.
+  // _scrubbing suppresses scrubber write-back while the user drags it.
+  let tpA = null, tpB = null, _scrubbing = false, _loopWraps = 0;
   let audioCtx = null, audioNodes = [];
   // highway_3d's _bgGetAnalyser() creates a fresh AudioContext every call
   // until setup succeeds, then calls ctx.close() in the catch block when
@@ -3480,6 +3484,7 @@
     const rect = canvas.parentElement.getBoundingClientRect();
     if (typeof renderer.resize === 'function') renderer.resize(Math.round(rect.width || canvas.width), Math.round(rect.height || canvas.height));
     const rendererStatus = $('slopscale-renderer-status'); if (rendererStatus) rendererStatus.textContent = resolved.label; drawOnce();
+    resetTransportLoop();
   }
 
   function syncPlayButton() {
@@ -3488,7 +3493,7 @@
     btn.classList.toggle('is-playing', !!playing);
     btn.textContent = playing ? '■ Stop' : '▶ Play';
   }
-  function drawOnce() { if (!renderer || !activeBundle) return; syncHighwaySettings(activeBundle); activeBundle.currentTime = currentPracticeTime; renderer.draw(activeBundle); }
+  function drawOnce() { if (!renderer || !activeBundle) return; syncHighwaySettings(activeBundle); activeBundle.currentTime = currentPracticeTime; renderer.draw(activeBundle); syncTransportTime(); }
   function tick(nowMs) {
     if (!renderer || !activeBundle) return;
     if (playing) {
@@ -3518,6 +3523,9 @@
         if (window.slopsmith && typeof window.slopsmith.emit === 'function') {
           window.slopsmith.emit('slopscale:loop:wrap', { a: segmentLoopA, b: segmentLoopB, time: segmentLoopA });
         }
+        _loopWraps++;
+        const lc = $('slopscale-loop-count');
+        if (lc) { lc.hidden = false; lc.textContent = 'Loop ' + _loopWraps; }
       } else if (currentPracticeTime > duration) {
         currentPracticeTime = 0; playAnchorChartTime = 0; playAnchorMs = nowMs + AUDIO_LOOKAHEAD_SECONDS * 1000; stopAudio(); schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS);
       }
@@ -3700,6 +3708,92 @@
     if (playing) { stopPlayback(); return; }
     if (!activeBundle) { await onGenerate(); }
     startPlayback();
+  }
+
+  // ── Playback transport (scrubber + A/B loop + count-in) ──────────────────────
+  function fmtTime(s) { s = Math.max(0, s || 0); const m = Math.floor(s / 60); const sec = Math.floor(s % 60); return m + ':' + String(sec).padStart(2, '0'); }
+
+  // Seek the preview to an absolute chart time. Mirrors setSegmentLoop's
+  // re-anchor logic so audio resumes from the new spot rather than going silent.
+  function seekTo(t) {
+    if (!activeBundle) return;
+    const dur = activeBundle.songInfo?.duration || 0;
+    currentPracticeTime = Math.max(0, Math.min(dur, Number(t) || 0));
+    countInUntilMs = 0; // a manual seek cancels any pending count-in freeze
+    if (playing) {
+      playAnchorChartTime = currentPracticeTime;
+      playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
+      stopAudio();
+      schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS);
+    } else {
+      drawOnce();
+    }
+    syncTransportTime();
+  }
+
+  // Per-frame light sync: scrubber position + current-time readout.
+  function syncTransportTime() {
+    const cur = $('slopscale-time-cur');
+    if (cur) cur.textContent = fmtTime(currentPracticeTime);
+    const scrub = $('slopscale-scrub');
+    if (scrub && !_scrubbing) scrub.value = String(currentPracticeTime);
+  }
+
+  // Full transport refresh: scrubber range, duration readout, loop region +
+  // button states, loop counter, and the count-in segmented control. Called on
+  // bundle change, loop change, and mode change — not every frame.
+  function syncTransport() {
+    const dur = activeBundle?.songInfo?.duration || 0;
+    const scrub = $('slopscale-scrub');
+    if (scrub) {
+      scrub.max = String(dur);
+      scrub.disabled = !activeBundle;
+      if (!_scrubbing) scrub.value = String(Math.min(currentPracticeTime, dur));
+    }
+    const durEl = $('slopscale-time-dur'); if (durEl) durEl.textContent = fmtTime(dur);
+    syncTransportTime();
+    paintLoopRegion();
+    $('slopscale-loop-a')?.classList.toggle('active', tpA != null);
+    $('slopscale-loop-b')?.classList.toggle('active', tpB != null);
+    const lc = $('slopscale-loop-count');
+    if (lc) { const active = segmentLoopA != null && segmentLoopB != null; lc.hidden = !active; lc.textContent = 'Loop ' + _loopWraps; }
+    const ci = document.querySelector('#slopscale-controls [name="countIn"]')?.value || '0';
+    document.querySelectorAll('.slopscale-tp-seg').forEach(b => b.classList.toggle('active', b.dataset.countin === ci));
+  }
+
+  function paintLoopRegion() {
+    const region = $('slopscale-loop-region');
+    if (!region) return;
+    const dur = activeBundle?.songInfo?.duration || 0;
+    if (tpA != null && tpB != null && dur > 0 && Math.abs(tpA - tpB) > 0.02) {
+      const a = Math.min(tpA, tpB), b = Math.max(tpA, tpB);
+      region.hidden = false;
+      region.style.left = (a / dur * 100) + '%';
+      region.style.width = ((b - a) / dur * 100) + '%';
+    } else {
+      region.hidden = true;
+    }
+  }
+
+  // Commit the A/B points to the loop engine once both are set and distinct;
+  // otherwise leave the loop disengaged (a single point just paints a marker).
+  function commitLoop() {
+    if (tpA != null && tpB != null && Math.abs(tpA - tpB) > 0.02) {
+      try { setSegmentLoop(Math.min(tpA, tpB), Math.max(tpA, tpB)); }
+      catch (_) { clearSegmentLoop(); }
+    } else {
+      clearSegmentLoop();
+    }
+    _loopWraps = 0;
+    syncTransport();
+  }
+
+  // Reset all transport loop state — used when a fresh chart is generated and
+  // the old A/B times may no longer be valid for the new duration.
+  function resetTransportLoop() {
+    tpA = null; tpB = null; _loopWraps = 0;
+    clearSegmentLoop();
+    syncTransport();
   }
 
   function summarize(exercise) {
@@ -5074,6 +5168,23 @@
     advancedToggle?.addEventListener('change', syncAdvancedMode); syncAdvancedMode(); syncChromaticVisibility();
     $('slopscale-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', ev.target.value); if (activeBundle) onGenerate(); });
     $('slopscale-play').addEventListener('click', onPlayToggle);
+    // Transport: scrubber, A/B loop, count-in segmented, back-to-start.
+    const scrub = $('slopscale-scrub');
+    if (scrub) {
+      scrub.addEventListener('input', () => { _scrubbing = true; seekTo(scrub.value); });
+      const endScrub = () => { _scrubbing = false; };
+      scrub.addEventListener('change', endScrub);
+      scrub.addEventListener('pointerup', endScrub);
+      scrub.addEventListener('pointercancel', endScrub);
+    }
+    $('slopscale-to-start')?.addEventListener('click', () => seekTo(0));
+    $('slopscale-loop-a')?.addEventListener('click', () => { tpA = currentPracticeTime; commitLoop(); });
+    $('slopscale-loop-b')?.addEventListener('click', () => { tpB = currentPracticeTime; commitLoop(); });
+    $('slopscale-loop-clear')?.addEventListener('click', resetTransportLoop);
+    document.querySelectorAll('.slopscale-tp-seg').forEach(btn => {
+      btn.addEventListener('click', () => { setFieldSilent('countIn', btn.dataset.countin); syncTransport(); });
+    });
+    document.querySelector('#slopscale-controls [name="countIn"]')?.addEventListener('change', syncTransport);
     $('slopscale-regenerate')?.addEventListener('click', onGenerate);
     $('slopscale-next-variation')?.addEventListener('click', rotateToNextVariation);
     $('slopscale-save').addEventListener('click', () => savePreset().catch(e => { $('slopscale-summary').textContent += `\n\nPreset save failed: ${e.message || e}`; }));
@@ -5169,6 +5280,7 @@
     syncShapeDropdownSelectionToHidden();
     applyInitialPathway();
     renderSkillTree();
+    syncTransport();
     // If the URL carries a share hash, replay the snapshotted form values
     // *after* applyInitialPathway has set up the pathway-driven defaults.
     // The share state wins over the pathway defaults, but the pathway

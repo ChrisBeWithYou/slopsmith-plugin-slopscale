@@ -102,16 +102,9 @@
   .slopscale-pathway-goal-card.modified .pathway-tag { color: #fbbf24; }
   .slopscale-pathway-goal-card .pathway-title { color: #f8fafc; font-weight: 700; }
   .slopscale-help { color: #9ca3af; font-size: 12px; line-height: 1.35; margin-top: -6px; }
-  /* Primary Play button gets its own row and visual weight; the rest sit in a
-     compact secondary row underneath. */
+  /* Secondary actions row (Next variation / Regenerate / Share / Save). The
+     primary Play control now lives in the transport bar under the render stage. */
   .slopscale-actions { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 6px; }
-  /* Play + Next variation share a row. Use flex so that hiding Next variation
-     (custom mode, where the pathway-only class hides it) collapses cleanly
-     and Play stretches the full width. Play stays the clearly primary
-     action via flex weighting. */
-  .slopscale-actions-row { display: flex; grid-template-columns: none; gap: 8px; }
-  .slopscale-actions-row > #slopscale-play { flex: 2 1 0; }
-  .slopscale-actions-row > #slopscale-next-variation { flex: 1 1 0; }
   .slopscale-actions-secondary { display: flex; flex-wrap: wrap; gap: 8px; }
   .slopscale-actions-secondary > button { flex: 1 1 140px; }
   .slopscale-button, .slopscale-actions button, .slopscale-actions-secondary button {
@@ -136,7 +129,7 @@
   .slopscale-actions button.primary.is-playing:hover { background: linear-gradient(180deg, #991b1b, #7f1d1d); }
   /* Match Next variation to Play's height so the row reads as a single
      action band rather than primary-button-plus-tiny-sidekick. */
-  #slopscale-next-variation { min-height: 48px; font-size: 13px; }
+  #slopscale-next-variation { font-size: 13px; }
   /* Paste-share-link input: low-key, parchment-on-night, with a green flash
      on a successful restore + a red flash on a malformed link. */
   .slopscale-paste-share { margin-top: 4px; }
@@ -146,6 +139,37 @@
   #slopscale-paste-share:focus { outline: none; border-color: #60a5fa; }
   #slopscale-paste-share.flash-ok { border-color: #16a34a; }
   #slopscale-paste-share.flash-bad { border-color: #b91c1c; }
+  /* ── Playback transport (docked under the render stage) ───────────────── */
+  .slopscale-transport { display: flex; flex-direction: column; gap: 8px; padding: 9px 12px; background: rgba(9,15,30,0.92); border-top: 1px solid rgba(75,85,99,0.4); flex-shrink: 0; }
+  .slopscale-root.slopscale-session-mode .slopscale-transport { display: none; }
+  .slopscale-scrub-row { position: relative; height: 18px; display: flex; align-items: center; }
+  .slopscale-scrub-rail { position: absolute; left: 0; right: 0; top: 50%; height: 6px; transform: translateY(-50%); background: #1e293b; border-radius: 3px; pointer-events: none; }
+  .slopscale-loop-region { position: absolute; top: 50%; height: 6px; transform: translateY(-50%); background: rgba(96,165,250,0.45); border-radius: 3px; pointer-events: none; }
+  .slopscale-scrub { -webkit-appearance: none; appearance: none; position: relative; width: 100%; height: 18px; margin: 0; background: transparent; cursor: pointer; }
+  .slopscale-scrub:disabled { cursor: default; opacity: 0.55; }
+  .slopscale-scrub::-webkit-slider-runnable-track { height: 18px; background: transparent; }
+  .slopscale-scrub::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; margin-top: 2px; border-radius: 50%; background: #f8fafc; border: 2px solid #2563eb; box-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+  .slopscale-scrub::-moz-range-track { height: 6px; background: transparent; }
+  .slopscale-scrub::-moz-range-thumb { width: 14px; height: 14px; border: 2px solid #2563eb; border-radius: 50%; background: #f8fafc; }
+  .slopscale-tp-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .slopscale-tp-play { min-height: 38px; min-width: 92px; padding: 0 16px; border-radius: 9px; border: 1px solid #60a5fa; background: linear-gradient(180deg, #2563eb, #1d4ed8); color: #f8fafc; font-weight: 800; font-size: 14px; cursor: pointer; }
+  .slopscale-tp-play:hover { background: linear-gradient(180deg, #1d4ed8, #1e40af); }
+  .slopscale-tp-play.is-playing { background: linear-gradient(180deg, #b91c1c, #991b1b); border-color: #f87171; }
+  .slopscale-tp-play.is-playing:hover { background: linear-gradient(180deg, #991b1b, #7f1d1d); }
+  .slopscale-tp-btn { min-height: 32px; min-width: 32px; padding: 0 9px; border-radius: 8px; border: 1px solid #475569; background: #172033; color: #cbd5e1; font-weight: 750; font-size: 13px; cursor: pointer; }
+  .slopscale-tp-btn:hover { background: #24324a; border-color: #64748b; }
+  .slopscale-tp-btn.active { background: linear-gradient(180deg, #2563eb, #1d4ed8); border-color: #60a5fa; color: #fff; }
+  .slopscale-tp-time { font-family: ui-monospace, monospace; font-size: 13px; color: #cbd5e1; min-width: 84px; text-align: center; }
+  .slopscale-tp-sep { width: 1px; align-self: stretch; background: rgba(75,85,99,0.5); margin: 2px; }
+  .slopscale-tp-loop, .slopscale-tp-countin { display: flex; align-items: center; gap: 5px; }
+  .slopscale-tp-loopcount { font-size: 12px; color: #93c5fd; font-weight: 700; }
+  .slopscale-tp-lbl { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #94a3b8; }
+  .slopscale-tp-seg { min-height: 28px; min-width: 30px; padding: 0 8px; border: 1px solid #475569; background: #0f172a; color: #cbd5e1; font-weight: 700; font-size: 12px; cursor: pointer; }
+  .slopscale-tp-seg:first-of-type { border-radius: 7px 0 0 7px; }
+  .slopscale-tp-seg:last-of-type { border-radius: 0 7px 7px 0; }
+  .slopscale-tp-seg + .slopscale-tp-seg { border-left: none; }
+  .slopscale-tp-seg:hover:not(.active) { background: #24324a; }
+  .slopscale-tp-seg.active { background: linear-gradient(180deg, #2563eb, #1d4ed8); border-color: #60a5fa; color: #fff; }
   /* View switcher toolbar inside the render stage */
   .slopscale-view-switcher { display: flex; align-items: center; gap: 4px; padding: 7px 12px; background: rgba(9,15,30,0.92); border-bottom: 1px solid rgba(75,85,99,0.4); flex-shrink: 0; }
   .slopscale-view-label { font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8; margin-right: 6px; }
@@ -816,11 +840,8 @@
         </label>
       </div>
 
-      <div class="slopscale-actions slopscale-actions-row">
-        <button type="button" id="slopscale-play" class="primary">▶ Play</button>
-        <button type="button" id="slopscale-next-variation" class="secondary slopscale-pathway-only">Next variation</button>
-      </div>
       <div class="slopscale-actions-secondary">
+        <button type="button" id="slopscale-next-variation" class="secondary slopscale-pathway-only">Next variation</button>
         <button type="button" id="slopscale-regenerate" class="slopscale-custom-only secondary">Regenerate</button>
         <button type="button" id="slopscale-share" class="secondary" title="Copy a link that restores this exact exercise">Copy share link</button>
         <button type="button" id="slopscale-save" class="secondary">Save preset</button>
@@ -893,6 +914,34 @@
         </div>
       </div>
       <div id="slopscale-render-host" class="slopscale-render-host"><canvas id="slopscale-canvas"></canvas></div>
+      <div id="slopscale-transport" class="slopscale-transport" aria-label="Playback transport">
+        <div class="slopscale-scrub-row">
+          <div class="slopscale-scrub-rail"></div>
+          <div id="slopscale-loop-region" class="slopscale-loop-region" hidden></div>
+          <input type="range" id="slopscale-scrub" class="slopscale-scrub" min="0" max="0" step="0.01" value="0" aria-label="Seek through the chart">
+        </div>
+        <div class="slopscale-tp-controls">
+          <button type="button" id="slopscale-to-start" class="slopscale-tp-btn" title="Back to start">⏮</button>
+          <button type="button" id="slopscale-play" class="slopscale-tp-play">▶ Play</button>
+          <span class="slopscale-tp-time"><span id="slopscale-time-cur">0:00</span> / <span id="slopscale-time-dur">0:00</span></span>
+          <span class="slopscale-tp-sep"></span>
+          <div class="slopscale-tp-loop" role="group" aria-label="A-B loop">
+            <span class="slopscale-tp-lbl">Loop</span>
+            <button type="button" id="slopscale-loop-a" class="slopscale-tp-btn" title="Set loop start at the playhead">A</button>
+            <button type="button" id="slopscale-loop-b" class="slopscale-tp-btn" title="Set loop end at the playhead">B</button>
+            <button type="button" id="slopscale-loop-clear" class="slopscale-tp-btn" title="Clear the loop">✕</button>
+            <span id="slopscale-loop-count" class="slopscale-tp-loopcount" hidden>Loop 0</span>
+          </div>
+          <span class="slopscale-tp-sep"></span>
+          <div class="slopscale-tp-countin" role="group" aria-label="Count-in bars">
+            <span class="slopscale-tp-lbl">Count-in</span>
+            <button type="button" class="slopscale-tp-seg" data-countin="0">Off</button>
+            <button type="button" class="slopscale-tp-seg" data-countin="1">1</button>
+            <button type="button" class="slopscale-tp-seg" data-countin="2">2</button>
+            <button type="button" class="slopscale-tp-seg" data-countin="4">4</button>
+          </div>
+        </div>
+      </div>
       <div id="slopscale-pitch-meter" class="slopscale-pitch-meter">
         <span id="slopscale-pitch-note">--</span>
         <div class="slopscale-cents-track"><div id="slopscale-cents-needle"></div></div>
