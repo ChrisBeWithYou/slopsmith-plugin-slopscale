@@ -1218,6 +1218,12 @@
       // bpm + meter, then the chart kicks in. See startPlayback below for
       // how this is plumbed into the transport.
       countInBars: Math.max(0, Math.min(8, parseInt(data.get('countIn') || '0', 10) || 0)),
+      // Click subdivision: soft clicks per metric beat for BOTH the count-in and
+      // the in-chart metronome. 1 = on the beat only; 2/3/4 = duplet/triplet/
+      // quadruplet feel. This is a transport (click-track) setting, independent
+      // of the note `subdivision` (which controls generated note rhythm) — the
+      // standard DAW model where the metronome has its own click rate.
+      clickSubdiv: Math.max(1, Math.min(4, parseInt(data.get('clickSubdiv') || '1', 10) || 1)),
       meter: parseMeter(data.get('meter')),
       subdivision: data.get('subdivision') || 'eighth',
       direction: advancedMode ? (data.get('direction') || 'up_down') : 'up_down',
@@ -4123,10 +4129,15 @@
       osc.connect(g); g.connect(filter); osc.start(when); osc.stop(when + dur + 0.05); audioNodes.push(osc, g);
     });
   }
-  function scheduleClick(ctx, when, accent) {
+  // Three click tiers: accent (group/measure downbeat), normal (on-beat), and
+  // soft (a count-in subdivision tick between beats).
+  function scheduleClick(ctx, when, accent, soft) {
     const osc = ctx.createOscillator(), gain = ctx.createGain(), filter = ctx.createBiquadFilter();
-    osc.type = 'square'; osc.frequency.setValueAtTime(accent ? 1760 : 1120, when); filter.type = 'highpass'; filter.frequency.setValueAtTime(650, when);
-    gain.gain.setValueAtTime(0.0001, when); gain.gain.exponentialRampToValueAtTime(accent ? 0.14 : 0.09, when + 0.002); gain.gain.exponentialRampToValueAtTime(0.0001, when + (accent ? 0.055 : 0.04));
+    const freq = accent ? 1760 : (soft ? 900 : 1120);
+    const peak = accent ? 0.14 : (soft ? 0.05 : 0.09);
+    const decay = accent ? 0.055 : (soft ? 0.03 : 0.04);
+    osc.type = 'square'; osc.frequency.setValueAtTime(freq, when); filter.type = 'highpass'; filter.frequency.setValueAtTime(650, when);
+    gain.gain.setValueAtTime(0.0001, when); gain.gain.exponentialRampToValueAtTime(peak, when + 0.002); gain.gain.exponentialRampToValueAtTime(0.0001, when + decay);
     osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination); osc.start(when); osc.stop(when + 0.07); audioNodes.push(osc, filter, gain);
   }
   function schedulePreviewAudio(bundle, fromTime, delaySeconds) {
@@ -4154,7 +4165,33 @@
       if (n.s < 0 || n.s >= opens.length || n.f < 0) continue;
       schedulePluckedString(ctx, base + (n.t - startFrom), midiToFreq(opens[n.s] + n.f), Math.max(0.10, Math.min(0.85, n.sus || 0.24)), instrument, audio.harmony ? 0.9 : 1.25, bendSemitones(n.bn));
     }
-    if (audio.metronome) for (const b of bundle.beats || []) { if (b.time < startFrom || b.time > duration + 0.1) continue; scheduleClick(ctx, base + (b.time - startFrom), (b.measure || -1) >= 0); }
+    if (audio.metronome) {
+      const beats = bundle.beats || [];
+      const perBeat = Math.max(1, cfg.clickSubdiv || 1);
+      for (let i = 0; i < beats.length; i++) {
+        const b = beats[i];
+        if (b.time < startFrom || b.time > duration + 0.1) continue;
+        // Strong accent on measure downbeats and grouping starts (e.g. 7/8 as
+        // 3+2+2), matching the count-in. Beats are already meter-correct (built
+        // by buildBeats), so this follows the time-signature selection.
+        const accent = b.accent === 'measure' || b.accent === 'group' || (b.measure || -1) >= 0;
+        scheduleClick(ctx, base + (b.time - startFrom), accent, false);
+        if (perBeat > 1) {
+          // Derive this beat's length from the actual gap to the next beat so
+          // sub-ticks stay correct across bar lines and per-segment meters in
+          // sessions; fall back to the previous gap or the form's beat unit.
+          const next = beats[i + 1];
+          const beatLen = next ? (next.time - b.time)
+            : (i > 0 ? b.time - beats[i - 1].time : (60 / cfg.bpm) * (4 / cfg.meter.denominator));
+          const tickLen = beatLen / perBeat;
+          for (let k = 1; k < perBeat; k++) {
+            const t = b.time + k * tickLen;
+            if (t < startFrom || t > duration + 0.1) continue;
+            scheduleClick(ctx, base + (t - startFrom), false, true);
+          }
+        }
+      }
+    }
   }
   function startPlayback() {
     if (!activeBundle) return;
@@ -4186,13 +4223,27 @@
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
     const ctx = audioCtx;
     const base = ctx.currentTime + AUDIO_LOOKAHEAD_SECONDS;
-    const beatSec = 60 / cfg.bpm;
-    const beatsPerBar = cfg.meter.numerator;
-    const totalBeats = (cfg.countInBars || 0) * beatsPerBar;
-    for (let i = 0; i < totalBeats; i++) {
-      const when = base + i * beatSec;
+    const m = cfg.meter;
+    // One metric beat = one denominator note-value (an eighth in x/8, a quarter
+    // in x/4), so the count-in matches the meter selection — 7/8 counts 7 beats,
+    // not 7 quarters. perBeat soft ticks subdivide each beat (count-in feel).
+    const beatSec = (60 / cfg.bpm) * (4 / m.denominator);
+    const perBeat = Math.max(1, cfg.clickSubdiv || 1);
+    const tickSec = beatSec / perBeat;
+    const beatsPerBar = m.numerator;
+    // Strong accent on the first beat of each grouping (e.g. 7/8 as 3+2+2) so
+    // the count-in actually feels like the meter, not a flat 7.
+    const groupStarts = new Set();
+    let acc = 0;
+    for (const g of m.grouping) { groupStarts.add(acc); acc += g; }
+    const totalTicks = (cfg.countInBars || 0) * beatsPerBar * perBeat;
+    for (let i = 0; i < totalTicks; i++) {
+      const when = base + i * tickSec;
       if (when - ctx.currentTime > countInSec + 0.2) break;
-      scheduleClick(ctx, when, (i % beatsPerBar) === 0);
+      const onBeat = (i % perBeat) === 0;
+      const beatIdx = Math.floor(i / perBeat) % beatsPerBar;
+      const groupAccent = onBeat && groupStarts.has(beatIdx);
+      scheduleClick(ctx, when, groupAccent, !onBeat);
     }
   }
   function stopPlayback() { sessionEnd(); playing = false; currentPracticeTime = 0; playAnchorChartTime = 0; countInUntilMs = 0; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
@@ -4909,6 +4960,11 @@
   // select (its change handler applies the pathway / custom + regenerates);
   // Session swaps to the session panel.
   function selectMode(mode) {
+    // Switching practice mode (Guided / Custom / Session) is a transport break:
+    // the current exercise no longer matches the view the user is moving to, so
+    // stop playback rather than letting audio/playhead bleed into the new mode.
+    // Matches onViewSwitch and the session-launch path. No-op before first play.
+    if (playing) stopPlayback();
     if (mode === 'session') {
       syncSessionMode('session');
       const s = $('slopscale-session-select');
