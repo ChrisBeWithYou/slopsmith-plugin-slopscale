@@ -6,11 +6,19 @@
        use pt-24 — we must clear the navbar ourselves. Without this top padding
        the SlopScale header renders under the navbar and the "Slopsmith" logo
        overlaps it. */
-    min-height: 100vh;
+    /* App shell: fill the viewport exactly (the host mounts us full-bleed at
+       top:0, so 100vh == our container) and never let the PAGE scroll — only
+       the controls rail scrolls internally. This is what keeps the render
+       stage + transport always visible at 1080p/1440p/ultrawide/4K instead of
+       the whole menu running off the bottom. */
+    height: 100vh;
     padding: 80px 18px 18px;
     color: #e5e7eb;
     background: radial-gradient(circle at top left, rgba(58, 84, 140, 0.18), transparent 32rem), linear-gradient(180deg, #080812 0%, #0d0d18 100%);
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
   .slopscale-root * { box-sizing: border-box; }
   .slopscale-panel {
@@ -23,14 +31,20 @@
     display: block;
     padding: 12px 16px;
     margin-bottom: 12px;
+    flex-shrink: 0;
   }
   .slopscale-header h1 { margin: 0; font-size: 22px; line-height: 1.1; letter-spacing: -0.02em; color: #f8fafc; font-weight: 700; }
   .slopscale-tagline { margin: 3px 0 6px 0; font-size: 12px; color: #94a3b8; max-width: 760px; }
   .slopscale-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: #cbd5e1; }
   .slopscale-meta #slopscale-renderer-status { color: #94a3b8; }
   .slopscale-meta-sep { color: #475569; }
-  .slopscale-layout { display: grid; grid-template-columns: minmax(340px, 460px) 1fr; gap: 16px; align-items: stretch; }
-  .slopscale-controls { padding: 16px; display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 150px); overflow: auto; }
+  /* The layout fills the remaining height under the header (flex:1; min-height:0)
+     and its single grid row is capped to that height (minmax(0,1fr)) so the rail
+     and stage can shrink to fit instead of growing the page. */
+  .slopscale-layout { display: grid; grid-template-columns: minmax(340px, 460px) 1fr; grid-template-rows: minmax(0, 1fr); gap: 16px; align-items: stretch; flex: 1; min-height: 0; }
+  /* Only the controls rail scrolls — and only when its content exceeds the
+     available height (Guided mode on short viewports). */
+  .slopscale-controls { padding: 16px; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; }
   .slopscale-controls label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #d6deea; font-weight: 650; }
   .slopscale-controls input, .slopscale-controls select {
     background: #111827 !important;
@@ -156,31 +170,26 @@
   #slopscale-paste-share:focus { outline: none; border-color: #60a5fa; }
   #slopscale-paste-share.flash-ok { border-color: #16a34a; }
   #slopscale-paste-share.flash-bad { border-color: #b91c1c; }
-  /* ── Playback transport (docked under the render stage) ───────────────── */
-  .slopscale-transport { display: flex; flex-direction: column; gap: 8px; padding: 9px 12px; background: rgba(9,15,30,0.92); border-top: 1px solid rgba(75,85,99,0.4); flex-shrink: 0; }
+  /* ── Playback transport ──────────────────────────────────────────────────
+     Split in two (DAW pattern): a CONTROLS bar above the render (this), and a
+     scrub/loop TIMELINE ruler pinned inside the render's top edge (below). */
+  .slopscale-transport-bar { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 8px 12px; background: rgba(9,15,30,0.92); border-bottom: 1px solid rgba(75,85,99,0.4); flex-shrink: 0; }
+  .slopscale-transport-bar > .slopscale-session-progress { width: 100%; }
+  .slopscale-transport-bar > .slopscale-tp-controls { justify-content: center; }
+  /* Timeline ruler overlaying the top of the render — the scrub IS the notes'
+     time axis. Gradient backing fades it into the chart; children keep their
+     own pointer handling (drag-to-loop, scrub). */
+  .slopscale-transport-ruler { position: absolute; top: 0; left: 0; right: 0; z-index: 11; padding: 6px 10px 4px; background: linear-gradient(to bottom, rgba(5,7,17,0.96) 70%, rgba(5,7,17,0)); }
   /* Session progress bar — proportional segment chunks, current one lit. */
   .slopscale-session-progress { display: flex; gap: 3px; align-items: stretch; height: 22px; }
   .slopscale-session-progress:empty { display: none; }
   .slopscale-progress-seg { position: relative; flex-basis: 0; min-width: 16px; border: 1px solid #334155; border-radius: 5px; background: #131c2e; color: #94a3b8; font-size: 10px; font-weight: 700; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0 6px; line-height: 20px; text-align: center; }
   .slopscale-progress-seg:hover { background: #1e293b; color: #e2e8f0; border-color: #475569; }
   .slopscale-progress-seg.active { background: linear-gradient(180deg, #2563eb, #1d4ed8); border-color: #60a5fa; color: #fff; }
-  /* DAW-style loop lane — drag to paint an A–B loop region above the scrubber. */
-  .slopscale-loop-lane { position: relative; height: 16px; border-radius: 5px; background: #0c1322; border: 1px solid #1e293b; cursor: crosshair; touch-action: none; }
-  .slopscale-loop-lane::before { content: 'LOOP · drag to set'; position: absolute; left: 8px; top: 50%; transform: translateY(-50%); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: #475569; pointer-events: none; }
-  .slopscale-loop-lane.has-loop::before { display: none; }
-  .slopscale-loop-lane-region { position: absolute; top: 0; bottom: 0; background: rgba(64,128,224,0.35); border: 1px solid #4080e0; border-radius: 4px; cursor: grab; }
-  .slopscale-loop-handle { position: absolute; top: 0; bottom: 0; width: 7px; background: #4080e0; cursor: ew-resize; }
-  .slopscale-loop-handle[data-edge="a"] { left: -1px; border-radius: 4px 0 0 4px; }
-  .slopscale-loop-handle[data-edge="b"] { right: -1px; border-radius: 0 4px 4px 0; }
-  .slopscale-scrub-row { position: relative; height: 18px; display: flex; align-items: center; }
-  .slopscale-scrub-rail { position: absolute; left: 0; right: 0; top: 50%; height: 6px; transform: translateY(-50%); background: #1e293b; border-radius: 3px; pointer-events: none; }
-  .slopscale-loop-region { position: absolute; top: 50%; height: 6px; transform: translateY(-50%); background: rgba(64,128,224,0.45); border-radius: 3px; pointer-events: none; }
-  .slopscale-scrub { -webkit-appearance: none; appearance: none; position: relative; width: 100%; height: 18px; margin: 0; background: transparent; cursor: pointer; }
-  .slopscale-scrub:disabled { cursor: default; opacity: 0.55; }
-  .slopscale-scrub::-webkit-slider-runnable-track { height: 18px; background: transparent; }
-  .slopscale-scrub::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; margin-top: 2px; border-radius: 50%; background: #f8fafc; border: 2px solid #4080e0; box-shadow: 0 1px 3px rgba(0,0,0,0.5); }
-  .slopscale-scrub::-moz-range-track { height: 6px; background: transparent; }
-  .slopscale-scrub::-moz-range-thumb { width: 14px; height: 14px; border: 2px solid #4080e0; border-radius: 50%; background: #f8fafc; }
+  /* Unified DAW ruler — one canvas drawing bars/beats + playhead + A–B loop.
+     42px + container padding ≈ 52px total, matching the HUD's top:52px offset.
+     touch-action:none so drags don't scroll. */
+  .slopscale-transport-ruler #slopscale-ruler-canvas { display: block; width: 100%; height: 42px; touch-action: none; }
   /* Flatter pill aesthetic, in parity with the host player control bar:
      borderless dark pills, lighter weight, flat accent fills (host accent
      #4080e0), `|` group separators. Multi-row layout + drag-loop preserved. */
@@ -204,7 +213,7 @@
   .slopscale-tp-seg:hover:not(.active) { background: #24324a; }
   .slopscale-tp-seg.active { background: #4080e0; color: #fff; }
   /* View switcher toolbar inside the render stage */
-  .slopscale-view-switcher { display: flex; align-items: center; gap: 4px; padding: 7px 12px; background: rgba(9,15,30,0.92); border-bottom: 1px solid rgba(75,85,99,0.4); flex-shrink: 0; }
+  .slopscale-view-switcher { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 7px 12px; background: rgba(9,15,30,0.92); border-bottom: 1px solid rgba(75,85,99,0.4); flex-shrink: 0; }
   .slopscale-view-label { font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8; margin-right: 6px; }
   /* Tabs read as tabs: unselected is a subtle outlined chip; selected gets
      a saturated background, a bottom highlight, and a slight lift so the
@@ -240,10 +249,13 @@
      renderers is active (see CSS rule below + the syncThemeToggleVisibility
      JS hook). */
   .slopscale-theme-toggle {
-    display: none; align-items: center; gap: 2px; margin-left: auto;
+    display: none; align-items: center; gap: 2px; margin-left: 8px;
     background: #050b18; border: 1px solid #334155; border-radius: 8px; padding: 2px;
   }
   .slopscale-root.slopscale-theme-renderer .slopscale-theme-toggle { display: flex; }
+  /* Right-zone grouping: when the fretboard pill is absent (Tab view) the theme
+     toggle takes over the right-push itself (the pill owns it otherwise). */
+  .slopscale-root:not(.slopscale-fb-capable) .slopscale-theme-toggle { margin-left: auto; }
   .slopscale-theme-btn {
     min-height: 24px; border: 1px solid transparent; border-radius: 6px;
     background: transparent; color: #94a3b8; font-size: 11px; font-weight: 700;
@@ -258,17 +270,20 @@
   .slopscale-sub-btn:hover { background: #1e293b; color: #cbd5e1; border-color: #334155; }
   .slopscale-sub-btn.active { background: #0f2b4a; border-color: #3b82f6; color: #93c5fd; }
 
-  .slopscale-stage { overflow: hidden; min-height: 620px; display: flex; flex-direction: column; }
-  .slopscale-render-host { position: relative; flex: 1; min-height: 420px; overflow: hidden; background: #050711; }
+  /* min-height:0 lets the stage shrink to the grid row; the render-host (flex:1)
+     absorbs whatever's left after the fixed-height switcher/transport/fretboard/
+     LCD, so the transport never gets clipped on short viewports. */
+  .slopscale-stage { overflow: hidden; min-height: 0; display: flex; flex-direction: column; }
+  .slopscale-render-host { position: relative; flex: 1; min-height: 0; overflow: hidden; background: #050711; }
   #slopscale-canvas { display: block; width: 100%; height: 100%; }
   /* Player HUD overlay — title left, time right, floating over the highway. */
-  .slopscale-hud { position: absolute; top: 0; left: 0; right: 0; z-index: 12; display: flex; justify-content: flex-end; align-items: flex-start; gap: 12px; padding: 9px 13px; pointer-events: none; }
-  /* Title is drawn in-canvas by most renderers; the HUD title only fills the gap
-     for 3D Highway (whose renderer draws no title). Hidden elsewhere to avoid
-     doubling up. margin-right:auto keeps the time pinned right either way. */
+  /* HUD sits BELOW the timeline ruler (top:52px) so the two don't collide. It
+     now carries only the exercise title, and only for 3D Highway (every other
+     renderer draws its title in-canvas). The single timer lives in the
+     transport bar, so there's no HUD clock anymore. */
+  .slopscale-hud { position: absolute; top: 52px; left: 0; right: 0; z-index: 12; display: flex; align-items: flex-start; gap: 12px; padding: 4px 13px; pointer-events: none; }
   .slopscale-hud-title { margin-right: auto; display: none; font-size: 12px; font-weight: 600; color: #e2e8f0; text-shadow: 0 1px 4px rgba(0,0,0,0.85); }
   .slopscale-root.slopscale-hud-title-on .slopscale-hud-title { display: inline; }
-  .slopscale-hud-time { font-size: 12px; color: #cbd5e1; font-variant-numeric: tabular-nums; text-shadow: 0 1px 4px rgba(0,0,0,0.85); }
   /* Live fretboard strip docked under the highway. Hidden by default; shown only
      for fretboard-capable views (Jumping Tab + Notation) when the toggle is on.
      Always hidden for the Piano instrument. */
@@ -276,9 +291,11 @@
   #slopscale-fretboard { display: block; width: 100%; height: 100%; }
   .slopscale-root.slopscale-fb-capable.slopscale-fb-on .slopscale-fretboard-strip { display: block; }
   .slopscale-root.slopscale-piano-instrument .slopscale-fretboard-strip { display: none !important; }
-  /* "Fretboard view" label + pill toggle — only shown for fretboard-capable views. */
+  /* "Fretboard view" label + pill toggle — only shown for fretboard-capable
+     views; margin-left:auto pushes it (and the theme toggle after it) right,
+     grouping the view options into a right-hand zone. */
   .slopscale-fb-toggle-wrap { display: none; align-items: center; gap: 7px; }
-  .slopscale-root.slopscale-fb-capable .slopscale-fb-toggle-wrap { display: inline-flex; }
+  .slopscale-root.slopscale-fb-capable .slopscale-fb-toggle-wrap { display: inline-flex; margin-left: auto; }
   .slopscale-fb-toggle-label { font-size: 12px; font-weight: 600; color: #94a3b8; }
   .slopscale-pill-toggle { position: relative; width: 34px; height: 18px; padding: 0; border: none; border-radius: 999px; background: #334155; cursor: pointer; transition: background 0.15s; }
   .slopscale-pill-toggle[aria-checked="true"] { background: #4080e0; }
@@ -288,7 +305,22 @@
      sibling of #slopscale-canvas and hide the canvas. Fill the render-host so
      the wrap's internal flex layout has a definite size. */
   .slopscale-render-host .jumpingtab-wrap { position: absolute; inset: 0; }
-  .slopscale-summary { border-top: 1px solid rgba(75, 85, 99, 0.55); padding: 12px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; color: #cbd5e1; background: rgba(2, 6, 23, 0.72); font-size: 12px; line-height: 1.45; }
+  /* Suppress Jumping Tab's own big vertical chord-box canvas — SlopScale draws
+     its own small, consistent chord box (see #slopscale-chordbox) instead. */
+  .slopscale-render-host .jumpingtab-chord-canvas { display: none !important; }
+  /* SlopScale's small vertical chord box, top-left over the render (matched to
+     the 3D Highway's diagram corner so the position is consistent across views).
+     Shown/hidden by drawChordBoxFrame() — hidden by default. */
+  .slopscale-chordbox { position: absolute; top: 56px; left: 12px; z-index: 13; width: 100px; height: 120px; display: none; pointer-events: none; }
+  /* Glanceable LCD strip (replaces the old multi-line debug dump). Lives inline
+     in the view-switcher row now — shows only GENERATED facts the menus don't
+     already state: Key · Tempo · Meter · Bars · Length · Notes. Errors/fallbacks
+     go to the header #slopscale-status instead. summarize() emits the cells. */
+  .slopscale-summary { display: flex; flex-wrap: nowrap; align-items: stretch; gap: 6px; }
+  .slopscale-summary:empty { display: none; }
+  .slopscale-lcd-cell { display: flex; flex-direction: column; gap: 0; padding: 3px 10px; min-width: 48px; background: #0c1322; border: 1px solid #1e293b; border-radius: 7px; }
+  .slopscale-lcd-lbl { font-size: 8.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b; }
+  .slopscale-lcd-val { font-size: 12px; font-weight: 700; color: #e2e8f0; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .slopscale-pitch-meter { display: none; align-items: center; gap: 10px; padding: 7px 14px; background: rgba(2, 6, 23, 0.85); border-top: 1px solid rgba(75, 85, 99, 0.55); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #94a3b8; }
   #slopscale-pitch-note { font-size: 14px; font-weight: 700; color: #e2e8f0; min-width: 30px; }
   .slopscale-cents-track { position: relative; width: 120px; height: 8px; background: #1e293b; border-radius: 4px; border: 1px solid #334155; overflow: hidden; flex-shrink: 0; }
@@ -428,7 +460,10 @@
   }
   .slopscale-tier-btn.tier-glow { animation: slopscale-tier-glow 1.8s ease-out forwards; }
   /* Skill tree */
-  .slopscale-skill-tree { height: 264px; overflow: hidden; border: 1px solid #1e293b; border-radius: 10px; background: rgba(9,14,26,0.5); }
+  /* Shrinkable so it gives height back on short viewports (it's the tallest
+     fixed block in the rail) instead of pushing the key/tempo controls off
+     screen. Nodes are %-positioned, so they stay proportional as it shrinks. */
+  .slopscale-skill-tree { flex: 0 1 264px; min-height: 168px; overflow: hidden; border: 1px solid #1e293b; border-radius: 10px; background: rgba(9,14,26,0.5); }
   /* Fill the available width (min-width:0 so it never forces horizontal scroll);
      nodes are %-positioned, so they spread to whatever width the tree gets. */
   .slopscale-tree-inner { position: relative; min-width: 0; width: 100%; height: 100%; }
@@ -456,7 +491,15 @@
   .slopscale-tree-switch-link:hover { color: #94a3b8; }
   .slopscale-pathway-only.tree-switch-right { display: block; text-align: right; }
 
-  @media (max-width: 1100px) { .slopscale-layout { grid-template-columns: 1fr; } .slopscale-controls { max-height: none; } }
+  /* Below the 2-column breakpoint (narrower than any of our target setups), the
+     rail stacks above the stage — there's no room to keep both on one screen, so
+     hand scrolling back to the page rather than trapping it inside the rail. */
+  @media (max-width: 1100px) {
+    .slopscale-root { height: auto; min-height: 100vh; overflow: visible; }
+    .slopscale-layout { grid-template-columns: 1fr; grid-template-rows: auto auto; }
+    .slopscale-controls { overflow: visible; }
+    .slopscale-stage { min-height: 520px; }
+  }
   @media (max-width: 720px) { .slopscale-grid-2, .slopscale-grid-3, .slopscale-audio-options { grid-template-columns: 1fr; } }
 
   /* Ultrawide: cap the render stage to a sane width (3D highway perspective
@@ -1059,6 +1102,10 @@
              instrument is selected, and kept disabled until piano playback
              ships. See the .slopscale-piano-instrument rules below. -->
         <button type="button" class="slopscale-view-btn" data-renderer="piano_roll" disabled title="Piano Roll (coming with Piano support)">Piano Roll</button>
+        <!-- Glance strip (LCD): the GENERATED facts the left-panel menus don't
+             already state — Key · Tempo · Meter · Bars · Length · Notes (or
+             Session · Segments · Length · Notes). Populated by summarize(). -->
+        <div id="slopscale-summary" class="slopscale-summary"></div>
         <!-- Fretboard strip toggle — "Fretboard view" + pill switch. Only shown
              (via CSS) for the views where the strip earns its keep: Jumping Tab
              and Notation. Hidden for 3D Highway (already a neck) and Tab. -->
@@ -1073,32 +1120,12 @@
           <button type="button" class="slopscale-theme-btn" data-theme="dark" title="Navy + ink">Dark</button>
         </div>
       </div>
-      <div id="slopscale-render-host" class="slopscale-render-host">
-        <!-- Player HUD overlay (parity with the host player): exercise title on
-             the left, playhead time on the right, floating over the highway. -->
-        <div id="slopscale-hud" class="slopscale-hud" aria-hidden="true">
-          <span id="slopscale-hud-title" class="slopscale-hud-title"></span>
-          <span id="slopscale-hud-time" class="slopscale-hud-time">0:00 / 0:00</span>
-        </div>
-        <canvas id="slopscale-canvas"></canvas>
-      </div>
-      <!-- Live fretboard strip — lights up the currently-sounding notes on a
-           neck diagram (the highway shows WHEN, this shows WHERE). Driven by
-           SlopScale's own clock; hidden for the Piano instrument. -->
-      <div id="slopscale-fretboard-strip" class="slopscale-fretboard-strip"><canvas id="slopscale-fretboard"></canvas></div>
-      <div id="slopscale-transport" class="slopscale-transport" aria-label="Playback transport">
+
+      <!-- Transport CONTROLS bar — centered play cluster directly above the
+           render (DAW transport-bar pattern; never covers the chart). The
+           scrub/loop TIMELINE lives as a ruler pinned inside the render below. -->
+      <div id="slopscale-transport-bar" class="slopscale-transport-bar" aria-label="Playback transport">
         <div id="slopscale-session-progress" class="slopscale-session-progress slopscale-session-only" role="group" aria-label="Session segments"></div>
-        <div class="slopscale-loop-lane" id="slopscale-loop-lane" title="Drag to set an A–B loop · hold Alt for free (un-snapped) placement">
-          <div class="slopscale-loop-lane-region" id="slopscale-loop-lane-region" hidden>
-            <span class="slopscale-loop-handle" data-edge="a"></span>
-            <span class="slopscale-loop-handle" data-edge="b"></span>
-          </div>
-        </div>
-        <div class="slopscale-scrub-row">
-          <div class="slopscale-scrub-rail"></div>
-          <div id="slopscale-loop-region" class="slopscale-loop-region" hidden></div>
-          <input type="range" id="slopscale-scrub" class="slopscale-scrub" min="0" max="0" step="0.01" value="0" aria-label="Seek through the chart">
-        </div>
         <div class="slopscale-tp-controls">
           <button type="button" id="slopscale-to-start" class="slopscale-tp-btn" title="Back to start (Home)">⏮</button>
           <button type="button" id="slopscale-prev-seg" class="slopscale-tp-btn slopscale-session-only" title="Previous segment (,)">⏪</button>
@@ -1126,13 +1153,41 @@
           </div>
         </div>
       </div>
+
+      <div id="slopscale-render-host" class="slopscale-render-host">
+        <!-- DAW timeline ruler pinned to the render's top edge. One unified
+             canvas tool: bar numbers + beat ticks, a playhead, AND the A–B loop
+             band. Drag the lower track to scrub; drag the top strip to paint a
+             loop (Alt = no snap); drag the loop edges to resize. Drawn by
+             drawRulerFrame(); pointer-handled in bind(). -->
+        <div id="slopscale-transport-ruler" class="slopscale-transport-ruler"
+             title="Drag the lower track to scrub · drag the top strip to set an A–B loop (Alt = no snap) · drag the loop edges to resize">
+          <canvas id="slopscale-ruler-canvas"></canvas>
+        </div>
+        <!-- Player HUD overlay: exercise title only (for 3D Highway, which draws
+             no in-canvas title). Time lives in the transport bar now. Sits below
+             the ruler so it doesn't collide with it. -->
+        <div id="slopscale-hud" class="slopscale-hud" aria-hidden="true">
+          <span id="slopscale-hud-title" class="slopscale-hud-title"></span>
+        </div>
+        <!-- Small VERTICAL chord box for the current chord (standard chord-chart
+             orientation: strings vertical, low E left, nut on top). Matched to
+             the 3D Highway's native diagram; drawn by drawChordBoxFrame() only
+             on Jumping Tab / Tab / Notation (3D draws its own) and only when the
+             chart has chord templates — scales have none, so it stays hidden. -->
+        <canvas id="slopscale-chordbox" class="slopscale-chordbox" aria-hidden="true"></canvas>
+        <canvas id="slopscale-canvas"></canvas>
+      </div>
+      <!-- Live fretboard strip — lights up the currently-sounding notes on a
+           neck diagram (the highway shows WHEN, this shows WHERE). Driven by
+           SlopScale's own clock; hidden for the Piano instrument. -->
+      <div id="slopscale-fretboard-strip" class="slopscale-fretboard-strip"><canvas id="slopscale-fretboard"></canvas></div>
       <div id="slopscale-pitch-meter" class="slopscale-pitch-meter">
         <span id="slopscale-pitch-note">--</span>
         <div class="slopscale-cents-track"><div id="slopscale-cents-needle"></div></div>
         <span id="slopscale-pitch-cents"></span>
         <span id="slopscale-pitch-accuracy">--</span>
       </div>
-      <div id="slopscale-summary" class="slopscale-summary">Generate a practice chart to preview notes, chords, timing, and audio.</div>
     </section>
   </section>
 </div>

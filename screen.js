@@ -1102,19 +1102,18 @@
   })();
 
   let renderer = null, activeBundle = null, rafId = null, lastExercise = null;
+  // The bundle actually handed to the active renderer. Usually === activeBundle,
+  // but for the 3D Highway it's a chord-free clone so the host doesn't project
+  // chord-shape frames onto the note lane (see attachRenderer + drawOnce).
+  let rendererBundle = null;
   let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
   let _activeSession = null, _sessionStartMs = 0, _newlyUnlockedTier = null;
-  // Count-in: while performance.now() < countInUntilMs, the tick freezes
-  // the playhead at the start position and only the count-in clicks play.
-  // 0 = no count-in active.
-  let countInUntilMs = 0;
   // A-B segment loop endpoints in chart-time seconds. Null = no loop.
   // See docs/section-looping.md for the design + phasing.
   let segmentLoopA = null, segmentLoopB = null;
   // Transport UI state: tpA/tpB are the user's chosen A/B loop points (either
   // may be set before the other); the committed loop lives in segmentLoopA/B.
-  // _scrubbing suppresses scrubber write-back while the user drags it.
-  let tpA = null, tpB = null, _scrubbing = false, _loopWraps = 0;
+  let tpA = null, tpB = null, _loopWraps = 0;
   // Session transport: index of the segment currently under the playhead, so
   // the highlight only touches the DOM when it actually changes.
   let _activeSegIdx = -1;
@@ -3101,14 +3100,62 @@
       return [cfg.key, scaleLabel].filter(Boolean).join(' ').trim() || ('SlopScale ' + (cfg.mode || '')).trim();
     } catch { return 'SlopScale'; }
   }
+  // Bake a count-in into the chart as real lead-in bars: shift every timed
+  // element later by `lead` seconds, prepend count-in beats (so notation can
+  // draw rests and the highway flows notes in), and extend the duration. The
+  // music then lives at [lead, duration]; the loop cycles only that (see the
+  // loop scheduler), so the count-in plays once. Bar numbers stay sequential.
+  function applyCountIn(chart, cfg, lead, bars) {
+    const sh = t => +(((t || 0)) + lead).toFixed(6);
+    const shiftNotes = arr => (arr || []).map(n => Object.assign({}, n, { t: sh(n.t) }));
+    const notes = shiftNotes(chart.notes);
+    const chords = (chart.chords || []).map(ch => Object.assign({}, ch, { t: sh(ch.t), notes: shiftNotes(ch.notes) }));
+    const anchors = (chart.anchors || []).map(a => Object.assign({}, a, { time: sh(a.time) }));
+    const sections = (chart.sections || []).map(s => Object.assign({}, s, { time: sh(s.time) }));
+    const segmentBounds = (chart.segmentBounds || []).map(b => Object.assign({}, b, { start: sh(b.start), end: sh(b.end) }));
+    // Count-in beats (cfg meter/bpm) for [0, lead), then the original beats
+    // shifted + renumbered so measure numbers stay continuous.
+    const leadBeats = buildBeats(cfg, Math.max(0, lead - 1e-4));
+    const shifted = (chart.beats || []).map(b => Object.assign({}, b, { time: sh(b.time), measure: (b.measure ?? -1) >= 0 ? b.measure + bars : -1 }));
+    const beats = leadBeats.concat(shifted);
+    const duration = +(((chart.duration) || 0) + lead).toFixed(6);
+    return Object.assign({}, chart, { notes, chords, anchors, sections, segmentBounds, beats, duration, leadIn: lead });
+  }
+
   function makeBundle(exercise) {
-    const cfg = exercise.session, c = exercise.chart;
+    const cfg = exercise.session;
+    // Count-in is baked here (not at generation) so the stored chart + LCD stay
+    // count-in-free, and toggling count-in is a cheap re-attach, not a re-gen.
+    const lead = (cfg.countInBars > 0) ? cfg.countInBars * measureSeconds(cfg) : 0;
+    const c = lead > 0 ? applyCountIn(exercise.chart, cfg, lead, cfg.countInBars) : exercise.chart;
+    // Seamless-loop tail: the loop cycles the music [lead, duration], but every
+    // renderer draws a forward lookahead window — near the loop end that window
+    // runs past `duration` into emptiness, so notes stop flowing before the
+    // wrap. Append copies of the loop's opening notes/beats just past the loop
+    // point (one or more loop-lengths, enough to fill any lookahead) so the next
+    // pass's notes are already present to flow in. Flagged `_tail` so audio (which
+    // loops via its own scheduler) skips them. duration stays the loop point.
+    const dur = c.duration || 0, contentLen = dur - lead, LOOKAHEAD_TAIL = 10;
+    let notesWithTail = c.notes, beatsWithTail = c.beats;
+    if (contentLen > 0.05) {
+      const tailNotes = [], tailBeats = [], copies = Math.ceil(LOOKAHEAD_TAIL / contentLen);
+      for (let k = 1; k <= copies; k++) {
+        const off = k * contentLen;
+        for (const n of c.notes) { if (n.t < lead - 1e-6) continue; const tt = n.t + off; if (tt > dur + LOOKAHEAD_TAIL + 0.01) break; tailNotes.push(Object.assign({}, n, { t:+tt.toFixed(6), _tail:true })); }
+        for (const b of (c.beats || [])) { if (b.time < lead - 1e-6) continue; const tt = b.time + off; if (tt > dur + LOOKAHEAD_TAIL + 0.01) continue; tailBeats.push(Object.assign({}, b, { time:+tt.toFixed(6), _tail:true })); }
+      }
+      if (tailNotes.length) notesWithTail = c.notes.concat(tailNotes);
+      if (tailBeats.length) beatsWithTail = (c.beats || []).concat(tailBeats);
+    }
     const bundle = {
       currentTime:0,
       songInfo:{ title:exerciseTitle(cfg), artist:'SlopScale', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'slopscale-practice', fretboardSystem:cfg.fretboardSystem },
       config:cfg,
-    isReady:true, notes:c.notes, chords:c.chords, anchors:c.anchors, beats:c.beats, sections:c.sections, chordTemplates:c.chordTemplates, handShapes:c.handShapes, segmentBounds:c.segmentBounds || null,
-      backingEvents:buildBackingEvents(cfg, c.duration),
+    isReady:true, notes:notesWithTail, chords:c.chords, anchors:c.anchors, beats:beatsWithTail, sections:c.sections, chordTemplates:c.chordTemplates, handShapes:c.handShapes, segmentBounds:c.segmentBounds || null,
+      leadIn:lead,
+      // Backing harmony covers the music only ([lead, duration]); generate it for
+      // the content length, then shift past the count-in.
+      backingEvents:buildBackingEvents(cfg, Math.max(0, c.duration - lead)).map(ev => lead ? Object.assign({}, ev, { t:+(ev.t + lead).toFixed(6), end:+(ev.end + lead).toFixed(6) }) : ev),
       stringCount:cfg.stringCount, tuning:tuningOffsetsForConfig(cfg), openMidis:openMidisForConfig(cfg), capo:0,
       lyrics:[], toneChanges:[], toneBase:'', drumTab:null, mastery:1, hasPhraseData:false,
       inverted:readHighwayInverted(), lefty:readLefty(), renderScale:readRenderScale(), lyricsVisible:false, project:null, fretX:null,
@@ -3911,6 +3958,25 @@
     }
 
     // ── Draw all notation notes ───────────────────────────────────────────
+    // Whole-bar rests for the count-in lead-in bars. A whole rest (a filled bar
+    // hanging under the 2nd staff line from the top) denotes a full measure of
+    // silence in any time signature, so it's meter-appropriate. Only the lead-in
+    // bars get one — the music's own bars draw notes.
+    function drawNotationRests(bundle, now, bottomY, ls) {
+      const lead = bundle.leadIn || 0;
+      if (lead <= 0) return;
+      const downs = (bundle.beats || []).filter(b => (b.measure ?? -1) >= 0).map(b => b.time).sort((a, b) => a - b);
+      const restW = ls * 0.95, restH = ls * 0.42, restTop = bottomY - 3 * ls; // hangs from the 4th line
+      ctx.fillStyle = t.ink;
+      for (let i = 0; i < downs.length; i++) {
+        const d0 = downs[i];
+        if (d0 >= lead - 1e-3) break;                       // lead-in bars only
+        const d1 = (i + 1 < downs.length) ? Math.min(downs[i + 1], lead) : lead;
+        const dt = (d0 + d1) / 2 - now;
+        if (dt < -BEHIND || dt > AHEAD) continue;
+        ctx.fillRect(xForDt(dt) - restW / 2, restTop, restW, restH);
+      }
+    }
     function drawNotationNotes(bundle, now, bottomY, ls, openMidis) {
       const bk = beamedKeys();
       drawBeams(bundle, now, bottomY, ls, openMidis);
@@ -4034,6 +4100,7 @@
         drawClef(bottomY, ls);
         drawKeySig(bottomY, ls);
         drawNotationBarLines(bundle, now, bottomY, ls);
+        drawNotationRests(bundle, now, bottomY, ls);
         drawNotationNotes(bundle, now, bottomY, ls, openMidis);
         drawNotationPlayhead(notH, bottomY, ls);
         drawChordNames(bundle, now, notH);
@@ -4137,15 +4204,19 @@
     nextLoopAudioBase = endCtx;
   }
 
-  // Schedule one full pass (chart-time 0..duration) starting at nextLoopAudioBase.
+  // Schedule one full music pass starting at nextLoopAudioBase. The pass covers
+  // [leadIn, duration] — i.e. the music only, NOT the count-in lead-in — so the
+  // count-in plays once on the first pass and every loop is music.
   function scheduleNextFullPass() {
     const dur = activeBundle?.songInfo?.duration || 0;
-    if (dur <= 0) return;
+    const lead = activeBundle?.leadIn || 0;
+    const contentLen = dur - lead;
+    if (contentLen <= 0) return;
     const before = audioNodes.length;
-    const base = schedulePreviewAudio(activeBundle, 0, Math.max(0, nextLoopAudioBase - audioCtx.currentTime));
+    const base = schedulePreviewAudio(activeBundle, lead, Math.max(0, nextLoopAudioBase - audioCtx.currentTime));
     if (base == null) return;
-    loopPasses.push({ endCtx: base + dur, nodes: audioNodes.slice(before) });
-    nextLoopAudioBase += dur;
+    loopPasses.push({ endCtx: base + contentLen, nodes: audioNodes.slice(before) });
+    nextLoopAudioBase += contentLen;
   }
 
   // Disconnect + drop one fully-finished pass per call (cheap, keeps >=1 pass).
@@ -4195,10 +4266,19 @@
     if (cfg.renderer === 'highway_3d' && (cfg.stringCount || 6) !== 6) cfg.renderer = 'builtin_2d';
     stopRenderer(); activeBundle = makeBundle(exercise); currentPracticeTime = 0;
     fretboardSyncRange();
+    // The host 3D Highway projects chord-shape FRAMES onto the note lane (plus a
+    // corner diagram + lane chord-name labels) straight from the chord data —
+    // visually noisy, and it covers the first note of the upcoming bar. Hand the
+    // highway a chord-free view of the bundle so the lane stays clean; SlopScale
+    // draws its own small chord box (drawChordBoxFrame) on every view, including
+    // 3D, for the chord reference. Other renderers get the full bundle.
+    rendererBundle = (cfg.renderer === 'highway_3d')
+      ? Object.assign({}, activeBundle, { chords: [], chordTemplates: [] })
+      : activeBundle;
     const canvas = replaceCanvas(), resolved = await resolveRendererFactory(cfg.renderer);
     renderer = resolved.factory();
     if (!renderer || typeof renderer.draw !== 'function') throw new Error('Selected renderer did not return a Slopsmith-compatible renderer object.');
-    if (typeof renderer.init === 'function') { renderer.init(canvas, activeBundle); if (renderer.readyPromise && typeof renderer.readyPromise.then === 'function') await renderer.readyPromise; }
+    if (typeof renderer.init === 'function') { renderer.init(canvas, rendererBundle); if (renderer.readyPromise && typeof renderer.readyPromise.then === 'function') await renderer.readyPromise; }
     if (cfg.renderer === 'notation_2d') renderer?.setMode?.(notationMode);
     const rect = canvas.parentElement.getBoundingClientRect();
     if (typeof renderer.resize === 'function') renderer.resize(Math.round(rect.width || canvas.width), Math.round(rect.height || canvas.height));
@@ -4218,6 +4298,7 @@
   // shape sits on the neck. Ported + generalised from the host Fretboard View
   // plugin: any string count, SlopScale string colours, driven by our own clock.
   let fbCtx = null, fretboardOn = false;  // off by default; per-view toggle in JT + Notation
+  let rulerCtx = null;  // unified DAW timeline ruler (bars/beats + playhead + A–B loop)
   let fbFretLo = 0, fbFretHi = 12, fbPattern = [];  // zoomed fret window + unique pattern positions
   const FB_DOT_FRETS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
   const FB_DOUBLE_DOT = [12, 24];
@@ -4285,11 +4366,18 @@
       ? activeBundle.openMidis : openMidisForConfig(activeBundle.config || readConfig());
     const padL = 34, padR = 12, padT = 12, padB = 18;
     const lo = fbFretLo, hi = fbFretHi, nSpaces = Math.max(1, hi - lo), usableW = W - padL - padR;
+    // Cap per-fret width so the neck doesn't stretch edge-to-edge on wide strips
+    // (a 6-fret window across ~1600px spread the frets ~270px apart); the capped
+    // neck is centered in the usable area instead, so the shape reads tighter.
+    const MAX_SPACE = 72;
+    const spaceW = Math.min(usableW / nSpaces, MAX_SPACE);
+    const neckW = spaceW * nSpaces;
+    const x0 = padL + Math.max(0, (usableW - neckW) / 2);
     const rowH = (H - padT - padB) / Math.max(1, nStrings - 1);
     const rowY = s => padT + (nStrings - 1 - s) * rowH;        // s=0 (lowest) at the bottom
     const midRow = (nStrings - 1) / 2;
-    const xLine = f => padL + ((f - lo) / nSpaces) * usableW;  // fret-line x
-    const xNote = f => f === 0 ? Math.max(padL + 4, xLine(0)) : xLine(f - 0.5);  // notehead x
+    const xLine = f => x0 + (f - lo) * spaceW;                 // fret-line x
+    const xNote = f => f === 0 ? Math.max(x0 + 4, xLine(0)) : xLine(f - 0.5);  // notehead x
 
     // Fret lines + nut (only the windowed frets)
     for (let f = lo; f <= hi; f++) {
@@ -4312,9 +4400,9 @@
     for (let s = 0; s < nStrings; s++) {
       const y = rowY(s), col = STRING_COLORS[s % STRING_COLORS.length];
       ctx.strokeStyle = col; ctx.globalAlpha = 0.4; ctx.lineWidth = 1 + (nStrings - 1 - s) * 0.3;
-      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(xLine(lo), y); ctx.lineTo(xLine(hi), y); ctx.stroke();
       ctx.globalAlpha = 1; ctx.fillStyle = col; ctx.textAlign = 'right';
-      ctx.fillText(NOTE_NAMES[(opens[s] ?? 0) % 12], padL - 7, y);
+      ctx.fillText(NOTE_NAMES[(opens[s] ?? 0) % 12], xLine(lo) - 7, y);
     }
     // Fret numbers (actual fret values across the window)
     ctx.fillStyle = '#4a4a5a'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
@@ -4341,7 +4429,151 @@
     }
   }
 
-  function drawOnce() { drawFretboardFrame(); if (!renderer || !activeBundle) return; syncHighwaySettings(activeBundle); activeBundle.currentTime = currentPracticeTime; renderer.draw(activeBundle); syncTransportTime(); }
+  // ── Unified DAW timeline ruler ───────────────────────────────────────────
+  // One canvas carrying everything the two old widgets did, plus a bar/beat
+  // grid: bar lines + bar numbers, beat/group ticks, the A–B loop band (with
+  // edge grips), and the playhead. Time→x is linear across the chart duration.
+  // The top strip (loopZoneH) is the loop/cycle zone; below it is the scrub
+  // zone — see the pointer handler in bind(). Pure draw; reads tpA/tpB + time.
+  const RULER_LOOP_ZONE = 15;  // px height of the top loop/cycle strip
+  function rulerGeom() {
+    const canvas = $('slopscale-ruler-canvas'); if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const padX = 2, usableW = Math.max(1, rect.width - padX * 2);
+    const dur = activeBundle?.songInfo?.duration || 0;
+    return { rect, padX, usableW, dur };
+  }
+  function drawRulerFrame() {
+    const canvas = $('slopscale-ruler-canvas');
+    if (!canvas || canvas.offsetParent === null) return;  // hidden view
+    if (!rulerCtx || rulerCtx.canvas !== canvas) rulerCtx = canvas.getContext('2d');
+    const ctx = rulerCtx; if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1, rect = canvas.getBoundingClientRect();
+    const pxW = Math.max(1, Math.floor(rect.width * dpr)), pxH = Math.max(1, Math.floor(rect.height * dpr));
+    if (canvas.width !== pxW || canvas.height !== pxH) { canvas.width = pxW; canvas.height = pxH; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const W = rect.width, H = rect.height;
+    ctx.clearRect(0, 0, W, H);
+    const dur = activeBundle?.songInfo?.duration || 0;
+    if (!activeBundle || dur <= 0) return;
+    const padX = 2, usableW = W - padX * 2, lz = Math.min(RULER_LOOP_ZONE, H * 0.4);
+    const xAt = t => padX + (t / dur) * usableW;
+
+    // Loop-zone backing + base track
+    ctx.fillStyle = 'rgba(148,163,184,0.06)'; ctx.fillRect(0, 0, W, lz);
+    ctx.strokeStyle = 'rgba(148,163,184,0.18)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, lz + 0.5); ctx.lineTo(W, lz + 0.5); ctx.stroke();
+
+    // Bar lines + numbers, then beat/group ticks
+    const beats = activeBundle.beats || [];
+    ctx.textBaseline = 'top'; ctx.font = '8.5px ui-monospace, monospace';
+    for (const b of beats) {
+      const x = xAt(b.time), isBar = (b.measure ?? -1) >= 0;
+      if (isBar) {
+        ctx.strokeStyle = 'rgba(96,165,250,0.45)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x, lz); ctx.lineTo(x, H); ctx.stroke();
+        ctx.fillStyle = '#6b7a90'; ctx.fillText(String(b.measure), x + 2, 2);
+      } else {
+        const grp = b.accent === 'group';
+        ctx.strokeStyle = grp ? 'rgba(148,163,184,0.3)' : 'rgba(148,163,184,0.15)';
+        ctx.lineWidth = 1; const tH = grp ? (H - lz) * 0.7 : (H - lz) * 0.42;
+        ctx.beginPath(); ctx.moveTo(x, H - tH); ctx.lineTo(x, H); ctx.stroke();
+      }
+    }
+
+    // A–B loop band (full height) + solid cap in the loop zone + edge grips
+    if (tpA != null && tpB != null && Math.abs(tpA - tpB) > 0.02) {
+      const ax = xAt(Math.min(tpA, tpB)), bx = xAt(Math.max(tpA, tpB));
+      ctx.fillStyle = 'rgba(64,128,224,0.20)'; ctx.fillRect(ax, lz, bx - ax, H - lz);
+      ctx.fillStyle = 'rgba(64,128,224,0.85)'; ctx.fillRect(ax, 0, bx - ax, lz);
+      ctx.fillStyle = '#9ec1ff';
+      ctx.fillRect(ax - 1, 0, 2, H); ctx.fillRect(bx - 1, 0, 2, H);
+    } else {
+      // Empty-loop hint in the loop zone.
+      ctx.fillStyle = 'rgba(100,116,139,0.65)'; ctx.font = '8px sans-serif'; ctx.textBaseline = 'middle';
+      ctx.fillText('LOOP · drag here', padX + 3, lz / 2 + 0.5);
+    }
+
+    // Playhead: line + a small flag at the bottom.
+    const px = xAt(Math.max(0, Math.min(dur, currentPracticeTime)));
+    ctx.strokeStyle = '#f43f5e'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+    ctx.fillStyle = '#f43f5e';
+    ctx.beginPath(); ctx.moveTo(px - 4, H); ctx.lineTo(px + 4, H); ctx.lineTo(px, H - 5); ctx.closePath(); ctx.fill();
+  }
+
+  // ── Chord-shape box (small VERTICAL chord chart) ─────────────────────────
+  // A standard vertical chord diagram for the currently-sounding chord, drawn
+  // as a small overlay in the render's top-left. Vertical (strings vertical,
+  // low E on the left, nut on top) is the standard chord-chart convention; the
+  // horizontal neck map is the separate fretboard strip. Drawn on ALL views,
+  // including 3D Highway — whose own chord diagram + lane frames we suppress by
+  // handing it a chord-free bundle (see attachRenderer) — so the chord reference
+  // is one consistent box everywhere. Shown only when the chart has chord
+  // templates (chord/arpeggio exercises); scales carry none, so it stays hidden
+  // for them with no extra gating.
+  let chordBoxCtx = null;
+  function currentChordTemplate() {
+    const b = activeBundle;
+    if (!b || !b.chords || !b.chords.length || !b.chordTemplates || !b.chordTemplates.length) return null;
+    const t = currentPracticeTime;
+    let chord = b.chords[0];
+    for (const ch of b.chords) { if (ch.t <= t + 1e-3) chord = ch; else break; }
+    const tmpl = b.chordTemplates[chord.id];
+    return (tmpl && Array.isArray(tmpl.frets) && tmpl.frets.length) ? tmpl : null;
+  }
+  function drawChordBoxFrame() {
+    const canvas = $('slopscale-chordbox'); if (!canvas) return;
+    const tmpl = activeBundle ? currentChordTemplate() : null;
+    if (!tmpl) { if (canvas.style.display !== 'none') canvas.style.display = 'none'; return; }
+    canvas.style.display = 'block';
+    if (!chordBoxCtx || chordBoxCtx.canvas !== canvas) chordBoxCtx = canvas.getContext('2d');
+    const ctx = chordBoxCtx; if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1, rect = canvas.getBoundingClientRect();
+    const pxW = Math.max(1, Math.floor(rect.width * dpr)), pxH = Math.max(1, Math.floor(rect.height * dpr));
+    if (canvas.width !== pxW || canvas.height !== pxH) { canvas.width = pxW; canvas.height = pxH; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const W = rect.width, H = rect.height;
+    ctx.clearRect(0, 0, W, H);
+    // Panel
+    ctx.fillStyle = 'rgba(8,12,22,0.94)'; ctx.strokeStyle = 'rgba(96,165,250,0.35)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(0.5, 0.5, W - 1, H - 1, 8); ctx.fill(); ctx.stroke();
+    // Chord name
+    ctx.fillStyle = '#e8d080'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(String(tmpl.displayName || tmpl.name || ''), W / 2, 5);
+
+    const frets = tmpl.frets, nS = frets.length;
+    const played = frets.filter(f => f > 0);
+    const minF = played.length ? Math.min(...played) : 0;
+    const maxF = played.length ? Math.max(...played) : 0;
+    let baseFret = 1, showNut = true, SPAN = 4;
+    if (maxF > 4) { baseFret = minF; showNut = false; SPAN = Math.max(4, maxF - minF + 1); }
+    const padTop = 32, padBot = 13, padL = 15, padR = 15;
+    const gx0 = padL, gx1 = W - padR, gy0 = padTop, gy1 = H - padBot;
+    const colW = (gx1 - gx0) / Math.max(1, nS - 1), rowH = (gy1 - gy0) / SPAN;
+    const xS = s => gx0 + s * colW;  // s=0 (low E) on the left — standard orientation
+    // Strings (vertical) + frets (horizontal)
+    ctx.strokeStyle = '#52617a'; ctx.lineWidth = 1;
+    for (let s = 0; s < nS; s++) { ctx.beginPath(); ctx.moveTo(xS(s), gy0); ctx.lineTo(xS(s), gy1); ctx.stroke(); }
+    for (let r = 0; r <= SPAN; r++) { const y = gy0 + r * rowH; ctx.lineWidth = (showNut && r === 0) ? 3 : 1; ctx.beginPath(); ctx.moveTo(gx0, y); ctx.lineTo(gx1, y); ctx.stroke(); }
+    // Position label when not at the nut
+    if (!showNut) { ctx.fillStyle = '#94a3b8'; ctx.font = '9px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(baseFret + 'fr', gx0 - 3, gy0 + rowH / 2); }
+    // Per-string markers: × muted, ○ open (above nut), dot for fretted
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let s = 0; s < nS; s++) {
+      const f = frets[s], x = xS(s);
+      if (f == null || f < 0) { ctx.fillStyle = '#64748b'; ctx.font = 'bold 10px sans-serif'; ctx.fillText('×', x, gy0 - 8); continue; }
+      if (f === 0) { ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, gy0 - 8, 3.4, 0, 6.2832); ctx.stroke(); continue; }
+      const row = f - baseFret; if (row < 0 || row >= SPAN) continue;
+      const y = gy0 + (row + 0.5) * rowH;
+      ctx.fillStyle = STRING_COLORS[s % STRING_COLORS.length] || '#e2e8f0';
+      ctx.beginPath(); ctx.arc(x, y, Math.min(7, rowH * 0.38), 0, 6.2832); ctx.fill();
+      const finger = tmpl.fingers && tmpl.fingers[s];
+      if (finger) { ctx.fillStyle = '#0b1220'; ctx.font = 'bold 9px sans-serif'; ctx.fillText(String(finger), x, y); }
+    }
+  }
+
+  function drawOnce() { drawFretboardFrame(); drawRulerFrame(); drawChordBoxFrame(); if (!renderer || !activeBundle) return; const vb = rendererBundle || activeBundle; vb.currentTime = currentPracticeTime; syncHighwaySettings(vb); renderer.draw(vb); syncTransportTime(); }
   function tick(nowMs) {
     if (!renderer || !activeBundle) return;
     if (playing) {
@@ -4352,16 +4584,6 @@
       // tick only runs while playing, so this is the natural place to catch it.
       const screenRoot = $('slopscale-root');
       if (screenRoot && !screenRoot.offsetParent) { stopPlayback(); return; }
-      // Hold the playhead frozen at the start position during count-in.
-      // Click sounds were already scheduled in startPlayback; the visible
-      // chart only starts moving once the count-in window closes.
-      if (countInUntilMs && nowMs < countInUntilMs) {
-        drawOnce(); rafId = requestAnimationFrame(tick); return;
-      }
-      if (countInUntilMs && nowMs >= countInUntilMs) {
-        countInUntilMs = 0;
-        playAnchorMs = nowMs;  // chart clock starts now
-      }
       const elapsedMs = Math.max(0, nowMs - playAnchorMs);
       currentPracticeTime = playAnchorChartTime + elapsedMs / 1000;
       const duration = activeBundle.songInfo.duration || 1;
@@ -4389,8 +4611,12 @@
         // remainder also keeps the loop phase drift-free over long sessions.
         maybeScheduleLoopAhead(nowMs);
         if (currentPracticeTime >= duration) {
-          playAnchorChartTime -= duration;
-          currentPracticeTime -= duration;
+          // Wrap to the music start (after the count-in lead-in), not 0, so the
+          // count-in plays once and each loop is music. contentLen carries the
+          // phase so the loop stays drift-free.
+          const contentLen = duration - (activeBundle.leadIn || 0);
+          playAnchorChartTime -= contentLen;
+          currentPracticeTime -= contentLen;
         }
       }
     }
@@ -4537,7 +4763,11 @@
     // Prefer the bundle's own audio settings (sessions patch their own config)
     // so the session's checkboxes are honoured rather than the single-exercise ones.
     const audio = bundle.config?.audio || cfg.audio;
-    if (!audio.notes && !audio.metronome && !audio.harmony) return;
+    const lead = bundle.leadIn || 0;
+    // The count-in lead-in always clicks (it's a count-in), so proceed even when
+    // all audio is off if this pass covers the lead-in.
+    const wantCountIn = lead > 0 && (fromTime || 0) < lead - 1e-4;
+    if (!audio.notes && !audio.metronome && !audio.harmony && !wantCountIn) return;
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
     const ctx = audioCtx, base = ctx.currentTime + (Number.isFinite(delaySeconds) ? delaySeconds : AUDIO_LOOKAHEAD_SECONDS), startFrom = fromTime || 0;
@@ -4553,19 +4783,26 @@
       scheduleHarmonyPad(ctx, base + (start - startFrom), ev.midis || [], Math.max(0.2, end - start), instrument, audio.harmonyTone || 'pad');
     }
     if (audio.notes) for (const n of bundle.notes || []) {
+      if (n._tail) continue;  // visual loop-preview copy; audio loops via the scheduler
       if (n.t < startFrom || n.t > duration + 0.1) continue;
       if (n.s < 0 || n.s >= opens.length || n.f < 0) continue;
       schedulePluckedString(ctx, base + (n.t - startFrom), midiToFreq(opens[n.s] + n.f), Math.max(0.10, Math.min(0.85, n.sus || 0.24)), instrument, audio.harmony ? 0.9 : 1.25, bendSemitones(n.bn));
     }
-    if (audio.metronome) {
+    // Music beats click only when the metronome option is on; the count-in
+    // lead-in bars ([0, leadIn)) ALWAYS click so the count is audible even with
+    // the metronome off.
+    {
       const beats = bundle.beats || [];
       const perBeat = Math.max(1, cfg.clickSubdiv || 1);
       for (let i = 0; i < beats.length; i++) {
         const b = beats[i];
+        if (b._tail) continue;  // visual loop-preview copy; don't double-click at the seam
         if (b.time < startFrom || b.time > duration + 0.1) continue;
+        const inCountIn = lead > 0 && b.time < lead - 1e-4;
+        if (!audio.metronome && !inCountIn) continue;
         // Strong accent on measure downbeats and grouping starts (e.g. 7/8 as
-        // 3+2+2), matching the count-in. Beats are already meter-correct (built
-        // by buildBeats), so this follows the time-signature selection.
+        // 3+2+2). Beats are already meter-correct (built by buildBeats), so this
+        // follows the time-signature selection.
         const accent = b.accent === 'measure' || b.accent === 'group' || (b.measure || -1) >= 0;
         scheduleClick(ctx, base + (b.time - startFrom), accent, false);
         if (perBeat > 1) {
@@ -4594,54 +4831,24 @@
     sessionBegin();
     stopAudio(); syncHighwaySettings(activeBundle);
     playing = true;
+    // With an active A–B loop, playback begins at the loop start — not wherever
+    // the playhead happens to sit (DAW cycle behavior; the playhead is just a
+    // seek cursor). Without this, scrubbing then hitting Play started mid-loop.
+    if (segmentLoopA != null && segmentLoopB != null) {
+      currentPracticeTime = Math.min(segmentLoopA, segmentLoopB);
+    }
     playAnchorChartTime = currentPracticeTime;
-    // Count-in: optionally play N bars of metronome clicks before the chart
-    // starts. The clicks scheduling is shifted to use ctx.currentTime as
-    // its base; the chart audio is offset by the count-in duration so the
-    // first chart note lands exactly when the last count-in click does.
-    const cfg = readConfig();
-    const measureSec = measureSeconds(cfg);
-    const countInSec = (cfg.countInBars || 0) * measureSec;
+    // Count-in is baked into the chart as lead-in rest bars (see applyCountIn),
+    // so playback just starts from the playhead — no playhead freeze. Starting
+    // from 0 plays the count-in once; the loop then cycles the music only. The
+    // count-in clicks come from schedulePreviewAudio (lead-in beats always tick).
     const startMs = performance.now();
-    playAnchorMs = startMs + (countInSec + AUDIO_LOOKAHEAD_SECONDS) * 1000;
-    countInUntilMs = countInSec > 0 ? startMs + countInSec * 1000 : 0;
-    if (countInSec > 0) scheduleCountInClicks(cfg, countInSec);
-    scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS + countInSec);
+    playAnchorMs = startMs + AUDIO_LOOKAHEAD_SECONDS * 1000;
+    scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
     if (!rafId) rafId = requestAnimationFrame(tick);
     startPitchTracker(activeBundle); syncPlayButton(); refreshStatusFromState();
   }
-  // Schedule N bars of metronome clicks before chart playback starts.
-  // First click of each bar is the accented one. Reuses the same
-  // scheduleClick helper as the in-chart metronome track.
-  function scheduleCountInClicks(cfg, countInSec) {
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
-    const ctx = audioCtx;
-    const base = ctx.currentTime + AUDIO_LOOKAHEAD_SECONDS;
-    const m = cfg.meter;
-    // One metric beat = one denominator note-value (an eighth in x/8, a quarter
-    // in x/4), so the count-in matches the meter selection — 7/8 counts 7 beats,
-    // not 7 quarters. perBeat soft ticks subdivide each beat (count-in feel).
-    const beatSec = (60 / cfg.bpm) * (4 / m.denominator);
-    const perBeat = Math.max(1, cfg.clickSubdiv || 1);
-    const tickSec = beatSec / perBeat;
-    const beatsPerBar = m.numerator;
-    // Strong accent on the first beat of each grouping (e.g. 7/8 as 3+2+2) so
-    // the count-in actually feels like the meter, not a flat 7.
-    const groupStarts = new Set();
-    let acc = 0;
-    for (const g of m.grouping) { groupStarts.add(acc); acc += g; }
-    const totalTicks = (cfg.countInBars || 0) * beatsPerBar * perBeat;
-    for (let i = 0; i < totalTicks; i++) {
-      const when = base + i * tickSec;
-      if (when - ctx.currentTime > countInSec + 0.2) break;
-      const onBeat = (i % perBeat) === 0;
-      const beatIdx = Math.floor(i / perBeat) % beatsPerBar;
-      const groupAccent = onBeat && groupStarts.has(beatIdx);
-      scheduleClick(ctx, when, groupAccent, !onBeat);
-    }
-  }
-  function stopPlayback() { sessionEnd(); playing = false; currentPracticeTime = 0; playAnchorChartTime = 0; countInUntilMs = 0; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
+  function stopPlayback() { sessionEnd(); playing = false; currentPracticeTime = 0; playAnchorChartTime = 0; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
   // Toggle for the primary Play/Stop button. If we don't have a chart yet,
   // generate one first so the very first click always plays something.
   async function onPlayToggle() {
@@ -4666,7 +4873,6 @@
     if (!activeBundle) return;
     const dur = activeBundle.songInfo?.duration || 0;
     currentPracticeTime = Math.max(0, Math.min(dur, Number(t) || 0));
-    countInUntilMs = 0; // a manual seek cancels any pending count-in freeze
     if (playing) {
       playAnchorChartTime = currentPracticeTime;
       playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
@@ -4682,10 +4888,6 @@
   function syncTransportTime() {
     const cur = $('slopscale-time-cur');
     if (cur) cur.textContent = fmtTime(currentPracticeTime);
-    const scrub = $('slopscale-scrub');
-    if (scrub && !_scrubbing) scrub.value = String(currentPracticeTime);
-    const hudTime = $('slopscale-hud-time');
-    if (hudTime) hudTime.textContent = fmtTime(currentPracticeTime) + ' / ' + fmtTime(activeBundle?.songInfo?.duration || 0);
     updateActiveSegment();
   }
 
@@ -4696,12 +4898,6 @@
     const dur = activeBundle?.songInfo?.duration || 0;
     const hudTitle = $('slopscale-hud-title');
     if (hudTitle) hudTitle.textContent = activeBundle ? describeCurrentContent() : '';
-    const scrub = $('slopscale-scrub');
-    if (scrub) {
-      scrub.max = String(dur);
-      scrub.disabled = !activeBundle;
-      if (!_scrubbing) scrub.value = String(Math.min(currentPracticeTime, dur));
-    }
     const durEl = $('slopscale-time-dur'); if (durEl) durEl.textContent = fmtTime(dur);
     syncTransportTime();
     paintLoopRegion();
@@ -4715,20 +4911,9 @@
     _activeSegIdx = -1; updateActiveSegment();
   }
 
-  // Paint the loop region onto BOTH the scrubber overlay and the drag lane,
-  // and flag the lane so its "drag to set" hint hides while a loop exists.
-  function paintLoopRegion() {
-    const dur = activeBundle?.songInfo?.duration || 0;
-    const active = tpA != null && tpB != null && dur > 0 && Math.abs(tpA - tpB) > 0.02;
-    const a = active ? Math.min(tpA, tpB) : 0, b = active ? Math.max(tpA, tpB) : 0;
-    const leftPct = dur ? (a / dur * 100) : 0, widthPct = dur ? ((b - a) / dur * 100) : 0;
-    for (const id of ['slopscale-loop-region', 'slopscale-loop-lane-region']) {
-      const el = $(id); if (!el) continue;
-      el.hidden = !active;
-      if (active) { el.style.left = leftPct + '%'; el.style.width = widthPct + '%'; }
-    }
-    $('slopscale-loop-lane')?.classList.toggle('has-loop', active);
-  }
+  // The loop region is now drawn directly on the unified ruler canvas; this
+  // just triggers a redraw (kept as a named function since callers reference it).
+  function paintLoopRegion() { drawRulerFrame(); }
 
   // Measure downbeats (bar lines) of the active chart, ascending.
   function chartDownbeats() {
@@ -4857,27 +5042,40 @@
     }
   }
 
+  // Compact, glanceable LCD readout for #slopscale-summary. Shows only the
+  // GENERATED facts the left-panel controls don't already state — the readout
+  // used to restate every menu selection (debug-log style); now it confirms
+  // what actually got built. Returns HTML (labeled cells); set via .innerHTML.
+  // Errors/fallback messages do NOT go here — they're routed to #slopscale-status.
   function summarize(exercise) {
-    const cfg = exercise.session, c = exercise.chart, meter = `${cfg.meter.numerator}/${cfg.meter.denominator}`;
-    const backingCount = buildBackingEvents(cfg, c.duration).length;
+    const cfg = exercise.session, c = exercise.chart;
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const cell = (label, value) => `<div class="slopscale-lcd-cell"><span class="slopscale-lcd-lbl">${esc(label)}</span><span class="slopscale-lcd-val">${esc(value)}</span></div>`;
+    const len = fmtTime(c.duration);
+    // Sessions mix tempo/key/meter across segments, so show session-level facts
+    // (name · segments · length · notes) rather than a single key/tempo/meter.
+    if (cfg.mode === 'session') {
+      const segCount = (c.segmentBounds || []).length;
+      return [
+        cell('Session', cfg.sessionName || 'Custom'),
+        ...(segCount ? [cell('Segments', segCount)] : []),
+        cell('Length', len),
+        cell('Notes', c.notes.length)
+      ].join('');
+    }
+    const bars = measureSeconds(cfg) > 0 ? Math.round(c.duration / measureSeconds(cfg)) : 0;
+    // Key cell doubles as the identity: chromatic has no key/scale, so name the pattern.
+    const keyCell = cfg.mode === 'chromatic'
+      ? cell('Pattern', CHROMATIC_PATTERN_LABELS[cfg.chromaticPattern] || cfg.chromaticPattern)
+      : cell('Key', `${cfg.key} ${String(cfg.scale || '').replace(/_/g, ' ')}`);
     return [
-      `Practice type: ${cfg.mode}`,
-      ...(cfg.mode === 'chromatic' ? [`Chromatic pattern: ${CHROMATIC_PATTERN_LABELS[cfg.chromaticPattern] || cfg.chromaticPattern}`] : []),
-      `Advanced controls: ${cfg.advancedMode ? 'on' : 'off'}`,
-      `Fretboard system: ${fretboardSystemLabel(cfg.fretboardSystem)}`,
-      ...(cfg.shapeDisplayName ? [`Shape: ${cfg.shapeDisplayName} (frets ${cfg.fretMin}-${cfg.fretMax})`] : []),
-      `Direction/repeats: ${cfg.direction}, ${cfg.repeatCount}x`,
-      ...(cfg.sequence && cfg.sequence !== 'none' ? [`Sequence: ${SEQUENCE_LABELS[cfg.sequence] || cfg.sequence}`] : []),
-      `Pattern: ${cfg.mode === 'chromatic' ? (CHROMATIC_PATTERN_LABELS[cfg.chromaticPattern] || cfg.chromaticPattern) : cfg.mode === 'scale' ? fretboardSystemLabel(cfg.fretboardSystem) : 'full chord-tone arpeggios across one position'}`,
-      `Instrument: ${cfg.setupLabel}`,
-      `Highway inverted: ${readHighwayInverted() ? 'on' : 'off'}`,
-      `Key/scale: ${cfg.key} ${cfg.scale}${cfg.mode === 'chord_scales' ? ` (chord-scale: ${(cfg.chordScaleStrategy || 'mode_of_moment').replace(/_/g, ' ')})` : ''}`,
-      `BPM/meter/division: ${cfg.bpm} BPM, ${meter}, ${cfg.subdivision}`,
-      `Position: frets ${cfg.fretMin}-${cfg.fretMax}`,
-      `Audio: notes ${cfg.audio.notes ? 'on' : 'off'}, metronome ${cfg.audio.metronome ? 'on' : 'off'}, harmony ${cfg.audio.harmony ? 'on' : 'off'} (${backingCount} backing chords)`,
-      `Generated: ${c.notes.length} notes, ${c.chords.length} visible chords, ${c.chordTemplates.length} templates, ${c.handShapes.length} hand shapes, ${c.beats.length} beats, ${Math.round(c.duration / measureSeconds(cfg))} bars`,
-      `Duration: ${c.duration.toFixed(2)}s`
-    ].join('\n');
+      keyCell,
+      cell('Tempo', `${cfg.bpm} BPM`),
+      cell('Meter', `${cfg.meter.numerator}/${cfg.meter.denominator}`),
+      cell('Bars', bars),
+      cell('Length', len),
+      cell('Notes', c.notes.length)
+    ].join('');
   }
   function showStatus(text) { const el = $('slopscale-status'); if (el) el.textContent = text; }
   function describeCurrentContent() {
@@ -4901,12 +5099,11 @@
     try {
       const exercise = generateExercise(readConfig());
       lastExercise = exercise;
-      summary.textContent = summarize(exercise);
+      summary.innerHTML = summarize(exercise);
       await attachRenderer(exercise);
       refreshStatusFromState();
     } catch (e) {
-      showStatus('Error');
-      summary.textContent = `Error: ${e.message || e}`;
+      showStatus(`Error: ${e.message || e}`);
       console.error('[SlopScale] generate failed', e);
     }
   }
@@ -4914,7 +5111,7 @@
     const cfg = readConfig(), name = `${cfg.key} ${cfg.scale} ${cfg.setupLabel} ${cfg.mode}`, id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
     const res = await fetch('/api/plugins/slopscale/presets', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ id, name, kind:cfg.mode, config:cfg }) });
     if (!res.ok) throw new Error(await res.text());
-    $('slopscale-summary').textContent += `\n\nSaved preset: ${name}`;
+    showStatus(`Saved preset: ${name}`);
   }
   function syncStringSetupControls() { const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'); if (!instrument || !setup) return; const current = STRING_SETUPS[setup.value] || STRING_SETUPS.guitar_6_standard; instrument.value = current.instrument; }
   // CAGED/3NPS shape concepts are guitar-only — hide them when bass is active.
@@ -5616,7 +5813,9 @@
     try { localStorage.setItem(PATHWAY_STORAGE_KEY, initial); } catch (_) {}
   }
 
-  function refreshForHostSettingChange() { if (!activeBundle) return; syncHighwaySettings(activeBundle); drawOnce(); const summary = $('slopscale-summary'); if (summary && summary.textContent.includes('Highway inverted:')) summary.textContent = summarize({ session:readConfig(), chart:{ notes:activeBundle.notes || [], chords:activeBundle.chords || [], chordTemplates:activeBundle.chordTemplates || [], handShapes:activeBundle.handShapes || [], beats:activeBundle.beats || [], duration:activeBundle.songInfo?.duration || 0 } }); }
+  // The LCD readout no longer surfaces highway-inverted (it's a menu setting,
+  // not a generated fact), so a host setting change only needs a redraw.
+  function refreshForHostSettingChange() { if (!activeBundle) return; syncHighwaySettings(activeBundle); drawOnce(); }
 
   function syncTempoTierButtons() {
     const container = $('slopscale-tier-buttons');
@@ -6096,14 +6295,12 @@
       showStatus('Building session…');
       const exercise = generateSession(session);
       lastExercise = exercise;
-      const totalSecs = exercise.chart.duration.toFixed(1);
-      if (summary) summary.textContent = `Session: ${session.name}\n${session.segments.length} segments · ${totalSecs}s total\nGenerated: ${exercise.chart.notes.length} notes, ${exercise.chart.beats.length} beats`;
+      if (summary) summary.innerHTML = summarize(exercise);
       await attachRenderer(exercise);
       startPlayback();
       refreshStatusFromState();
     } catch (e) {
-      showStatus('Error');
-      if (summary) summary.textContent = `Session error: ${e.message || e}`;
+      showStatus(`Session error: ${e.message || e}`);
       console.error('[SlopScale] session launch failed', e);
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = '▶ Launch Session'; }
@@ -6151,27 +6348,28 @@
     if (playing) stopPlayback();
     try {
       await attachRenderer(lastExercise);
-      // Refresh the summary so any prior error text from a failed attach
-      // doesn't stick around once a switch succeeds.
-      if (summary) summary.textContent = summarize(lastExercise);
+      // Refresh the LCD so a prior failed-attach state doesn't linger after a
+      // successful switch.
+      if (summary) summary.innerHTML = summarize(lastExercise);
     } catch (e) {
       console.error('[SlopScale] renderer switch failed', e);
       // Auto-fall back to 2D Highway, which is in-tree and handles any
       // string count. Without this, a 3D-Highway failure leaves the user
-      // staring at a stuck error with no obvious way out.
+      // staring at a stuck error with no obvious way out. Status line carries
+      // the message; the LCD stays a clean chart readout.
       if (kind !== 'builtin_2d') {
-        if (summary) summary.textContent = `${kind} unavailable — falling back to 2D Highway.\n(${e.message || e})`;
+        showStatus(`${kind} unavailable — falling back to 2D Highway (${e.message || e})`);
         try {
           syncViewSwitcher('builtin_2d');
           lastExercise.session.renderer = 'builtin_2d';
           await attachRenderer(lastExercise);
-          if (summary) summary.textContent = summarize(lastExercise);
+          if (summary) summary.innerHTML = summarize(lastExercise);
         } catch (e2) {
           console.error('[SlopScale] fallback to 2D Highway failed', e2);
-          if (summary) summary.textContent = `Renderer failed: ${e2.message || e2}`;
+          showStatus(`Renderer failed: ${e2.message || e2}`);
         }
-      } else if (summary) {
-        summary.textContent = `Renderer failed: ${e.message || e}`;
+      } else {
+        showStatus(`Renderer failed: ${e.message || e}`);
       }
     }
   }
@@ -6327,68 +6525,84 @@
     advancedToggle?.addEventListener('change', syncAdvancedMode); syncAdvancedMode(); syncChromaticVisibility();
     $('slopscale-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', ev.target.value); if (activeBundle) onGenerate(); });
     $('slopscale-play').addEventListener('click', onPlayToggle);
-    // Transport: scrubber, A/B loop, count-in segmented, back-to-start.
-    const scrub = $('slopscale-scrub');
-    if (scrub) {
-      scrub.addEventListener('input', () => { _scrubbing = true; seekTo(scrub.value); });
-      const endScrub = () => { _scrubbing = false; };
-      scrub.addEventListener('change', endScrub);
-      scrub.addEventListener('pointerup', endScrub);
-      scrub.addEventListener('pointercancel', endScrub);
-    }
-    // DAW-style drag-loop lane. Drag empty lane = paint a new loop; drag an edge
-    // handle = resize; drag the region body = move. Snaps to bar lines (Alt =
-    // free). A click with no drag leaves any existing loop untouched. All paths
-    // feed the same tpA/tpB + commitLoop() the A/B buttons use — one loop system.
-    const lane = $('slopscale-loop-lane');
-    if (lane) {
+    // Unified DAW ruler: one canvas handles BOTH scrub and A–B loop.
+    //   • Lower track → scrub/seek (drag the playhead through the chart).
+    //   • Top strip (loop zone) → loop/cycle: drag empty = paint a new loop,
+    //     drag inside the band = move it, drag near an edge = resize.
+    //   • Loop edges are grabbable from anywhere in the ruler height (±6px).
+    // Loop drags snap to bar lines (Alt = free) and feed the same tpA/tpB +
+    // commitLoop() the A/B buttons use — one loop system. Seek is continuous.
+    const rulerCanvas = $('slopscale-ruler-canvas');
+    if (rulerCanvas) {
       let mode = null, anchorT = 0, startTpA = 0, startTpB = 0, prevA = null, prevB = null;
+      const dur = () => activeBundle?.songInfo?.duration || 0;
       const timeAt = (clientX) => {
-        const r = lane.getBoundingClientRect();
-        const dur = activeBundle?.songInfo?.duration || 0;
-        return Math.max(0, Math.min(dur, (clientX - r.left) / Math.max(1, r.width) * dur));
+        const g = rulerGeom(); if (!g) return 0;
+        return Math.max(0, Math.min(dur(), (clientX - g.rect.left - g.padX) / g.usableW * dur()));
       };
-      lane.addEventListener('pointerdown', (e) => {
-        if (!activeBundle) return;
+      // Which loop edge (if any) the pointer is within ~6px of, in screen px.
+      const edgeNear = (clientX) => {
+        if (tpA == null || tpB == null || dur() <= 0) return null;
+        const g = rulerGeom(); if (!g) return null;
+        const xa = g.rect.left + g.padX + Math.min(tpA, tpB) / dur() * g.usableW;
+        const xb = g.rect.left + g.padX + Math.max(tpA, tpB) / dur() * g.usableW;
+        if (Math.abs(clientX - xa) <= 6) return 'resizeA';
+        if (Math.abs(clientX - xb) <= 6) return 'resizeB';
+        return null;
+      };
+      rulerCanvas.addEventListener('pointerdown', (e) => {
+        if (!activeBundle || dur() <= 0) return;
         e.preventDefault();
-        try { lane.setPointerCapture(e.pointerId); } catch (_) {}
+        try { rulerCanvas.setPointerCapture(e.pointerId); } catch (_) {}
         prevA = tpA; prevB = tpB;
-        const handle = e.target.closest('.slopscale-loop-handle');
-        const onRegion = e.target.closest('.slopscale-loop-lane-region');
-        if (handle) {
-          mode = handle.dataset.edge === 'a' ? 'resizeA' : 'resizeB';
-        } else if (onRegion && tpA != null && tpB != null) {
-          mode = 'move'; anchorT = timeAt(e.clientX); startTpA = Math.min(tpA, tpB); startTpB = Math.max(tpA, tpB);
+        const g = rulerGeom(); const y = e.clientY - g.rect.top;
+        const lz = Math.min(RULER_LOOP_ZONE, g.rect.height * 0.4);
+        const edge = edgeNear(e.clientX);
+        const t = timeAt(e.clientX);
+        if (edge) { mode = edge; }
+        else if (y <= lz) {
+          // Loop zone: move an existing band if clicked inside it, else start new.
+          const inBand = tpA != null && tpB != null && t >= Math.min(tpA, tpB) && t <= Math.max(tpA, tpB);
+          if (inBand) { mode = 'move'; anchorT = t; startTpA = Math.min(tpA, tpB); startTpB = Math.max(tpA, tpB); }
+          else { mode = 'new'; anchorT = snapToDownbeat(t, e.altKey); tpA = anchorT; tpB = anchorT; drawRulerFrame(); }
         } else {
-          mode = 'new'; anchorT = snapToDownbeat(timeAt(e.clientX), e.altKey); tpA = anchorT; tpB = anchorT; paintLoopRegion();
+          mode = 'seek'; seekTo(t);
         }
       });
-      lane.addEventListener('pointermove', (e) => {
-        if (!mode) return;
-        const dur = activeBundle?.songInfo?.duration || 0;
-        const raw = timeAt(e.clientX), t = snapToDownbeat(raw, e.altKey);
+      rulerCanvas.addEventListener('pointermove', (e) => {
+        if (!mode) {
+          // Hover affordance: resize at edges, crosshair in loop zone, seek below.
+          const g = rulerGeom(); if (!g) return;
+          const lz = Math.min(RULER_LOOP_ZONE, g.rect.height * 0.4);
+          rulerCanvas.style.cursor = edgeNear(e.clientX) ? 'ew-resize' : ((e.clientY - g.rect.top) <= lz ? 'crosshair' : 'pointer');
+          return;
+        }
+        const raw = timeAt(e.clientX);
+        if (mode === 'seek') { seekTo(raw); return; }
+        const t = snapToDownbeat(raw, e.altKey);
         if (mode === 'new') { tpA = Math.min(anchorT, t); tpB = Math.max(anchorT, t); }
         else if (mode === 'resizeA') { tpA = t; }
         else if (mode === 'resizeB') { tpB = t; }
         else if (mode === 'move') {
           const width = startTpB - startTpA;
           let na = snapToDownbeat(startTpA + (raw - anchorT), e.altKey);
-          na = Math.max(0, Math.min(Math.max(0, dur - width), na));
+          na = Math.max(0, Math.min(Math.max(0, dur() - width), na));
           tpA = na; tpB = na + width;
         }
-        paintLoopRegion();
+        drawRulerFrame();
       });
-      const endLane = (e) => {
+      const endRuler = (e) => {
         if (!mode) return;
-        const wasNew = mode === 'new';
+        const wasSeek = mode === 'seek', wasNew = mode === 'new';
         mode = null;
-        try { lane.releasePointerCapture(e.pointerId); } catch (_) {}
-        // A click (no real drag) on empty lane shouldn't wipe an existing loop.
+        try { rulerCanvas.releasePointerCapture(e.pointerId); } catch (_) {}
+        if (wasSeek) return;  // seek commits live; nothing to finalize
+        // A click (no real drag) in the empty loop zone shouldn't wipe a loop.
         if (wasNew && Math.abs((tpA ?? 0) - (tpB ?? 0)) < 0.02) { tpA = prevA; tpB = prevB; }
         commitLoop();
       };
-      lane.addEventListener('pointerup', endLane);
-      lane.addEventListener('pointercancel', endLane);
+      rulerCanvas.addEventListener('pointerup', endRuler);
+      rulerCanvas.addEventListener('pointercancel', endRuler);
     }
     $('slopscale-to-start')?.addEventListener('click', () => seekTo(0));
     $('slopscale-nudge-back')?.addEventListener('click', () => nudgeBar(-1));
@@ -6398,7 +6612,18 @@
     $('slopscale-loop-b')?.addEventListener('click', () => { tpB = currentPracticeTime; commitLoop(); });
     $('slopscale-loop-clear')?.addEventListener('click', resetTransportLoop);
     document.querySelectorAll('.slopscale-tp-seg').forEach(btn => {
-      btn.addEventListener('click', () => { setFieldSilent('countIn', btn.dataset.countin); syncTransport(); });
+      // Count-in is baked into the chart as lead-in rest bars (applyCountIn in
+      // makeBundle), so changing it rebuilds the bundle — a re-attach, not just
+      // a playback tweak. Stop playback and re-attach the current exercise so
+      // the new lead-in (notes flowing in + notation rests) takes effect.
+      btn.addEventListener('click', async () => {
+        const v = btn.dataset.countin;
+        setFieldSilent('countIn', v); syncTransport();
+        if (!lastExercise) return;
+        if (playing) stopPlayback();
+        lastExercise.session.countInBars = Math.max(0, Math.min(8, parseInt(v, 10) || 0));
+        try { await attachRenderer(lastExercise); } catch (e) { console.error('[SlopScale] count-in re-attach failed', e); }
+      });
     });
     document.querySelector('#slopscale-controls [name="countIn"]')?.addEventListener('change', syncTransport);
     // Session transport: segment nav, per-segment loop, and click-to-jump on
@@ -6419,7 +6644,7 @@
     });
     $('slopscale-regenerate')?.addEventListener('click', onGenerate);
     $('slopscale-next-variation')?.addEventListener('click', rotateToNextVariation);
-    $('slopscale-save').addEventListener('click', () => savePreset().catch(e => { $('slopscale-summary').textContent += `\n\nPreset save failed: ${e.message || e}`; }));
+    $('slopscale-save').addEventListener('click', () => savePreset().catch(e => { showStatus(`Preset save failed: ${e.message || e}`); }));
     $('slopscale-share')?.addEventListener('click', onCopyShareLink);
     // Paste-share-link: fire on actual paste events AND on plain typing
     // (some users will type a base64 payload in directly).
