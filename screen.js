@@ -438,7 +438,10 @@
     }
   };
   const PATHWAY_STORAGE_KEY = 'slopscale.lastPathway';
-  const PATHWAY_FIRST_VISIT_DEFAULT = 'pent_foundation';
+  // First-ever launch lands on the first pathway (Chromatic Warmup, the root of
+  // the skill tree) on 6-string guitar — its base config sets guitar_6_standard.
+  // Only applies when nothing is stored; later launches restore the last pathway.
+  const PATHWAY_FIRST_VISIT_DEFAULT = 'chromatic_warmup';
 
   // === Practice Sessions ===
   //
@@ -4260,10 +4263,10 @@
       const saved = localStorage.getItem('slopscale.renderer');
       if (saved) cfg.renderer = saved;
     }
-    // The host 3D highway only supports 6 strings — force 2D for bass / extended
-    // range. Transient (per-render), never persisted, so it can't strand a later
-    // 6-string session on 2D.
-    if (cfg.renderer === 'highway_3d' && (cfg.stringCount || 6) !== 6) cfg.renderer = 'builtin_2d';
+    // The host 3D Highway renders 4–8 strings (resolveStringCount + an 8-entry
+    // palette), so guitar AND bass use it. Only fall back for counts it can't
+    // handle (>8 — not currently producible in SlopScale, but defensive).
+    if (cfg.renderer === 'highway_3d' && (cfg.stringCount || 6) > 8) cfg.renderer = 'builtin_2d';
     // Keep the view row in sync with what's ACTUALLY being rendered (including
     // the saved-pref restore and the bass/extended force above) so the
     // highlighted view button always matches the render.
@@ -5139,8 +5142,6 @@
   }
   function syncStringSetupControls() { const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'); if (!instrument || !setup) return; const current = STRING_SETUPS[setup.value] || STRING_SETUPS.guitar_6_standard; instrument.value = current.instrument; }
   // CAGED/3NPS shape concepts are guitar-only — hide them when bass is active.
-  // Also switch the renderer to 2D Highway since the host's 3D Highway plugin
-  // throws on non-6-string string counts.
   // Remembers the shape-aware system (caged/3nps) we force-switched away from
   // when the user picked a bass setup, so returning to guitar restores it
   // instead of stranding the player in 'position'.
@@ -5174,15 +5175,8 @@
         stashedGuitarSystem = fs.value;
         fs.value = 'position';
       }
-      // The host 3D highway only supports 6 strings, so show 2D on bass — but
-      // do NOT persist it. attachRenderer forces 2D at render time for any
-      // non-6-string chart; writing localStorage here used to strand 6-string
-      // guitar sessions on 2D afterwards.
-      const rendererSel = document.querySelector('[name="renderer"]');
-      if ((rendererSel?.value || 'highway_3d') === 'highway_3d') {
-        if (rendererSel) rendererSel.value = 'builtin_2d';
-        syncViewSwitcher('builtin_2d');
-      }
+      // (Bass keeps the selected view — the 3D Highway renders bass natively, so
+      // we no longer force it to 2D here.)
     } else if (stashedGuitarSystem) {
       // Returning to guitar: restore the shape-aware system bass forced off, so
       // the player isn't silently stranded in 'position'. Only restore if the
