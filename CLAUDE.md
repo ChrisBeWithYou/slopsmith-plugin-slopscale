@@ -55,17 +55,18 @@ To exercise backend routes directly, hit them via curl or the browser while Slop
 
 ### The core data flow
 
+**Playback is contained entirely inside the plugin.** "Play" does **not** hand off to Slopsmith's main player — this is a deliberate divergence from the old launch model (decided 2026-05-30; see "Contained playback" below).
+
 ```
 User configures routine in screen.html/screen.js
-  → JS calls generate(config) dispatch → generator returns an exercise object
-  → POST /api/plugins/slopscale/temp-sloppak
-  → routes.py normalises fields, synthesises audio stem, writes a directory-form .sloppak under <DLC_DIR>/.slopscale-temp/
-  → JS calls window.playSong(filename, arrangement) — Slopsmith's native player opens
-  → Player uses Slopsmith's existing highway, transport, and scoring
-  → Escape key returns to the SlopScale screen (via sessionStorage marker)
+  → generateExercise(cfg) / generateSession(session) dispatch → returns { version, session, chart }
+  → makeBundle(exercise) wraps it into a renderer-ready bundle (activeBundle)
+  → attachRenderer() mounts the selected renderer onto #slopscale-canvas (or a borrowed host-viz sibling)
+  → onPlayToggle() → startPlayback(): own requestAnimationFrame loop + Web Audio scheduling + pitch tracker
+  → renderers, HUD, and live fretboard strip are driven each frame from currentPracticeTime
 ```
 
-The built-in 2D highway and 2D tab renderers in `screen.js` are **preview surfaces only** — they let you see a generated chart without launching the full Slopsmith player. The primary user action is "Play" (launching in the main Slopsmith player via the temp-sloppak path above).
+The renderers in `screen.js` are the **actual playback surface**, not just previews — there is no second transport in a host player. `startPlayback()` owns the clock (`currentPracticeTime`, RAF `tick`), audio (count-in clicks + scheduled note/metronome audio), and scoring (Minigames-SDK pitch tracker).
 
 ### screen.js structure
 
@@ -159,16 +160,16 @@ All note objects in the exercise payload use compact keys (see `docs/exercise-sc
 
 - **Never duplicate the player.** SlopScale generates chart data; Slopsmith plays it. Do not build a second transport, WebSocket handler, or canvas lifecycle inside the plugin.
 - **Backend routes must stay under `/api/plugins/slopscale/…`.**
-- **`window.playSong`, `window.showScreen`, `window.createHighway`, and `window.slopsmith`** are Slopsmith's public frontend APIs. Do not monkey-patch them.
-- The Escape-return handler uses `sessionStorage['slopscale.returnToMenu'] = '1'` as a one-shot marker. Clear it on return. Only override Escape while `player` is the active screen and the marker is set.
+- **`window.playSong`, `window.showScreen`, `window.createHighway`, and `window.slopsmith`** are Slopsmith's public frontend APIs. Do not monkey-patch them. (`goScreen()` uses `window.slopsmith.navigate` / `window.showScreen` for navigation only.)
+- **Do not override Escape.** Slopsmith owns Escape for return-to-menu. The plugin's keyboard handler (`screen.js`) deliberately never touches it. (The old launch model used a `sessionStorage['slopscale.returnToMenu']` marker to override Escape; that flow is gone with contained playback.)
 - **Do not add the temp sloppak to Slopsmith's library index.** It lives under `.slopscale-temp/` specifically to avoid indexing.
 - **No-unison rule:** a scale/mode/arpeggio run must never sound the same pitch (same MIDI) twice across strings. Shapes are degree-driven, not fret-window blocks, and there is a startup regression guard that throws `[SlopScale no-unison] … doubles a pitch` if a resolved CAGED/Open shape doubles a note. When adding or editing shapes, preserve this — don't reintroduce fret-window selection.
 
-## Current implementation state
+## Contained playback (current model)
 
-The backend `POST /temp-sloppak` route is implemented and ready (see `routes.py`). **The frontend launch flow into Slopsmith's main player is not currently wired up** — `screen.js` has no `launchInMainPlayer()` symbol and no `fetch('/api/plugins/slopscale/temp-sloppak')` call. The plugin currently operates as an embedded preview app with three renderer modes via `resolveRendererFactory()` (3D highway delegated to host, 2D highway, 2D notation), plus a Minigames-SDK pitch tracker.
+**SlopScale runs as a fully self-contained player; "Play" never launches the host player.** This is a deliberate decision (2026-05-30, commit `e62d02a`) that supersedes the "Launch in Main 3D Player" UX described in older `docs/architecture.md` prose. Practice plays back inside the plugin via `startPlayback()` (own RAF clock + Web Audio + pitch tracker) across the renderers selected by `resolveRendererFactory()`.
 
-Per `docs/architecture.md`, the intended primary UX is still **Launch in Main 3D Player** via the temp-sloppak path. Wiring up that launch is outstanding work — when adding it, the `generateExercise` → `makeBundle` → POST → `playSong` chain is already designed for it. Check `ROADMAP.md` before scoping any rework here.
+Consequence: `screen.js` does **not** call `fetch('/api/plugins/slopscale/temp-sloppak')` or `window.playSong`. The `POST /temp-sloppak` route in `routes.py` (and the field-translation / sloppak-format machinery documented above) still exists but is **dormant** — kept for reference and possible future re-enablement, not on the live path. Don't "fix" the frontend to call it without confirming the contained-playback decision has been reversed (check `ROADMAP.md` and project memory first).
 
 ## Adding a new pathway
 

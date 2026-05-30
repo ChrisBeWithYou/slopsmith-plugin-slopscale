@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository. It mirrors `CLAUDE.md` — keep the two in sync.
 
 ## What this is
 
@@ -21,8 +21,20 @@ The plugin has no build step. There is no `package.json`, no compiler, no bundle
 | `docs/architecture.md` | Integration design — the authoritative spec for how the plugin interacts with Slopsmith. Read this first before changing the launch flow. |
 | `docs/exercise-schema.md` | Internal generated exercise JSON schema and note field abbreviations. |
 | `docs/practice-pedagogy.md` | Pedagogical rationale behind the curated pathways and build order. |
+| `docs/pedagogy-sequencing.md` | Beginner→advanced sequencing rationale for pathways. |
 | `docs/fretboard-pedagogy.md` | Guitar fretboard system reference (CAGED, 3NPS, etc.). |
 | `docs/position-system-rework.md` | Design notes on the unified position system (CAGED_SHAPES consolidation history). |
+| `docs/session-schema.md` | Session/segment data model used by `BUILT_IN_SESSIONS`. |
+| `docs/theory-caged.md` / `theory-scales.md` / `theory-arpeggios.md` / `theory-jazz-advanced.md` / `theory-progressions.md` | Distilled theory knowledge base (CAGED, scales, arpeggios, advanced jazz, cross-genre progressions). |
+| `docs/genre-framework-guitar.md` | Genre/style framework behind the progression library and random-style generator. |
+| `docs/musicality-guardrails.md` | Spec for keeping generated output musically pleasing, not just theoretically correct (voicing engine rationale). |
+| `docs/section-looping.md` | Section/segment looping design notes. |
+| `docs/ui-session.md` | Session UI design notes. |
+| `docs/session-2026-05-26-shape-system.md` | Shape-system unification session log. |
+| `docs/sources/` | Source PDFs — reference material only. |
+| `README.md` | User-facing feature list + install steps. |
+| `ROADMAP.md` | Phase plan; **read at session start**. Authoritative for "what's shipped vs planned". |
+| `CLAUDE.md` | Claude Code variant; this file mirrors it. |
 
 ## Development workflow
 
@@ -31,6 +43,8 @@ No build. No dev server. The workflow is:
 1. Clone into Slopsmith's `plugins/` directory as `slopscale/`.
 2. Restart Slopsmith (web: `docker compose restart`; Desktop: relaunch the app).
 3. Edit files, then reload the Slopsmith page. `screen.js` and `screen.html` changes take effect on page reload. `routes.py` changes require a Slopsmith restart.
+
+To run, screenshot, or smoke-test the plugin without doing the clone/restart dance by hand, use the **`run-slopscale` skill** (`.claude/skills/run-slopscale/`). `launch.ps1` junctions this repo into the Slopsmith plugins dir, starts the bundled-Python host on port 8765, and waits for `/status` to return `ok`; `driver.mjs` drives the SlopScale screen via Playwright and screenshots any of the four renderers. Server logs land in `%TEMP%\slopscale\server.log`.
 
 To exercise backend routes directly, hit them via curl or the browser while Slopsmith is running:
 - `GET /api/plugins/slopscale/status` — confirms the plugin is loaded
@@ -41,30 +55,40 @@ To exercise backend routes directly, hit them via curl or the browser while Slop
 
 ### The core data flow
 
+**Playback is contained entirely inside the plugin.** "Play" does **not** hand off to Slopsmith's main player — this is a deliberate divergence from the old launch model (decided 2026-05-30; see "Contained playback" below).
+
 ```
 User configures routine in screen.html/screen.js
-  → JS calls generate(config) dispatch → generator returns an exercise object
-  → POST /api/plugins/slopscale/temp-sloppak
-  → routes.py normalises fields, synthesises audio stem, writes a directory-form .sloppak under <DLC_DIR>/.slopscale-temp/
-  → JS calls window.playSong(filename, arrangement) — Slopsmith's native player opens
-  → Player uses Slopsmith's existing highway, transport, and scoring
-  → Escape key returns to the SlopScale screen (via sessionStorage marker)
+  → generateExercise(cfg) / generateSession(session) dispatch → returns { version, session, chart }
+  → makeBundle(exercise) wraps it into a renderer-ready bundle (activeBundle)
+  → attachRenderer() mounts the selected renderer onto #slopscale-canvas (or a borrowed host-viz sibling)
+  → onPlayToggle() → startPlayback(): own requestAnimationFrame loop + Web Audio scheduling + pitch tracker
+  → renderers, HUD, and live fretboard strip are driven each frame from currentPracticeTime
 ```
 
-The built-in 2D highway and 2D tab renderers in `screen.js` are **preview surfaces only** — they let you see a generated chart without launching the full Slopsmith player. The primary user action is "Play" (launching in the main Slopsmith player via the temp-sloppak path above).
+The renderers in `screen.js` are the **actual playback surface**, not just previews — there is no second transport in a host player. `startPlayback()` owns the clock (`currentPracticeTime`, RAF `tick`), audio (count-in clicks + scheduled note/metronome audio), and scoring (Minigames-SDK pitch tracker).
 
 ### screen.js structure
 
-`screen.js` is one IIFE containing everything. Key sections (in order):
+`screen.js` is one IIFE, ~6350 lines. **Prefer targeted search to locate a section before reading.** Key sections (in order):
 
-- **Constants** — `NOTE_NAMES`, `STRING_SETUPS`, `SCALE_INTERVALS`, `CHORD_FORMULAS`, `DIATONIC_QUALITIES`, `COMMON_PROGRESSIONS`, `SEQUENCE_PATTERNS`, `CHROMATIC_PATTERNS`
-- **`CAGED_SHAPES`** — unified source of truth for CAGED shape data. Contains `rootStringIdx`, `scaleFretSpanFromRoot`, and `chordTemplates` per quality. **Do not split this into separate tables.** (Historical note: a previous version had two diverged tables; they were unified on 2026-05-26.)
+- **Constants** — `NOTE_NAMES`, `STRING_SETUPS`, `SCALE_INTERVALS`, `CHORD_FORMULAS`, `DIATONIC_QUALITIES`, `COMMON_PROGRESSIONS`, `SEQUENCE_PATTERNS`, `CHROMATIC_PATTERNS`, etc. `CHORD_FORMULAS` carries the **full interval stack** for each quality (including extensions past the octave for 9/11/13 chords); it is intentionally complete so the voicing engine decides what to actually play.
+- **`CAGED_SHAPES`** — unified source of truth for CAGED shape data. Contains `rootStringIdx`, `scaleFretSpanFromRoot`, and `chordTemplates` per quality. **Do not split this into separate tables.** (Historical note: a previous version had two diverged tables; they were unified on 2026-05-26.) Scale/arpeggio shapes are resolved by degree-driven, no-unison selection (`resolveCAGEDShape` and the run-seam dedupe), not naive fret-window blocks — see the no-unison constraint below.
 - **`PATHWAYS`** — curated pathway definitions: `label`, `goal`, `scales[]`, `tempoTiers[]`, `base` config, and `vary[]` list for Next Variation cycling.
-- **`generate(config)`** — dispatch function; routes to the correct generator based on `config.practiceType`.
-- **Generator functions** — `generateScale()`, `generateChordScales()`, `generateDiatonicArpeggios()`, `generateProgressionArpeggios()`, `generateSweepArpeggios()`, `generateChromatic()` — each returns an `exercise` object.
-- **Built-in renderer** — `drawHighway2D()`, `drawTab2D()`, the `Renderer` class driving `#slopscale-canvas`.
-- **Audio engine** — `AudioEngine` class: Web Audio API, note synthesis, metronome, harmony backing.
-- **Slopsmith integration** — `launchInMainPlayer()`, `playSong()` wrapper, Escape-return handler.
+- **`BUILT_IN_SESSIONS`** — multi-segment session presets (ii–V–I Workshop, Daily 30-min Intermediate, Blues Fundamentals, Bebop Fundamentals).
+- **Exercise builders** — `buildScaleExercise`, `buildChordScaleExercise`, `buildArpeggioExercise`, `buildSweepArpeggioExercise`, `buildChromaticExercise`, `buildGuideTonesExercise`. Each returns an `exercise` object.
+- **`generateExercise(cfg)`** — single-exercise dispatch; routes to the correct builder based on `cfg.practiceType`.
+- **Session builders** — `buildSegmentConfig`, `buildBpmLadderChart`, `buildSessionChart`, `generateSession`. `generateSession()` is parallel to `generateExercise()`; both return the same `{ version, session, chart }` shape so the downstream `makeBundle` path is unchanged.
+- **Jazz harmony engine** — `chordQualityForDegree()` resolves the chord quality per scale degree (honouring `chordDepth` = power/triad/seventh/extended, `chordOverride`, and progression context), with optional **tritone substitution** (`cfg.tritoneSub` = `off` / `dominant_v` / `all_dominants`). `voiceChord(rootPc, intervals, opts)` is the **voicing engine** — it turns a raw interval stack into a playable voicing (voice count, register window, drop/omit decisions) rather than stacking every formula note. This is what keeps generated harmony musical; see `docs/musicality-guardrails.md`.
+- **`makeBundle(exercise)`** — wraps an exercise into a renderer-ready bundle.
+- **Renderer factory system** — `resolveRendererFactory(kind)` selects between renderers, borrowing host visualization plugins via the shared `borrowHostViz(globalName, scriptPath)` helper (lazy-load + poll for deferred `window.slopsmithViz_<id>` registration, with built-in fallback): `highway_3d` (host's `window.slopsmithViz_highway_3d`), `builtin_2d` (the **Jumping Tab** slot — borrows `window.slopsmithViz_jumpingtab`; the in-tree `makeBuiltin2DRenderer` is now only its last-resort fallback), `tab_2d` (Tab), `notation_2d` (Notation), and `piano_roll` (**groundwork only** — borrows `window.slopsmithViz_piano`, gated behind `pianoPathwayActive()` which returns `false`; the Piano Roll view button is `hidden`+`disabled`). User selection persisted via `localStorage['slopscale.renderer']`. Note: the host 3D highway only supports 6 strings, so `attachRenderer()` transiently forces bass / extended-range charts to `builtin_2d` (Jumping Tab adapts to 4–8 strings + bass, so it doubles as that fallback). Borrowed viz plugins mount their own wrap as a sibling of `#slopscale-canvas`; `stopRenderer()` calls their `destroy()` on switch, and `.slopscale-render-host .jumpingtab-wrap` is sized to fill the host.
+- **Built-in renderers** — `makeBuiltin2DRenderer`, `makeBuiltin2DTabRenderer`, `makeBuiltin2DNotationRenderer`, plus their draw helpers, driving `#slopscale-canvas`. Note spacing is **time-linear** (`xForDt(dt)` maps a note's time-offset from the playhead linearly to x — constant-speed scroll). The visible window (`AHEAD`/`BEHIND`, set per-draw) is **beat-relative** via `chartBeatSeconds(bundle)` (≈6.8 beats across the view, clamped), so note density stays comfortable/consistent across tempos instead of cramming at fast BPM; it's constant within a chart so the scroll speed is unchanged.
+- **Live fretboard strip** — `drawFretboardFrame()` (+ `fretboardActiveNotes`, `fretboardSyncRange`, `fretboardStringCount`) draws a horizontal neck diagram on `#slopscale-fretboard` (docked under the render-host). It draws the exercise's whole pattern (`fbPattern`, unique string/fret positions) as **hollow circles**, and notes sounding within ~80ms of the playhead **glow filled** on top. The neck is **zoomed to the pattern's fret window** (`fbFretLo`/`fbFretHi`, ±1 fret with a min span) so the shape fills/centres the strip rather than floating on a full neck. Ported/generalised from the host Fretboard View plugin; any string count. Called from `drawOnce()` each frame (early-returns when its canvas is hidden). **Only offered for the views where it adds info the view lacks: Jumping Tab (`builtin_2d`) and Notation** — gated by the `.slopscale-fb-capable` root class (set in `syncViewSwitcher`) AND a user toggle (`.slopscale-fb-on`, button `#slopscale-fretboard-toggle`, persisted in `localStorage['slopscale.fretboard']`, default on, `syncFretboardUI()`). Always hidden for 3D Highway (redundant — already a neck), Tab, and the Piano instrument (`.slopscale-piano-instrument … !important`).
+- **Exercise title** — `exerciseTitle(cfg)` sets `bundle.songInfo.title` to the descriptive name (e.g. "C minor pentatonic"; session name for sessions). Each renderer draws this as its own in-canvas header in its native style (the built-in Tab/Notation `drawHud` draw title-only — no in-canvas timer; that lives in the HUD).
+- **Player HUD** — `#slopscale-hud` overlay floating over the highway: time on the right (single timer, all views), and a title on the left **only for 3D Highway** (`.slopscale-hud-title-on`, set in `syncViewSwitcher`) since every other renderer draws the title in-canvas. Time set in `syncTransportTime()`, title in `syncTransport()`.
+- **Audio engine** — Web Audio API, note synthesis, metronome, harmony backing.
+- **Slopsmith Minigames SDK integration** — pitch tracker via `window.slopsmithMinigames.scoring.createContinuous(...)`. Used as a scoring consumer only; **the plugin is not registered as a Slopsmith minigame.**
+- **Public surface** — `window.SlopScale = { generateExercise, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop }` (near the end of the file).
 - **`bind()`** — wires all DOM events; called once on DOMContentLoaded.
 
 ### routes.py structure
@@ -73,10 +97,11 @@ FastAPI routes registered via `setup(app, context)`. All routes are under `/api/
 
 - `GET /status` — health check
 - `GET /assets/{filename}` — serves `static/slopscale.css`
-- `GET /presets` / `POST /presets` / `DELETE /presets/{id}` — preset CRUD via `presets.json`
-- `POST /temp-sloppak` — normalizes the frontend exercise payload (`_normalise_chart`), writes a directory-form `.sloppak` package under the DLC folder, returns `{ ok, filename, title, duration }`. The frontend then calls `playSong(filename)`.
+- `GET /presets` / `POST /presets` / `DELETE /presets/{id}` — preset CRUD
+- `GET /tunings` / `POST /tunings` / `DELETE /tunings/{id}` — custom-tuning CRUD (frontend posts a tuning by name + family + string count + MIDI list; id is an autoincrement INTEGER)
+- `POST /temp-sloppak` — normalizes the frontend exercise payload (`_normalise_chart`), writes a directory-form `.sloppak` package under the DLC folder, returns `{ ok, filename, title, duration }`. (Dormant on the live path — see "Contained playback" below.)
 
-Presets persist to `<CONFIG_DIR>/plugin_data/slopscale/presets.json`. Writes are atomic (temp file + `os.replace`).
+**Storage is DB-backed, not flat files.** Presets and tunings live in the shared Slopsmith meta-DB obtained via `context["meta_db"]` (a `sqlite3.Connection` on `.conn` guarded by `._lock`), in two dedicated tables `slopscale_presets` (TEXT id, preserves legacy slug ids) and `slopscale_tunings` (INTEGER autoincrement id). `_ensure_tables()` creates them on `setup()`. The legacy `<CONFIG_DIR>/plugin_data/slopscale/presets.json` is migrated into the DB once via `_migrate_presets_from_json()` (idempotent; runs only when the presets table is empty) and then left in place as an audit breadcrumb — it is **no longer the live store**, so don't edit it expecting changes to show up.
 
 Temp sloppaks live under `<DLC_DIR>/.slopscale-temp/<slug>.sloppak/`. They are cleaned up on the next build call (entries older than 24h, or beyond 20 total).
 
@@ -135,13 +160,16 @@ All note objects in the exercise payload use compact keys (see `docs/exercise-sc
 
 - **Never duplicate the player.** SlopScale generates chart data; Slopsmith plays it. Do not build a second transport, WebSocket handler, or canvas lifecycle inside the plugin.
 - **Backend routes must stay under `/api/plugins/slopscale/…`.**
-- **`window.playSong`, `window.showScreen`, `window.createHighway`, and `window.slopsmith`** are Slopsmith's public frontend APIs. Do not monkey-patch them.
-- The Escape-return handler uses `sessionStorage['slopscale.returnToMenu'] = '1'` as a one-shot marker. Clear it on return. Only override Escape while `player` is the active screen and the marker is set.
+- **`window.playSong`, `window.showScreen`, `window.createHighway`, and `window.slopsmith`** are Slopsmith's public frontend APIs. Do not monkey-patch them. (`goScreen()` uses `window.slopsmith.navigate` / `window.showScreen` for navigation only.)
+- **Do not override Escape.** Slopsmith owns Escape for return-to-menu. The plugin's keyboard handler (`screen.js`) deliberately never touches it. (The old launch model used a `sessionStorage['slopscale.returnToMenu']` marker to override Escape; that flow is gone with contained playback.)
 - **Do not add the temp sloppak to Slopsmith's library index.** It lives under `.slopscale-temp/` specifically to avoid indexing.
+- **No-unison rule:** a scale/mode/arpeggio run must never sound the same pitch (same MIDI) twice across strings. Shapes are degree-driven, not fret-window blocks, and there is a startup regression guard that throws `[SlopScale no-unison] … doubles a pitch` if a resolved CAGED/Open shape doubles a note. When adding or editing shapes, preserve this — don't reintroduce fret-window selection.
 
-## Current implementation state
+## Contained playback (current model)
 
-Per `docs/architecture.md`, the intended primary UX is **Launch in Main 3D Player** via `launchInMainPlayer()`. The embedded 2D renderers are preview-only. As of the last commit, `launchInMainPlayer()` exists in `screen.js` but the UI still emphasizes the embedded preview path. When working on UX, push toward the main-player launch as the primary action and demote the preview accordingly.
+**SlopScale runs as a fully self-contained player; "Play" never launches the host player.** This is a deliberate decision (2026-05-30, commit `e62d02a`) that supersedes the "Launch in Main 3D Player" UX described in older `docs/architecture.md` prose. Practice plays back inside the plugin via `startPlayback()` (own RAF clock + Web Audio + pitch tracker) across the renderers selected by `resolveRendererFactory()`.
+
+Consequence: `screen.js` does **not** call `fetch('/api/plugins/slopscale/temp-sloppak')` or `window.playSong`. The `POST /temp-sloppak` route in `routes.py` (and the field-translation / sloppak-format machinery documented above) still exists but is **dormant** — kept for reference and possible future re-enablement, not on the live path. Don't "fix" the frontend to call it without confirming the contained-playback decision has been reversed (check `ROADMAP.md` and project memory first).
 
 ## Adding a new pathway
 
@@ -152,6 +180,6 @@ Per `docs/architecture.md`, the intended primary UX is **Launch in Main 3D Playe
 ## Adding a new generator (practice type)
 
 1. Add the `<option>` to the `practiceType` select in `screen.html`.
-2. Implement `generateX(config)` in `screen.js` returning an `exercise` object matching `docs/exercise-schema.md`.
-3. Wire it into the `generate(config)` dispatch function.
+2. Implement `buildXExercise(cfg)` in `screen.js` returning an `exercise` object matching `docs/exercise-schema.md`.
+3. Wire it into the `generateExercise(cfg)` dispatch function.
 4. No backend changes needed unless the new type requires a new route.
