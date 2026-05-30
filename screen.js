@@ -665,6 +665,26 @@
     const idx = semis.indexOf(interval);
     return idx === -1 ? null : idx + 1;
   }
+  // Suggested left-hand finger for a note in a box (1=index..4=pinky, 0=open).
+  // One-finger-per-fret from the box's index-finger anchor, clamped to 1–4.
+  // The B and high-E strings (s=4,5) get a −1 nudge because the G→B major-3rd
+  // tuning gap shifts the same shape one fret higher there; un-nudging keeps the
+  // canonical fingering (validated by the fretboard-pedagogy review, 2026-05-29).
+  function scaleFingerFor(s, f, anchorFret, applyGBNudge) {
+    if (f <= 0) return 0; // open string
+    const nudge = (applyGBNudge && s >= 4) ? 1 : 0;
+    return Math.max(1, Math.min(4, (f - anchorFret + 1) - nudge));
+  }
+  // 3NPS fingering for the three ascending frets on one string, from the standard
+  // per-string interval lookup: whole-whole (span 4) = 1-2-4, whole-half = 1-2-3,
+  // half-whole = 1-3-4. (fretboard-pedagogy review, 2026-05-29.)
+  function threeNpsStringFingers(frets) {
+    const g1 = frets[1] - frets[0], g2 = frets[2] - frets[1];
+    if (g1 >= 2 && g2 >= 2) return [1, 2, 4];
+    if (g1 >= 2 && g2 < 2) return [1, 2, 3];
+    if (g1 < 2 && g2 >= 2) return [1, 3, 4];
+    return [1, 2, 3];
+  }
 
   // Resolve a CAGED shape in a given key.
   // Returns { fretMin, fretMax, rootFret, rootStringIdx, notes: [{s,f,d,isRoot}], displayName }
@@ -673,20 +693,38 @@
     const def = CAGED_SHAPES[shape];
     if (!def) return null;
     const rootOpenPc = openPcForString(openMidis, def.rootStringIdx);
-    const rootFret = lowestFretWithPc(rootOpenPc, keyPc);
+    let rootFret = lowestFretWithPc(rootOpenPc, keyPc);
     const spanDef = (def.pentFretSpanFromRoot && (scale === 'minor_pentatonic' || scale === 'major_pentatonic' || scale === 'blues'))
       ? def.pentFretSpanFromRoot : def.scaleFretSpanFromRoot;
+    // Nut-clamp fix: if the box would extend below the nut (rootFret too low, so
+    // the lower part of the shape is unplayable and the box collapses to a sliver
+    // at fret 0), shift the whole shape up an octave so it resolves as a complete,
+    // canonical fretted box. CAGED shapes are fretted boxes — open-string
+    // vocabulary belongs to the separate Open position system.
+    if (rootFret + spanDef[0] < 0) rootFret += 12;
     const fretMin = rootFret + spanDef[0];
     const fretMax = rootFret + spanDef[1];
-    const notes = [];
+    const firstFret = Math.max(0, fretMin);
     const numStrings = openMidis.length;
+    // Degree-driven, no-unison selection. A naive fret-window block repeats the
+    // SAME pitch wherever two adjacent strings overlap (e.g. A-major A-shape:
+    // B on the G string f4 and the B string f0). Per the no-unison rule, each
+    // pitch may sound on only one string in the box; the lower string wins a
+    // shared pitch (added first) so the box stays compact and ascending. Roots
+    // in different octaves are distinct pitches and are all kept.
+    const notes = [];
+    const usedMidi = new Set();
     for (let s = 0; s < numStrings; s++) {
       const openPc = openPcForString(openMidis, s);
-      const firstFret = Math.max(0, fretMin);
+      const openMidi = openMidis[s];
       for (let f = firstFret; f <= fretMax; f++) {
         const notePc = (openPc + f) % 12;
         const degree = degreeOfPc(keyPc, notePc, scale);
-        if (degree !== null) notes.push({ s, f, d: degree, isRoot: degree === 1 });
+        if (degree === null) continue;
+        const midi = openMidi + f;
+        if (usedMidi.has(midi)) continue; // unison already placed on a lower string
+        usedMidi.add(midi);
+        notes.push({ s, f, d: degree, isRoot: degree === 1, fg: scaleFingerFor(s, f, firstFret, true) });
       }
     }
     return {
@@ -731,8 +769,9 @@
         for (let i = 0; i < fretsForDegrees.length; i++) fretsForDegrees[i] += 12;
       }
       prevHighMidi = openMidi + fretsForDegrees[fretsForDegrees.length - 1];
+      const fingers = threeNpsStringFingers(fretsForDegrees);
       for (let i = 0; i < degrees.length; i++) {
-        notes.push({ s, f: fretsForDegrees[i], d: degrees[i] + 1, isRoot: degrees[i] === 0 });
+        notes.push({ s, f: fretsForDegrees[i], d: degrees[i] + 1, isRoot: degrees[i] === 0, fg: fingers[i] });
       }
     }
     const allFrets = notes.map(n => n.f);
@@ -755,12 +794,20 @@
     const fretMax = 3;
     const notes = [];
     const numStrings = openMidis.length;
+    // No-unison selection (see resolveCAGEDShape): drop a pitch already placed
+    // on a lower string so open position never doubles a note across strings.
+    const usedMidi = new Set();
     for (let s = 0; s < numStrings; s++) {
       const openPc = openPcForString(openMidis, s);
+      const openMidi = openMidis[s];
       for (let f = fretMin; f <= fretMax; f++) {
         const notePc = (openPc + f) % 12;
         const degree = degreeOfPc(keyPc, notePc, scale);
-        if (degree !== null) notes.push({ s, f, d: degree, isRoot: degree === 1 });
+        if (degree === null) continue;
+        const midi = openMidi + f;
+        if (usedMidi.has(midi)) continue;
+        usedMidi.add(midi);
+        notes.push({ s, f, d: degree, isRoot: degree === 1, fg: scaleFingerFor(s, f, 1, false) });
       }
     }
     return { fretMin, fretMax, rootFret: null, rootStringIdx: null, notes, displayName: 'Open position' };
@@ -1024,6 +1071,29 @@
       '[SlopScale shapes] After C-shape in C major, next is A-shape');
     console.assert(nextShapeInCycle(0, 'caged', 'D', 'major', guitar) === 'C',
       '[SlopScale shapes] After D-shape in C major, wraps to C-shape');
+    // No-unison rule: a resolved scale shape must never place the same pitch
+    // (openMidi + fret) on two strings. Roots in different octaves are distinct
+    // midis and are kept; only true unisons are dropped. Regression guard for
+    // the duplicate-root bug (fret-window blocks doubled pitches across strings).
+    const shapeDupMidis = (resolved) => {
+      if (!resolved) return ['unresolved'];
+      const seen = new Set(), dups = [];
+      for (const n of resolved.notes) {
+        const midi = guitar[n.s] + n.f;
+        if (seen.has(midi)) dups.push(midi); else seen.add(midi);
+      }
+      return dups;
+    };
+    for (const k of [0, 7, 9, 2, 3]) for (const sc of ['major', 'natural_minor', 'harmonic_minor']) {
+      for (const shape of CAGED_CYCLE) {
+        const d = shapeDupMidis(resolveCAGEDShape(k, shape, sc, guitar));
+        console.assert(d.length === 0,
+          `[SlopScale no-unison] CAGED ${shape}-shape key=${k} ${sc} doubles a pitch`, d);
+      }
+      const od = shapeDupMidis(resolveOpenShape(k, sc, guitar));
+      console.assert(od.length === 0,
+        `[SlopScale no-unison] Open key=${k} ${sc} doubles a pitch`, od);
+    }
   })();
 
   let renderer = null, activeBundle = null, rafId = null, lastExercise = null;
@@ -1478,17 +1548,35 @@
     return idx > 0 ? positions.slice(idx).concat(positions.slice(0, idx)) : positions;
   }
 
+  // Drop unison duplicates (same pitch on two strings) from a position list,
+  // keeping the first occurrence. Positions are expected midi-ascending, so the
+  // lower string/fret wins. Enforces the no-unison rule for any run — scales and
+  // arpeggios alike, regardless of which resolver produced the positions.
+  function dedupeUnisons(positions) {
+    const out = [], used = new Set();
+    for (const p of positions) {
+      if (!p || used.has(p.midi)) continue;
+      used.add(p.midi);
+      out.push(p);
+    }
+    return out;
+  }
+
   // Convert a shape's note list (s/f/d/isRoot) into the {s,f,midi,pc} shape
   // the chart generators expect.
   function shapeNotesToPositions(cfg, shapeNotes) {
     const opens = openMidisForConfig(cfg);
-    return shapeNotes
+    const mapped = shapeNotes
       .filter(n => n.s >= 0 && n.s < cfg.stringCount)
       .map(n => {
         const midi = opens[n.s] + n.f;
         return { s: n.s, f: n.f, midi, pc: midi % 12 };
       })
       .sort((a, b) => a.midi - b.midi || a.s - b.s || a.f - b.f);
+    // No-unison guard at the run/seam layer: a pitch must sound only once even
+    // when shapes are stitched together (combined positions, arpeggio + scale).
+    // Resolvers already avoid intra-shape unisons; this also covers combinations.
+    return dedupeUnisons(mapped);
   }
 
   function scalePositionsForSystem(cfg) {
@@ -1897,18 +1985,24 @@
     const opens = openMidisForConfig(cfg), out = [];
     const fLo = Math.max(0, cfg.fretMin), fHi = Math.min(24, cfg.fretMax);
     const bassStr = 0; // SlopScale: s=0 is the LOWEST string (low E) — the sweep's bass anchor
+    // Greedy-adjacent selection: the bass string anchors near anchorFret (root
+    // preferred); each higher string then picks the chord tone CLOSEST to the
+    // previous string's fret. This keeps the shape contiguous (a real sweepable
+    // grip) instead of the zig-zags an independent per-string search can produce.
+    let prevFret = anchorFret;
     for (let s = 0; s < cfg.stringCount; s++) {
       let best = null, bestScore = Infinity;
+      const ref = (s === bassStr) ? anchorFret : prevFret;
       for (let f = fLo; f <= fHi; f++) {
         const midi = opens[s] + f, pc = midi % 12;
         if (!intervalPcSet.has(pc)) continue;
-        const dist = Math.abs(f - anchorFret);
+        const dist = Math.abs(f - ref);
         // On the bass string, strongly prefer the root to anchor the sweep correctly
         const rootPenalty = (s === bassStr && pc !== rootPc) ? 30 : 0;
         const score = dist + rootPenalty;
         if (score < bestScore) { best = { s, f, midi, pc }; bestScore = score; }
       }
-      if (best) out.push(best);
+      if (best) { out.push(best); prevFret = best.f; }
     }
     return out;
   }
@@ -1917,7 +2011,9 @@
     const opens = openMidisForConfig(cfg);
     const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj;
     const intervalPcSet = new Set(formula.intervals.map(iv => (rootPc + iv) % 12));
-    for (let f = apexPos.f + 1; f <= Math.min(24, apexPos.f + 5); f++) {
+    // Cap the turnaround reach at +3 frets: a HO/PO to +5 above the apex is an
+    // impossible stretch low on the neck (validated by fretboard-pedagogy review).
+    for (let f = apexPos.f + 1; f <= Math.min(24, apexPos.f + 3); f++) {
       const pc = (opens[apexPos.s] + f) % 12;
       if (intervalPcSet.has(pc)) {
         return [
@@ -1951,18 +2047,35 @@
     const mLen = measureSeconds(cfg), step = secondsPerDivision(cfg);
     const totalBars = Math.max(1, cfg.bars), duration = totalBars * mLen;
     const anchorFret = Math.floor((cfg.fretMin + cfg.fretMax) / 2);
+    // Sweep shapes come from the canonical CAGED chord-tone template when a CAGED
+    // shape is active: it's a contiguous one-note-per-string arpeggio box that
+    // carries fingering by construction (the standard CAGED arpeggio shapes).
+    // pickShapeRootFret walks the chosen shape up/down the neck per chord.
+    const shape = cfg.shape || cfg.cagedShape;
+    const useShape = cfg.stringCount === 6 && !!CAGED_SHAPES[shape];
+    let prevRootFret = null;
     const notes = [], chordTemplates = [], chords = [], handShapes = [], sections = [];
     for (let bar = 0; bar < totalBars; bar++) {
       const degree = degrees[bar % degrees.length];
       const rootPc = chordRootForDegree(cfg, degree);
       const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride, cfg.progression);
-      const positions = sweepArpeggioPositions(cfg, rootPc, quality, anchorFret);
+      let positions = null, shapeRootFret = null;
+      if (useShape) {
+        const rootFret = pickShapeRootFret(cfg, shape, rootPc, prevRootFret, 'closest');
+        if (rootFret != null) {
+          prevRootFret = rootFret;
+          const tmplPos = cagedShapeNotesForChord(cfg, shape, quality, rootFret);
+          if (tmplPos && tmplPos.length) { positions = dedupeUnisons(tmplPos); shapeRootFret = rootFret; }
+        }
+      }
+      if (!positions || !positions.length) positions = dedupeUnisons(sweepArpeggioPositions(cfg, rootPc, quality, anchorFret));
       if (!positions.length) continue;
       const path = buildSweepPathWithHopo(positions, cfg, rootPc, quality);
       if (!path.length) continue;
       const barStart = bar * mLen;
       const name = chordName(rootPc, quality), templateId = chordTemplates.length;
-      chordTemplates.push(templateFromPositions(name, positions, cfg, true));
+      const shapeTmpl = (shapeRootFret != null) ? templateFromShape(name, shape, quality, shapeRootFret, cfg, true) : null;
+      chordTemplates.push(shapeTmpl || templateFromPositions(name, positions, cfg, true));
       chords.push({ t:Number(barStart.toFixed(6)), id:templateId, hd:false, notes:positions.map(p => noteDefaults({ s:p.s, f:p.f, sus:0 })) });
       handShapes.push({ chord_id:templateId, start_time:Number(barStart.toFixed(6)), end_time:Number((barStart + mLen).toFixed(6)), arp:true });
       sections.push({ name, number:templateId + 1, time:Number(barStart.toFixed(6)) });
@@ -2015,6 +2128,9 @@
         displayPositions = positionTones.length ? positionTones : pickChordPositions(chordCfg, rootPc, quality);
       }
       if (!displayPositions.length) return;
+      // No-unison rule: the arpeggio run must not sound the same pitch on two
+      // strings (e.g. a fallback resolver picking the same octave twice).
+      displayPositions = dedupeUnisons(displayPositions);
       const name = chordName(rootPc, quality), templateId = chordTemplates.length;
       const shapeTemplate = (isShapeRun && shapeRootFret != null)
         ? templateFromShape(name, cfg.cagedShape, quality, shapeRootFret, chordCfg, true)

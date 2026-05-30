@@ -32,6 +32,22 @@ These are all **C major in the same key** anchored on the **same root note** —
 
 This is what the user meant by: *"that note anchor on the 3rd fret of the A string should facilitate multiple scale shapes."* Exactly right.
 
+### 3. No unisons — a pitch sounds on only one string in a pattern
+
+Within any single scale/mode pattern (CAGED, 3NPS, Open) — and within any run that **combines** shapes or stitches an arpeggio onto a scale — **the same pitch (same note *and* same octave) must never be played twice on two different strings.** When two adjacent strings overlap in range, the same pitch is reachable on both; the pattern picks one and drops the other.
+
+This is **not** "one root per pattern." The tonic legitimately appears 2–3 times in a box, in **different octaves** — those are distinct pitches and are all kept (the red tonic dots in the reference CAGED/3NPS diagrams confirm this). The rule only forbids true **unisons**: the *same* pitch doubled across strings. The tonic is the headline case because doubling it is the most jarring, but the rule applies to every scale tone.
+
+**Why this was a bug:** a position rendered as a rectangular fret-window block grabs *every* scale note in `[fretMin..fretMax]` on *every* string, so the string-overlap zone produces unisons (e.g. A-major A-shape: B sits on the G string fret 4 *and* the B string fret 0). The fix is to build shapes degree-by-degree (3NPS already does this) and to drop a pitch already placed on a lower string. The lower string wins a shared pitch, keeping the box compact and ascending.
+
+**Fingering methodology (the other half of "canonical"):** each scale shape and arpeggio shape encodes *which finger plays which note* (the CAGED diagrams label fingers 1–4; 3NPS diagrams label scale degrees 1–7). Encoding the per-string note + finger layout — rather than a fret window — is what makes a generated shape match the canonical box and what lets shapes interconnect cleanly (the 7‑3‑6‑2‑5‑1‑4 cycle, with the one‑fret nudge across the G–B string).
+
+**Status (implemented 2026-05-29, pedagogy-validated):**
+- **No-unison** enforced in the resolvers (`resolveCAGEDShape`/`resolveOpenShape` drop a pitch already placed on a lower string) and at the run/seam layer (`dedupeUnisons`, also covering arpeggio runs).
+- **Nut-clamp octave shift:** a CAGED box whose root resolves so low that the shape clips the nut is bumped `+12` so it lands as a complete fretted box. CAGED boxes are fretted; open-string vocabulary belongs to the separate Open system.
+- **Per-string fingering (`fg`)** is attached to every resolved scale-shape note: CAGED/Open via `scaleFingerFor` (one-finger-per-fret from the box anchor, clamped 1–4, with the −1 G→B nudge on the B/high-E strings); 3NPS via `threeNpsStringFingers` (per-string interval lookup: W-W=1-2-4, W-H=1-2-3, H-W=1-3-4). Modes/melodic-minor modes reuse the parent box's fingers (relabel only). The 6-fret-span CAGED boxes (C/E/etc.) clamp the top frets to the pinky — an accepted approximation of the position-shift those boxes really use.
+- **Arpeggio shapes** derive from the canonical CAGED chord-tone templates (`chordTemplates`, which carry `fg`): `buildSweepArpeggioExercise` now builds each chord's sweep from `cagedShapeNotesForChord` (contiguous one-note-per-string, the standard CAGED arpeggio box) when a CAGED shape is active, falling back to a greedy-adjacent (contiguous) search otherwise. The HO/PO turnaround reach is capped at +3 frets (a +5 stretch is unplayable low on the neck).
+
 ---
 
 ## The fretboard systems
