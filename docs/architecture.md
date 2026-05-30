@@ -1,8 +1,47 @@
 # SlopScale Architecture
 
-SlopScale is a Slopsmith plugin that generates practice material and launches it through Slopsmith's existing player/highway infrastructure.
+SlopScale is a Slopsmith plugin that generates practice material and plays it back **inside the plugin's own contained surface** — its own renderer, transport, and audio engine — without navigating the user out of the SlopScale screen.
 
-The plugin should feel like a native practice mode inside Slopsmith, not like a separate app embedded in a plugin panel.
+## Direction decision (2026-05-30) — contained, not launched
+
+> **SlopScale keeps the entire practice experience inside the plugin screen.**
+> "Play" must never take the user out of SlopScale into Slopsmith's full-screen
+> player. This is a deliberate, owner-confirmed product decision (Christian),
+> and it **overrides** the earlier "launch into the main player" direction that
+> the rest of this document was originally written around.
+
+Why this matters technically: `playSong(filename, arrangement)` calls
+`showScreen('player')` and binds the host highway to the canonical `#highway`
+canvas (verified in Slopsmith `static/app.js` ~line 4548). The host player **is a
+screen**, not an embeddable component — its transport, audio, loop/count-in,
+speed, and scoring all live in that screen's lifecycle. There is no host API to
+run that machinery in place inside a plugin panel. So "contained UX" and "reuse
+the host player wholesale" are mutually exclusive; we chose contained.
+
+**The accepted cost of this decision:** SlopScale owns its own transport
+(`tick()` / `currentPracticeTime`), its own Web Audio engine
+(`schedulePreviewAudio`), and its own looping/seam quality. These do **not**
+come for free from the host and will not auto-track host improvements. That is
+understood and accepted — the contained, single-surface UX (one consistent
+practice surface, Rocksmith-style) is worth the maintenance.
+
+**What we still reuse from the host (and may, while staying contained):**
+- The host's **3D highway renderer** as a *visual* factory
+  (`window.slopsmithViz_highway_3d`), driven by SlopScale's own clock inside the
+  plugin canvas. Borrowing the renderer is fine; it does not require the player
+  screen.
+- Host **navigation/events** via `window.slopsmith` (e.g. `navigate`, `emit`,
+  `on`) for moving between SlopScale and other Slopsmith screens.
+- The host **theme / page chrome**, so SlopScale looks native.
+
+**What we deliberately do NOT use:** `playSong()` as the primary play action,
+and the temp-sloppak → main-player launch path as the primary UX. The
+temp-sloppak backend route and the launch contract below are retained only as a
+possible **optional future "export to the full host player"** action — never the
+default, never required.
+
+The plugin should feel like a native practice mode inside Slopsmith, presented
+as a self-contained practice surface rather than a launcher into another screen.
 
 ## Source-of-truth contracts from Slopsmith
 
@@ -23,45 +62,52 @@ These notes are based on the current Slopsmith docs and implementation:
 
 ## Core rule
 
-SlopScale generates temporary Sloppak-compatible practice charts. Slopsmith plays them.
+SlopScale generates practice charts and **plays them itself, in-screen**. The
+generated chart data is the contract; the contained renderer + transport + audio
+engine consume it directly.
 
-Correct flow:
-
-```text
-SlopScale configuration UI
-  -> generate exercise data
-  -> write a temporary directory-form .sloppak under the configured DLC folder
-  -> call Slopsmith playSong(filename, arrangement)
-  -> Slopsmith main player opens
-  -> existing #highway canvas and selected viz render the chart
-  -> Escape returns to SlopScale so the routine can be adjusted
-```
-
-Avoid:
+Current flow:
 
 ```text
 SlopScale configuration UI
-  -> custom plugin-owned 3D player
-  -> separate transport, shortcuts, renderer lifecycle, and canvas assumptions
+  -> generate exercise data (the chart)
+  -> makeBundle() wraps it for the renderer
+  -> contained renderer (2D highway / tab / notation, or the borrowed host 3D
+     renderer driven by SlopScale's own clock) draws it on #slopscale-canvas
+  -> SlopScale's own transport + Web Audio engine play it back, in-screen
+  -> the user never leaves the SlopScale screen
 ```
 
-## Why the main-player path is preferred
+Optional, non-default escape hatch (retained but not primary):
 
-Slopsmith already owns the difficult parts:
+```text
+SlopScale configuration UI
+  -> generate -> write a temp directory-form .sloppak
+  -> playSong(filename) to open the full host player (leaves the SlopScale screen)
+```
 
-- player screen lifecycle
-- audio transport
-- WebSocket chart loading
-- renderer selection and `setViz()`
-- 2D/3D canvas context switching
-- player keyboard shortcuts
-- speed, volume, and looping UX
-- note state and future scorer integration
-- accessibility behavior around focus and shortcuts
+This launch path is documented below for completeness and possible future use as
+an explicit "open in full player" action. It is **not** the default play action.
 
-Duplicating those inside SlopScale would create a second player and make the plugin drift from the host app.
+## What this means for ownership
 
-## Temporary Sloppak strategy
+Because the experience is contained, SlopScale necessarily owns parts the host
+would otherwise provide. This is intentional (see the Direction decision above):
+
+- transport / playhead clock — SlopScale's `tick()` + `currentPracticeTime`
+- audio playback — SlopScale's Web Audio engine (`schedulePreviewAudio`)
+- looping + seam quality (gapless audio, smooth visual wrap) — SlopScale's job
+- renderer lifecycle for the contained canvas
+
+We still avoid *gratuitous* duplication: navigation, events, theme, and the 3D
+renderer **visual** come from the host. We do not reimplement those.
+
+## Temporary Sloppak strategy (optional host-export path)
+
+> The temp-sloppak path is **not** the primary UX (see the Direction decision).
+> It is retained as an optional "export to full host player" capability. The
+> backend route exists and works; the frontend launch is intentionally not the
+> default play action.
 
 SlopScale writes generated practice content as directory-form Sloppaks inside the configured DLC directory:
 
@@ -150,19 +196,25 @@ This avoids core Slopsmith changes while preserving native player behavior for t
 
 SlopScale should look and behave like a compact Slopsmith practice-control panel.
 
-Primary UX:
+Primary UX (contained):
 
-- One primary action: **Launch in Main 3D Player**.
-- Secondary action: **Generate Preview**.
-- Tertiary actions: **Play Preview**, **Stop Preview**, **Save Preset**.
-- Navigation actions: **Library** and **Plugins**.
-- Status area should tell the user what will happen next: generated notes/chords, duration, temp chart build status, and launch errors.
+- One primary action: **Play** — plays the generated routine in-screen, on
+  SlopScale's contained surface. No screen change.
+- Supporting actions: **Generate**, **Stop**, **Save Preset**.
+- Renderer choice (2D highway / tab / notation / borrowed 3D) is a SlopScale
+  surface concern here, since the playback is ours.
+- Optional, de-emphasized: **Open in full player** (the temp-sloppak launch),
+  for users who explicitly want the host's full-screen player. Not the default.
+- Status area should tell the user what will happen next: generated
+  notes/chords, duration, and play/loop state.
 
-Preview UX:
+Playback surface:
 
-- Keep the built-in 2D renderer as a fast preview/debug surface.
-- Remove the renderer dropdown from the main path. Renderer selection is a Slopsmith player concern, not a SlopScale configuration concern.
-- Do not expose embedded 3D as a normal user option. It creates lifecycle and canvas assumptions that already belong to the main player.
+- The contained renderers (2D highway / tab / notation) are first-class playback
+  surfaces now, not just debug previews.
+- The borrowed host **3D renderer** may be offered as a contained option, driven
+  by SlopScale's clock. (Note its current limitations: 6-string only, and as a
+  host black box it can't be made loop-aware for a true seamless visual scroll.)
 
 Configuration UX:
 
@@ -176,7 +228,8 @@ Configuration UX:
 
 ## Growth path
 
-SlopScale should grow by generating richer chart data, not by owning playback:
+SlopScale grows along two axes: richer generated chart data, and a better
+contained playback surface (since playback is ours now). Chart-data growth:
 
 1. Position-aware scale paths: CAGED, 3NPS, string-set restrictions.
 2. Better arpeggio paths: inversions, sweep shapes, nearest-note voice leading.
@@ -187,12 +240,21 @@ SlopScale should grow by generating richer chart data, not by owning playback:
 
 ## Current implementation alignment
 
-Current state:
+Current state (matches the contained decision):
 
-- Backend temp Sloppak route exists.
+- Frontend plays the routine in-screen via the contained renderers + Web Audio
+  engine. This is now the intended primary UX, not a stopgap.
+- Backend temp Sloppak route exists and is retained for the optional
+  "open in full player" export path (not the default).
 - Backend normalizes frontend `chordTemplates` / `handShapes` to Sloppak `templates` / `handshapes`.
-- Frontend still emphasizes embedded preview/rendering and lacks the main-player launch button/function.
-- README still describes the earlier renderer-adapter strategy.
+
+Active work:
+
+- **Seamless loop** for extended practice — gapless audio across the loop seam
+  (pre-schedule the next pass instead of `stopAudio()`+restart) and a smooth
+  visual wrap (carry the clock phase instead of freeze-and-snap). Started
+  2026-05-30. Generator-side bar-line alignment + optional turnaround, and a
+  true horizon-scroll in the 2D renderers, are follow-on increments.
 
 Next implementation pass:
 

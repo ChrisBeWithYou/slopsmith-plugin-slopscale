@@ -6,6 +6,11 @@
   const NOTE_ALIASES = { C:0, 'B#':0, 'C#':1, Db:1, D:2, 'D#':3, Eb:3, E:4, Fb:4, F:5, 'E#':5, 'F#':6, Gb:6, G:7, 'G#':8, Ab:8, A:9, 'A#':10, Bb:10, B:11, Cb:11 };
   const STRING_COLORS = ['#ef4444', '#eab308', '#3b82f6', '#f97316', '#22c55e', '#a855f7', '#ec4899', '#14b8a6'];
   const AUDIO_LOOKAHEAD_SECONDS = 0.20;
+  // How far ahead (seconds) of the currently-scheduled audio pass to schedule
+  // the next loop pass. Must be >= AUDIO_LOOKAHEAD so the next pass's first
+  // event is already queued before the current pass ends — that's what makes
+  // the whole-chart loop gapless (no stopAudio()/restart at the seam).
+  const LOOP_SCHEDULE_AHEAD = 0.35;
 
   const STRING_SETUPS = {
     guitar_6_standard: { label:'6-string guitar — standard', instrument:'guitar', openMidis:[40,45,50,55,59,64], tuning:[0,0,0,0,0,0] },
@@ -1114,6 +1119,12 @@
   // the highlight only touches the DOM when it actually changes.
   let _activeSegIdx = -1;
   let audioCtx = null, audioNodes = [];
+  // Continuous whole-chart loop bookkeeping (see maybeScheduleLoopAhead).
+  // nextLoopAudioBase = absolute AudioContext time at which the next not-yet-
+  // scheduled pass should begin (chart-time 0 maps here). loopPasses tracks
+  // each scheduled pass's nodes + end time so finished passes can be
+  // disconnected — keeps node count bounded during extended practice.
+  let nextLoopAudioBase = 0, loopPasses = [];
   // highway_3d's _bgGetAnalyser() creates a fresh AudioContext every call
   // until setup succeeds, then calls ctx.close() in the catch block when
   // createMediaElementSource throws (stem_mixer already holds the element).
@@ -1339,6 +1350,14 @@
   function scalePcs(cfg) { const keyPc = NOTE_ALIASES[cfg.key] ?? 0; return (SCALE_INTERVALS[cfg.scale] || SCALE_INTERVALS.major).map(i => (keyPc + i) % 12); }
   function secondsPerDivision(cfg) { const q = 60 / cfg.bpm; return ({ quarter:q, eighth:q/2, sixteenth:q/4, triplet:q/3, eighth_triplet:q/3, sixteenth_triplet:q/6 })[cfg.subdivision] || q/2; }
   function measureSeconds(cfg) { return (60 / cfg.bpm) * (4 / cfg.meter.denominator) * cfg.meter.numerator; }
+  // Seconds per metric beat (the meter's denominator unit) for a rendered
+  // bundle. Used to size the Tab/Notation view window in beats rather than
+  // fixed seconds, so note density stays comfortable across tempos.
+  function chartBeatSeconds(bundle) {
+    const c = (bundle && bundle.config) || {};
+    const bpm = c.bpm || 90, den = (c.meter && c.meter.denominator) || 4;
+    return (60 / bpm) * (4 / den);
+  }
   function fretboardSystemLabel(value) { return FRETBOARD_SYSTEM_LABELS[value] || FRETBOARD_SYSTEM_LABELS.position; }
 
   function cagedShapeQualityKey(quality) {
@@ -3070,11 +3089,23 @@
     return { version:1, session:sessionMeta, chart:Object.assign({}, chart, { beats:chart.beats || [], anchors, duration }) };
   }
 
+  // Descriptive exercise title for the bundle's songInfo.title — what each
+  // renderer draws as its in-canvas header (and the player HUD for 3D). e.g.
+  // "E minor pentatonic". Sessions use their name; chromatic uses the pattern.
+  function exerciseTitle(cfg) {
+    try {
+      if (!cfg) return 'SlopScale';
+      if (cfg.sessionName) return cfg.sessionName;
+      if (cfg.mode === 'chromatic') return 'Chromatic ' + (CHROMATIC_PATTERN_LABELS[cfg.chromaticPattern] || cfg.chromaticPattern || '').toString().trim();
+      const scaleLabel = String(cfg.scale || '').replace(/_/g, ' ');
+      return [cfg.key, scaleLabel].filter(Boolean).join(' ').trim() || ('SlopScale ' + (cfg.mode || '')).trim();
+    } catch { return 'SlopScale'; }
+  }
   function makeBundle(exercise) {
     const cfg = exercise.session, c = exercise.chart;
     const bundle = {
       currentTime:0,
-      songInfo:{ title:`SlopScale ${cfg.mode}`, artist:'SlopScale', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'slopscale-practice', fretboardSystem:cfg.fretboardSystem },
+      songInfo:{ title:exerciseTitle(cfg), artist:'SlopScale', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'slopscale-practice', fretboardSystem:cfg.fretboardSystem },
       config:cfg,
     isReady:true, notes:c.notes, chords:c.chords, anchors:c.anchors, beats:c.beats, sections:c.sections, chordTemplates:c.chordTemplates, handShapes:c.handShapes, segmentBounds:c.segmentBounds || null,
       backingEvents:buildBackingEvents(cfg, c.duration),
@@ -3359,7 +3390,8 @@
     let canvas = null, ctx = null, W = 0, H = 0;
     let hopoPairs = [];
     let t = RENDER_THEMES.light;  // refreshed at the top of each draw()
-    const LEFT_PAD = 56, RIGHT_PAD = 20, AHEAD = 5, BEHIND = 1.5;
+    const LEFT_PAD = 56, RIGHT_PAD = 20;
+    let AHEAD = 5, BEHIND = 1.5;  // view window (seconds); set per draw, beat-relative
     const BAR_LEAD = 13;          // px the bar line sits left of its downbeat note
 
     function resize() {
@@ -3571,17 +3603,22 @@
         }
       }
     }
-    function drawHud(bundle, now) {
+    function drawHud(bundle) {
+      // Title only — the single timer lives in the player HUD (top-right).
       ctx.fillStyle = t.dim; ctx.font = 'italic 600 12px "Cambria","Georgia",serif';
       ctx.fillText(bundle.songInfo?.title || 'SlopScale', 12, 18);
-      ctx.font = '11px "Cambria","Georgia",serif';
-      ctx.fillText(`${now.toFixed(2)}s / ${(bundle.songInfo?.duration||0).toFixed(2)}s`, 12, 34);
     }
     function draw(bundle) {
       if (!ctx || !bundle) return;
       resize();
       t = getRenderTheme();
       const now = bundle.currentTime || 0, nStr = Math.max(1, bundle.stringCount || 6);
+      // Beat-relative window: ~6.8 beats across the view at any tempo, so note
+      // density (≈ px per beat) stays comfortable and consistent — fast tempos
+      // no longer cram. Constant within a chart → scroll speed unchanged.
+      const winBeat = chartBeatSeconds(bundle);
+      AHEAD = Math.max(2.5, Math.min(6, winBeat * 5));
+      BEHIND = Math.max(0.9, Math.min(2.2, winBeat * 1.8));
       const { gap, top } = staffMetrics(nStr);
       drawBackground();
       drawHud(bundle, now);
@@ -3611,7 +3648,8 @@
     let ksAlter = {}, beamGroups = [];
     let mode = 'both'; // 'both' | 'tab' | 'notation'
     let t = RENDER_THEMES.light;  // refreshed at the top of each draw()
-    const LEFT_PAD = 68, RIGHT_PAD = 24, AHEAD = 5, BEHIND = 1.5;
+    const LEFT_PAD = 68, RIGHT_PAD = 24;
+    let AHEAD = 5, BEHIND = 1.5;   // view window (seconds); set per draw, beat-relative
     const STAFF_LEFT = 6;          // staff/tab lines begin here (clef sits on them)
     const BAR_LEAD = 13;           // px the bar line sits left of its downbeat note
     let contentLeft = LEFT_PAD;    // x where note content starts; set per draw so
@@ -3964,10 +4002,9 @@
       ctx.textAlign = 'left';
     }
     function drawHud(bundle, now, notH) {
+      // Title + clef only — the single timer lives in the player HUD (top-right).
       ctx.fillStyle = t.dim; ctx.font = 'italic 600 12px "Cambria","Georgia",serif';
       ctx.fillText(bundle.songInfo?.title||'SlopScale', 8, 18);
-      ctx.font = '11px "Cambria","Georgia",serif';
-      ctx.fillText(`${now.toFixed(1)}s / ${(bundle.songInfo?.duration||0).toFixed(1)}s`, 8, 32);
       ctx.font = '600 10px "Cambria","Georgia",serif';
       ctx.fillText(isBass ? 'Bass Clef (8va)' : 'Treble Clef (8va)', 8, notH-6);
     }
@@ -3978,6 +4015,12 @@
       resize();
       t = getRenderTheme();
       const now = bundle.currentTime || 0, openMidis = bundle.openMidis || null;
+      // Beat-relative window (see Tab renderer): ~6.8 beats across the view at
+      // any tempo for consistent, comfortable note density; constant within a
+      // chart so the scroll speed is unchanged.
+      const winBeat = chartBeatSeconds(bundle);
+      AHEAD = Math.max(2.5, Math.min(6, winBeat * 5));
+      BEHIND = Math.max(0.9, Math.min(2.2, winBeat * 1.8));
       const { notH, ls, bottomY } = staffLayout();
       const { tabTop, tabH } = tabLayout();
       // Reserve room for the clef + key signature so notes start clear of them.
@@ -4019,30 +4062,124 @@
   }
 
   function loadScriptOnce(id, src) { return new Promise((resolve, reject) => { if (document.getElementById(id)) return resolve(); const s = document.createElement('script'); s.id = id; s.src = src; s.onload = () => resolve(); s.onerror = () => reject(new Error(`Failed to load ${src}`)); document.head.appendChild(s); }); }
+  // Piano Roll is groundwork only: gated to a future piano pathway and kept
+  // disabled in the UI for now. When a piano pathway/instrument ships, return
+  // true here (and reveal the Piano Roll view button) to enable it.
+  function pianoPathwayActive() { return false; }
+
+  // Borrow a host visualization plugin's renderer factory (registered as
+  // window.slopsmithViz_<id>). Lazy-loads the host plugin script and polls
+  // briefly for deferred registration — the host may register its global a tick
+  // or two after onload fires. Returns null if it never registers so callers
+  // can fall back to a built-in renderer.
+  async function borrowHostViz(globalName, scriptPath) {
+    if (typeof window[globalName] !== 'function') {
+      try { await loadScriptOnce('slopscale-viz-' + globalName, scriptPath); } catch (_) {}
+      const start = Date.now();
+      while (typeof window[globalName] !== 'function' && Date.now() - start < 3000) {
+        await new Promise(r => setTimeout(r, 50));
+      }
+    }
+    return typeof window[globalName] === 'function' ? window[globalName] : null;
+  }
+
   async function resolveRendererFactory(kind) {
-    if (kind === 'builtin_2d') return { factory:makeBuiltin2DRenderer, label:'2D Highway' };
+    // 'builtin_2d' is the Jumping Tab slot. We borrow the host's Jumping Tab
+    // visualization, which adapts to 4–8 strings + bass on its own — so it also
+    // serves as the bass/extended-range fallback for the 6-string-only 3D
+    // highway (see attachRenderer). The in-tree 2D highway remains only as a
+    // last-resort fallback if Jumping Tab can't load.
+    if (kind === 'builtin_2d') {
+      const f = await borrowHostViz('slopsmithViz_jumpingtab', '/api/plugins/jumpingtab/screen.js');
+      return f ? { factory:f, label:'Jumping Tab' } : { factory:makeBuiltin2DRenderer, label:'2D Highway (fallback)' };
+    }
     if (kind === 'tab_2d') return { factory:makeBuiltin2DTabRenderer, label:'Tab' };
     if (kind === 'notation_2d') return { factory:makeBuiltin2DNotationRenderer, label:'Notation' };
+    // Piano Roll — groundwork; borrows the host Piano Highway viz. Reachable
+    // only when pianoPathwayActive() (currently false).
+    if (kind === 'piano_roll') {
+      const f = await borrowHostViz('slopsmithViz_piano', '/api/plugins/piano/screen.js');
+      return f ? { factory:f, label:'Piano Roll' } : { factory:makeBuiltin2DRenderer, label:'Piano Roll (unavailable)' };
+    }
     if (kind === 'highway_3d') {
-      if (typeof window.slopsmithViz_highway_3d !== 'function') {
-        try { await loadScriptOnce('slopscale-highway-3d-loader', '/api/plugins/highway_3d/screen.js'); } catch (_) {}
-        // The host plugin may register its global a tick or two after the
-        // script's onload fires (deferred init). Poll briefly before giving up
-        // to the 2D fallback — otherwise the first render on startup shows 2D
-        // while the 3D Highway tab is (correctly) selected.
-        const start = Date.now();
-        while (typeof window.slopsmithViz_highway_3d !== 'function' && Date.now() - start < 3000) {
-          await new Promise(r => setTimeout(r, 50));
-        }
-      }
-      if (typeof window.slopsmithViz_highway_3d === 'function') return { factory:window.slopsmithViz_highway_3d, label:'3D Note Highway' };
-      return { factory:makeBuiltin2DRenderer, label:'2D Highway (fallback)' };
+      const f = await borrowHostViz('slopsmithViz_highway_3d', '/api/plugins/highway_3d/screen.js');
+      return f ? { factory:f, label:'3D Note Highway' } : { factory:makeBuiltin2DRenderer, label:'2D Highway (fallback)' };
     }
     return { factory:makeBuiltin2DRenderer, label:'2D Highway (default)' };
   }
 
   function replaceCanvas() { const host = $('slopscale-render-host'), old = $('slopscale-canvas'), canvas = document.createElement('canvas'); canvas.id = 'slopscale-canvas'; canvas.style.width = '100%'; canvas.style.height = '100%'; if (old) old.replaceWith(canvas); else host.appendChild(canvas); const rect = host.getBoundingClientRect(); canvas.width = Math.max(640, Math.round(rect.width || 1280)); canvas.height = Math.max(420, Math.round(rect.height || 720)); return canvas; }
-  function stopAudio() { for (const n of audioNodes) { try { n.stop && n.stop(0); } catch {} try { n.disconnect && n.disconnect(); } catch {} } audioNodes = []; }
+  function stopAudio() { for (const n of audioNodes) { try { n.stop && n.stop(0); } catch {} try { n.disconnect && n.disconnect(); } catch {} } audioNodes = []; nextLoopAudioBase = 0; loopPasses = []; }
+
+  // ── Continuous whole-chart loop scheduling ───────────────────────────────────
+  // The seam between loop iterations is made gapless by scheduling the NEXT
+  // pass's audio on the same AudioContext clock, slightly before the current
+  // pass ends — never stopAudio()+restart. The last note's tail then rings
+  // naturally into the first note of the repeat. The visual clock wraps by
+  // phase-carry (see tick()), so neither audio nor playhead freezes at the seam.
+
+  // Whether note/metronome/harmony audio is enabled for the active bundle.
+  function loopAudioEnabled() {
+    const audio = activeBundle?.config?.audio || readConfig().audio;
+    return !!(audio && (audio.notes || audio.metronome || audio.harmony));
+  }
+
+  // Schedule the current pass starting at the live playhead and (re)set the
+  // loop baseline. Used on play, seek, and re-anchor. Captures the nodes this
+  // call created so the pass can later be pruned. Caller stops prior audio.
+  function scheduleCurrentPassAndAnchor(delaySeconds) {
+    const dur = activeBundle?.songInfo?.duration || 0;
+    const before = audioNodes.length;
+    const base = schedulePreviewAudio(activeBundle, currentPracticeTime, delaySeconds);
+    if (base == null) { nextLoopAudioBase = 0; loopPasses = []; return; }
+    const endCtx = base + (dur - currentPracticeTime);
+    loopPasses = [{ endCtx, nodes: audioNodes.slice(before) }];
+    nextLoopAudioBase = endCtx;
+  }
+
+  // Schedule one full pass (chart-time 0..duration) starting at nextLoopAudioBase.
+  function scheduleNextFullPass() {
+    const dur = activeBundle?.songInfo?.duration || 0;
+    if (dur <= 0) return;
+    const before = audioNodes.length;
+    const base = schedulePreviewAudio(activeBundle, 0, Math.max(0, nextLoopAudioBase - audioCtx.currentTime));
+    if (base == null) return;
+    loopPasses.push({ endCtx: base + dur, nodes: audioNodes.slice(before) });
+    nextLoopAudioBase += dur;
+  }
+
+  // Disconnect + drop one fully-finished pass per call (cheap, keeps >=1 pass).
+  function pruneLoopPasses() {
+    if (!audioCtx || loopPasses.length <= 1) return;
+    if (loopPasses[0].endCtx + 0.5 >= audioCtx.currentTime) return; // keep ring-out tails
+    const dead = loopPasses.shift();
+    const set = new Set(dead.nodes);
+    for (const n of dead.nodes) { try { n.disconnect(); } catch {} }
+    audioNodes = audioNodes.filter(n => !set.has(n));
+  }
+
+  // Per-frame: pre-schedule the next pass before the current one ends, and
+  // re-anchor if the loop audio fell out of sync (resumed from an A-B loop,
+  // a seek that bypassed the anchor, or a long rAF stall). Called from tick()
+  // only when no A-B segment loop is engaged.
+  function maybeScheduleLoopAhead(nowMs) {
+    if (!audioCtx || !activeBundle || !loopAudioEnabled()) return;
+    const dur = activeBundle.songInfo?.duration || 0;
+    if (dur <= 0) return;
+    const ctxNow = audioCtx.currentTime;
+    if (nextLoopAudioBase <= 0 || nextLoopAudioBase <= ctxNow) {
+      // Out of sync — reschedule from the live playhead and realign the visual
+      // clock. A brief lookahead here is fine: this only fires on a transition
+      // (e.g. clearing an A-B loop), never at the steady-state loop seam.
+      stopAudio();
+      scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
+      playAnchorChartTime = currentPracticeTime;
+      playAnchorMs = nowMs + AUDIO_LOOKAHEAD_SECONDS * 1000;
+      return;
+    }
+    if (ctxNow + LOOP_SCHEDULE_AHEAD >= nextLoopAudioBase) scheduleNextFullPass();
+    pruneLoopPasses();
+  }
   function stopRenderer() { playing = false; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } if (renderer && typeof renderer.destroy === 'function') { try { renderer.destroy(); } catch (e) { console.warn('[SlopScale] renderer destroy failed', e); } } renderer = null; syncPlayButton(); }
 
   async function attachRenderer(exercise) {
@@ -4057,6 +4194,7 @@
     // 6-string session on 2D.
     if (cfg.renderer === 'highway_3d' && (cfg.stringCount || 6) !== 6) cfg.renderer = 'builtin_2d';
     stopRenderer(); activeBundle = makeBundle(exercise); currentPracticeTime = 0;
+    fretboardSyncRange();
     const canvas = replaceCanvas(), resolved = await resolveRendererFactory(cfg.renderer);
     renderer = resolved.factory();
     if (!renderer || typeof renderer.draw !== 'function') throw new Error('Selected renderer did not return a Slopsmith-compatible renderer object.');
@@ -4074,7 +4212,136 @@
     btn.classList.toggle('is-playing', !!playing);
     btn.textContent = playing ? '■ Stop' : '▶ Play';
   }
-  function drawOnce() { if (!renderer || !activeBundle) return; syncHighwaySettings(activeBundle); activeBundle.currentTime = currentPracticeTime; renderer.draw(activeBundle); syncTransportTime(); }
+  // ── Live fretboard strip ──────────────────────────────────────────────────
+  // A horizontal neck diagram docked under the highway that lights up the
+  // currently-sounding notes — the highway shows WHEN, this shows WHERE the
+  // shape sits on the neck. Ported + generalised from the host Fretboard View
+  // plugin: any string count, SlopScale string colours, driven by our own clock.
+  let fbCtx = null, fretboardOn = false;  // off by default; per-view toggle in JT + Notation
+  let fbFretLo = 0, fbFretHi = 12, fbPattern = [];  // zoomed fret window + unique pattern positions
+  const FB_DOT_FRETS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
+  const FB_DOUBLE_DOT = [12, 24];
+
+  function fretboardStringCount() {
+    return (activeBundle?.config?.stringCount) || (activeBundle?.openMidis?.length) || 6;
+  }
+  // Recompute the zoomed fret window + the exercise's unique note positions (the
+  // "pattern") when the chart changes. The window hugs the pattern (±1 fret, with
+  // a minimum span) so the shape fills/centres the strip instead of floating on a
+  // sparse full neck — less eye travel to reference the current note.
+  function fretboardSyncRange() {
+    const notes = activeBundle?.notes || [];
+    let lo = Infinity, hi = -Infinity; const seen = new Set(); fbPattern = [];
+    for (const n of notes) {
+      if (n.f < 0) continue;
+      if (n.f < lo) lo = n.f;
+      if (n.f > hi) hi = n.f;
+      const k = n.s + ':' + n.f;
+      if (!seen.has(k)) { seen.add(k); fbPattern.push({ s: n.s, f: n.f }); }
+    }
+    if (!isFinite(lo)) { lo = 0; hi = 12; }
+    lo = Math.max(0, lo - 1); hi = Math.min(24, hi + 1);
+    const MIN_SPAN = 6;
+    if (hi - lo < MIN_SPAN) hi = Math.min(24, lo + MIN_SPAN);
+    if (hi - lo < MIN_SPAN) lo = Math.max(0, hi - MIN_SPAN);
+    fbFretLo = lo; fbFretHi = hi;
+  }
+  // Notes sounding within ~80ms of the playhead, with a sustain-based fade.
+  function fretboardActiveNotes(t) {
+    const out = [], win = 0.08, notes = activeBundle?.notes || [];
+    for (const n of notes) {
+      if (n.t > t + 0.5) break;            // notes are time-sorted
+      const end = n.t + (n.sus || 0);
+      if (n.t <= t + win && end >= t - win) {
+        let alpha = 1;
+        if (n.sus > 0 && t > n.t) alpha = Math.max(0.3, 1 - (t - n.t) / n.sus * 0.7);
+        out.push({ s: n.s, f: n.f, alpha });
+      }
+    }
+    return out;
+  }
+  // Reflect the toggle state onto the root class (drives strip visibility) and
+  // the toggle button. The strip only actually appears when the active renderer
+  // is also fretboard-capable (see syncViewSwitcher's .slopscale-fb-capable).
+  function syncFretboardUI() {
+    $('slopscale-root')?.classList.toggle('slopscale-fb-on', fretboardOn);
+    $('slopscale-fretboard-toggle')?.setAttribute('aria-checked', String(fretboardOn));
+  }
+  function drawFretboardFrame() {
+    const canvas = $('slopscale-fretboard');
+    if (!canvas || canvas.offsetParent === null) return;  // hidden (wrong view / toggled off / piano)
+    if (!fbCtx || fbCtx.canvas !== canvas) fbCtx = canvas.getContext('2d');
+    const ctx = fbCtx; if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1, rect = canvas.getBoundingClientRect();
+    const pxW = Math.max(1, Math.floor(rect.width * dpr)), pxH = Math.max(1, Math.floor(rect.height * dpr));
+    if (canvas.width !== pxW || canvas.height !== pxH) { canvas.width = pxW; canvas.height = pxH; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const W = rect.width, H = rect.height;
+    ctx.fillStyle = 'rgba(8,8,16,0.92)'; ctx.fillRect(0, 0, W, H);
+    if (!activeBundle) return;
+
+    const nStrings = fretboardStringCount();
+    const opens = (activeBundle.openMidis && activeBundle.openMidis.length)
+      ? activeBundle.openMidis : openMidisForConfig(activeBundle.config || readConfig());
+    const padL = 34, padR = 12, padT = 12, padB = 18;
+    const lo = fbFretLo, hi = fbFretHi, nSpaces = Math.max(1, hi - lo), usableW = W - padL - padR;
+    const rowH = (H - padT - padB) / Math.max(1, nStrings - 1);
+    const rowY = s => padT + (nStrings - 1 - s) * rowH;        // s=0 (lowest) at the bottom
+    const midRow = (nStrings - 1) / 2;
+    const xLine = f => padL + ((f - lo) / nSpaces) * usableW;  // fret-line x
+    const xNote = f => f === 0 ? Math.max(padL + 4, xLine(0)) : xLine(f - 0.5);  // notehead x
+
+    // Fret lines + nut (only the windowed frets)
+    for (let f = lo; f <= hi; f++) {
+      const x = xLine(f);
+      ctx.strokeStyle = f === 0 ? '#555' : '#23233a'; ctx.lineWidth = f === 0 ? 3 : 1;
+      ctx.beginPath(); ctx.moveTo(x, rowY(nStrings - 1)); ctx.lineTo(x, rowY(0)); ctx.stroke();
+    }
+    // Inlay dots inside the window
+    ctx.fillStyle = '#1a1a30';
+    for (const f of FB_DOT_FRETS) {
+      if (f <= lo || f > hi) continue;
+      const x = xLine(f - 0.5);
+      if (FB_DOUBLE_DOT.includes(f)) {
+        ctx.beginPath(); ctx.arc(x, padT + (midRow - 1) * rowH, 4, 0, 6.2832); ctx.fill();
+        ctx.beginPath(); ctx.arc(x, padT + (midRow + 1) * rowH, 4, 0, 6.2832); ctx.fill();
+      } else { ctx.beginPath(); ctx.arc(x, padT + midRow * rowH, 4, 0, 6.2832); ctx.fill(); }
+    }
+    // Strings + open-note labels
+    ctx.font = 'bold 10px sans-serif'; ctx.textBaseline = 'middle';
+    for (let s = 0; s < nStrings; s++) {
+      const y = rowY(s), col = STRING_COLORS[s % STRING_COLORS.length];
+      ctx.strokeStyle = col; ctx.globalAlpha = 0.4; ctx.lineWidth = 1 + (nStrings - 1 - s) * 0.3;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.fillStyle = col; ctx.textAlign = 'right';
+      ctx.fillText(NOTE_NAMES[(opens[s] ?? 0) % 12], padL - 7, y);
+    }
+    // Fret numbers (actual fret values across the window)
+    ctx.fillStyle = '#4a4a5a'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (let f = lo + 1; f <= hi; f++) ctx.fillText(String(f), xLine(f - 0.5), rowY(0) + 4);
+
+    // The whole exercise pattern as hollow circles — shows the shape at a glance.
+    for (const p of fbPattern) {
+      if (p.s < 0 || p.s >= nStrings) continue;
+      ctx.strokeStyle = STRING_COLORS[p.s % STRING_COLORS.length]; ctx.lineWidth = 1.8; ctx.globalAlpha = 0.85;
+      ctx.beginPath(); ctx.arc(xNote(p.f), rowY(p.s), 7, 0, 6.2832); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    // Currently-sounding notes glow (filled) on top of their hollow markers.
+    for (const n of fretboardActiveNotes(currentPracticeTime)) {
+      if (n.s < 0 || n.s >= nStrings) continue;
+      const y = rowY(n.s), x = xNote(n.f);
+      const col = STRING_COLORS[n.s % STRING_COLORS.length];
+      ctx.globalAlpha = n.alpha * 0.3; ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(x, y, 12, 0, 6.2832); ctx.fill();
+      ctx.globalAlpha = n.alpha; ctx.beginPath(); ctx.arc(x, y, 7, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = '#000'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(n.f), x, y);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawOnce() { drawFretboardFrame(); if (!renderer || !activeBundle) return; syncHighwaySettings(activeBundle); activeBundle.currentTime = currentPracticeTime; renderer.draw(activeBundle); syncTransportTime(); }
   function tick(nowMs) {
     if (!renderer || !activeBundle) return;
     if (playing) {
@@ -4114,8 +4381,17 @@
         _loopWraps++;
         const lc = $('slopscale-loop-count');
         if (lc) { lc.hidden = false; lc.textContent = 'Loop ' + _loopWraps; }
-      } else if (currentPracticeTime > duration) {
-        currentPracticeTime = 0; playAnchorChartTime = 0; playAnchorMs = nowMs + AUDIO_LOOKAHEAD_SECONDS * 1000; stopAudio(); schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS);
+      } else {
+        // Seamless whole-chart loop. Audio for the next pass is pre-scheduled
+        // ahead of the seam (no stopAudio()/gap/clipped tail), and the visual
+        // clock wraps by phase-carry — subtract one loop length and keep
+        // ticking, so the playhead never freezes or snaps. Carrying the
+        // remainder also keeps the loop phase drift-free over long sessions.
+        maybeScheduleLoopAhead(nowMs);
+        if (currentPracticeTime >= duration) {
+          playAnchorChartTime -= duration;
+          currentPracticeTime -= duration;
+        }
       }
     }
     drawOnce(); rafId = requestAnimationFrame(tick);
@@ -4308,6 +4584,9 @@
         }
       }
     }
+    // Return the ctx-time that chart-time `startFrom` maps to, so the loop
+    // scheduler can compute when this pass ends and queue the next gaplessly.
+    return base;
   }
   function startPlayback() {
     if (!activeBundle) return;
@@ -4327,7 +4606,7 @@
     playAnchorMs = startMs + (countInSec + AUDIO_LOOKAHEAD_SECONDS) * 1000;
     countInUntilMs = countInSec > 0 ? startMs + countInSec * 1000 : 0;
     if (countInSec > 0) scheduleCountInClicks(cfg, countInSec);
-    schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS + countInSec);
+    scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS + countInSec);
     if (!rafId) rafId = requestAnimationFrame(tick);
     startPitchTracker(activeBundle); syncPlayButton(); refreshStatusFromState();
   }
@@ -4392,7 +4671,7 @@
       playAnchorChartTime = currentPracticeTime;
       playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
       stopAudio();
-      schedulePreviewAudio(activeBundle, currentPracticeTime, AUDIO_LOOKAHEAD_SECONDS);
+      scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
     } else {
       drawOnce();
     }
@@ -4405,6 +4684,8 @@
     if (cur) cur.textContent = fmtTime(currentPracticeTime);
     const scrub = $('slopscale-scrub');
     if (scrub && !_scrubbing) scrub.value = String(currentPracticeTime);
+    const hudTime = $('slopscale-hud-time');
+    if (hudTime) hudTime.textContent = fmtTime(currentPracticeTime) + ' / ' + fmtTime(activeBundle?.songInfo?.duration || 0);
     updateActiveSegment();
   }
 
@@ -4413,6 +4694,8 @@
   // bundle change, loop change, and mode change — not every frame.
   function syncTransport() {
     const dur = activeBundle?.songInfo?.duration || 0;
+    const hudTitle = $('slopscale-hud-title');
+    if (hudTitle) hudTitle.textContent = activeBundle ? describeCurrentContent() : '';
     const scrub = $('slopscale-scrub');
     if (scrub) {
       scrub.max = String(dur);
@@ -4647,6 +4930,11 @@
     if (!root || !setup) return;
     const isBass = (STRING_SETUPS[setup.value] || {}).instrument === 'bass';
     root.classList.toggle('slopscale-bass-instrument', isBass);
+    // Piano is keyed off the instrument select directly (it has no string setup).
+    // Drives the CSS that reveals the Piano Roll view and hides the guitar/bass
+    // views. Piano can't be selected yet (chip disabled), so this is groundwork.
+    const instrSel = document.querySelector('[name="instrument"]');
+    root.classList.toggle('slopscale-piano-instrument', (instrSel?.value) === 'piano');
     // Bending is a guitar-only technique (and has no bass backing) — remove it
     // from the Custom practice-type list on bass, and switch off it if selected.
     const ptSel = document.querySelector('[name="practiceType"]');
@@ -5831,7 +6119,15 @@
     // Theme toggle is only meaningful for the themed renderers (Tab,
     // Notation); the highway renderers have their own visual identity.
     const root = $('slopscale-root');
-    if (root) root.classList.toggle('slopscale-theme-renderer', kind === 'tab_2d' || kind === 'notation_2d');
+    if (root) {
+      root.classList.toggle('slopscale-theme-renderer', kind === 'tab_2d' || kind === 'notation_2d');
+      // Fretboard strip is offered only where it adds info the view lacks:
+      // Jumping Tab (builtin_2d) and Notation. Not 3D (already a neck) or Tab.
+      root.classList.toggle('slopscale-fb-capable', kind === 'builtin_2d' || kind === 'notation_2d');
+      // The HUD title only shows for 3D Highway — every other renderer draws
+      // the exercise name in-canvas itself, so showing it here too would double.
+      root.classList.toggle('slopscale-hud-title-on', kind === 'highway_3d');
+    }
   }
   function syncThemeButtons() {
     document.querySelectorAll('.slopscale-theme-btn').forEach(btn => {
@@ -6154,6 +6450,20 @@
     document.querySelectorAll('.slopscale-view-btn').forEach(btn => {
       btn.addEventListener('click', () => onViewSwitch(btn.dataset.renderer));
     });
+    const fbToggle = $('slopscale-fretboard-toggle');
+    if (fbToggle) fbToggle.addEventListener('click', () => {
+      fretboardOn = !fretboardOn;
+      try { localStorage.setItem('slopscale.fretboard', fretboardOn ? '1' : '0'); } catch (_) {}
+      syncFretboardUI();
+      // Showing/hiding the strip changes the render-host height. Re-fit the
+      // active renderer so a borrowed viz (Jumping Tab) re-lays-out to the new
+      // size instead of stretching its old canvas to fill the gap.
+      if (renderer && typeof renderer.resize === 'function') {
+        const host = $('slopscale-render-host');
+        if (host) { const r = host.getBoundingClientRect(); renderer.resize(Math.round(r.width), Math.round(r.height)); }
+      }
+      drawOnce();
+    });
     // Theme toggle (Light / Dark) for Tab + Notation.
     document.querySelectorAll('.slopscale-theme-btn').forEach(btn => {
       btn.addEventListener('click', () => { setRenderTheme(btn.dataset.theme); syncThemeButtons(); });
@@ -6177,6 +6487,9 @@
       const rendererSel = document.querySelector('[name="renderer"]');
       if (rendererSel) rendererSel.value = savedRenderer;
     }
+    // Restore the fretboard-strip toggle (defaults on).
+    try { const fb = localStorage.getItem('slopscale.fretboard'); if (fb != null) fretboardOn = fb === '1'; } catch (_) {}
+    syncFretboardUI();
     // Key or fretboardSystem change → repopulate the Shape dropdown for the
     // new (key, system) combination.
     // Shape stepper: ◄ / ► walk the #slopscale-shape options. A bubbling

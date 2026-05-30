@@ -168,38 +168,41 @@
   .slopscale-loop-lane { position: relative; height: 16px; border-radius: 5px; background: #0c1322; border: 1px solid #1e293b; cursor: crosshair; touch-action: none; }
   .slopscale-loop-lane::before { content: 'LOOP · drag to set'; position: absolute; left: 8px; top: 50%; transform: translateY(-50%); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: #475569; pointer-events: none; }
   .slopscale-loop-lane.has-loop::before { display: none; }
-  .slopscale-loop-lane-region { position: absolute; top: 0; bottom: 0; background: rgba(96,165,250,0.35); border: 1px solid #60a5fa; border-radius: 4px; cursor: grab; }
-  .slopscale-loop-handle { position: absolute; top: 0; bottom: 0; width: 7px; background: #60a5fa; cursor: ew-resize; }
+  .slopscale-loop-lane-region { position: absolute; top: 0; bottom: 0; background: rgba(64,128,224,0.35); border: 1px solid #4080e0; border-radius: 4px; cursor: grab; }
+  .slopscale-loop-handle { position: absolute; top: 0; bottom: 0; width: 7px; background: #4080e0; cursor: ew-resize; }
   .slopscale-loop-handle[data-edge="a"] { left: -1px; border-radius: 4px 0 0 4px; }
   .slopscale-loop-handle[data-edge="b"] { right: -1px; border-radius: 0 4px 4px 0; }
   .slopscale-scrub-row { position: relative; height: 18px; display: flex; align-items: center; }
   .slopscale-scrub-rail { position: absolute; left: 0; right: 0; top: 50%; height: 6px; transform: translateY(-50%); background: #1e293b; border-radius: 3px; pointer-events: none; }
-  .slopscale-loop-region { position: absolute; top: 50%; height: 6px; transform: translateY(-50%); background: rgba(96,165,250,0.45); border-radius: 3px; pointer-events: none; }
+  .slopscale-loop-region { position: absolute; top: 50%; height: 6px; transform: translateY(-50%); background: rgba(64,128,224,0.45); border-radius: 3px; pointer-events: none; }
   .slopscale-scrub { -webkit-appearance: none; appearance: none; position: relative; width: 100%; height: 18px; margin: 0; background: transparent; cursor: pointer; }
   .slopscale-scrub:disabled { cursor: default; opacity: 0.55; }
   .slopscale-scrub::-webkit-slider-runnable-track { height: 18px; background: transparent; }
-  .slopscale-scrub::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; margin-top: 2px; border-radius: 50%; background: #f8fafc; border: 2px solid #2563eb; box-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+  .slopscale-scrub::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; margin-top: 2px; border-radius: 50%; background: #f8fafc; border: 2px solid #4080e0; box-shadow: 0 1px 3px rgba(0,0,0,0.5); }
   .slopscale-scrub::-moz-range-track { height: 6px; background: transparent; }
-  .slopscale-scrub::-moz-range-thumb { width: 14px; height: 14px; border: 2px solid #2563eb; border-radius: 50%; background: #f8fafc; }
-  .slopscale-tp-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-  .slopscale-tp-play { min-height: 38px; min-width: 92px; padding: 0 16px; border-radius: 9px; border: 1px solid #60a5fa; background: linear-gradient(180deg, #2563eb, #1d4ed8); color: #f8fafc; font-weight: 800; font-size: 14px; cursor: pointer; }
-  .slopscale-tp-play:hover { background: linear-gradient(180deg, #1d4ed8, #1e40af); }
-  .slopscale-tp-play.is-playing { background: linear-gradient(180deg, #b91c1c, #991b1b); border-color: #f87171; }
-  .slopscale-tp-play.is-playing:hover { background: linear-gradient(180deg, #991b1b, #7f1d1d); }
-  .slopscale-tp-btn { min-height: 32px; min-width: 32px; padding: 0 9px; border-radius: 8px; border: 1px solid #475569; background: #172033; color: #cbd5e1; font-weight: 750; font-size: 13px; cursor: pointer; }
-  .slopscale-tp-btn:hover { background: #24324a; border-color: #64748b; }
-  .slopscale-tp-btn.active { background: linear-gradient(180deg, #2563eb, #1d4ed8); border-color: #60a5fa; color: #fff; }
-  .slopscale-tp-time { font-family: ui-monospace, monospace; font-size: 13px; color: #cbd5e1; min-width: 84px; text-align: center; }
-  .slopscale-tp-sep { width: 1px; align-self: stretch; background: rgba(75,85,99,0.5); margin: 2px; }
+  .slopscale-scrub::-moz-range-thumb { width: 14px; height: 14px; border: 2px solid #4080e0; border-radius: 50%; background: #f8fafc; }
+  /* Flatter pill aesthetic, in parity with the host player control bar:
+     borderless dark pills, lighter weight, flat accent fills (host accent
+     #4080e0), `|` group separators. Multi-row layout + drag-loop preserved. */
+  .slopscale-tp-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+  .slopscale-tp-play { min-height: 34px; min-width: 84px; padding: 0 16px; border-radius: 8px; border: none; background: #4080e0; color: #fff; font-weight: 600; font-size: 13px; cursor: pointer; transition: background 0.15s; }
+  .slopscale-tp-play:hover { background: #60a0ff; }
+  .slopscale-tp-play.is-playing { background: #b91c1c; }
+  .slopscale-tp-play.is-playing:hover { background: #dc2626; }
+  .slopscale-tp-btn { min-height: 30px; min-width: 30px; padding: 0 10px; border-radius: 8px; border: none; background: #1e2740; color: #cbd5e1; font-weight: 600; font-size: 12px; cursor: pointer; transition: background 0.15s; }
+  .slopscale-tp-btn:hover { background: #2a3654; }
+  .slopscale-tp-btn.active { background: #4080e0; color: #fff; }
+  .slopscale-tp-time { font-family: ui-monospace, monospace; font-size: 12px; color: #94a3b8; min-width: 84px; text-align: center; }
+  .slopscale-tp-sep { width: 1px; align-self: stretch; background: rgba(75,85,99,0.45); margin: 3px 4px; }
   .slopscale-tp-loop, .slopscale-tp-countin { display: flex; align-items: center; gap: 5px; }
-  .slopscale-tp-loopcount { font-size: 12px; color: #93c5fd; font-weight: 700; }
-  .slopscale-tp-lbl { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #94a3b8; }
-  .slopscale-tp-seg { min-height: 28px; min-width: 30px; padding: 0 8px; border: 1px solid #475569; background: #0f172a; color: #cbd5e1; font-weight: 700; font-size: 12px; cursor: pointer; }
+  .slopscale-tp-loopcount { font-size: 12px; color: #93c5fd; font-weight: 600; }
+  .slopscale-tp-lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; }
+  .slopscale-tp-seg { min-height: 28px; min-width: 30px; padding: 0 9px; border: none; background: #141d33; color: #cbd5e1; font-weight: 600; font-size: 12px; cursor: pointer; }
   .slopscale-tp-seg:first-of-type { border-radius: 7px 0 0 7px; }
   .slopscale-tp-seg:last-of-type { border-radius: 0 7px 7px 0; }
-  .slopscale-tp-seg + .slopscale-tp-seg { border-left: none; }
+  .slopscale-tp-seg + .slopscale-tp-seg { box-shadow: inset 1px 0 0 rgba(2,6,23,0.55); }
   .slopscale-tp-seg:hover:not(.active) { background: #24324a; }
-  .slopscale-tp-seg.active { background: linear-gradient(180deg, #2563eb, #1d4ed8); border-color: #60a5fa; color: #fff; }
+  .slopscale-tp-seg.active { background: #4080e0; color: #fff; }
   /* View switcher toolbar inside the render stage */
   .slopscale-view-switcher { display: flex; align-items: center; gap: 4px; padding: 7px 12px; background: rgba(9,15,30,0.92); border-bottom: 1px solid rgba(75,85,99,0.4); flex-shrink: 0; }
   .slopscale-view-label { font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8; margin-right: 6px; }
@@ -256,8 +259,35 @@
   .slopscale-sub-btn.active { background: #0f2b4a; border-color: #3b82f6; color: #93c5fd; }
 
   .slopscale-stage { overflow: hidden; min-height: 620px; display: flex; flex-direction: column; }
-  .slopscale-render-host { position: relative; flex: 1; min-height: 560px; overflow: hidden; background: #050711; }
+  .slopscale-render-host { position: relative; flex: 1; min-height: 420px; overflow: hidden; background: #050711; }
   #slopscale-canvas { display: block; width: 100%; height: 100%; }
+  /* Player HUD overlay — title left, time right, floating over the highway. */
+  .slopscale-hud { position: absolute; top: 0; left: 0; right: 0; z-index: 12; display: flex; justify-content: flex-end; align-items: flex-start; gap: 12px; padding: 9px 13px; pointer-events: none; }
+  /* Title is drawn in-canvas by most renderers; the HUD title only fills the gap
+     for 3D Highway (whose renderer draws no title). Hidden elsewhere to avoid
+     doubling up. margin-right:auto keeps the time pinned right either way. */
+  .slopscale-hud-title { margin-right: auto; display: none; font-size: 12px; font-weight: 600; color: #e2e8f0; text-shadow: 0 1px 4px rgba(0,0,0,0.85); }
+  .slopscale-root.slopscale-hud-title-on .slopscale-hud-title { display: inline; }
+  .slopscale-hud-time { font-size: 12px; color: #cbd5e1; font-variant-numeric: tabular-nums; text-shadow: 0 1px 4px rgba(0,0,0,0.85); }
+  /* Live fretboard strip docked under the highway. Hidden by default; shown only
+     for fretboard-capable views (Jumping Tab + Notation) when the toggle is on.
+     Always hidden for the Piano instrument. */
+  .slopscale-fretboard-strip { position: relative; flex-shrink: 0; height: 132px; background: #08080f; border-top: 1px solid rgba(75,85,99,0.4); display: none; }
+  #slopscale-fretboard { display: block; width: 100%; height: 100%; }
+  .slopscale-root.slopscale-fb-capable.slopscale-fb-on .slopscale-fretboard-strip { display: block; }
+  .slopscale-root.slopscale-piano-instrument .slopscale-fretboard-strip { display: none !important; }
+  /* "Fretboard view" label + pill toggle — only shown for fretboard-capable views. */
+  .slopscale-fb-toggle-wrap { display: none; align-items: center; gap: 7px; }
+  .slopscale-root.slopscale-fb-capable .slopscale-fb-toggle-wrap { display: inline-flex; }
+  .slopscale-fb-toggle-label { font-size: 12px; font-weight: 600; color: #94a3b8; }
+  .slopscale-pill-toggle { position: relative; width: 34px; height: 18px; padding: 0; border: none; border-radius: 999px; background: #334155; cursor: pointer; transition: background 0.15s; }
+  .slopscale-pill-toggle[aria-checked="true"] { background: #4080e0; }
+  .slopscale-pill-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.4); transition: transform 0.15s; }
+  .slopscale-pill-toggle[aria-checked="true"] .slopscale-pill-knob { transform: translateX(16px); }
+  /* Borrowed host visualizations (e.g. Jumping Tab) mount their own wrap as a
+     sibling of #slopscale-canvas and hide the canvas. Fill the render-host so
+     the wrap's internal flex layout has a definite size. */
+  .slopscale-render-host .jumpingtab-wrap { position: absolute; inset: 0; }
   .slopscale-summary { border-top: 1px solid rgba(75, 85, 99, 0.55); padding: 12px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; color: #cbd5e1; background: rgba(2, 6, 23, 0.72); font-size: 12px; line-height: 1.45; }
   .slopscale-pitch-meter { display: none; align-items: center; gap: 10px; padding: 7px 14px; background: rgba(2, 6, 23, 0.85); border-top: 1px solid rgba(75, 85, 99, 0.55); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #94a3b8; }
   #slopscale-pitch-note { font-size: 14px; font-weight: 700; color: #e2e8f0; min-width: 30px; }
@@ -308,6 +338,14 @@
   .slopscale-tuning-block { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; padding: 8px 10px; background: rgba(15,23,42,0.55); border: 1px solid #1f2937; border-radius: 10px; }
   .slopscale-root.slopscale-piano-instrument .slopscale-tuning-block { display: none; }
   .slopscale-tuning-row { display: flex; align-items: center; gap: 8px; }
+  /* View-switcher gating by instrument. Piano Roll only appears when Piano is
+     the selected instrument; when Piano is active, the guitar/bass-oriented 3D
+     Highway and Jumping Tab views are hidden. (Piano Roll stays disabled until
+     piano playback ships — groundwork only.) */
+  .slopscale-view-btn[data-renderer="piano_roll"] { display: none; }
+  .slopscale-root.slopscale-piano-instrument .slopscale-view-btn[data-renderer="piano_roll"] { display: inline-flex; align-items: center; }
+  .slopscale-root.slopscale-piano-instrument .slopscale-view-btn[data-renderer="highway_3d"],
+  .slopscale-root.slopscale-piano-instrument .slopscale-view-btn[data-renderer="builtin_2d"] { display: none; }
   .slopscale-tuning-label { flex: 0 0 56px; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8; }
   .slopscale-string-count-row { display: flex; gap: 4px; flex: 1; }
   .slopscale-string-count-btn {
@@ -665,7 +703,7 @@
         <label>Visual layout
           <select name="renderer">
             <option value="highway_3d" selected>3D Note Highway</option>
-            <option value="builtin_2d">2D Highway</option>
+            <option value="builtin_2d">Jumping Tab</option>
             <option value="tab_2d">Tab</option>
             <option value="notation_2d">Notation</option>
           </select>
@@ -1014,9 +1052,20 @@
       <div class="slopscale-view-switcher" role="group" aria-label="Renderer">
         <span class="slopscale-view-label">View</span>
         <button type="button" class="slopscale-view-btn active" data-renderer="highway_3d">3D Highway</button>
-        <button type="button" class="slopscale-view-btn" data-renderer="builtin_2d">2D Highway</button>
+        <button type="button" class="slopscale-view-btn" data-renderer="builtin_2d">Jumping Tab</button>
         <button type="button" class="slopscale-view-btn" data-renderer="tab_2d">Tab</button>
         <button type="button" class="slopscale-view-btn" data-renderer="notation_2d">Notation</button>
+        <!-- Piano Roll: groundwork only. Shown (via CSS) only when the Piano
+             instrument is selected, and kept disabled until piano playback
+             ships. See the .slopscale-piano-instrument rules below. -->
+        <button type="button" class="slopscale-view-btn" data-renderer="piano_roll" disabled title="Piano Roll (coming with Piano support)">Piano Roll</button>
+        <!-- Fretboard strip toggle — "Fretboard view" + pill switch. Only shown
+             (via CSS) for the views where the strip earns its keep: Jumping Tab
+             and Notation. Hidden for 3D Highway (already a neck) and Tab. -->
+        <span id="slopscale-fretboard-toggle-wrap" class="slopscale-fb-toggle-wrap">
+          <span class="slopscale-fb-toggle-label">Fretboard view</span>
+          <button type="button" id="slopscale-fretboard-toggle" class="slopscale-pill-toggle" role="switch" aria-checked="true" aria-label="Toggle fretboard view"><span class="slopscale-pill-knob"></span></button>
+        </span>
         <!-- Theme toggle for Tab + Notation only. Hidden via CSS when the
              active renderer is one of the highway views. -->
         <div id="slopscale-theme-toggle" class="slopscale-theme-toggle" role="group" aria-label="Renderer theme">
@@ -1024,7 +1073,19 @@
           <button type="button" class="slopscale-theme-btn" data-theme="dark" title="Navy + ink">Dark</button>
         </div>
       </div>
-      <div id="slopscale-render-host" class="slopscale-render-host"><canvas id="slopscale-canvas"></canvas></div>
+      <div id="slopscale-render-host" class="slopscale-render-host">
+        <!-- Player HUD overlay (parity with the host player): exercise title on
+             the left, playhead time on the right, floating over the highway. -->
+        <div id="slopscale-hud" class="slopscale-hud" aria-hidden="true">
+          <span id="slopscale-hud-title" class="slopscale-hud-title"></span>
+          <span id="slopscale-hud-time" class="slopscale-hud-time">0:00 / 0:00</span>
+        </div>
+        <canvas id="slopscale-canvas"></canvas>
+      </div>
+      <!-- Live fretboard strip — lights up the currently-sounding notes on a
+           neck diagram (the highway shows WHEN, this shows WHERE). Driven by
+           SlopScale's own clock; hidden for the Piano instrument. -->
+      <div id="slopscale-fretboard-strip" class="slopscale-fretboard-strip"><canvas id="slopscale-fretboard"></canvas></div>
       <div id="slopscale-transport" class="slopscale-transport" aria-label="Playback transport">
         <div id="slopscale-session-progress" class="slopscale-session-progress slopscale-session-only" role="group" aria-label="Session segments"></div>
         <div class="slopscale-loop-lane" id="slopscale-loop-lane" title="Drag to set an A–B loop · hold Alt for free (un-snapped) placement">
