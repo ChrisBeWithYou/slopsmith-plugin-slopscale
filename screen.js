@@ -4637,6 +4637,10 @@
   // CAGED/3NPS shape concepts are guitar-only — hide them when bass is active.
   // Also switch the renderer to 2D Highway since the host's 3D Highway plugin
   // throws on non-6-string string counts.
+  // Remembers the shape-aware system (caged/3nps) we force-switched away from
+  // when the user picked a bass setup, so returning to guitar restores it
+  // instead of stranding the player in 'position'.
+  let stashedGuitarSystem = null;
   function syncInstrumentClass() {
     const root = $('slopscale-root');
     const setup = document.querySelector('[name="stringSetup"]');
@@ -4655,7 +4659,12 @@
     renderSkillTree();
     if (isBass) {
       const fs = document.querySelector('[name="fretboardSystem"]');
-      if (fs && (fs.value === 'caged' || fs.value === '3nps')) fs.value = 'position';
+      // CAGED/3NPS are guitar artifacts — force bass to the movable 'position'
+      // box, but remember what we switched away from so guitar can restore it.
+      if (fs && (fs.value === 'caged' || fs.value === '3nps')) {
+        stashedGuitarSystem = fs.value;
+        fs.value = 'position';
+      }
       // The host 3D highway only supports 6 strings, so show 2D on bass — but
       // do NOT persist it. attachRenderer forces 2D at render time for any
       // non-6-string chart; writing localStorage here used to strand 6-string
@@ -4665,6 +4674,17 @@
         if (rendererSel) rendererSel.value = 'builtin_2d';
         syncViewSwitcher('builtin_2d');
       }
+    } else if (stashedGuitarSystem) {
+      // Returning to guitar: restore the shape-aware system bass forced off, so
+      // the player isn't silently stranded in 'position'. Only restore if the
+      // forced 'position' value is still in place (user didn't pick it themself),
+      // and fire change so the shape controls re-resolve.
+      const fs = document.querySelector('[name="fretboardSystem"]');
+      if (fs && fs.value === 'position') {
+        fs.value = stashedGuitarSystem;
+        fs.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      stashedGuitarSystem = null;
     }
     // Re-label the next-variation button so it stops claiming "E-shape" on
     // bass (it cycles through pathway variations, which on bass aren't
