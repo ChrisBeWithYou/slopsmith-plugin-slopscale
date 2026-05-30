@@ -45,6 +45,11 @@
   /* Only the controls rail scrolls — and only when its content exceeds the
      available height (Guided mode on short viewports). */
   .slopscale-controls { padding: 16px; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; }
+  /* Collapsed: hide the settings rail and let the player fill the freed width
+     (and contract back when the sidebar returns). Single full-width column —
+     no cap/centering — so the render reclaims the sidebar's space entirely. */
+  .slopscale-root.slopscale-collapsed .slopscale-controls { display: none; }
+  .slopscale-root.slopscale-collapsed .slopscale-layout { grid-template-columns: minmax(0, 1fr); justify-content: stretch; }
   .slopscale-controls label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #d6deea; font-weight: 650; }
   .slopscale-controls input, .slopscale-controls select {
     background: #111827 !important;
@@ -173,7 +178,7 @@
   /* ── Playback transport ──────────────────────────────────────────────────
      Split in two (DAW pattern): a CONTROLS bar above the render (this), and a
      scrub/loop TIMELINE ruler pinned inside the render's top edge (below). */
-  .slopscale-transport-bar { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 8px 12px; background: rgba(9,15,30,0.92); border-bottom: 1px solid rgba(75,85,99,0.4); flex-shrink: 0; }
+  .slopscale-transport-bar { position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 8px 12px; background: rgba(9,15,30,0.92); border-bottom: 1px solid rgba(75,85,99,0.4); flex-shrink: 0; }
   .slopscale-transport-bar > .slopscale-session-progress { width: 100%; }
   .slopscale-transport-bar > .slopscale-tp-controls { justify-content: center; }
   /* Timeline ruler overlaying the top of the render — the scrub IS the notes'
@@ -215,6 +220,11 @@
   /* View switcher toolbar inside the render stage */
   .slopscale-view-switcher { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 7px 12px; background: rgba(9,15,30,0.92); border-bottom: 1px solid rgba(75,85,99,0.4); flex-shrink: 0; }
   .slopscale-view-label { font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8; margin-right: 6px; }
+  /* "Collapse sidebar" pill toggle — left of the transport row (reuses the
+     .slopscale-pill-toggle switch style). Absolutely placed so the play
+     controls stay centered in the bar. */
+  .slopscale-collapse-wrap { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 7px; z-index: 1; }
+  .slopscale-collapse-label { font-size: 12px; font-weight: 600; color: #94a3b8; white-space: nowrap; }
   /* Tabs read as tabs: unselected is a subtle outlined chip; selected gets
      a saturated background, a bottom highlight, and a slight lift so the
      active view is unmistakable at a glance. */
@@ -1125,6 +1135,12 @@
            render (DAW transport-bar pattern; never covers the chart). The
            scrub/loop TIMELINE lives as a ruler pinned inside the render below. -->
       <div id="slopscale-transport-bar" class="slopscale-transport-bar" aria-label="Playback transport">
+        <!-- Collapse the left settings panel. Pill toggle, left of the transport
+             row; ON = collapsed (sidebar hidden, render reclaims the width). -->
+        <span class="slopscale-collapse-wrap">
+          <span class="slopscale-collapse-label">Collapse sidebar</span>
+          <button type="button" id="slopscale-panel-toggle" class="slopscale-pill-toggle" role="switch" aria-checked="false" aria-label="Collapse sidebar"><span class="slopscale-pill-knob"></span></button>
+        </span>
         <div id="slopscale-session-progress" class="slopscale-session-progress slopscale-session-only" role="group" aria-label="Session segments"></div>
         <div class="slopscale-tp-controls">
           <button type="button" id="slopscale-to-start" class="slopscale-tp-btn" title="Back to start (Home)">⏮</button>

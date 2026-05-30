@@ -4264,6 +4264,10 @@
     // range. Transient (per-render), never persisted, so it can't strand a later
     // 6-string session on 2D.
     if (cfg.renderer === 'highway_3d' && (cfg.stringCount || 6) !== 6) cfg.renderer = 'builtin_2d';
+    // Keep the view row in sync with what's ACTUALLY being rendered (including
+    // the saved-pref restore and the bass/extended force above) so the
+    // highlighted view button always matches the render.
+    syncViewSwitcher(cfg.renderer);
     stopRenderer(); activeBundle = makeBundle(exercise); currentPracticeTime = 0;
     fretboardSyncRange();
     // The host 3D Highway projects chord-shape FRAMES onto the note lane (plus a
@@ -4298,6 +4302,7 @@
   // shape sits on the neck. Ported + generalised from the host Fretboard View
   // plugin: any string count, SlopScale string colours, driven by our own clock.
   let fbCtx = null, fretboardOn = false;  // off by default; per-view toggle in JT + Notation
+  let panelCollapsed = false;  // left settings panel show/hide (persisted)
   let rulerCtx = null;  // unified DAW timeline ruler (bars/beats + playhead + A–B loop)
   let fbFretLo = 0, fbFretHi = 12, fbPattern = [];  // zoomed fret window + unique pattern positions
   const FB_DOT_FRETS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
@@ -4347,6 +4352,25 @@
   function syncFretboardUI() {
     $('slopscale-root')?.classList.toggle('slopscale-fb-on', fretboardOn);
     $('slopscale-fretboard-toggle')?.setAttribute('aria-checked', String(fretboardOn));
+  }
+  // Left settings panel collapse/expand. Reflects state onto the root class
+  // (drives the layout) and the chevron button (glyph + a11y).
+  function syncPanelToggle() {
+    $('slopscale-root')?.classList.toggle('slopscale-collapsed', panelCollapsed);
+    // Pill switch: checked = collapsed (sidebar hidden). Label stays static.
+    $('slopscale-panel-toggle')?.setAttribute('aria-checked', String(panelCollapsed));
+  }
+  function setPanelCollapsed(v) {
+    panelCollapsed = !!v;  // session-only; startup/selection always resets to expanded
+    syncPanelToggle();
+    // The render-host width changed — re-fit the active renderer so a borrowed
+    // viz re-lays-out instead of stretching its old canvas (mirrors the
+    // fretboard-strip toggle).
+    if (renderer && typeof renderer.resize === 'function') {
+      const host = $('slopscale-render-host');
+      if (host) { const r = host.getBoundingClientRect(); renderer.resize(Math.round(r.width), Math.round(r.height)); }
+    }
+    drawOnce();
   }
   function drawFretboardFrame() {
     const canvas = $('slopscale-fretboard');
@@ -6689,6 +6713,7 @@
       }
       drawOnce();
     });
+    $('slopscale-panel-toggle')?.addEventListener('click', () => setPanelCollapsed(!panelCollapsed));
     // Theme toggle (Light / Dark) for Tab + Notation.
     document.querySelectorAll('.slopscale-theme-btn').forEach(btn => {
       btn.addEventListener('click', () => { setRenderTheme(btn.dataset.theme); syncThemeButtons(); });
@@ -6715,6 +6740,10 @@
     // Restore the fretboard-strip toggle (defaults on).
     try { const fb = localStorage.getItem('slopscale.fretboard'); if (fb != null) fretboardOn = fb === '1'; } catch (_) {}
     syncFretboardUI();
+    // The sidebar always starts expanded on plugin startup/selection (it's a
+    // transient view affordance, not a saved pref) — also reset on screen:changed.
+    panelCollapsed = false;
+    syncPanelToggle();
     // Key or fretboardSystem change → repopulate the Shape dropdown for the
     // new (key, system) combination.
     // Shape stepper: ◄ / ► walk the #slopscale-shape options. A bubbling
@@ -6809,7 +6838,10 @@
     if (window.slopsmith && typeof window.slopsmith.on === 'function') {
       window.slopsmith.on('screen:changed', (ev) => {
         if (ev?.detail?.id !== 'plugin-slopscale') return;
+        // Sidebar always shows when the plugin is (re)selected.
+        panelCollapsed = false; syncPanelToggle();
         if (lastExercise) {
+          // attachRenderer re-syncs the view row to the actual renderer.
           attachRenderer(lastExercise).catch(e => console.warn('[SlopScale] re-attach on screen show failed', e));
         }
       });
