@@ -1,7 +1,13 @@
 <style>
   .slopscale-root {
-    min-height: calc(100vh - 64px);
-    padding: 18px;
+    /* Slopsmith's navbar is a transparent, position:fixed, 64px-tall bar that
+       floats over the active screen. The host mounts plugin screens as bare
+       containers at top:0 (no offset), so — like the host's own screens, which
+       use pt-24 — we must clear the navbar ourselves. Without this top padding
+       the SlopScale header renders under the navbar and the "Slopsmith" logo
+       overlaps it. */
+    min-height: 100vh;
+    padding: 80px 18px 18px;
     color: #e5e7eb;
     background: radial-gradient(circle at top left, rgba(58, 84, 140, 0.18), transparent 32rem), linear-gradient(180deg, #080812 0%, #0d0d18 100%);
     box-sizing: border-box;
