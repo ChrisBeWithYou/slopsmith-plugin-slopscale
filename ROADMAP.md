@@ -54,7 +54,7 @@ A 13-agent group-design charette (chaired by `learning-design-architect`; main t
 "Make me a song/solo/lick to learn" · master-mode as a *prerequisite* to ship Jam · a Workout block library separate from Pathways/Custom · hard-gating Workout recommendations · the skip-ahead XP *penalty* · Jam score/combo/S-rank/leaderboard · spendable-XP economies, daily-login bonuses, FOMO/streak-anxiety, "perfect session" bonuses, audio victory stingers · registering as a minigame · stem-separation / play-to-real-tracks · chasing Band-in-a-Box arrangement depth or a song catalog · tab/notation *editor* ambitions · adaptive-AI-coach v1 · a second live amp instance · per-channel EQ/pan/multi-reverb in the mixer v1 · odd/changing-meter + herta long-cycle in Workout/Jam v1.
 
 ### Build queue (prioritized, dependency-ordered) — **Foundation first (locked)**
-1. **Guitar Core ★ nodes over existing generators** + reorder power chords into Beginner + surface the Feel control (cheap; already designed; Pillar 1).
+1. ✅ **Guitar Core ★ nodes over existing generators** + reorder power chords into Beginner + surface the Feel control — **BUILT 2026-05-31** (commit pending). Added 7 ★ pathways (`pulse_muting`, `power_chord_comping`, `major_scale_caged`, `sixteenth_pocket`, `guide_tones_path`, `whole_neck_freedom`, `melmin_exotic_12key`) as PATHWAYS + skill-tree nodes/edges + select options; power chords now in the Beginner band; new `static_i` one-chord progression token; Feel control was **already surfaced** (no work). **Pending: agent review** (guitar-pedagogy + harmony-theory). The comping Core nodes (B5/I6/I7) still need `buildCompingExercise` (#7); the master/improv rung (A8) needs its engine.
 2. **`STYLE_PALETTES`** (shared style→harmony table) — unblocks Jam *and* feeds Pathways/Custom/Workout.
 3. **`targetSec` + `fillBlockToDuration()`** — unblocks the Workout Planner.
 4. **DRUMS voice** (self-hosted WebAudioFont GM bank-128) + `AUDIO_PROFILES` → ensemble spec — the realism unlock for Jam.
@@ -79,12 +79,15 @@ Menu/shell design round run (`slopscale-ux-designer`-led; `gamification-architec
 
 **Wiring guardrails:** edit the inline `<style>` in `screen.html` only (`static/slopscale.css` is dead); preserve wiring-contract IDs (`#slopscale-pathway`, goal-card IDs, `#slopscale-tier-buttons`, `#slopscale-panel-toggle`); don't conflate the **three** segmented-control families — `.slopscale-mode-bar` (→`ss-mode-*`), `.slopscale-view-switcher` (renderer picker), and the stage's `.slopscale-modeview`/`.slopscale-focus-btn` (Setup/Play + Focus). Market-analyst's activation guardrail: there must always be exactly **one lit primary action** on first paint, or we lose the activation race while looking more capable.
 
-### ⏸️ STOPPED HERE — shell decided; NEXT FOCUS = BUILD, Foundation-first (2026-05-31)
-Menu/shell designed & locked (above). Build before the shell, per the locked Foundation-first order:
+### ⏸️ STOPPED HERE — build-queue #1 BUILT; NEXT = agent review + #2/#3 (2026-05-31)
+Guitar Core ★ nodes (#1) built, verified (full smoke green + all 7 pathways probed end-to-end through the real wiring), and committed. Two bugs fixed en route: (a) `static_i` wasn't a selectable progression option → `pulse_muting` fell back to `diatonic` (added the option + explicit progressions on the scale nodes); (b) **pre-existing** skill-tree-render bug — `.slopscale-tree-inner` `height:100%` resolved to 0 (parent height from `min-height`/flex), piling every node at `top:0`; fixed with a flex-based definite height. Verification scaffolding: `node --check`, the smoke suites, and one-off Playwright probes (removed after).
 
-**Next (build, Foundation first):** queue #1–#3 — guitar Core ★ nodes over existing generators (+ reorder power chords into Beginner + surface the Feel control) → `STYLE_PALETTES` (shared style→harmony table) → `targetSec` + `fillBlockToDuration()` (Workout time primitive). Then #4 drums voice, #5 the shell (spec ready above), #6 the `slopscale.progress` ledger + Off/Casual/Hardcore toggle. Apply the north-star tweak into `CLAUDE.md`/`AGENTS.md` "Design north star" (keep in sync).
+**Next session:**
+- **Agent review of the 7 new Core nodes** (workflow rule, before "done"): `guitar-pedagogy-expert` (playability of the configs — esp. `pedal_riff` musical-progression power chords, the 5-shape CAGED ladder, `full_neck`) + `harmony-theory-architect` (the new `static_i` token, the power-chord progressions, guide-tones, exotic-over-drone backing). Act on or log findings.
+- **Open design question (Christian to decide):** `applyPathwayById` picks a **random variation on selection** (screen.js ~6499). Existing pathways only varied key/position (innocuous); the new `power_chord_comping` / `melmin_exotic_12key` vary progression/scale, so selection lands on a random (always on-theme) variation. Leave as-is, or make Core nodes start deterministically on base (only cycle via Next Variation)? — affects all pathways.
+- **Then build #2/#3:** `STYLE_PALETTES` (shared style→harmony table — unblocks Jam + feeds Pathways/Custom/Workout) → `targetSec` + `fillBlockToDuration()` (Workout time primitive). Then #4 drums, #5 the shell (`project_menu_shell_design` spec), #6 the `slopscale.progress` ledger. Apply the north-star tweak into `CLAUDE.md`/`AGENTS.md` "Design north star".
 
-**Also (cheap, parallel):** run the now-registered `slopsmith-host-expert` to re-verify the stand-in's findings against a live `window` dump — esp. the viz borrow-contract contradiction (`slopsmithRegisterViz` factory vs `window.slopsmithViz_<id>` global) + Minigames SDK runtime presence. `gamification-architect` + `drum-pedagogy-expert` also spawnable.
+**Also (cheap, parallel):** run the now-registered `slopsmith-host-expert` to re-verify the stand-in's findings against a live `window` dump — esp. the viz borrow-contract contradiction (`slopsmithRegisterViz` factory vs `window.slopsmithViz_<id>` global) + Minigames SDK runtime presence; **also re-verify the instrument-inherit path** (`GET /api/settings` → `default_arrangement`) against the bundled 0.2.7 runtime before that gets built. `gamification-architect` + `drum-pedagogy-expert` also spawnable.
 
 ---
 
@@ -135,7 +138,7 @@ Menu/shell designed & locked (above). Build before the shell, per the locked Fou
 - ✅ General `{deg|semis,q,rn}` progression token — chromatic roots no scale degree can express (tritone_sub_ii_V_I, backdoor_ii_V, tadd_dameron presets)
 - ✅ **Voicing engine** (`classifyChordTones` + `voiceChord`) — turns the full interval stack into a playable voicing (drops avoid notes, keeps guide tones + top colour, register windowing); wired into the backing pad. See `docs/musicality-guardrails.md`
 
-### Pathways (15 curated)
+### Pathways (15 curated + 5 metal + 7 guitar Core ★ = 27)
 - ✅ Chromatic Warmup
 - ✅ Pentatonic Foundation
 - ✅ Blues Scale Foundation
@@ -151,6 +154,8 @@ Menu/shell designed & locked (above). Build before the shell, per the locked Fou
 - ✅ Sweep Arpeggio Primer
 - ✅ Modal Vamp
 - ✅ Bending Drill (hidden on bass)
+- ✅ Metal pack (5): Metalcore Pedal Chug, Melodic Metal Gallop, Melodic Death Twin Leads, Djent Polymeter, Death Metal Chromatic
+- ✅ **Guitar Core ★ (7, built 2026-05-31, agent review pending):** Pulse & Muting, Power-Chord Comping (Beginner power chords), Major Scale — CAGED, Sixteenth-Note Pocket, Guide Tones, Whole-Neck Freedom, Melodic Minor & Exotic
 
 ### Session framework
 - ✅ Session data model (`BUILT_IN_SESSIONS`, segment schema)

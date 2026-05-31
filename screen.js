@@ -180,6 +180,7 @@
   };
   const COMMON_PROGRESSIONS = {
     diatonic:[1,2,3,4,5,6,7,1],
+    static_i:[1],                 // one-chord vamp — Beginner Core "static vamp" (Pulse & Muting); roots stay on the tonic
     'I-IV-V':[1,4,5,1],
     'I-V-vi-IV':[1,5,6,4],
     'I-vi-IV-V':[1,6,4,5],
@@ -321,26 +322,37 @@
   // Edges draw pedagogical flow lines; clicking a node selects the pathway.
   const SKILL_TREE_NODES = [
     { id: 'chromatic_warmup',      x:  6, y: 50, short: 'Chromatic' },
-    { id: 'pent_foundation',       x: 20, y: 27, short: 'Pentatonic' },
-    { id: 'blues_foundation',      x: 20, y: 73, short: 'Blues Scale' },
-    { id: 'blues_shuffle',         x: 36, y: 62, short: 'Blues Shuffle' },
-    { id: 'major_pent_country',    x: 36, y: 12, short: 'Major Pent' },
-    { id: 'dorian_groove',         x: 36, y: 42, short: 'Dorian' },
-    { id: 'harmonic_minor_exotic', x: 36, y: 80, short: 'Harm. Minor' },
-    { id: 'chord_tone_targeting',  x: 54, y: 24, short: 'Chord Tones' },
-    { id: 'modal_awareness',       x: 54, y: 52, short: 'Modal Aware.' },
-    { id: 'diatonic_triad_drill',  x: 54, y: 80, short: 'Triad Drill' },
-    { id: 'modal_vamp',            x: 72, y: 36, short: 'Modal Vamp' },
-    { id: 'seventh_vocab',         x: 72, y: 62, short: '7th Chords' },
-    { id: 'sweep_arpeggio_primer', x: 72, y: 85, short: 'Sweep Arps' },
-    { id: 'ii_V_I_workout',        x: 88, y: 50, short: 'ii–V–I' },
-    { id: 'bend_drill',            x: 20, y: 91, short: 'Bending' },
+    // Beginner band (x20)
+    { id: 'pent_foundation',       x: 20, y: 20, short: 'Pentatonic' },
+    { id: 'pulse_muting',          x: 20, y: 42, short: 'Pulse/Mute' },
+    { id: 'blues_foundation',      x: 20, y: 64, short: 'Blues Scale' },
+    { id: 'bend_drill',            x: 20, y: 86, short: 'Bending' },
+    // Beginner-2 / Beg→Int bridge band (x36)
+    { id: 'major_pent_country',    x: 36, y: 10, short: 'Major Pent' },
+    { id: 'dorian_groove',         x: 36, y: 32, short: 'Dorian' },
+    { id: 'power_chord_comping',   x: 36, y: 54, short: 'Power Chords' },
+    { id: 'blues_shuffle',         x: 36, y: 72, short: 'Blues Shuffle' },
+    { id: 'harmonic_minor_exotic', x: 36, y: 90, short: 'Harm. Minor' },
+    // Intermediate band (x54)
+    { id: 'chord_tone_targeting',  x: 54, y: 14, short: 'Chord Tones' },
+    { id: 'major_scale_caged',     x: 54, y: 36, short: 'Major CAGED' },
+    { id: 'modal_awareness',       x: 54, y: 56, short: 'Modal Aware.' },
+    { id: 'sixteenth_pocket',      x: 54, y: 76, short: '16th Pocket' },
+    { id: 'diatonic_triad_drill',  x: 54, y: 92, short: 'Triad Drill' },
+    // Advanced band (x72 / x88)
+    { id: 'modal_vamp',            x: 72, y: 22, short: 'Modal Vamp' },
+    { id: 'seventh_vocab',         x: 72, y: 44, short: '7th Chords' },
+    { id: 'melmin_exotic_12key',   x: 72, y: 66, short: 'Mel-Min' },
+    { id: 'sweep_arpeggio_primer', x: 72, y: 88, short: 'Sweep Arps' },
+    { id: 'guide_tones_path',      x: 88, y: 30, short: 'Guide Tones' },
+    { id: 'whole_neck_freedom',    x: 88, y: 52, short: 'Whole Neck' },
+    { id: 'ii_V_I_workout',        x: 88, y: 74, short: 'ii–V–I' },
     // Metal / heavy-genre pack — advanced offshoots along the bottom band.
-    { id: 'metalcore_chug',        x: 44, y: 96, short: 'Metalcore' },
-    { id: 'melodic_metal_gallop',  x: 57, y: 96, short: 'Gallop' },
-    { id: 'melodeath_twin_leads',  x: 70, y: 96, short: 'Twin Leads' },
-    { id: 'djent_polymeter',       x: 83, y: 96, short: 'Djent' },
-    { id: 'death_chromatic',       x: 96, y: 96, short: 'Death' },
+    { id: 'metalcore_chug',        x: 44, y: 97, short: 'Metalcore' },
+    { id: 'melodic_metal_gallop',  x: 57, y: 97, short: 'Gallop' },
+    { id: 'melodeath_twin_leads',  x: 70, y: 97, short: 'Twin Leads' },
+    { id: 'djent_polymeter',       x: 83, y: 97, short: 'Djent' },
+    { id: 'death_chromatic',       x: 96, y: 97, short: 'Death' },
   ];
   const SKILL_TREE_EDGES = [
     ['chromatic_warmup',    'pent_foundation'],
@@ -362,6 +374,15 @@
     ['diatonic_triad_drill','sweep_arpeggio_primer'],
     ['seventh_vocab',       'ii_V_I_workout'],
     ['modal_vamp',          'ii_V_I_workout'],
+    // Guitar Core ★ nodes — prerequisite flow (build-queue #1).
+    ['chromatic_warmup',    'pulse_muting'],          // B0 → B1
+    ['pulse_muting',        'power_chord_comping'],   // B1 → B3 (power chords in Beginner)
+    ['pulse_muting',        'sixteenth_pocket'],      // B1 → I8
+    ['pent_foundation',     'major_scale_caged'],     // B2 → I1
+    ['major_scale_caged',   'whole_neck_freedom'],    // I1 → A6
+    ['modal_awareness',     'melmin_exotic_12key'],   // I3 → A7
+    ['seventh_vocab',       'guide_tones_path'],      // A1 → A2
+    ['guide_tones_path',    'ii_V_I_workout'],        // A2 → A3 (guide-tones before voice-leading)
     // Metal pack branches off the advanced minor/arpeggio nodes.
     ['harmonic_minor_exotic','metalcore_chug'],
     ['harmonic_minor_exotic','melodic_metal_gallop'],
@@ -506,6 +527,76 @@
         { key:'A', shape:'E', bendTarget:'mixed' },
         { key:'D', shape:'E', bendTarget:'whole' },
       ]
+    },
+    // ── Guitar Core ★ nodes (Development Pathways — guitar Core spec) ────────
+    // New rungs over EXISTING generators (build-queue #1). Each names its
+    // transferable skill (north star). Comping nodes (B5/I6/I7) await
+    // buildCompingExercise; the master/improv rung (A8) awaits its engine.
+    pulse_muting: {
+      label:'Pulse & Muting',
+      goal:'The foundation under everything: lock to the click and control the mute. A palm-muted low-E pedal chugs the beat while a tight E5 lands on each downbeat — straight feel first. The skill is the metronome relationship and both-hand muting (palm-mute + left-hand dampening), not the notes. Own this and every riff sits in the pocket.',
+      scales:['natural_minor','minor_pentatonic'],
+      tempoTiers:[50, 65, 80, 95],
+      base:{ practiceType:'pedal_riff', harmonize:false, scale:'natural_minor', key:'E', meter:'4/4', subdivision:'eighth', bpm:60, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'static_i', chordOverride:'5', swing:'straight', fretMin:0, fretMax:5 },
+      vary:[
+        { progression:'static_i', subdivision:'eighth' },
+        { progression:'static_i', subdivision:'sixteenth' },
+        { progression:'static_i', key:'A' },
+        { progression:'static_i', key:'G' },
+      ]
+    },
+    power_chord_comping: {
+      label:'Power-Chord Comping',
+      goal:'Power chords as harmony, not metal — root+5th dyads moving through a musical minor progression (i–♭VII–♭VI–♭VII) over a tonic pedal. The skill is changing power-chord shapes cleanly in time and hearing the root motion. Standard tuning; this is the chord vocabulary every rock and pop rhythm part is built from.',
+      scales:['natural_minor','minor_pentatonic','major'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'pedal_riff', harmonize:false, scale:'natural_minor', key:'E', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'i-VII-VI-VII', chordOverride:'5', swing:'straight', fretMin:0, fretMax:7 },
+      vary:[
+        { progression:'i-VII-VI-VII' },
+        { progression:'I-V-vi-IV', scale:'major', key:'G' },
+        { progression:'i-VI-III-VII' },
+        { progression:'I-IV-V', scale:'major', key:'A' },
+      ]
+    },
+    major_scale_caged: {
+      label:'Major Scale — CAGED',
+      goal:'The headline scale, learned as five connected shapes. Play C major in the C shape, then the A, G, E, and D shapes — same notes, five zones of the neck. The skill is connecting positions so the major scale stops being one box and becomes the whole fretboard. The map every other scale is measured against.',
+      scales:['major'],
+      tempoTiers:[60, 85, 105, 130],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'I-IV-V', chordDepth:'triad', chordOverride:'auto', key:'C', shape:'C' },
+      vary:[ { key:'C', shape:'C' }, { key:'C', shape:'A' }, { key:'C', shape:'G' }, { key:'C', shape:'E' }, { key:'C', shape:'D' } ]
+    },
+    sixteenth_pocket: {
+      label:'Sixteenth-Note Pocket',
+      goal:'Rhythm at the next resolution: four even sixteenths per beat, then loosen them into a swung feel. Run minor pentatonic as the vehicle, but the focus is the subdivision — staying even, accenting the downbeat of each group, then flipping to swing. The 16th pocket is the engine of funk, R&B, and modern rhythm playing.',
+      scales:['minor_pentatonic','blues','dorian'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'sixteenth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'i-VII-VI-VII', chordDepth:'seventh', chordOverride:'min7', key:'A', shape:'E', swing:'straight' },
+      vary:[ { swing:'straight' }, { swing:'swing' }, { sequence:'fours' }, { key:'E', shape:'E' }, { key:'G', shape:'E' } ]
+    },
+    guide_tones_path: {
+      label:'Guide Tones',
+      goal:'The 3rds and 7ths are what spell a chord — and they move by the smallest steps through a progression. Voice-lead just those two notes through a ii–V–I and you hear the changes with two notes per chord. The skill is voice leading: connecting chords by their closest tones. The spine of jazz comping and melodic soloing over changes.',
+      scales:['major','dorian','mixolydian'],
+      tempoTiers:[55, 75, 95, 115],
+      base:{ practiceType:'guide_tones', scale:'major', progression:'ii-V-I', chordDepth:'seventh', voices:'both_alternating', meter:'4/4', subdivision:'quarter', bpm:75, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', shape:'E' },
+      vary:[ { voices:'thirds_only' }, { voices:'sevenths_only' }, { voices:'both_alternating' }, { key:'F', voices:'both_alternating' }, { key:'Bb', voices:'both_alternating' } ]
+    },
+    whole_neck_freedom: {
+      label:'Whole-Neck Freedom',
+      goal:'Stop thinking in boxes. The full-neck map plays the major scale across all positions at once — every note in the key, fret 0 to the top. The skill is freedom of movement: finding any key by feel anywhere on the neck, connecting zones without seams. The endgame of the pitch map.',
+      scales:['major','natural_minor','minor_pentatonic'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'full_neck', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'I-V-vi-IV', chordDepth:'triad', chordOverride:'auto', key:'C' },
+      vary:[ { key:'C' }, { key:'G' }, { key:'A' }, { key:'E' }, { key:'D' } ]
+    },
+    melmin_exotic_12key: {
+      label:'Melodic Minor & Exotic',
+      goal:'Beyond the diatonic world: melodic-minor modes and symmetric/exotic scales, cycled through keys. Lydian dominant, altered, Locrian ♮2, plus diminished and whole-tone colors — the vocabulary of fusion, film, and modern jazz. The skill is hearing and fingering these unusual scales in any key, on demand.',
+      scales:['melodic_minor','lydian_dominant','altered','locrian_sharp2','lydian_augmented','diminished','whole_tone'],
+      tempoTiers:[65, 90, 110, 135],
+      base:{ practiceType:'scale', scale:'melodic_minor', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'static_i', chordDepth:'triad', chordOverride:'auto', key:'A', shape:'E' },
+      vary:[ { scale:'melodic_minor', key:'A' }, { scale:'lydian_dominant', key:'C' }, { scale:'altered', key:'E' }, { scale:'locrian_sharp2', key:'B' }, { scale:'lydian_augmented', key:'G' } ]
     },
     // ── Metal / heavy-genre pack (genre-framework §3) ────────────────────────
     metalcore_chug: {
