@@ -1550,8 +1550,11 @@
   // preset finishes loading. NOTE: loads from the soundfont CDN today (proven,
   // exactly as the host does); the agreed hardening step is to self-host the
   // handful of GM programs we actually use under a plugin static route.
-  const WAF_BASE = 'https://surikov.github.io/webaudiofontdata/sound/';
-  const WAF_PLAYER_URL = 'https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js';
+  // Self-hosted: bundled under static/wafonts/, served by routes.py (no runtime
+  // CDN dependency, offline-safe). WebAudioFont code is MIT; the JCLive GM
+  // soundfont data is bundled for the backing — verify redistribution before public release.
+  const WAF_BASE = '/api/plugins/slopscale/wafont/';
+  const WAF_PLAYER_URL = '/api/plugins/slopscale/wafont/WebAudioFontPlayer.js';
   const WAF_SF = 'JCLive_sf2_file';
   const TONE_GM = { piano: 0, epiano: 4, organ: 19, strings: 48, guitar: 25, pad: 89 };
   const wafFile = gm => String(gm * 10).padStart(4, '0') + '_' + WAF_SF;
@@ -1559,22 +1562,20 @@
   const wafUrl  = gm => WAF_BASE + wafFile(gm) + '.js';
   let wafPlayer = null;
   const wafPresets = {}; // gm -> { state: 'loading'|'ready'|'failed', preset }
-  function loadScriptOnce(url) {
-    return new Promise((resolve, reject) => {
-      if (document.querySelector('script[src="' + url + '"]')) { resolve(); return; }
-      const s = document.createElement('script'); s.src = url; s.onload = resolve;
-      s.onerror = () => reject(new Error('failed to load ' + url)); document.head.appendChild(s);
-    });
-  }
+  // Script loading reuses the existing host-viz loader `loadScriptOnce(id, src)`
+  // defined in §12 (do NOT add a second loadScriptOnce — function declarations
+  // collide and the later one wins).
   async function ensureWafPreset(gm) {
-    if (gm == null || wafPresets[gm]) return; // already loading / ready / failed
+    if (gm == null) return;
+    const prev = wafPresets[gm];
+    if (prev && (prev.state === 'loading' || prev.state === 'ready')) return; // in-flight or done; RETRY on prior 'failed'
     wafPresets[gm] = { state: 'loading', preset: null };
     try {
-      await loadScriptOnce(WAF_PLAYER_URL);
+      await loadScriptOnce('slopscale-waf-player', WAF_PLAYER_URL);
       if (typeof WebAudioFontPlayer === 'undefined') throw new Error('WebAudioFontPlayer missing');
       if (!wafPlayer) wafPlayer = new WebAudioFontPlayer();
       const ctx = audioCtx || (audioCtx = new (window.AudioContext || window.webkitAudioContext)());
-      if (!window[wafVar(gm)]) await loadScriptOnce(wafUrl(gm));
+      if (!window[wafVar(gm)]) await loadScriptOnce('slopscale-waf-' + gm, wafUrl(gm));
       const preset = window[wafVar(gm)];
       if (!preset) throw new Error('preset var missing');
       wafPlayer.adjustPreset(ctx, preset);
@@ -6211,6 +6212,9 @@
     // audioProfile field itself from config).
     setFieldSilent('audioProfile', config.audioProfile || '');
     { const _ap = config.audioProfile && AUDIO_PROFILES[config.audioProfile]; setFieldSilent('brightness', String(_ap && _ap.brightness != null ? _ap.brightness : 0.5)); }
+    // Preload this profile's sampled backing voice now (served locally → fast +
+    // offline), so it's ready the instant the player hits play (no first-pass fallback).
+    { const _ap2 = config.audioProfile && AUDIO_PROFILES[config.audioProfile]; if (_ap2 && _ap2.harmony.engine === 'sample') ensureWafPreset(TONE_GM[_ap2.harmony.tone]); }
     Object.keys(config).forEach(k => { if (k !== 'advancedMode') setFieldSilent(k, config[k]); });
     syncStringSetupControls();
     syncShapeDropdown();

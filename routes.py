@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 PLUGIN_ID = "slopscale"
@@ -522,6 +523,21 @@ def setup(app: FastAPI, context: dict) -> None:
             "dlc_dir_available": bool(dlc_dir),
             "db_backed": meta_db is not None,
         }
+
+    # Self-hosted WebAudioFont player + GM presets (the engine:'sample' backing
+    # path) — bundled under static/wafonts/ and served here, so there's no
+    # runtime CDN dependency and playback is offline-safe. Only the bundled .js
+    # files are served; reject path traversal.
+    _wafont_dir = Path(__file__).resolve().parent / "static" / "wafonts"
+
+    @app.get(f"/api/plugins/{PLUGIN_ID}/wafont/{{name}}")
+    def wafont(name: str):
+        if not name.endswith(".js") or "/" in name or "\\" in name or ".." in name:
+            raise HTTPException(404, "Not found.")
+        path = _wafont_dir / name
+        if not path.is_file():
+            raise HTTPException(404, "Not found.")
+        return FileResponse(str(path), media_type="application/javascript")
 
     @app.get(f"/api/plugins/{PLUGIN_ID}/presets")
     def list_presets():
