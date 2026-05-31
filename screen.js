@@ -527,7 +527,7 @@
       goal:'The Gothenburg signature: two guitars harmonized a 3rd apart, both voices sounding together over a minor key. Play the lower line cleanly first, then let the harmony ring with it. Natural and harmonic minor; tremolo-pick for the full melodeath feel.',
       scales:['natural_minor','harmonic_minor'],
       tempoTiers:[80, 100, 120, 140],
-      base:{ practiceType:'scale_thirds', harmonize:true, scale:'natural_minor', key:'E', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'caged', shape:'E', stringSetup:'guitar_6_standard', renderer:'highway_3d' },
+      base:{ practiceType:'scale_thirds', harmonize:true, tremolo:true, scale:'natural_minor', key:'E', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'caged', shape:'E', stringSetup:'guitar_6_standard', renderer:'highway_3d' },
       vary:[
         { practiceType:'scale_thirds', harmonize:true, scale:'natural_minor' },
         { practiceType:'scale_sixths', harmonize:true, scale:'natural_minor' },
@@ -553,7 +553,7 @@
       goal:'Non-functional, tritone-laced power-chord riffs over the darkest scales (Locrian, diminished, double harmonic). Roots move by semitone and tritone — no key gravity, pure menace. Tremolo-pick at speed; lowest tunings. i–♭II–i–♭v.',
       scales:['locrian','phrygian','diminished','double_harmonic'],
       tempoTiers:[100, 130, 160, 190],
-      base:{ practiceType:'pedal_riff', harmonize:false, scale:'locrian', key:'B', meter:'4/4', subdivision:'eighth', bpm:120, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_7_standard', renderer:'highway_3d', progression:'metal_death_tritone', chordOverride:'5', fretMin:0, fretMax:9 },
+      base:{ practiceType:'pedal_riff', harmonize:false, tremolo:true, scale:'locrian', key:'B', meter:'4/4', subdivision:'eighth', bpm:120, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_7_standard', renderer:'highway_3d', progression:'metal_death_tritone', chordOverride:'5', fretMin:0, fretMax:9 },
       vary:[
         { progression:'metal_death_tritone', scale:'locrian' },
         { progression:'metal_death_tritone', scale:'diminished' },
@@ -1452,6 +1452,7 @@
       repeatCount: advancedMode ? Math.max(1, Math.min(16, parseInt(data.get('repeatCount') || '1', 10))) : 1,
       sequence: advancedMode ? (data.get('sequence') || 'none') : 'none',
       harmonize: data.get('harmonize') === 'on',   // twin-guitar thirds/sixths (§2.4)
+      tremolo: data.get('tremolo') === 'on',        // mark generated notes tremolo-picked (melodeath/death)
       chordScaleStrategy: advancedMode ? (data.get('chordScaleStrategy') || 'mode_of_moment') : 'mode_of_moment',
       fretMin,
       fretMax,
@@ -2600,11 +2601,12 @@
       const seq = cfg.direction === 'descending' ? pairs.slice().reverse()
         : cfg.direction === 'up_down' ? [...pairs, ...pairs.slice().reverse()] : pairs;
       const sus = Math.max(0.05, (steps ? steps[0] : step) * 0.9);
+      const tr = !!cfg.tremolo;   // tremolo-picked twin leads — the melodeath signature
       const notes = []; let t = 0, idx = 0;
       while (t < totalTime - 0.001) {
         const [lo, hi] = seq[idx % seq.length];
-        notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: lo.s, f: lo.f, sus }));
-        notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: hi.s, f: hi.f, sus }));
+        notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: lo.s, f: lo.f, sus, tr }));
+        notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: hi.s, f: hi.f, sus, tr }));
         t += (steps && steps.length) ? steps[idx % steps.length] : step; idx++;
       }
       return { notes, chords: [], chordTemplates: [], handShapes: [], sections: [{ name: `Harmonized ${label} — ${cfg.key} ${cfg.scale}`, number: 1, time: 0 }], duration: Math.max(t, totalTime) };
@@ -2714,22 +2716,38 @@
     const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
     const pedalFret = (((keyPc - (opens[0] % 12)) % 12) + 12) % 12;   // tonic on the lowest string
     const s1pc = opens[1] % 12;
-    // Movable power chord (root + 5th + octave) for a root pc, rooted on s=1 so it
-    // sits above the pedal; s=1/2/3 are perfect 4ths apart in guitar & bass tunings.
+    const tremolo = !!cfg.tremolo;
+    // Power chord rooted on s=1 (above the pedal). `5oct` = root+5th+octave across 3
+    // strings (the heavy djent chug); `5` / anything else = root+5th dyad (the tight
+    // one-finger shape). s=1/2/3 are perfect 4ths apart in guitar & bass tunings.
+    const threeString = cfg.chordOverride === '5oct';
     const powerChord = (rootPc) => {
       const rf = (((rootPc - s1pc) % 12) + 12) % 12;
-      return [{ s: 1, f: rf }, { s: 2, f: rf + 2 }, { s: 3, f: rf + 2 }];
+      const c = [{ s: 1, f: rf }, { s: 2, f: rf + 2 }];
+      if (threeString) c.push({ s: 3, f: rf + 2 });
+      return c;
     };
     const roots = progressionDegreesForConfig(cfg).map(d => chordRootForDegree(cfg, d));
+    // Power chords land on the meter's GROUP STARTS so the polymeter cell lives in
+    // the riff itself: 3+3+2 → chords on beats 0,3,6, pedal chugs fill the rest. A
+    // trivial grouping (no cell, e.g. plain 4/4) places a chord on every beat — the
+    // standard chug. This puts the rhythm in the NOTES, not just the metronome accent.
+    const beatLen = (60 / cfg.bpm) * (4 / cfg.meter.denominator);
+    const grouping = (cfg.meter.grouping && cfg.meter.grouping.length > 1)
+      ? cfg.meter.grouping : Array(Math.max(1, cfg.meter.numerator)).fill(1);
+    const groupStartBeats = []; { let g = 0; for (const w of grouping) { groupStartBeats.push(g); g += w; } }
+    const chordTimes = [];
+    for (let bar = 0; bar * mLen < totalTime - 1e-6; bar++)
+      for (const gb of groupStartBeats) { const ct = bar * mLen + gb * beatLen; if (ct < totalTime - 1e-6) chordTimes.push(ct); }
     const sus = Math.max(0.05, step * 0.9);
-    const notes = []; let t = 0, idx = 0, chordIdx = 0;
+    const notes = []; let t = 0, idx = 0, chordIdx = 0, ci = 0;
     while (t < totalTime - 0.001) {
       const tt = Number(t.toFixed(6));
-      if (idx % 2 === 0) {
-        notes.push(noteDefaults({ t: tt, s: 0, f: pedalFret, sus, pm: true }));   // pedal chug
+      if (ci < chordTimes.length && t >= chordTimes[ci] - 1e-6) {        // group start → power chord
+        for (const n of powerChord(roots[chordIdx % roots.length])) notes.push(noteDefaults({ t: tt, s: n.s, f: n.f, sus, tr: tremolo }));
+        chordIdx++; ci++;
       } else {
-        for (const n of powerChord(roots[chordIdx % roots.length])) notes.push(noteDefaults({ t: tt, s: n.s, f: n.f, sus }));
-        chordIdx++;
+        notes.push(noteDefaults({ t: tt, s: 0, f: pedalFret, sus, pm: true, tr: tremolo }));   // pedal chug between chords
       }
       t += (steps && steps.length) ? steps[idx % steps.length] : step; idx++;
     }
