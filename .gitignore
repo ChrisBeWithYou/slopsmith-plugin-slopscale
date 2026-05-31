@@ -23,3 +23,6 @@ docs/sources/
 # Local agent tooling (subagent definitions + their persisted memory)
 .claude/agents/
 .claude/agent-memory/
+
+# On-hand alternate soundfonts for A/B auditioning (not shipped)
+static/wafonts/alt/

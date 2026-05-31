@@ -1283,14 +1283,32 @@
   (function patchAudioContextForSharing() {
     const Ctor = window.AudioContext || window.webkitAudioContext;
     if (!Ctor) return;
-    const makeFakeCtx = () => ({
-      state: 'closed',
-      currentTime: 0,
-      close: () => Promise.resolve(),
-      createMediaElementSource: () => {
-        throw new DOMException('AudioContext already in use by SlopScale', 'InvalidStateError');
-      },
-    });
+    // The stub must survive WHATEVER highway_3d's analyser setup calls on it, not
+    // just createMediaElementSource: it also builds gain/analyser nodes around
+    // that source. Any create* returns an inert no-op node (connect/disconnect
+    // chainable); createMediaElementSource still throws (the signal that makes
+    // highway_3d treat setup as permanently failed and stop retrying); close()
+    // no-ops (no real context to close → no audible click). Without the catch-all
+    // create*, an early audioCtx (now created on pathway-select preload) flips
+    // highway into this path and `ctx.createGain()` throws "not a function".
+    const makeFakeCtx = () => {
+      const noopNode = new Proxy({}, { get: (_t, p) => ((p === 'connect' || p === 'disconnect') ? (() => noopNode) : (() => {})) });
+      const base = {
+        state: 'closed',
+        currentTime: 0,
+        close: () => Promise.resolve(),
+        createMediaElementSource: () => {
+          throw new DOMException('AudioContext already in use by SlopScale', 'InvalidStateError');
+        },
+      };
+      return new Proxy(base, {
+        get(target, prop) {
+          if (prop in target) return target[prop];
+          if (typeof prop === 'string' && prop.startsWith('create')) return () => noopNode;
+          return undefined;
+        },
+      });
+    };
     const Patched = function(...args) {
       if (audioCtx && audioCtx.state !== 'closed') return makeFakeCtx();
       const ctx = new Ctor(...args);
@@ -1496,13 +1514,24 @@
   // Today the realizable harmony voices are the oscillator tones (pad/epiano/
   // organ); when the WebAudioFont (acoustic) + amp (distorted) tracks land, a
   // profile's voice/engine maps to those without touching genre data.
+  // Each family declares three voices: harmony (the backing comp), notes (the
+  // practice voice — what the player is meant to play), and bass (the backing
+  // bass line, e.g. a boogie walk). notes/bass are sampled by default (real
+  // instrument, oscillator fallback until the async preset loads). The notes
+  // tone is overridden to a bass program when the instrument itself is a bass.
   const AUDIO_FAMILY_DEFAULTS = {
-    clean:      { harmony: { tone: 'pad',    level: 0.9 },  brightness: 0.5 },
-    acoustic:   { harmony: { engine: 'sample', tone: 'piano', level: 0.8 }, brightness: 0.6 },
-    distorted:  { harmony: { tone: 'pad',    level: 0.7 },  brightness: 0.42 },
-    electronic: { harmony: { tone: 'pad',    level: 0.85 }, brightness: 0.7 },
+    clean:      { harmony: { tone: 'pad',    level: 0.9 },  notes: { tone: 'clean'  }, bass: { tone: 'bass'    }, brightness: 0.5 },
+    acoustic:   { harmony: { engine: 'sample', tone: 'piano', level: 0.8 }, notes: { tone: 'guitar' }, bass: { tone: 'upright' }, brightness: 0.6 },
+    distorted:  { harmony: { tone: 'pad',    level: 0.7 },  notes: { tone: 'clean'  }, bass: { tone: 'bass'    }, brightness: 0.42 },
+    electronic: { harmony: { tone: 'pad',    level: 0.85 }, notes: { tone: 'clean'  }, bass: { tone: 'bass'    }, brightness: 0.7 },
   };
-  const GLOBAL_AUDIO_DEFAULT = { family: 'clean', harmony: { tone: 'pad', level: 0.9 }, brightness: 0.5 };
+  const GLOBAL_AUDIO_DEFAULT = {
+    family: 'clean',
+    harmony: { tone: 'pad', level: 0.9 },
+    notes:   { engine: 'sample', tone: 'clean', level: 1.0 },
+    bass:    { engine: 'sample', tone: 'bass',  level: 0.95 },
+    brightness: 0.5,
+  };
   const AUDIO_PROFILES = {
     blues:      { family: 'clean',      harmony: { engine: 'sample', tone: 'organ',  level: 0.85 }, brightness: 0.5 },
     jazz:       { family: 'clean',      harmony: { engine: 'sample', tone: 'epiano', level: 0.85 }, brightness: 0.55 },
@@ -1533,10 +1562,15 @@
     const out = {
       family: fam,
       harmony: { ...GLOBAL_AUDIO_DEFAULT.harmony, ...famDef.harmony, ...(profDef ? profDef.harmony : {}) },
+      notes:   { ...GLOBAL_AUDIO_DEFAULT.notes,   ...famDef.notes,   ...(profDef ? profDef.notes   : {}) },
+      bass:    { ...GLOBAL_AUDIO_DEFAULT.bass,    ...famDef.bass,    ...(profDef ? profDef.bass    : {}) },
       brightness: (profDef && profDef.brightness != null) ? profDef.brightness
                 : (famDef.brightness != null) ? famDef.brightness
                 : GLOBAL_AUDIO_DEFAULT.brightness,
     };
+    // The practice voice tracks the instrument, not the genre: a bass exercise's
+    // notes should sound like a bass regardless of the backing's family.
+    if (cfg && cfg.instrument === 'bass') out.notes.tone = 'bass';
     if (Number.isFinite(a.brightness)) out.brightness = a.brightness;           // slider overrides
     if (a.harmonyTone && a.harmonyTone !== 'auto') out.harmony.tone = a.harmonyTone; // advanced override
     return out;
@@ -1556,7 +1590,13 @@
   const WAF_BASE = '/api/plugins/slopscale/wafont/';
   const WAF_PLAYER_URL = '/api/plugins/slopscale/wafont/WebAudioFontPlayer.js';
   const WAF_SF = 'JCLive_sf2_file';
-  const TONE_GM = { piano: 0, epiano: 4, organ: 19, strings: 48, guitar: 25, pad: 89 };
+  // Symbolic voice id → General MIDI program. Bundled under static/wafonts/ and
+  // served by routes.py (offline-safe). guitar = steel acoustic (25); clean =
+  // clean electric (27); bass = fingered electric (33); upright = acoustic bass (32).
+  const TONE_GM = {
+    piano: 0, epiano: 4, clav: 7, organ: 19, nylon: 24, guitar: 25, clean: 27,
+    upright: 32, bass: 33, strings: 48, brass: 61, synthlead: 81, synthpad: 88, pad: 89,
+  };
   const wafFile = gm => String(gm * 10).padStart(4, '0') + '_' + WAF_SF;
   const wafVar  = gm => '_tone_' + wafFile(gm);
   const wafUrl  = gm => WAF_BASE + wafFile(gm) + '.js';
@@ -2287,7 +2327,9 @@
         const bassMidi = root0 + BOOGIE[b % BOOGIE.length];
         // Walking bass on the beat (only the bar's downbeat carries the chord name,
         // so the in-tree backing overlay shows one label per bar, not per hit).
-        events.push({ t:Number(beatT.toFixed(6)), end:Number(Math.min(duration, beatT + beatSec * 0.9).toFixed(6)), name: b === 0 ? name : '', midis:[bassMidi] });
+        // role:'bass' routes it to the sampled bass voice / 'bass' bus, distinct
+        // from the harmony shell — so the boogie walks like a bass, not an organ.
+        events.push({ t:Number(beatT.toFixed(6)), end:Number(Math.min(duration, beatT + beatSec * 0.9).toFixed(6)), name: b === 0 ? name : '', midis:[bassMidi], role:'bass' });
         // Chord-shell chick on the off-beat (the swung "and").
         const upT = beatT + beatSec * 0.5;
         if (upT < duration - 1e-4) events.push({ t:Number(upT.toFixed(6)), end:Number(Math.min(duration, upT + beatSec * 0.4).toFixed(6)), name:'', midis:shell });
@@ -5391,20 +5433,35 @@
     const instrument = bundle.config?.instrument || cfg.instrument;
     const duration = bundle.songInfo?.duration || 0;
     const harmProfile = resolveAudioProfile({ ...cfg, audio });
-    // Sample path: if the profile wants a sampled voice, kick its (async) load
+    // Sample path: if a voice wants a sampled instrument, kick its (async) load
     // and use it once ready; until then, fall back to the oscillator voice.
-    const harmGm = harmProfile.harmony.engine === 'sample' ? TONE_GM[harmProfile.harmony.tone] : null;
-    if (harmGm != null) ensureWafPreset(harmGm);
+    // Three sampled voices: harmony (backing comp), bass (backing bass line),
+    // notes (the practice voice). Each falls back independently.
+    const harmGm  = harmProfile.harmony.engine === 'sample' ? TONE_GM[harmProfile.harmony.tone] : null;
+    const bassGm  = harmProfile.bass.engine    === 'sample' ? TONE_GM[harmProfile.bass.tone]    : null;
+    const notesGm = harmProfile.notes.engine   === 'sample' ? TONE_GM[harmProfile.notes.tone]   : null;
+    if (audio.harmony && harmGm != null) ensureWafPreset(harmGm);
+    if (audio.harmony && bassGm != null) ensureWafPreset(bassGm);   // backing bass (boogie walk)
+    if (audio.notes   && notesGm != null) ensureWafPreset(notesGm); // practice voice
     const harmPreset = getReadyWafPreset(harmGm);
+    const bassPreset = getReadyWafPreset(bassGm);
+    const notesPreset = getReadyWafPreset(notesGm);
+    const wafVoice = (preset, busName, when, midi, d, vol) => {
+      const e = wafPlayer.queueWaveTable(ctx, trackBus(ctx, busName), preset, when, midi, d, vol);
+      if (e) audioNodes.push({ stop() { try { e.cancel(); } catch (_) {} }, disconnect() {} });
+    };
     if (audio.harmony) for (const ev of bundle.backingEvents || []) {
       if (ev.end < startFrom || ev.t > duration + 0.1) continue;
       const start = Math.max(ev.t, startFrom), end = Math.min(ev.end, duration);
       const when = base + (start - startFrom), d = Math.max(0.2, end - start);
-      if (harmPreset && wafPlayer) {
+      if (ev.role === 'bass') {
+        // Backing bass line — a real bass voice on its own bus, not the harmony pad.
         for (const m of (ev.midis || [])) {
-          const e = wafPlayer.queueWaveTable(ctx, trackBus(ctx, 'harmony'), harmPreset, when, m, d, harmProfile.harmony.level * 0.5);
-          if (e) audioNodes.push({ stop() { try { e.cancel(); } catch (_) {} }, disconnect() {} });
+          if (bassPreset && wafPlayer) wafVoice(bassPreset, 'bass', when, m, d, harmProfile.bass.level * 0.8);
+          else schedulePluckedString(ctx, when, midiToFreq(m), d, 'bass', harmProfile.bass.level, 0);
         }
+      } else if (harmPreset && wafPlayer) {
+        for (const m of (ev.midis || [])) wafVoice(harmPreset, 'harmony', when, m, d, harmProfile.harmony.level * 0.5);
       } else {
         scheduleHarmonyPad(ctx, when, ev.midis || [], d, instrument, harmProfile.harmony.tone, { bright: harmProfile.brightness, level: harmProfile.harmony.level });
       }
@@ -5413,7 +5470,12 @@
       if (n._tail) continue;  // visual loop-preview copy; audio loops via the scheduler
       if (n.t < startFrom || n.t > duration + 0.1) continue;
       if (n.s < 0 || n.s >= opens.length || n.f < 0) continue;
-      schedulePluckedString(ctx, base + (n.t - startFrom), midiToFreq(opens[n.s] + n.f), Math.max(0.10, Math.min(0.85, n.sus || 0.24)), instrument, audio.harmony ? 0.9 : 1.25, bendSemitones(n.bn));
+      const when = base + (n.t - startFrom), midi = opens[n.s] + n.f;
+      const dur = Math.max(0.10, Math.min(0.85, n.sus || 0.24)), bend = bendSemitones(n.bn);
+      // Sampled practice voice for plain notes; the oscillator voice still owns
+      // BENT notes (the sampler can't slide pitch) so blues bends stay audible.
+      if (notesPreset && wafPlayer && bend <= 0) wafVoice(notesPreset, 'notes', when, midi, dur, harmProfile.notes.level * 0.7);
+      else schedulePluckedString(ctx, when, midiToFreq(midi), dur, instrument, audio.harmony ? 0.9 : 1.25, bend);
     }
     // Music beats click only when the metronome option is on; the count-in
     // lead-in bars ([0, leadIn)) ALWAYS click so the count is audible even with
@@ -6212,9 +6274,15 @@
     // audioProfile field itself from config).
     setFieldSilent('audioProfile', config.audioProfile || '');
     { const _ap = config.audioProfile && AUDIO_PROFILES[config.audioProfile]; setFieldSilent('brightness', String(_ap && _ap.brightness != null ? _ap.brightness : 0.5)); }
-    // Preload this profile's sampled backing voice now (served locally → fast +
-    // offline), so it's ready the instant the player hits play (no first-pass fallback).
-    { const _ap2 = config.audioProfile && AUDIO_PROFILES[config.audioProfile]; if (_ap2 && _ap2.harmony.engine === 'sample') ensureWafPreset(TONE_GM[_ap2.harmony.tone]); }
+    // Preload this profile's sampled voices now (served locally → fast + offline),
+    // so they're ready the instant the player hits play (no first-pass fallback):
+    // the harmony comp, the backing bass, and the practice voice.
+    {
+      const _p = resolveAudioProfile({ ...config, audio: { profile: config.audioProfile || '' } });
+      if (_p.harmony.engine === 'sample') ensureWafPreset(TONE_GM[_p.harmony.tone]);
+      if (_p.bass.engine    === 'sample') ensureWafPreset(TONE_GM[_p.bass.tone]);
+      if (_p.notes.engine   === 'sample') ensureWafPreset(TONE_GM[_p.notes.tone]);
+    }
     Object.keys(config).forEach(k => { if (k !== 'advancedMode') setFieldSilent(k, config[k]); });
     syncStringSetupControls();
     syncShapeDropdown();
