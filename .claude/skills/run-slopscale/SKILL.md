@@ -66,8 +66,28 @@ for the in-tree 2D `tab_2d`/`notation_2d`), playback advances `#slopscale-time-c
 and **no uncaught pageerror / non-benign console.error** fired (the known
 `highway_3d` audio-analyser warning — gotcha #7 — is allowlisted). Prints a
 PASS/FAIL line per renderer and **exits non-zero** if any fail, dropping a
-`.slopscale-shots/smoke-fail-<kind>.png` for each failure. This is the closest
-thing the repo has to a test suite — there is no unit/lint layer.
+`.slopscale-shots/smoke-fail-<kind>.png` for each failure.
+
+The companion **generator** smoke covers the other half — the chart builders:
+
+```bash
+node .claude/skills/run-slopscale/smoke-generators.mjs   # or: npm run smoke:gen
+```
+
+It drives `window.SlopScale.generateExercise()` directly (fast, no rendering)
+across every practice type and every scale, runs a bass pass (string-count
+dependent shapes), and launches each built-in session through the UI. Per
+chart it checks structure: notes present, each note has finite `t>=0`, an
+integer string in range, a sane fret, positive sustain, and a non-empty `beats`
+list. The no-unison rule is covered for free — screen.js throws
+`[SlopScale no-unison] …` at load if a resolved shape doubles a pitch, which
+surfaces as a pageerror and fails the run. **Gotcha:** when calling
+`generateExercise(cfg)` by hand, set BOTH `cfg.mode` and `cfg.practiceType` —
+`readConfig()` returns both and the dispatch (`buildSingleChart`) reads `mode`
+first, so overriding only `practiceType` silently generates the wrong type.
+
+`npm test` runs both smokes (renderers then generators). Together they're the
+closest thing the repo has to a test suite — there is no unit/lint layer.
 
 Screenshots land in `.slopscale-shots/` at the repo root (gitignored). The driver and smoke test both log each path they write.
 
