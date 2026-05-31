@@ -4869,7 +4869,7 @@
   // edge grips), and the playhead. Time→x is linear across the chart duration.
   // The top strip (loopZoneH) is the loop/cycle zone; below it is the scrub
   // zone — see the pointer handler in bind(). Pure draw; reads tpA/tpB + time.
-  const RULER_LOOP_ZONE = 15;  // px height of the top loop/cycle strip
+  const RULER_LOOP_ZONE = 18;  // px height of the top loop/cycle strip
   function rulerGeom() {
     const canvas = $('slopscale-ruler-canvas'); if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
@@ -4900,13 +4900,13 @@
 
     // Bar lines + numbers, then beat/group ticks
     const beats = activeBundle.beats || [];
-    ctx.textBaseline = 'top'; ctx.font = '8.5px ui-monospace, monospace';
+    ctx.textBaseline = 'top'; ctx.font = '10px ui-monospace, monospace';
     for (const b of beats) {
       const x = xAt(b.time), isBar = (b.measure ?? -1) >= 0;
       if (isBar) {
         ctx.strokeStyle = 'rgba(96,165,250,0.45)'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(x, lz); ctx.lineTo(x, H); ctx.stroke();
-        ctx.fillStyle = '#6b7a90'; ctx.fillText(String(b.measure), x + 2, 2);
+        ctx.fillStyle = '#8aa0bd'; ctx.fillText(String(b.measure), x + 3, 3);
       } else {
         const grp = b.accent === 'group';
         ctx.strokeStyle = grp ? 'rgba(148,163,184,0.3)' : 'rgba(148,163,184,0.15)';
@@ -5359,7 +5359,9 @@
     $('slopscale-loop-a')?.classList.toggle('active', tpA != null);
     $('slopscale-loop-b')?.classList.toggle('active', tpB != null);
     const lc = $('slopscale-loop-count');
-    if (lc) { const active = segmentLoopA != null && segmentLoopB != null; lc.hidden = !active; lc.textContent = 'Loop ' + _loopWraps; }
+    if (lc) { const active = segmentLoopA != null && segmentLoopB != null; lc.hidden = !active || _loopWraps < 1; lc.textContent = 'Loop ' + _loopWraps; }
+    const lr = $('slopscale-loop-range');
+    if (lr) { const txt = loopReadoutText(); lr.hidden = !txt; lr.textContent = txt || ''; }
     const ci = document.querySelector('#slopscale-controls [name="countIn"]')?.value || '0';
     document.querySelectorAll('.slopscale-tp-seg').forEach(b => b.classList.toggle('active', b.dataset.countin === ci));
     renderSessionProgress();
@@ -5380,6 +5382,30 @@
     const d = chartDownbeats();
     if (!d.length) return t;
     return d.reduce((best, x) => Math.abs(x - t) < Math.abs(best - t) ? x : best, d[0]);
+  }
+
+  // Bar.beat label for a time (e.g. "5.1") from the chart's beat grid — the
+  // downbeat is beat 1, each subsequent non-bar beat increments. null before the
+  // first bar line (e.g. during a count-in lead-in).
+  function timeBarBeat(t) {
+    const beats = activeBundle?.beats || [];
+    let measure = null, beatInBar = 0;
+    for (const b of beats) {
+      if (b.time > t + 1e-3) break;
+      if ((b.measure ?? -1) >= 0) { measure = b.measure; beatInBar = 1; }
+      else if (measure != null) beatInBar++;
+    }
+    return measure == null ? null : measure + '.' + beatInBar;
+  }
+  // DAW-style cycle readout: "5.1–8.4 · 3 bars" (bar.beat bounds + bar span), or
+  // a seconds fallback when there's no bar grid. null when no loop is set.
+  function loopReadoutText() {
+    if (tpA == null || tpB == null || Math.abs(tpA - tpB) < 0.02) return null;
+    const lo = Math.min(tpA, tpB), hi = Math.max(tpA, tpB);
+    const a = timeBarBeat(lo), b = timeBarBeat(hi);
+    const bars = chartDownbeats().filter(x => x > lo + 0.02 && x <= hi + 0.02).length;
+    const span = bars > 0 ? (bars + ' bar' + (bars === 1 ? '' : 's')) : ((hi - lo).toFixed(1) + 's');
+    return (a && b) ? (a + '–' + b + ' · ' + span) : ((hi - lo).toFixed(1) + 's');
   }
 
   // Commit the A/B points to the loop engine once both are set and distinct;
@@ -5473,6 +5499,20 @@
     }
   }
 
+  // Nudge the loop's end (B) edge to the adjacent bar line (Shift+←/→). Adjusts
+  // cycle length from the end; refuses to collapse the loop past its start.
+  function nudgeLoopEdge(dir) {
+    if (tpA == null || tpB == null || Math.abs(tpA - tpB) < 0.02) return false;
+    const dn = chartDownbeats(); if (!dn.length) return false;
+    const dur = activeBundle?.songInfo?.duration || 0;
+    const lo = Math.min(tpA, tpB), hi = Math.max(tpA, tpB);
+    let next = dir > 0 ? dn.find(x => x > hi + 0.05) : [...dn].reverse().find(x => x < hi - 0.05);
+    if (next == null) next = dir > 0 ? dur : hi;
+    if (next <= lo + 0.02) return true;  // refuse to collapse past the start
+    tpA = lo; tpB = next; commitLoop(); drawRulerFrame();
+    return true;
+  }
+
   // Keyboard transport, scoped to the SlopScale screen. Ignores keystrokes when
   // a form field is focused or a modifier is held, and never touches Escape
   // (Slopsmith owns Escape for return-to-menu). Comma/period are session-only.
@@ -5485,8 +5525,8 @@
     const sessionMode = root.classList.contains('slopscale-session-mode');
     switch (e.key) {
       case ' ':          e.preventDefault(); onPlayToggle(); break;
-      case 'ArrowLeft':  e.preventDefault(); nudgeBar(-1); break;
-      case 'ArrowRight': e.preventDefault(); nudgeBar(1); break;
+      case 'ArrowLeft':  e.preventDefault(); if (e.shiftKey && nudgeLoopEdge(-1)) break; nudgeBar(-1); break;
+      case 'ArrowRight': e.preventDefault(); if (e.shiftKey && nudgeLoopEdge(1)) break; nudgeBar(1); break;
       case '[':          e.preventDefault(); tpA = currentPracticeTime; commitLoop(); break;
       case ']':          e.preventDefault(); tpB = currentPracticeTime; commitLoop(); break;
       case '\\':         e.preventDefault(); resetTransportLoop(); break;

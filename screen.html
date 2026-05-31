@@ -1,4 +1,43 @@
 <style>
+  /* ── Design tokens — the themeable layer ───────────────────────────────────
+     Single source of truth for SlopScale's visual language (default theme:
+     calm pro-dark, Apple/Logic-Pro-leaning). Look-defining rules consume these
+     custom properties, so a theme = a token set, and the host can "paint over"
+     SlopScale by reassigning --ss-* on .slopscale-root (e.g. mapping --ss-accent
+     onto a host theme variable). Scoped to .slopscale-root so nothing leaks into
+     the host page. Defaults mirror the prior literal values — this pass is a
+     refactor, not a recolor; the few deliberate nudges are noted inline. */
+  .slopscale-root {
+    /* palette */
+    --ss-bg-0: #080812;
+    --ss-bg-1: #0d0d18;
+    --ss-surface: rgba(17, 24, 39, 0.94);     /* panels */
+    --ss-surface-bar: rgba(9, 15, 30, 0.92);  /* transport / switcher bars */
+    --ss-inset: #111827;                       /* inputs */
+    --ss-text: #f8fafc;
+    --ss-text-dim: #cbd5e1;
+    --ss-text-muted: #94a3b8;
+    --ss-text-faint: #64748b;
+    --ss-border: rgba(75, 85, 99, 0.75);
+    --ss-hairline: rgba(148, 163, 184, 0.16); /* Logic-style group separators (used as the reskin lands) */
+    --ss-accent: #4080e0;                      /* host accent — the host-theming paint-over seam */
+    --ss-accent-hover: #60a0ff;
+    --ss-accent-soft: rgba(96, 165, 250, 0.22);
+    --ss-playhead: #f43f5e;                    /* reserved: means "now", nowhere else */
+    --ss-danger: #b91c1c;
+    --ss-meter: #22c55e;                       /* progress / cleared fill */
+    /* spacing — 4px scale */
+    --ss-sp-1: 4px; --ss-sp-2: 8px; --ss-sp-3: 12px; --ss-sp-4: 16px; --ss-sp-5: 24px;
+    /* radius */
+    --ss-r-control: 8px;
+    --ss-r-panel: 10px;                        /* nudge: was 16px (tighter, pro-app) */
+    --ss-r-pill: 999px;
+    /* type */
+    --ss-mono: ui-monospace, "SF Mono", Menlo, monospace;
+    /* elevation */
+    --ss-shadow-panel: 0 14px 48px rgba(0, 0, 0, 0.28);
+  }
+
   .slopscale-root {
     /* Slopsmith's navbar is a transparent, position:fixed, 64px-tall bar that
        floats over the active screen. The host mounts plugin screens as bare
@@ -13,8 +52,8 @@
        the whole menu running off the bottom. */
     height: 100vh;
     padding: 80px 18px 18px;
-    color: #e5e7eb;
-    background: radial-gradient(circle at top left, rgba(58, 84, 140, 0.18), transparent 32rem), linear-gradient(180deg, #080812 0%, #0d0d18 100%);
+    color: var(--ss-text-dim);
+    background: radial-gradient(circle at top left, rgba(58, 84, 140, 0.18), transparent 32rem), linear-gradient(180deg, var(--ss-bg-0) 0%, var(--ss-bg-1) 100%);
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -22,10 +61,10 @@
   }
   .slopscale-root * { box-sizing: border-box; }
   .slopscale-panel {
-    background: rgba(17, 24, 39, 0.94);
-    border: 1px solid rgba(75, 85, 99, 0.75);
-    border-radius: 16px;
-    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+    background: var(--ss-surface);
+    border: 1px solid var(--ss-border);
+    border-radius: var(--ss-r-panel);
+    box-shadow: var(--ss-shadow-panel);
   }
   .slopscale-header {
     display: block;
@@ -171,7 +210,7 @@
   .slopscale-paste-share { margin-top: 4px; }
   #slopscale-paste-share { width: 100%; min-height: 30px; padding: 0 10px;
     background: #0a1322; color: #cbd5e1; border: 1px solid #334155;
-    border-radius: 8px; font-size: 12px; font-family: ui-monospace,monospace; }
+    border-radius: 8px; font-size: 12px; font-family: var(--ss-mono); }
   #slopscale-paste-share:focus { outline: none; border-color: #60a5fa; }
   #slopscale-paste-share.flash-ok { border-color: #16a34a; }
   #slopscale-paste-share.flash-bad { border-color: #b91c1c; }
@@ -192,31 +231,33 @@
   .slopscale-progress-seg:hover { background: #1e293b; color: #e2e8f0; border-color: #475569; }
   .slopscale-progress-seg.active { background: linear-gradient(180deg, #2563eb, #1d4ed8); border-color: #60a5fa; color: #fff; }
   /* Unified DAW ruler — one canvas drawing bars/beats + playhead + A–B loop.
-     42px + container padding ≈ 52px total, matching the HUD's top:52px offset.
+     50px + container padding (6+4) = 60px total, matching the HUD's top:60px offset.
      touch-action:none so drags don't scroll. */
-  .slopscale-transport-ruler #slopscale-ruler-canvas { display: block; width: 100%; height: 42px; touch-action: none; }
+  .slopscale-transport-ruler #slopscale-ruler-canvas { display: block; width: 100%; height: 50px; touch-action: none; }
   /* Flatter pill aesthetic, in parity with the host player control bar:
      borderless dark pills, lighter weight, flat accent fills (host accent
      #4080e0), `|` group separators. Multi-row layout + drag-loop preserved. */
   .slopscale-tp-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-  .slopscale-tp-play { min-height: 34px; min-width: 84px; padding: 0 16px; border-radius: 8px; border: none; background: #4080e0; color: #fff; font-weight: 600; font-size: 13px; cursor: pointer; transition: background 0.15s; }
-  .slopscale-tp-play:hover { background: #60a0ff; }
+  .slopscale-tp-play { min-height: 34px; min-width: 84px; padding: 0 16px; border-radius: 8px; border: none; background: var(--ss-accent); color: #fff; font-weight: 600; font-size: 13px; cursor: pointer; transition: background 0.15s; }
+  .slopscale-tp-play:hover { background: var(--ss-accent-hover); }
   .slopscale-tp-play.is-playing { background: #b91c1c; }
   .slopscale-tp-play.is-playing:hover { background: #dc2626; }
   .slopscale-tp-btn { min-height: 30px; min-width: 30px; padding: 0 10px; border-radius: 8px; border: none; background: #1e2740; color: #cbd5e1; font-weight: 600; font-size: 12px; cursor: pointer; transition: background 0.15s; }
   .slopscale-tp-btn:hover { background: #2a3654; }
-  .slopscale-tp-btn.active { background: #4080e0; color: #fff; }
-  .slopscale-tp-time { font-family: ui-monospace, monospace; font-size: 12px; color: #94a3b8; min-width: 84px; text-align: center; }
+  .slopscale-tp-btn.active { background: var(--ss-accent); color: #fff; }
+  .slopscale-tp-time { font-family: var(--ss-mono); font-size: 12px; color: #94a3b8; min-width: 84px; text-align: center; }
   .slopscale-tp-sep { width: 1px; align-self: stretch; background: rgba(75,85,99,0.45); margin: 3px 4px; }
   .slopscale-tp-loop, .slopscale-tp-countin { display: flex; align-items: center; gap: 5px; }
   .slopscale-tp-loopcount { font-size: 12px; color: #93c5fd; font-weight: 600; }
+  /* Bars|beats cycle readout (DAW-style): the loop's bar.beat bounds + span. */
+  .slopscale-tp-looprange { font-family: var(--ss-mono); font-size: 11px; color: var(--ss-text-muted); font-weight: 600; letter-spacing: 0.01em; white-space: nowrap; }
   .slopscale-tp-lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; }
   .slopscale-tp-seg { min-height: 28px; min-width: 30px; padding: 0 9px; border: none; background: #141d33; color: #cbd5e1; font-weight: 600; font-size: 12px; cursor: pointer; }
   .slopscale-tp-seg:first-of-type { border-radius: 7px 0 0 7px; }
   .slopscale-tp-seg:last-of-type { border-radius: 0 7px 7px 0; }
   .slopscale-tp-seg + .slopscale-tp-seg { box-shadow: inset 1px 0 0 rgba(2,6,23,0.55); }
   .slopscale-tp-seg:hover:not(.active) { background: #24324a; }
-  .slopscale-tp-seg.active { background: #4080e0; color: #fff; }
+  .slopscale-tp-seg.active { background: var(--ss-accent); color: #fff; }
   /* View switcher toolbar inside the render stage */
   .slopscale-view-switcher { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 7px 12px; background: rgba(9,15,30,0.92); border-bottom: 1px solid rgba(75,85,99,0.4); flex-shrink: 0; }
   .slopscale-view-label { font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8; margin-right: 6px; }
@@ -287,11 +328,11 @@
   .slopscale-render-host { position: relative; flex: 1; min-height: 0; overflow: hidden; background: #050711; }
   #slopscale-canvas { display: block; width: 100%; height: 100%; }
   /* Player HUD overlay — title left, time right, floating over the highway. */
-  /* HUD sits BELOW the timeline ruler (top:52px) so the two don't collide. It
+  /* HUD sits BELOW the timeline ruler (top:60px) so the two don't collide. It
      now carries only the exercise title, and only for 3D Highway (every other
      renderer draws its title in-canvas). The single timer lives in the
      transport bar, so there's no HUD clock anymore. */
-  .slopscale-hud { position: absolute; top: 52px; left: 0; right: 0; z-index: 12; display: flex; align-items: flex-start; gap: 12px; padding: 4px 13px; pointer-events: none; }
+  .slopscale-hud { position: absolute; top: 60px; left: 0; right: 0; z-index: 12; display: flex; align-items: flex-start; gap: 12px; padding: 4px 13px; pointer-events: none; }
   .slopscale-hud-title { margin-right: auto; display: none; font-size: 12px; font-weight: 600; color: #e2e8f0; text-shadow: 0 1px 4px rgba(0,0,0,0.85); }
   .slopscale-root.slopscale-hud-title-on .slopscale-hud-title { display: inline; }
   /* Live fretboard strip docked under the highway. Hidden by default; shown only
@@ -308,7 +349,7 @@
   .slopscale-root.slopscale-fb-capable .slopscale-fb-toggle-wrap { display: inline-flex; margin-left: auto; }
   .slopscale-fb-toggle-label { font-size: 12px; font-weight: 600; color: #94a3b8; }
   .slopscale-pill-toggle { position: relative; width: 34px; height: 18px; padding: 0; border: none; border-radius: 999px; background: #334155; cursor: pointer; transition: background 0.15s; }
-  .slopscale-pill-toggle[aria-checked="true"] { background: #4080e0; }
+  .slopscale-pill-toggle[aria-checked="true"] { background: var(--ss-accent); }
   .slopscale-pill-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.4); transition: transform 0.15s; }
   .slopscale-pill-toggle[aria-checked="true"] .slopscale-pill-knob { transform: translateX(16px); }
   /* Borrowed host visualizations (e.g. Jumping Tab) mount their own wrap as a
@@ -1189,6 +1230,7 @@
             <button type="button" id="slopscale-loop-b" class="slopscale-tp-btn" title="Set loop end at the playhead (])">B</button>
             <button type="button" id="slopscale-loop-seg" class="slopscale-tp-btn slopscale-session-only" title="Loop the current segment">⟳ Seg</button>
             <button type="button" id="slopscale-loop-clear" class="slopscale-tp-btn" title="Clear the loop (\)">✕</button>
+            <span id="slopscale-loop-range" class="slopscale-tp-looprange" hidden></span>
             <span id="slopscale-loop-count" class="slopscale-tp-loopcount" hidden>Loop 0</span>
           </div>
           <span class="slopscale-tp-sep"></span>
