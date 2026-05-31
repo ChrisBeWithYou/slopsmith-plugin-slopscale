@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 PLUGIN_ID = "slopscale"
@@ -523,15 +522,6 @@ def setup(app: FastAPI, context: dict) -> None:
             "dlc_dir_available": bool(dlc_dir),
             "db_backed": meta_db is not None,
         }
-
-    @app.get(f"/api/plugins/{PLUGIN_ID}/assets/{{filename}}")
-    def plugin_asset(filename: str):
-        if filename != "slopscale.css":
-            raise HTTPException(404, "Asset not found.")
-        path = Path(__file__).parent / "static" / "slopscale.css"
-        if not path.exists():
-            raise HTTPException(404, "Asset not found.")
-        return Response(path.read_text(encoding="utf-8"), media_type="text/css")
 
     @app.get(f"/api/plugins/{PLUGIN_ID}/presets")
     def list_presets():

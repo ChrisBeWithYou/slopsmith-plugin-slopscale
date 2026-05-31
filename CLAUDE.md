@@ -17,7 +17,6 @@ The plugin has no build step. There is no `package.json`, no compiler, no bundle
 | `screen.js` | All generator logic, CAGED/3NPS data, pathway definitions, built-in renderers, audio playback, and Slopsmith integration. Runs in Slopsmith page scope. |
 | `routes.py` | FastAPI routes under `/api/plugins/slopscale/…` — preset CRUD, status, and `POST /temp-sloppak` (the chart builder). |
 | `settings.html` | Plugin settings panel fragment rendered by Slopsmith. |
-| `static/slopscale.css` | External stylesheet served by the `GET /api/plugins/slopscale/assets/slopscale.css` route. |
 | `docs/architecture.md` | Integration design — the authoritative spec for how the plugin interacts with Slopsmith. Read this first before changing the launch flow. |
 | `docs/exercise-schema.md` | Internal generated exercise JSON schema and note field abbreviations. |
 | `docs/practice-pedagogy.md` | Pedagogical rationale behind the curated pathways and build order. |
@@ -98,7 +97,6 @@ The renderers in `screen.js` are the **actual playback surface**, not just previ
 FastAPI routes registered via `setup(app, context)`. All routes are under `/api/plugins/slopscale/`:
 
 - `GET /status` — health check
-- `GET /assets/{filename}` — serves `static/slopscale.css`
 - `GET /presets` / `POST /presets` / `DELETE /presets/{id}` — preset CRUD
 - `GET /tunings` / `POST /tunings` / `DELETE /tunings/{id}` — custom-tuning CRUD (frontend posts a tuning by name + family + string count + MIDI list; id is an autoincrement INTEGER)
 - `POST /temp-sloppak` — normalizes the frontend exercise payload (`_normalise_chart`), writes a directory-form `.sloppak` package under the DLC folder, returns `{ ok, filename, title, duration }`. The frontend then calls `playSong(filename)`.
