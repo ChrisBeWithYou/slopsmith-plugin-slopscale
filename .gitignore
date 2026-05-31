@@ -19,3 +19,7 @@ docs/sources/
 .claude/skills/run-slopscale/probe-tuning.mjs
 .claude/skills/run-slopscale/probe-night.mjs
 .slopscale-shots/blank-load.png
+
+# Local agent tooling (subagent definitions + their persisted memory)
+.claude/agents/
+.claude/agent-memory/
