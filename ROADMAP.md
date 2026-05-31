@@ -217,6 +217,21 @@ The single shared pathway list is being restructured into **per-instrument "Deve
 
 The token framework + contained-playback model are in place; the picker is the gateway into the Core curriculum build.
 
+### 🌙 Session end 2026-05-31 (audio / backing-realism thread) — pickup
+
+Separate thread from the GUI/Core pickup above. Backing-realism work (see project memory `backing-realism-plan` for the full detail + the audio-engine-architect agent memory).
+
+**SHIPPED + COMMITTED today:**
+- **Tier-1 GM fonts + sampled bass + practice voice** (`ad638e7`). Bundled 8 more JCLive presets (14 total, static/wafonts/, 3.7MB). The audio profile now has **three** sampled voices: `harmony` (comp), `notes` (the practice voice — clean-elec / steel for acoustic family / bass program when instrument=bass; bent notes stay on oscillator), `bass` (boogie walking-bass events tagged `role:'bass'` → real bass on a 'bass' bus). Oscillator fallback until presets load (no regression). Hardened the highway_3d AudioContext-sharing stub (Proxy no-ops any `create*`) — the practice-voice preload now creates `audioCtx` on pathway-select, which had tripped a latent `createGain` crash. Alternates (FluidR3/GeneralUserGS) pulled to `static/wafonts/alt/` (gitignored) for A/B.
+- **Distorted-track asset routes + NAM borrow PROVEN** (`815963f`). routes.py serves `/ir/{name}.wav` + `/nam/{name}.nam` from gitignored static/irs/ + static/nam/. **The host nam_tone engine is borrowable cross-plugin** (worklet + 532KB WASM + glue from `/api/plugins/nam_tone/worklet/...`) — **zero added repo weight**; proven live that it instantiates in our AudioContext (bypass the sharing stub via `window.AudioContext.prototype.constructor`), loads WASM (wasm-ready), and **loads a pulled model** (model-loaded success). Worklet protocol documented in memory.
+- **Auto-pulled a djent model + built a reusable fetcher** (gitignored, local). `static/nam/fetch.mjs` + `manifest.json` (symbolic-id→URL) downloads + validates NAM JSON; pulled a boosted-5150 capture → `djent_highgain.nam`. Source: `pelennor2170/NAM_models`, **GPL-3.0 → local use only, licensing gate before any public ship.**
+- **A/B demo rendered + sent to Christian** for ear-verdict: same palm-muted DI riff → (1) dry DI, (2) in-house WaveShaper→Djenty-IR, (3) NAM amp→Djenty-IR, peak-matched. (Rendered via real-time ScriptProcessor capture — OfflineAudioContext races the worklet's async init.)
+
+**NEXT SESSION, gated on Christian's ear-verdict (NAM vs in-house WaveShaper):**
+1. **Build the distorted-chain insert in screen.js** — a `borrowNamEngine()` helper (fetch+addModule+load-wasm, cache) + the chain (DI → [NAM if model present, else WaveShaper(tanh)+HPF] → cab-IR Convolver → post-EQ: HPF85/scoop500/presence3.2k/LPF9.5k → limiter) on a new **'distorted' bus**. Single NAM instance; fake double-track with delay+detune (don't stack NAM). Wire to the **metal/djent BACKING-rhythm voice** (decision: amp drives backing rhythm only — practice notes stay clean/sampled).
+2. **Source-content caveat:** the metal/djent backing is currently a pad/shell. For it to *sound* like djent the backing must become a palm-muted riff — **metal-idiom-architect's job** (a content step that pairs with the chain). That's why the isolated DI-riff demo is the right tone check for now.
+3. **If NAM wins:** extend `manifest.json` per distorted genre (the "presets for each genre" plan — feather/nano tier for CPU), tag genre profiles with a symbolic `amp` id; resolver maps id→model+IR. **If WaveShaper is "good enough":** ship it as the in-house distorted tone, keep NAM as the documented dormant upgrade.
+
 ### RPG skill-tree evolution (later)
 As guitar-specific content grows (the metal pack), the single shared pathway list/tree is straining. Direction (the dropdown ships first; the tree is the evolution):
 
@@ -361,7 +376,8 @@ Diagnosed this session, decisions/fixes pending:
 - 🔲 Other grooves (straight-4 comp, bossa, the half-time metalcore breakdown feel) + selectable on other genre pathways.
 
 ### Backing track generator (intentional future scope)
-- 🔲 **WebAudioFont or Tone.js Sampler** — load GM-compatible instrument samples from a CDN (piano, acoustic guitar, bass, etc.) for real sampled chord pads. Trigger on each backing event the same way oscillators are today. No audio stem generation needed — purely frontend.
+- ✅ **WebAudioFont GM sampler** (2026-05-31) — 14 GM presets bundled under `static/wafonts/`, **self-hosted** via routes.py (`/wafont/{name}`, offline-safe, no CDN). Three sampled voices on the profile (`harmony`/`notes`/`bass`) via `queueWaveTable`, oscillator fallback until loaded. Genre→profile automation (`AUDIO_PROFILES`/`resolveAudioProfile` + brightness slider). See `backing-realism-plan` memory.
+- 🔄 **Distorted track (amp/cab)** — host NAM engine borrow PROVEN + asset routes shipped (`815963f`); a djent capture auto-pulled + reusable fetcher built (gitignored). **NEXT:** build the screen.js distorted-chain insert (gated on Christian's A/B ear-verdict). See the audio session-end handoff above.
 - 🔲 **Groove engine** — optional rhythmic strumming pattern applied to the chord voicings (straight 4, bossa, shuffle 8ths). Pairs with the sampler above.
 - 🔲 **Tempo-sync metronome variations** — hi-hat pattern, rimshot, brushes; selectable alongside the current click-track.
 - 🔲 Prerequisite: confirm CDN policy is acceptable (or bundle a small soundfont). Keep it opt-in so existing audio path stays default.
