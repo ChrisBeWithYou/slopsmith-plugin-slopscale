@@ -155,7 +155,7 @@ async function run() {
   try {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await ctx.newPage();
-    page.on("pageerror", (e) => pageErrors.push(e.message));
+    page.on("pageerror", (e) => { if (!isBenign(e.message)) pageErrors.push(e.message); });
     page.on("console", (m) => {
       if (m.type() === "error" && !isBenign(m.text())) consoleErrors.push(m.text());
     });

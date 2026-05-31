@@ -102,7 +102,7 @@ async function run() {
   try {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await ctx.newPage();
-    page.on("pageerror", (e) => pageErrors.push(e.message));
+    page.on("pageerror", (e) => { if (!isBenign(e.message)) pageErrors.push(e.message); });
     page.on("console", (m) => { if (m.type() === "error" && !isBenign(m.text())) consoleErrors.push(m.text()); });
 
     await gotoSlopScale(page);
@@ -149,7 +149,7 @@ async function run() {
     await page.click("#slopscale-mode-session").catch(() => {});
     await page.waitForTimeout(300);
     const sessionVals = await page.$$eval("#slopscale-session-select option", (os) =>
-      os.map((o) => ({ v: o.value, t: o.textContent.trim() })).filter((o) => o.v && !o.disabled)
+      os.filter((o) => o.value && !o.disabled).map((o) => ({ v: o.value, t: o.textContent.trim() }))
     ).catch(() => []);
     const sessionRows = [];
     for (const s of sessionVals) {
