@@ -45,7 +45,13 @@ No build. No dev server. The workflow is:
 
 To run, screenshot, or smoke-test the plugin without doing the clone/restart dance by hand, use the **`run-slopscale` skill** (`.claude/skills/run-slopscale/`). `launch.ps1` junctions this repo into the Slopsmith plugins dir, starts the bundled-Python host on port 8765, and waits for `/status` to return `ok`; `driver.mjs` drives the SlopScale screen via Playwright and screenshots any of the four renderers. Server logs land in `%TEMP%\slopscale\server.log`.
 
-There is **no unit-test or lint suite** — verification is behavioural, via the `run-slopscale` skill (Playwright screenshots of the renderers + a `/status` health check) plus the startup regression guards baked into `screen.js` (e.g. the no-unison check, which throws on load if a resolved shape doubles a pitch).
+There is **no unit-test or lint suite**. Verification is behavioural, via two Playwright smoke suites in the `run-slopscale` skill, run against a live host (start it with `launch.ps1` first):
+
+- `npm test` (from `.claude/skills/run-slopscale/`) runs **both** suites — renderers then generators.
+- `smoke-renderers.mjs` (`npm run smoke`) — walks all four renderers; asserts each attaches, draws, advances the playback clock, and throws no errors.
+- `smoke-generators.mjs` (`npm run smoke:gen`) — drives `generateExercise()` across every practice type + scale, a bass pass, and all built-in sessions; validates chart structure.
+
+These plus the startup regression guards baked into `screen.js` (e.g. the no-unison check, which throws on load if a resolved shape doubles a pitch) are the safety net before/after any `screen.js` change.
 
 To exercise backend routes directly, hit them via curl or the browser while Slopsmith is running:
 - `GET /api/plugins/slopscale/status` — confirms the plugin is loaded
