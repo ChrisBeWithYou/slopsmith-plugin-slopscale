@@ -14,7 +14,7 @@ SlopScale is a **practice & learning tool, not a song/riff generator.** Its purp
 
 **The filter for every feature, generator, pathway, and agent:** *teach the grammar, not the sentences — build a skill the player owns off the screen; never do the creative work for them.* In practice:
 
-- Every exercise names the transferable skill it builds **and** why it's idiomatic (the pathway goal-cards are the model).
+- Every exercise names, describes, or justifies against this, the transferable skill it builds **and** why it's idiomatic (the pathway goal-cards are the model).
 - Speak the player's theory vocabulary out loud (name the devices: gallop, i–♭VI–♭VII, twin leads) so they learn the language, not just the fingering.
 - Prefer **recombinable primitives** (power chords, gallop, pedal-riffs, harmonized lines) over fixed canned content — give the blocks, let the player assemble their own.
 - Keep a deliberate on-ramp to creation: Guided → Custom → Improv/Jam. Drills are the entrance; creativity (improv, call-and-response, master/memory mode) is the destination, not optional polish.
