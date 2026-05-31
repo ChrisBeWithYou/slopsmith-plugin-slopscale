@@ -52,7 +52,24 @@ node .claude/skills/run-slopscale/driver.mjs screenshot tab_2d
 node .claude/skills/run-slopscale/driver.mjs all-renderers
 ```
 
-Screenshots land in `.slopscale-shots/` at the repo root (gitignored; create the gitignore if it doesn't exist). The driver logs each path it writes.
+`driver.mjs` only *screenshots* — it never fails. To **assert** the renderers
+actually work (gate a refactor, prove a fix), run the smoke test instead:
+
+```bash
+node .claude/skills/run-slopscale/smoke-renderers.mjs   # or: npm run smoke
+```
+
+It walks all four renderers and, per renderer, checks: the view switch took
+(active button), the renderer attached (non-empty status + a sized render
+canvas — ruler/chord-box excluded), it drew (non-uniform pixels, enforced only
+for the in-tree 2D `tab_2d`/`notation_2d`), playback advances `#slopscale-time-cur`,
+and **no uncaught pageerror / non-benign console.error** fired (the known
+`highway_3d` audio-analyser warning — gotcha #7 — is allowlisted). Prints a
+PASS/FAIL line per renderer and **exits non-zero** if any fail, dropping a
+`.slopscale-shots/smoke-fail-<kind>.png` for each failure. This is the closest
+thing the repo has to a test suite — there is no unit/lint layer.
+
+Screenshots land in `.slopscale-shots/` at the repo root (gitignored). The driver and smoke test both log each path they write.
 
 To stop the host:
 
@@ -73,8 +90,9 @@ For changes to **`routes.py`** (the backend), the faster path is direct HTTP. Ex
 ```bash
 curl http://127.0.0.1:8765/api/plugins/slopscale/status
 curl http://127.0.0.1:8765/api/plugins/slopscale/presets
-curl http://127.0.0.1:8765/api/plugins/slopscale/assets/slopscale.css | head -3
+curl http://127.0.0.1:8765/api/plugins/slopscale/tunings
 # POST /api/plugins/slopscale/temp-sloppak with an exercise payload to build a chart
+# (note: the /temp-sloppak route is dormant under the contained-playback model)
 ```
 
 The driver doesn't currently exercise `temp-sloppak`. If a PR touches that route, add a `curl --data` test to your smoke run rather than threading it through the UI.
