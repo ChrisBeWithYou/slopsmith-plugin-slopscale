@@ -132,9 +132,29 @@ The practice surface is organised as a **single flat top-level mode bar** rather
 
 ---
 
-## Design direction: per-instrument pathways + RPG-style skill tree (proposed 2026-05-30)
+## Development Pathways initiative (per-instrument Core + Style, decided 2026-05-31)
 
-As guitar-specific content grows (the metal pack), the single shared pathway list/tree is straining. Direction (decision pending — discuss + spec before building):
+The single shared pathway list is being restructured into **per-instrument "Development Pathways,"** approached from a learning-&-development lens. "Pathways" → **"Development Pathways"** in the UI. Decided 2026-05-31; building groundwork.
+
+**Selection flow:** instrument → strings → tuning → **Development Pathways** dropdown (a dropdown *for now*; the RPG skill tree is the later evolution — see below).
+
+**Dropdown structure (per instrument):**
+- **Core – Beginner / Core – Intermediate / Core – Advanced** — the instrument's rhythm + melodic *fundamentals*; the spine.
+- **Style – Blues / Funk-R&B / Rock / Metal / Jazz / Prog / Country / Latin / Pop / Classical / …** — genre fronts branching off Core competencies.
+
+**Principles:**
+- **Bespoke per instrument, parallel in scope.** Each instrument's pathways have their own exercises (need NOT match in quantity or content) but traverse the **same overarching arc: easy → medium → hard → mastery**. Cores complement each other instrument's architecture rather than being copies.
+- **L&D-chaired design.** `learning-design-architect` defines the competency ladder + difficulty stages; then the agent-workflow runs: **theory-architect + genre agents shape content → instrument-pedagogy agents verify playability → other agents fill gaps.** Core pathways are built first.
+- Stays **soft** (suggests next, never content-gates — Phase 2) and serves learning, never becomes the point (Design north star).
+
+**Build approach (the 4 parts, 2026-05-31):**
+1. ✅ **Guitar agent parity** — `fretboard-pedagogy-expert` → `guitar-pedagogy-expert`; two-way parity pass across guitar/bass/piano MDs.
+2. 🔲 **UI/UX** — rename to "Development Pathways"; restructure the dropdown into Core/Style per instrument. (L&D agent created ✅.)
+3. 🔲 **Genre agents + group design** — roster filled (rock/prog/pop/classical added, funk→funk/R&B ✅); run the group-design session (L&D + genre + theory + instrument agents) to design each instrument's **Core skill tree** + sketch the exercise list.
+4. 🔲 **Build the Core pathways** first, from that design; then lay in the roadmap.
+
+### RPG skill-tree evolution (later)
+As guitar-specific content grows (the metal pack), the single shared pathway list/tree is straining. Direction (the dropdown ships first; the tree is the evolution):
 
 - **Decouple pathways per instrument family.** Pathways gain an instrument scope (guitar / bass / piano); the skill tree filters to the active family. This also resolves **tuning**: today a pathway sets one `stringSetup` and the full metal drop set (Drop C/B/A/G) isn't cleanly reachable from a pathway base (Drop C/B live in `TUNING_PRESETS`/`customOpenMidis`, not `STRING_SETUPS`); instrument-scoped pathways would carry instrument-appropriate tunings directly. Generators are already key-relative, so content transposes — the pedal-riff just frets the tonic on the low string, so the open-string-pedal feel only emerges when the key matches the tuning's low string. Per-instrument scoping makes that intentional rather than incidental.
 - **Lean the skill tree into an RPG progression map.** The node/edge graph (`SKILL_TREE_NODES`/`EDGES`) + per-pathway BPM tiers already exist; evolve toward per-instrument trees with prerequisite/branching flow and mastery/XP per node — serving the Phase 2 gamification goal.
@@ -142,16 +162,17 @@ As guitar-specific content grows (the metal pack), the single shared pathway lis
 
 ---
 
-## Agent roster (review & design specialists, 2026-05-30)
+## Agent roster (review & design specialists, expanded 2026-05-31)
 
-Specialist sub-agents live in `.claude/agents/` (local/gitignored — they may name artists/bands in conversation, but anything they author into tracked files stays proper-noun-clean per the attribution-cleanup rule). They are reviewers/designers, not builders; each clears a **distinct, non-overlapping lane** so they don't step on each other:
+Specialist sub-agents live in `.claude/agents/` (local/gitignored — they may name artists/bands in conversation, but anything they author into tracked files stays proper-noun-clean per the attribution-cleanup rule). They are reviewers/designers, not builders; each clears a **distinct, non-overlapping lane** so they don't step on each other. All genre agents mirror `metal-idiom-architect` for structure/form, and all carry a **piano framework** (own the genre on keys; defer keyboard playability to `piano-pedagogy-expert`):
 
 - **harmony-theory-architect** — harmony/note-choice/voicing theory + progressions, all instruments & genres.
-- **Instrument playability/pedagogy (verify techniques, fingering, scale/arpeggio patterns):** `fretboard-pedagogy-expert` (guitar), `bass-pedagogy-expert` (bass — movable position box, NOT CAGED), `piano-pedagogy-expert` (piano — pitch-primary, supports Phase 6 groundwork).
-- **Genre-idiom (own rhythm/feel/technique/phrasing; defer harmony→harmony-architect, fingering→the instrument expert):** `metal-idiom-architect`, `blues-idiom-architect`, `funk-idiom-architect`, `country-idiom-architect`, `jazz-idiom-architect` (feel/comping/phrasing only — NOT note-choice), `latin-idiom-architect`.
+- **learning-design-architect** (NEW 2026-05-31) — the L&D/curriculum lane: difficulty scaffolding, competency frameworks, the easy→medium→hard→mastery arc, cross-instrument curriculum parity, sequencing. **Chairs the Core (Development) pathway skill-tree design.** Owns *when/what-order/why*, not note-choice (harmony), playability (instrument), or feel (genre).
+- **Instrument playability/pedagogy (verify techniques, fingering, scale/arpeggio patterns):** `guitar-pedagogy-expert` (guitar — renamed from `fretboard-pedagogy-expert` 2026-05-31), `bass-pedagogy-expert` (bass — movable position box, NOT CAGED), `piano-pedagogy-expert` (piano — pitch-primary, supports Phase 6 groundwork). Two-way parity pass applied 2026-05-31 so all three share structure + the lane-boundary and memory-trust guidance.
+- **Genre-idiom (own rhythm/feel/technique/phrasing; defer harmony→harmony-architect, fingering→the instrument expert):** `metal-idiom-architect`, `blues-idiom-architect`, `funk-idiom-architect` (**funk/R&B** — neo-soul/gospel R&B in scope), `country-idiom-architect`, `jazz-idiom-architect` (feel/comping/phrasing only — NOT note-choice), `latin-idiom-architect`, plus NEW 2026-05-31: `rock-idiom-architect`, `prog-idiom-architect`, `pop-idiom-architect`, `classical-idiom-architect` (classical music / classical guitar, bass & piano — its étude/scaffolding instinct feeds the Cores).
 - **slopscale-ux-designer** — UI/UX.
 
-The matrix is clean: **harmony (1) × instrument-playability (3) × genre-idiom (6) + UX (1)**. The agent is cheap; the **genre framework build behind each genre agent** (primitives + pathways, like the whole metal effort) is the real work — **sequence those builds one at a time**, agent-reviewed. Build priority for the genre fronts: blues → funk → country → jazz → latin.
+The matrix: **harmony (1) + L&D (1) × instrument-playability (3) × genre-idiom (10) + UX (1)**. The agent is cheap; the **framework build behind each agent** (primitives + pathways, like the whole metal effort) is the real work — **sequence those builds one at a time**, agent-reviewed. The genre roster now spans the planned **Style** pathways (Blues/Funk-R&B/Rock/Metal/Jazz/Prog/Country/Latin/Pop/Classical); next major build is the per-instrument **Core (Development) pathways**, with `learning-design-architect` chairing a group design (theory + genre agents shape content → instrument agents verify → fill gaps). See "Development Pathways" initiative below.
 
 ---
 
@@ -308,8 +329,8 @@ Diagnosed this session, decisions/fixes pending:
 - 🔲 **Long-cycle polymeter + short syncopated burst ("herta") exercise** — the extreme-prog-metal idiom: a long odd-length rhythmic phrase repeating over a steady 4/4 pulse, plus the short syncopated rolling-burst rhythmic cell. **Spec'd 2026-05-30 (metal-idiom-architect); lightweight, no meter rewrite:**
   - **Herta cell** = four even sixteenths, accent on beat 1, inner pair as a hammer/pull trill. Ships as a `subdivision:'herta'` case in `rhythmSteps` + a small parallel `rhythmStepFields` helper carrying the per-note accent/trill flags (`ac`/`ho`/`po`). Zero meter-engine changes. **Smallest shippable first.**
   - **Long-cycle polymeter** = a **decoupled phrase clock**, expressed as an optional `@ N/D:g+g+…` clause on the meter string (e.g. `4/4 @ 23/16:5+5+4+5+4`). The 4/4 click + `buildBeats` stay untouched (steady pulse); only `buildPedalRiffExercise` learns the second clock and drives chord placement off `p % phrase.length`, so the phrase drifts against the grid — which *is* the effect. Multi-bar grouping was explicitly rejected (forcing the phrase to whole bars destroys the drift).
-  - Build order: herta `rhythmSteps` → `parseMeter` `@`-clause parsing → pedal-riff phrase-clock branch → optional `accent:'phrase'` highway marker. Playability of the herta trill at speed → fretboard-pedagogy-expert (keep trill flags on static-pitch cells only). No harmony-architect involvement.
-- 🔲 (handoff) **Melodeath twin-lead voice separation** — harmonized dyads can land two pitches on the *same string* (sounds right, not literally playable, doesn't read as two guitars). Defer to fretboard-pedagogy-expert.
+  - Build order: herta `rhythmSteps` → `parseMeter` `@`-clause parsing → pedal-riff phrase-clock branch → optional `accent:'phrase'` highway marker. Playability of the herta trill at speed → guitar-pedagogy-expert (keep trill flags on static-pitch cells only). No harmony-architect involvement.
+- 🔲 (handoff) **Melodeath twin-lead voice separation** — harmonized dyads can land two pitches on the *same string* (sounds right, not literally playable, doesn't read as two guitars). Defer to guitar-pedagogy-expert.
 
 ### Bass-specific pedagogy
 *Bass works on position-mode box patterns today (see Fretboard systems) — that's the correct baseline, so this is "serve bass well," not "fix bass." Reuses the existing position + walking-bass generators.*
@@ -378,6 +399,7 @@ Framework build order is in that doc §4. These supersede the flat list below.*
 
 | Date | Work done | Key commits |
 |------|-----------|-------------|
+| 2026-05-31 | **Development Pathways groundwork (agent roster).** Renamed `fretboard-pedagogy-expert` → `guitar-pedagogy-expert` (rescoped to guitar) + two-way parity pass across guitar/bass/piano MDs (lane-boundary + memory-trust guidance). Created `learning-design-architect` (L&D/curriculum lane, chairs Core design). Created 4 genre agents mirroring `metal-idiom-architect` for structure/form: `rock`, `prog`, `pop`, `classical`-idiom-architect. Broadened funk → funk/R&B. **Laid the piano framework into every genre agent** (own the genre on keys; defer keyboard playability to piano-pedagogy-expert). Updated the roster matrix + recorded the Development Pathways initiative (per-instrument Core/Style dropdown, L&D-chaired, easy→mastery arc). Agents are gitignored (local); docs (CLAUDE/AGENTS/ROADMAP) updated + tracked. Next: UI rename + dropdown restructure, then the group-design session for the Core skill trees. | — (agents local) |
 | 2026-05-31 | Blues pass (harmony-theory-architect + blues-idiom-architect reviewed). Fixed the blues-IV dissonance: `blues_foundation` `min7`→`dom7`, AND a deeper **root-resolution bug** (`chordRootForDegree` indexed the progression degree into the non-heptatonic *lead* scale → IV rooted on ♭5/5th; now functional roots map through major / natural-minor while lead notes keep `cfg.scale`) — also fixed `pent_foundation` + `major_pent_country`; harmony sign-off obtained. Added a **groove engine**: `backingStyle:'boogie'` (walking R-5-6-♭7 bass + off-beat rootless-dom9 shell stabs, `buildBoogieBacking`) and a global `swing` post-process (`applySwingToBundle`), both pathway-driven via new hidden form fields (default pad/straight — no change to existing pathways). New **`blues_shuffle`** pathway carries boogie+shuffle; `blues_foundation` reverted to the scale-learning version (static pad). Verified live (key A → A7/D7/E7, boogie bass walk, swung lead); `npm test` green (renderers + 64/64 generators + highway-settings). | — |
 | 2026-05-30 | Open-thread triage. Corrected the 3D-Highway thread: it's the **borrowed host highway_3d**, whose look (fret-counter, nut/headstock, string-names) is host `h3d_bg_*` viz settings SlopScale **inherits via shared localStorage but never writes** (grep-clean; only sets inverted/lefty/renderScale). Proved by screenshot (`fretColumnMarkerCadence=0` removes the markers in SlopScale) and a new assertive guard — a full highway lifecycle trips **zero** `h3d_bg_*` keys. Added `smoke-highway-settings.mjs` (`npm run smoke:hwy-settings`, wired into `npm test`). Killed the hallucinated "restore built-in 2D Highway string-name gutter" thread (not wanted). `npm test` green (renderers + 64/64 generators + highway-settings). Blues-IV minor-blues fix still open. | — |
 | 2026-05-30 | Session checkpoint. Created 5 genre-idiom agents (blues/funk/country/jazz/latin) + bass/piano pedagogy agents; logged the roster + responsibility matrix; codified the required **agent workflow** rule (genre pathway→matching agent, instrument→pedagogy agent, exercise/pathway change→agent review). Demo/diagnosis: identified the blues IV-dissonance (minor-blues `chordOverride`), the dormant built-in 2D Highway (string-name gutter, demoted behind the host Jumping-Tab borrow), and confirmed the 3D-highway fret-number/nut change is host settings/config, not our code. Open threads logged above. | `c1b0792`, `d6b6e8a` |
