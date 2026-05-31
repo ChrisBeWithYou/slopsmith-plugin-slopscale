@@ -209,7 +209,15 @@
     // chordRootForDegree / chordQualityForDegree, which accept tokens.
     tritone_sub_ii_V_I:[2, { semis:1,  q:'dom7', rn:'♭II7' }, 1, 1],                 // Dm7–D♭7–C : tritone-sub V
     backdoor_ii_V:[{ deg:4, q:'min7' }, { semis:10, q:'dom7', rn:'♭VII7' }, 1, 1],   // Fm7–B♭7–C : backdoor dominant
-    tadd_dameron:[1, { semis:3, q:'dom7', rn:'♭III7' }, { semis:8, q:'maj7', rn:'♭VImaj7' }, { semis:1, q:'dom7', rn:'♭II7' }] // C–E♭7–A♭maj7–D♭7
+    tadd_dameron:[1, { semis:3, q:'dom7', rn:'♭III7' }, { semis:8, q:'maj7', rn:'♭VImaj7' }, { semis:1, q:'dom7', rn:'♭II7' }], // C–E♭7–A♭maj7–D♭7
+    // Metal / heavy-genre power-chord roots (genre-framework §3). Spelled against
+    // natural-minor degrees; the pedal-riff / power-chord generators take the roots
+    // and voice the 5ths. Chromatic moves use {semis} (♭II, tritone) — the
+    // non-functional semitone motion that defines the heavy styles.
+    'metal_i_bVI_bVII':[1, 6, 7],                                                      // i–♭VI–♭VII : melodic/heavy metal
+    'metal_i_bVII_bVI_V':[1, 7, 6, 5],                                                 // i–♭VII–♭VI–V : neoclassical minor descent
+    'metal_pedal_chromatic':[1, { semis:1, rn:'♭II' }, 1, { semis:10, rn:'♭VII' }],    // i–♭II–i–♭VII over a pedal : metalcore/melodeath
+    'metal_death_tritone':[1, { semis:1, rn:'♭II' }, 1, { semis:6, rn:'♭v' }]          // i–♭II–i–tritone : death-metal chromatic
   };
   // Per-progression chord quality overrides — win over diatonic scale harmony,
   // but lose to a user-specified chordOverride. Used by chordQualityForDegree.
@@ -324,6 +332,12 @@
     { id: 'sweep_arpeggio_primer', x: 72, y: 85, short: 'Sweep Arps' },
     { id: 'ii_V_I_workout',        x: 88, y: 50, short: 'ii–V–I' },
     { id: 'bend_drill',            x: 20, y: 91, short: 'Bending' },
+    // Metal / heavy-genre pack — advanced offshoots along the bottom band.
+    { id: 'metalcore_chug',        x: 44, y: 96, short: 'Metalcore' },
+    { id: 'melodic_metal_gallop',  x: 57, y: 96, short: 'Gallop' },
+    { id: 'melodeath_twin_leads',  x: 70, y: 96, short: 'Twin Leads' },
+    { id: 'djent_polymeter',       x: 83, y: 96, short: 'Djent' },
+    { id: 'death_chromatic',       x: 96, y: 96, short: 'Death' },
   ];
   const SKILL_TREE_EDGES = [
     ['chromatic_warmup',    'pent_foundation'],
@@ -344,6 +358,12 @@
     ['diatonic_triad_drill','sweep_arpeggio_primer'],
     ['seventh_vocab',       'ii_V_I_workout'],
     ['modal_vamp',          'ii_V_I_workout'],
+    // Metal pack branches off the advanced minor/arpeggio nodes.
+    ['harmonic_minor_exotic','metalcore_chug'],
+    ['harmonic_minor_exotic','melodic_metal_gallop'],
+    ['sweep_arpeggio_primer','melodeath_twin_leads'],
+    ['sweep_arpeggio_primer','djent_polymeter'],
+    ['sweep_arpeggio_primer','death_chromatic'],
   ];
   // ===========================================================================
   // §2 · CURATED PATHWAYS
@@ -473,6 +493,72 @@
         { key:'E', shape:'E', bendTarget:'whole' },
         { key:'A', shape:'E', bendTarget:'mixed' },
         { key:'D', shape:'E', bendTarget:'whole' },
+      ]
+    },
+    // ── Metal / heavy-genre pack (genre-framework §3) ────────────────────────
+    metalcore_chug: {
+      label:'Metalcore Pedal Chug',
+      goal:'The defining heavy riff: a palm-muted low pedal (open/tonic) alternating with power chords that move by semitone (i–♭II–i–♭VII). Lock the pedal chugs to the click, keep the power chords tight and muted. Drop D. Start slow — the groove is in the precision, not the speed.',
+      scales:['phrygian','natural_minor'],
+      tempoTiers:[80, 100, 120, 140],
+      base:{ practiceType:'pedal_riff', harmonize:false, scale:'phrygian', key:'E', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', progression:'metal_pedal_chromatic', chordOverride:'5', fretMin:0, fretMax:7 },
+      vary:[
+        { progression:'metal_pedal_chromatic', subdivision:'eighth' },
+        { progression:'metal_i_bVI_bVII', subdivision:'eighth' },
+        { scale:'natural_minor', progression:'metal_pedal_chromatic' },
+        { progression:'metal_pedal_chromatic', subdivision:'gallop' },
+      ]
+    },
+    melodic_metal_gallop: {
+      label:'Melodic Metal Gallop',
+      goal:'Galloping power chords (eighth + two sixteenths) over a minor/harmonic-minor key — the NWOBHM / power-metal engine. The gallop lives in the picking hand: down on the eighth, down-up on the sixteenths, palm muted. i–♭VI–♭VII root motion.',
+      scales:['harmonic_minor','natural_minor'],
+      tempoTiers:[90, 120, 150, 180],
+      base:{ practiceType:'pedal_riff', harmonize:false, scale:'harmonic_minor', key:'A', meter:'4/4', subdivision:'gallop', bpm:120, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'metal_i_bVI_bVII', chordOverride:'5', fretMin:0, fretMax:9 },
+      vary:[
+        { subdivision:'gallop', progression:'metal_i_bVI_bVII' },
+        { subdivision:'reverse_gallop', progression:'metal_i_bVI_bVII' },
+        { scale:'natural_minor', subdivision:'gallop' },
+        { progression:'metal_i_bVII_bVI_V', subdivision:'gallop' },
+      ]
+    },
+    melodeath_twin_leads: {
+      label:'Melodic Death Twin Leads',
+      goal:'The Gothenburg signature: two guitars harmonized a 3rd apart, both voices sounding together over a minor key. Play the lower line cleanly first, then let the harmony ring with it. Natural and harmonic minor; tremolo-pick for the full melodeath feel.',
+      scales:['natural_minor','harmonic_minor'],
+      tempoTiers:[80, 100, 120, 140],
+      base:{ practiceType:'scale_thirds', harmonize:true, scale:'natural_minor', key:'E', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'caged', shape:'E', stringSetup:'guitar_6_standard', renderer:'highway_3d' },
+      vary:[
+        { practiceType:'scale_thirds', harmonize:true, scale:'natural_minor' },
+        { practiceType:'scale_sixths', harmonize:true, scale:'natural_minor' },
+        { practiceType:'scale_thirds', harmonize:true, scale:'harmonic_minor', key:'D' },
+        { practiceType:'scale_thirds', harmonize:true, scale:'natural_minor', subdivision:'gallop' },
+      ]
+    },
+    djent_polymeter: {
+      label:'Djent Polymeter Chug',
+      goal:'One palm-muted power chord (root+5th+octave), arranged as a rhythmic cell — the harmony is static, the "progression" is the grouping. Feel the 3+3+2 pulse against a steady count. Extended range, lowest tunings. The riff is the rhythm.',
+      scales:['phrygian','natural_minor'],
+      tempoTiers:[70, 90, 110, 130],
+      base:{ practiceType:'pedal_riff', harmonize:false, scale:'phrygian', key:'E', meter:'8/8:3+3+2', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_7_standard', renderer:'highway_3d', progression:'metal_pedal_chromatic', chordOverride:'5oct', fretMin:0, fretMax:7 },
+      vary:[
+        { meter:'8/8:3+3+2', chordOverride:'5oct' },
+        { meter:'16/8:3+3+3+3+2+2', chordOverride:'5oct' },
+        { meter:'8/8:3+3+2', scale:'natural_minor' },
+        { meter:'8/8:3+3+2', subdivision:'gallop' },
+      ]
+    },
+    death_chromatic: {
+      label:'Death Metal Chromatic Riffs',
+      goal:'Non-functional, tritone-laced power-chord riffs over the darkest scales (Locrian, diminished, double harmonic). Roots move by semitone and tritone — no key gravity, pure menace. Tremolo-pick at speed; lowest tunings. i–♭II–i–♭v.',
+      scales:['locrian','phrygian','diminished','double_harmonic'],
+      tempoTiers:[100, 130, 160, 190],
+      base:{ practiceType:'pedal_riff', harmonize:false, scale:'locrian', key:'B', meter:'4/4', subdivision:'eighth', bpm:120, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_7_standard', renderer:'highway_3d', progression:'metal_death_tritone', chordOverride:'5', fretMin:0, fretMax:9 },
+      vary:[
+        { progression:'metal_death_tritone', scale:'locrian' },
+        { progression:'metal_death_tritone', scale:'diminished' },
+        { progression:'metal_pedal_chromatic', scale:'phrygian', subdivision:'gallop' },
+        { progression:'metal_death_tritone', scale:'double_harmonic' },
       ]
     }
   };
