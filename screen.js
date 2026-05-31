@@ -1110,6 +1110,9 @@
   // chord-shape frames onto the note lane (see attachRenderer + drawOnce).
   let rendererBundle = null;
   let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
+  // Chart time where the current/last playback began (Logic-style: Stop returns
+  // the playhead here). Unlike playAnchorChartTime, it does NOT drift on loop wrap.
+  let playStartChartTime = 0;
   let _activeSession = null, _sessionStartMs = 0, _newlyUnlockedTier = null;
   // A-B segment loop endpoints in chart-time seconds. Null = no loop.
   // See docs/section-looping.md for the design + phasing.
@@ -4865,6 +4868,7 @@
       currentPracticeTime = Math.min(segmentLoopA, segmentLoopB);
     }
     playAnchorChartTime = currentPracticeTime;
+    playStartChartTime = currentPracticeTime;  // remember where this play began (for Stop)
     // Count-in is baked into the chart as lead-in rest bars (see applyCountIn),
     // so playback just starts from the playhead — no playhead freeze. Starting
     // from 0 plays the count-in once; the loop then cycles the music only. The
@@ -4875,7 +4879,10 @@
     if (!rafId) rafId = requestAnimationFrame(tick);
     startPitchTracker(activeBundle); syncPlayButton(); refreshStatusFromState();
   }
-  function stopPlayback() { sessionEnd(); playing = false; currentPracticeTime = 0; playAnchorChartTime = 0; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
+  // Stop returns the playhead to where playback last began (Logic Pro behaviour:
+  // hit Play to instantly replay the same passage). The ⏮ button jumps to the
+  // very start — Logic's "press Stop again to go to the top".
+  function stopPlayback() { sessionEnd(); playing = false; currentPracticeTime = playStartChartTime; playAnchorChartTime = playStartChartTime; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
   // Toggle for the primary Play/Stop button. If we don't have a chart yet,
   // generate one first so the very first click always plays something.
   async function onPlayToggle() {
