@@ -6303,6 +6303,10 @@
   }
 
   function buildSegmentCard(seg, index) {
+    // Escape every interpolated value (defence-in-depth — segment fields are
+    // enum/numeric today, but this card builds raw HTML; also escapes " for the
+    // data-kind attribute context, unlike summarize()'s text-only esc).
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const color = KIND_COLORS[seg.kind] || '#94a3b8';
     const label = KIND_LABELS[seg.kind] || seg.kind;
     const dur = segmentEstDuration(seg);
@@ -6328,12 +6332,12 @@
     if (cfg.bpm) parts.push(`${cfg.bpm} BPM`);
     if (cfg.bars) parts.push(`${cfg.bars} bars`);
     parts.push(durStr);
-    return `<div class="slopscale-segment-card" data-kind="${seg.kind}" data-seg-index="${index}" title="Jump to this segment">
+    return `<div class="slopscale-segment-card" data-kind="${esc(seg.kind)}" data-seg-index="${index}" title="Jump to this segment">
       <div class="slopscale-segment-header">
-        <span class="slopscale-segment-badge" style="color:${color}">${label}</span>
-        <span class="slopscale-segment-name">${seg.name || ''}</span>
+        <span class="slopscale-segment-badge" style="color:${color}">${esc(label)}</span>
+        <span class="slopscale-segment-name">${esc(seg.name || '')}</span>
       </div>
-      <div class="slopscale-segment-meta">${parts.join(' · ')}</div>
+      <div class="slopscale-segment-meta">${esc(parts.join(' · '))}</div>
     </div>`;
   }
 
