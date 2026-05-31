@@ -214,8 +214,10 @@
     // natural-minor degrees; the pedal-riff / power-chord generators take the roots
     // and voice the 5ths. Chromatic moves use {semis} (♭II, tritone) — the
     // non-functional semitone motion that defines the heavy styles.
-    'metal_i_bVI_bVII':[1, 6, 7],                                                      // i–♭VI–♭VII : melodic/heavy metal
-    'metal_i_bVII_bVI_V':[1, 7, 6, 5],                                                 // i–♭VII–♭VI–V : neoclassical minor descent
+    // ♭VI/♭VII spelled as semis tokens (not bare degrees 6/7) so harmonic-minor's
+    // raised 7th can't turn ♭VII into the leading tone (A–F–G♯ instead of A–F–G).
+    'metal_i_bVI_bVII':[1, { semis:8, rn:'♭VI' }, { semis:10, rn:'♭VII' }],            // i–♭VI–♭VII : melodic/heavy metal
+    'metal_i_bVII_bVI_V':[1, { semis:10, rn:'♭VII' }, { semis:8, rn:'♭VI' }, 5],       // i–♭VII–♭VI–V : neoclassical minor descent (V stays diatonic)
     'metal_pedal_chromatic':[1, { semis:1, rn:'♭II' }, 1, { semis:10, rn:'♭VII' }],    // i–♭II–i–♭VII over a pedal : metalcore/melodeath
     'metal_death_tritone':[1, { semis:1, rn:'♭II' }, 1, { semis:6, rn:'♭v' }]          // i–♭II–i–tritone : death-metal chromatic
   };
@@ -2045,7 +2047,7 @@
     const o = opts || {};
     const maxVoices = o.maxVoices || 4;
     const bassLow = o.bassLow ?? 36, bassHigh = o.bassHigh ?? 48;
-    const upperLow = o.upperLow ?? 48, upperHigh = o.upperHigh ?? 74;
+    const upperHigh = o.upperHigh ?? 74;
     // Hard-drop the natural 11 when a major 3rd is present (rank 90 sentinel).
     const roles = classifyChordTones(intervals).filter(r => r.rank < 90);
     // Mandatory guide tones (rank ≤ 1) always kept; fill remaining slots by rank.
@@ -2061,22 +2063,37 @@
     // Upper voices: core (3rd/5th/7th) low, tensions high — placed ascending so
     // colour tones naturally land on top; min gap in the low region kills mud.
     const upper = keep.filter(r => r.kind !== 'root').sort((a, b) => (VOICE_ORDER[a.kind] ?? 9) - (VOICE_ORDER[b.kind] ?? 9));
-    let cursor = Math.max(bass + 3, upperLow);
+    // The FIRST upper voice is register-anchored near a centre (~G3) so major and
+    // minor chords sit in the SAME register — a minor 3rd no longer folds an octave
+    // above a major 3rd. A bass→upper MINIMUM GAP (not a fixed floor) keeps
+    // consistent clearance regardless of root and kills low-register mud.
+    const minBassGap = o.instrument === 'bass' ? 14 : 10;
+    const CENTER = 55; // ~G3
+    let cursor = bass + minBassGap, first = true;
     for (const r of upper) {
-      let midi = cursor + ((((r.pc - cursor) % 12) + 12) % 12);   // lowest MIDI ≥ cursor with this pitch class
+      // r.pc is the interval ABOVE THE ROOT (0..11); the actual pitch class is
+      // rootPc + that interval. (Placing the bare interval put every non-C-rooted
+      // chord's upper voices on the wrong pitches — correct bass, wrong triad.)
+      const apc = (((rootPc + r.pc) % 12) + 12) % 12;
+      let midi;
+      if (first) {
+        midi = apc; while (midi < CENTER - 6) midi += 12; while (midi > CENTER + 6) midi -= 12; // pc in the octave nearest the centre
+        while (midi < cursor) midi += 12;                                                        // but never inside the bass gap
+        first = false;
+      } else {
+        midi = cursor + ((((apc - cursor) % 12) + 12) % 12);   // lowest pc ≥ cursor
+      }
       if (midi > upperHigh) midi -= 12;
       if (!out.includes(midi)) out.push(midi);
-      cursor = midi + (midi < 52 ? 3 : 2);
+      cursor = midi + (midi < 67 ? 3 : 2);   // inter-voice min gap: ≥3 below ~G4, ≥2 above (anti-cluster)
     }
     return out.sort((a, b) => a - b);
   }
   function voiceBackingChord(rootPc, intervals, instrument) {
     const bassWin = instrument === 'bass' ? { bassLow: 23, bassHigh: 40 } : { bassLow: 36, bassHigh: 48 };
-    // Lift the upper voices clear of the bass so the lowest upper voice doesn't sit
-    // right on the bass top (guitar bass tops out at 48) — kills low-register mud.
-    // Opts-only tweak; the deeper voicing review lives in harmony-theory-architect.
-    const upperLow = instrument === 'bass' ? 48 : 52;
-    return voiceChord(rootPc, intervals, Object.assign({ instrument, maxVoices: 4, upperLow, upperHigh: 74 }, bassWin));
+    // Register (mud + minor-chord octave consistency) is handled inside voiceChord
+    // by the register-anchor + bass-gap, so no upperLow floor here.
+    return voiceChord(rootPc, intervals, Object.assign({ instrument, maxVoices: 4, upperHigh: 74 }, bassWin));
   }
   function buildBackingEvents(cfg, duration) {
     const degrees = progressionDegreesForConfig(cfg);
