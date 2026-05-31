@@ -7,10 +7,11 @@ description: Launch the Slopsmith host with SlopScale loaded, drive the plugin U
 
 SlopScale is a **plugin**, not a standalone app. It needs Slopsmith as a host. This skill brings up the host with this repo junctioned in, then drives the SlopScale screen via Playwright.
 
-Two files do the work:
+The harness (all in this skill dir) does the work:
 
 - `launch.ps1` — kills any prior server on port 8765, junctions this repo into `%LOCALAPPDATA%\Slopsmith\plugins\slopscale`, starts the bundled-Python server, and waits until `/api/plugins/slopscale/status` returns `ok`.
-- `driver.mjs` — Playwright (Node) driver that navigates to the SlopScale screen, triggers a generate, and screenshots the renderer.
+- `driver.mjs` — Playwright (Node) driver that navigates to the SlopScale screen, triggers a generate, and **screenshots** any renderer (never asserts — for eyeballing/visual diffs).
+- `smoke-renderers.mjs` + `smoke-generators.mjs` — **assertive** smoke suites (PASS/FAIL per item, non-zero exit on failure). `npm test` runs both. This is the harness for *verifying* a change, not just looking at it.
 
 Paths in this file are relative to the repo root (`<unit>/` in the skill-generator sense).
 
