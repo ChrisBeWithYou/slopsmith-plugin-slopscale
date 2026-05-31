@@ -545,7 +545,7 @@
         { meter:'8/8:3+3+2', chordOverride:'5oct' },
         { meter:'16/8:3+3+3+3+2+2', chordOverride:'5oct' },
         { meter:'8/8:3+3+2', scale:'natural_minor' },
-        { meter:'8/8:3+3+2', subdivision:'gallop' },
+        { meter:'7/8:3+2+2', chordOverride:'5oct' },
       ]
     },
     death_chromatic: {

@@ -1,7 +1,7 @@
 # SlopScale Roadmap
 
 > Read this at the start of every session. Update it before closing.
-> Current date: 2026-05-30. Total commits: 155.
+> Current date: 2026-05-30. Total commits: 163.
 
 ---
 
@@ -128,6 +128,16 @@ The practice surface is organised as a **single flat top-level mode bar** rather
 - ✅ **Presets live in Custom**, not a separate mode — a preset *is* a saved Custom config. Surfaced as a "Load preset" picker at the top of Custom (restores access that the skill tree had orphaned). Keeps the bar to 3 (then 4) segments instead of spending one on presets.
 - 🔲 **Custom progression tool → a control inside Custom**, not a mode. Build-your-own chord sequence that feeds the existing progression engine (`chordRootForDegree`/`chordQualityForDegree`/backing). Its output is shared logic the Improv mode and sessions can reuse.
 - 🔲 **Solo grading → reserved as the 4th top-level mode ("Improv" / "Jam").** A different *verb* (improvise over changes and be graded on note choice) vs. the play-along modes. Distinct display (changes chart + target-scale highlight + live feedback) and scoring rubric (chord-scale membership over time), built on the shared progression engine + the already-integrated Minigames SDK pitch tracker. The flat bar was designed to extend cleanly to this 4th segment. See Phase 4 (Chord Jam) and Phase 5 (scoring).
+
+---
+
+## Design direction: per-instrument pathways + RPG-style skill tree (proposed 2026-05-30)
+
+As guitar-specific content grows (the metal pack), the single shared pathway list/tree is straining. Direction (decision pending — discuss + spec before building):
+
+- **Decouple pathways per instrument family.** Pathways gain an instrument scope (guitar / bass / piano); the skill tree filters to the active family. This also resolves **tuning**: today a pathway sets one `stringSetup` and the full metal drop set (Drop C/B/A/G) isn't cleanly reachable from a pathway base (Drop C/B live in `TUNING_PRESETS`/`customOpenMidis`, not `STRING_SETUPS`); instrument-scoped pathways would carry instrument-appropriate tunings directly. Generators are already key-relative, so content transposes — the pedal-riff just frets the tonic on the low string, so the open-string-pedal feel only emerges when the key matches the tuning's low string. Per-instrument scoping makes that intentional rather than incidental.
+- **Lean the skill tree into an RPG progression map.** The node/edge graph (`SKILL_TREE_NODES`/`EDGES`) + per-pathway BPM tiers already exist; evolve toward per-instrument trees with prerequisite/branching flow and mastery/XP per node — serving the Phase 2 gamification goal.
+- **Constraints:** stays *soft* (suggests next, never content-gates — Phase 2 principle) and must serve the learning progression, never become the point (Design north star in `CLAUDE.md`). Loop in slopscale-ux-designer for the tree UX + a planning pass; this is an architecture + UX change, not a quick edit.
 
 ---
 
@@ -262,6 +272,14 @@ The practice surface is organised as a **single flat top-level mode bar** rather
 - 🔲 **Master mode** — post-processing pass that removes notes from the final N% of a chart; trains memorization
 - 🔲 **Position shift exercises** — scale runs that cross CAGED shape boundaries at a specified connection point
 
+### Metal authenticity follow-ups (logged from the 2026-05-30 metal-idiom-architect pass)
+*Primitives the metal pack still wants — flagged by the idiom review; the §2.3–§2.6 build + the A–D authenticity fixes are done.*
+- 🔲 **Half-time breakdown feel** — rhythmic low-string displacement at half the pulse (the metalcore breakdown; the pedal-riff can't author it yet).
+- 🔲 **Composed harmonized-lead generator** — harmonize a *written melodic line/riff* (twin guitars) rather than walking the scale in dyads. Today's `harmonize` twins a scale run, not a phrase; this is the melodeath flagship.
+- 🔲 **True tremolo re-articulation** — rapidly re-pick each note, vs. today's `tremolo` flag that only marks the technique (`tr:true`). Must interact with the subdivision/rhythm engine.
+- 🔲 **Long-cycle polymeter + short syncopated burst ("herta") exercise** — the extreme-prog-metal idiom: a long odd-length rhythmic phrase repeating over a steady 4/4 pulse, plus the short syncopated rolling-burst rhythmic cell. **Open design question:** the meter engine groups *per bar*; representing a long phrase cycle against a steady pulse (or a sub-beat burst cell) needs a multi-bar grouping / "cycle-length-vs-pulse" model / sub-beat rhythm cells. metal-idiom-architect to define the exact cell; the metering logic must be designed before build.
+- 🔲 (handoff) **Melodeath twin-lead voice separation** — harmonized dyads can land two pitches on the *same string* (sounds right, not literally playable, doesn't read as two guitars). Defer to fretboard-pedagogy-expert.
+
 ### Bass-specific pedagogy
 *Bass works on position-mode box patterns today (see Fretboard systems) — that's the correct baseline, so this is "serve bass well," not "fix bass." Reuses the existing position + walking-bass generators.*
 - 🔲 **Bass pathway pack** (the curated pathways are all guitar/CAGED-framed). How bass is actually taught:
@@ -329,6 +347,7 @@ Framework build order is in that doc §4. These supersede the flat list below.*
 
 | Date | Work done | Key commits |
 |------|-----------|-------------|
+| 2026-05-30 | Metal build §2.2–§3: exotic scales, Drop C/B tunings, polymeter + gallop subdivisions, pedal-point **riff** generator, twin-line **harmonize**, and 5 subgenre pathway packs (metalcore / melodic-metal gallop / melodeath twin leads / djent polymeter / death chromatic) + 4 metal power-chord progressions. Created the **metal-idiom-architect** agent (local) and ran two authenticity passes: round 1 found the pedal-riff ignored `chordOverride` and `meter.grouping`; fixes A–D landed (group-start chord placement, 5 vs 5oct, stable gallop, tremolo flag); round 2 verified all 5 pathways authentic. Swapped djent `vary[3]` gallop→7/8 cell. Codified the **Design north star** (practice-not-generation) in CLAUDE.md/AGENTS.md. Logged follow-up primitives (half-time breakdown, composed harmonized-lead, true tremolo re-articulation, long-cycle/"herta" polymeter + its metering open-question) and the per-instrument-pathways / RPG-skill-tree design direction. `npm test` 4/4 + 64/64. | `68c5b01`–`a611293`+ |
 | 2026-05-30 | Review + security hardening. Code-reviewed the session diff: fixed two smoke-test bugs (session disabled-option filter checked the wrong object; `pageerror` handler bypassed the benign-allowlist that `console.error` used). Reviewed the voicing engine (`voiceChord`/`classifyChordTones`) — correct, no changes. Security-reviewed the copy/paste share link: found + fixed a client-side DoS (fretMin/fretMax had no upper clamp, so a crafted `#s=` link with `fretboardSystem=position` + giant `fretMax` could hang the tab in a generation loop — now capped at 36) and `CSS.escape()`'d the untrusted field name in `applyFormState` (a crafted key could break out of the `[name=…]` selector and throw, aborting state-restore/page-init). Then a full-surface audit: SQL is parameterized, `temp-sloppak` uses a UUID slug (no traversal) + 900s synth cap, preset/tuning names render via `textContent`, `summarize()` escapes, no `eval`/`Function`/`document.write` — all clean. Hardened the one gap: `buildSegmentCard()` now escapes its interpolated segment fields (defence-in-depth; also escapes `"` for the `data-kind` attribute). CSRF on the localhost POST routes is a host-level concern (shared FastAPI app/CORS posture, not a plugin-side fix) — written up and reported to the Slopsmith author for the host layer. Clamp verified live; `npm test` 4/4 + 59/59. | `0c35b4c`–`9cb6078` |
 | 2026-05-30 | Structural-review pass (no features). Dead-weight removal: deleted unused `static/slopscale.css` + its `/assets` route + orphaned `Response` import (only confirmed-dead code; `temp-sloppak` machinery deliberately kept). Added behavioural safety net — `smoke-renderers.mjs` (4 renderers: attach/draw/clock/no-errors) and `smoke-generators.mjs` (all 28 practice types + 23 scales + bass + 4 sessions, chart-structure validation); `npm test` runs both (59 generator + 4 renderer checks green). `screen.js` organised in place (TOC header + 15 `§N` section banners, comments only — module split rejected: host loads it as a classic `<script>`, so no ES modules without re-adding a serving route). gitignored local agent tooling. Docs synced (`CLAUDE.md`/`AGENTS.md`/`ROADMAP.md`). | `1437d9e`–`5b2a9d7` |
 | 2026-05-29 | Doc sync: refreshed ROADMAP "what's shipped" (Phase 4 generators, jazz harmony + voicing engine, harmony tone selector, 14 pathways, flat mode bar, 4 renderers, Phase 2 gamification, tuning CRUD) and corrected the launch-in-main-player line back to 🔲 (not wired). Updated `CLAUDE.md` (screen.js size, renderer count, jazz engine, docs table). | — |
