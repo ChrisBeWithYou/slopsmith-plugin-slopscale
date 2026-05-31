@@ -93,7 +93,7 @@
 - ✅ Four preview renderers via `resolveRendererFactory()`: 3D Highway (delegated to host), 2D Highway, Tab, Notation
 - ✅ Static fretboard diagram panel (above highway, shows current shape)
 - ✅ Escape-return handler (returns to SlopScale from player)
-- 🔲 **Launch in Slopsmith's main 3D player** — NOT wired yet. `screen.js` has no `launchInMainPlayer()` and no `fetch('/api/plugins/slopscale/temp-sloppak')` call; only comments describing the intended `makeBundle → POST /temp-sloppak → playSong` path. The backend route exists and is ready; the frontend launch call is outstanding. (Previously mis-marked ✅ here.)
+- ⛔ **Launch in Slopsmith's main 3D player** — **ABANDONED BY DECISION, not pending.** Superseded by the contained-playback decision (2026-05-30, commit `e62d02a`; see `CLAUDE.md` → "Contained playback"): "Play" plays back fully inside the plugin and never hands off to the host player. The `POST /temp-sloppak` route + `playSong` path are kept dormant for reference only. Do **not** wire this up without first confirming the contained-playback decision has been reversed (check `CLAUDE.md` and project memory).
 
 ### Progress / gamification (Phase 2 — soft, opt-in, no content gating)
 - ✅ Session logger — every Play logged to `slopscale.sessions` (mode, pathway, BPM/tier, scale, key, duration, hit/miss); ends on Stop / page unload; sub-2s blips discarded

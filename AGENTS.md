@@ -46,6 +46,8 @@ No build. No dev server. The workflow is:
 
 To run, screenshot, or smoke-test the plugin without doing the clone/restart dance by hand, use the **`run-slopscale` skill** (`.claude/skills/run-slopscale/`). `launch.ps1` junctions this repo into the Slopsmith plugins dir, starts the bundled-Python host on port 8765, and waits for `/status` to return `ok`; `driver.mjs` drives the SlopScale screen via Playwright and screenshots any of the four renderers. Server logs land in `%TEMP%\slopscale\server.log`.
 
+There is **no unit-test or lint suite** — verification is behavioural, via the `run-slopscale` skill (Playwright screenshots of the renderers + a `/status` health check) plus the startup regression guards baked into `screen.js` (e.g. the no-unison check, which throws on load if a resolved shape doubles a pitch).
+
 To exercise backend routes directly, hit them via curl or the browser while Slopsmith is running:
 - `GET /api/plugins/slopscale/status` — confirms the plugin is loaded
 - `GET /api/plugins/slopscale/presets` — list saved presets
@@ -70,7 +72,7 @@ The renderers in `screen.js` are the **actual playback surface**, not just previ
 
 ### screen.js structure
 
-`screen.js` is one IIFE, ~6350 lines. **Prefer targeted search to locate a section before reading.** Key sections (in order):
+`screen.js` is one IIFE, ~6900 lines. **Prefer targeted search to locate a section before reading.** Key sections (in order):
 
 - **Constants** — `NOTE_NAMES`, `STRING_SETUPS`, `SCALE_INTERVALS`, `CHORD_FORMULAS`, `DIATONIC_QUALITIES`, `COMMON_PROGRESSIONS`, `SEQUENCE_PATTERNS`, `CHROMATIC_PATTERNS`, etc. `CHORD_FORMULAS` carries the **full interval stack** for each quality (including extensions past the octave for 9/11/13 chords); it is intentionally complete so the voicing engine decides what to actually play.
 - **`CAGED_SHAPES`** — unified source of truth for CAGED shape data. Contains `rootStringIdx`, `scaleFretSpanFromRoot`, and `chordTemplates` per quality. **Do not split this into separate tables.** (Historical note: a previous version had two diverged tables; they were unified on 2026-05-26.) Scale/arpeggio shapes are resolved by degree-driven, no-unison selection (`resolveCAGEDShape` and the run-seam dedupe), not naive fret-window blocks — see the no-unison constraint below.
