@@ -402,7 +402,7 @@
       goal:'Play blues licks over a real shuffle. The backing walks a root–5–6–♭7 boogie bass with off-beat 9th-chord stabs, all swung — the dominant I7–IV7–V7 feel. Lock your phrasing to the triplet pocket: land chord tones on the beat, save the ♭5 and ♭3 for the swung off-beats. This is where the scale becomes music.',
       scales:['blues','minor_pentatonic'],
       tempoTiers:[80, 100, 120, 140],
-      base:{ practiceType:'scale', scale:'blues', meter:'4/4', subdivision:'eighth', bpm:100, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7', backingStyle:'boogie', swing:'shuffle' },
+      base:{ practiceType:'scale', scale:'blues', meter:'4/4', subdivision:'eighth', bpm:100, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7', backingStyle:'boogie', swing:'shuffle', audioProfile:'blues' },
       vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' }, { key:'D', shape:'E' } ]
     },
     pent_foundation: {
@@ -1486,8 +1486,60 @@
       keyCycle: data.get('keyCycle') || 'none',
       keyCycleLength: Math.max(2, Math.min(12, parseInt(data.get('keyCycleLength') || '4', 10))),
       bendTarget: data.get('bendTarget') || 'whole',
-      audio: { notes: data.get('audioNotes') === 'on', metronome: data.get('audioMetronome') === 'on', harmony: data.get('audioHarmony') === 'on', harmonyTone: data.get('harmonyTone') || 'pad' }
+      audio: { notes: data.get('audioNotes') === 'on', metronome: data.get('audioMetronome') === 'on', harmony: data.get('audioHarmony') === 'on', harmonyTone: data.get('harmonyTone') || 'auto', profile: data.get('audioProfile') || '', brightness: Math.max(0, Math.min(1, parseFloat(data.get('brightness')))) }
     };
+  }
+
+  // ── Audio profiles — automated per-genre backing tone ─────────────────────
+  // The player never picks a cab/voice/instrument: a genre/pathway declares one
+  // string `audioProfile` and this resolves it to the backing voice + brightness.
+  // Today the realizable harmony voices are the oscillator tones (pad/epiano/
+  // organ); when the WebAudioFont (acoustic) + amp (distorted) tracks land, a
+  // profile's voice/engine maps to those without touching genre data.
+  const AUDIO_FAMILY_DEFAULTS = {
+    clean:      { harmony: { tone: 'pad',    level: 0.9 },  brightness: 0.5 },
+    acoustic:   { harmony: { tone: 'epiano', level: 0.9 },  brightness: 0.6 },
+    distorted:  { harmony: { tone: 'pad',    level: 0.7 },  brightness: 0.42 },
+    electronic: { harmony: { tone: 'pad',    level: 0.85 }, brightness: 0.7 },
+  };
+  const GLOBAL_AUDIO_DEFAULT = { family: 'clean', harmony: { tone: 'pad', level: 0.9 }, brightness: 0.5 };
+  const AUDIO_PROFILES = {
+    blues:      { family: 'clean',      harmony: { tone: 'organ',  level: 0.9 },  brightness: 0.5 },
+    jazz:       { family: 'clean',      harmony: { tone: 'epiano', level: 0.9 },  brightness: 0.55 },
+    rock:       { family: 'clean',      harmony: { tone: 'organ',  level: 0.85 }, brightness: 0.55 },
+    metal:      { family: 'distorted',  harmony: { tone: 'pad',    level: 0.7 },  brightness: 0.42 },
+    djent:      { family: 'distorted',  harmony: { tone: 'pad',    level: 0.65 }, brightness: 0.38 },
+    gospel:     { family: 'clean',      harmony: { tone: 'organ',  level: 0.95 }, brightness: 0.55 },
+    bluegrass:  { family: 'acoustic',   harmony: { tone: 'epiano', level: 0.8 },  brightness: 0.62 },
+    'city-pop': { family: 'electronic', harmony: { tone: 'epiano', level: 0.85 }, brightness: 0.68 },
+  };
+  // Best-effort family inference for pathways that don't (yet) declare a profile,
+  // so an untagged pathway gets a sensible family default — never silence or a
+  // wrong-family voice.
+  function inferAudioFamily(cfg) {
+    const p = (cfg && cfg.pathway) || '';
+    if (cfg && cfg.chordOverride === '5') return 'distorted';
+    if (/chug|gallop|djent|metal|death/.test(p)) return 'distorted';
+    return 'clean';
+  }
+  // Resolve the effective backing profile: GLOBAL ← family ← genre profile ←
+  // brightness slider ← manual voice override. Never throws; always returns a
+  // complete profile so the backing voice + brightness are always defined.
+  function resolveAudioProfile(cfg) {
+    const a = (cfg && cfg.audio) || {};
+    const profDef = a.profile && AUDIO_PROFILES[a.profile];
+    const fam = (profDef && profDef.family) || inferAudioFamily(cfg || {});
+    const famDef = AUDIO_FAMILY_DEFAULTS[fam] || {};
+    const out = {
+      family: fam,
+      harmony: { ...GLOBAL_AUDIO_DEFAULT.harmony, ...famDef.harmony, ...(profDef ? profDef.harmony : {}) },
+      brightness: (profDef && profDef.brightness != null) ? profDef.brightness
+                : (famDef.brightness != null) ? famDef.brightness
+                : GLOBAL_AUDIO_DEFAULT.brightness,
+    };
+    if (Number.isFinite(a.brightness)) out.brightness = a.brightness;           // slider overrides
+    if (a.harmonyTone && a.harmonyTone !== 'auto') out.harmony.tone = a.harmonyTone; // advanced override
+    return out;
   }
 
   function openMidisForConfig(cfg) {
@@ -5183,9 +5235,11 @@
     osc1.stop(stopAt); osc2.stop(stopAt);
     audioNodes.push(osc1, osc2, preGain, filter, gain);
   }
-  function scheduleHarmonyPad(ctx, when, midis, dur, instrument, tone) {
+  function scheduleHarmonyPad(ctx, when, midis, dur, instrument, tone, opts) {
     if (!midis.length) return;
     tone = tone || 'pad';
+    const bright = (opts && Number.isFinite(opts.bright)) ? opts.bright : 0.5;
+    const lvl = (opts && Number.isFinite(opts.level)) ? opts.level : 1;
 
     if (tone === 'organ') {
       // Hammond drawbar simulation — additive sines, instant on/off, flat envelope
@@ -5193,7 +5247,7 @@
       const VOLS   = [0.8, 0.5, 0.35, 0.25, 0.18, 0.12, 0.08];
       const master = ctx.createGain();
       master.gain.setValueAtTime(0.13 / Math.max(1, midis.length), when);
-      master.connect(trackBus(ctx, 'harmony'));
+      const _hg = ctx.createGain(); _hg.gain.value = lvl; master.connect(_hg); _hg.connect(trackBus(ctx, 'harmony')); audioNodes.push(_hg);
       audioNodes.push(master);
       midis.slice(0, 4).forEach(midi => {
         RATIOS.forEach((r, ri) => {
@@ -5217,7 +5271,7 @@
       master.gain.exponentialRampToValueAtTime(0.09, when + Math.min(0.38, dur * 0.35));
       master.gain.linearRampToValueAtTime(0.06, when + Math.max(0.39, dur - 0.06));
       master.gain.linearRampToValueAtTime(0.0001, when + dur);
-      master.connect(trackBus(ctx, 'harmony'));
+      const _hg = ctx.createGain(); _hg.gain.value = lvl; master.connect(_hg); _hg.connect(trackBus(ctx, 'harmony')); audioNodes.push(_hg);
       audioNodes.push(master);
       midis.slice(0, 4).forEach(midi => {
         const osc = ctx.createOscillator(), bell = ctx.createOscillator();
@@ -5240,7 +5294,8 @@
     // pad breathes instead of sitting static.
     const n = Math.min(5, midis.length);
     const master = ctx.createGain(), filter = ctx.createBiquadFilter();
-    const fLo = instrument === 'bass' ? 700 : 1100, fHi = instrument === 'bass' ? 1500 : 2600;
+    const bMul = 0.6 + bright * 0.8; // brightness scales the pad's lowpass window
+    const fLo = (instrument === 'bass' ? 700 : 1100) * bMul, fHi = (instrument === 'bass' ? 1500 : 2600) * bMul;
     filter.type = 'lowpass'; filter.Q.setValueAtTime(0.5, when);
     filter.frequency.setValueAtTime(fLo, when);
     filter.frequency.exponentialRampToValueAtTime(fHi, when + Math.min(0.18, dur * 0.4));
@@ -5249,7 +5304,7 @@
     master.gain.exponentialRampToValueAtTime(0.26, when + 0.022);
     master.gain.linearRampToValueAtTime(0.2, when + Math.max(0.1, dur - 0.18));
     master.gain.linearRampToValueAtTime(0.0001, when + dur);
-    filter.connect(master); master.connect(trackBus(ctx, 'harmony'));
+    filter.connect(master); const _hg = ctx.createGain(); _hg.gain.value = lvl; master.connect(_hg); _hg.connect(trackBus(ctx, 'harmony')); audioNodes.push(_hg);
     audioNodes.push(filter, master);
     const voiceGain = 0.5 / Math.sqrt(n);
     midis.slice(0, n).forEach((midi, i) => {
@@ -5291,10 +5346,11 @@
     const opens = (bundle.openMidis && bundle.openMidis.length) ? bundle.openMidis : openMidisForConfig(cfg);
     const instrument = bundle.config?.instrument || cfg.instrument;
     const duration = bundle.songInfo?.duration || 0;
+    const harmProfile = resolveAudioProfile({ ...cfg, audio });
     if (audio.harmony) for (const ev of bundle.backingEvents || []) {
       if (ev.end < startFrom || ev.t > duration + 0.1) continue;
       const start = Math.max(ev.t, startFrom), end = Math.min(ev.end, duration);
-      scheduleHarmonyPad(ctx, base + (start - startFrom), ev.midis || [], Math.max(0.2, end - start), instrument, audio.harmonyTone || 'pad');
+      scheduleHarmonyPad(ctx, base + (start - startFrom), ev.midis || [], Math.max(0.2, end - start), instrument, harmProfile.harmony.tone, { bright: harmProfile.brightness, level: harmProfile.harmony.level });
     }
     if (audio.notes) for (const n of bundle.notes || []) {
       if (n._tail) continue;  // visual loop-preview copy; audio loops via the scheduler
@@ -6094,6 +6150,11 @@
     // (applyPathwayConfig doesn't reset the form; it only writes keys it's given).
     setFieldSilent('backingStyle', config.backingStyle || 'pad');
     setFieldSilent('swing', config.swing || 'straight');
+    // Backing tone is automated: default the profile (anti-leak) + reflect the
+    // genre's default brightness onto the slider (the loop below sets the
+    // audioProfile field itself from config).
+    setFieldSilent('audioProfile', config.audioProfile || '');
+    { const _ap = config.audioProfile && AUDIO_PROFILES[config.audioProfile]; setFieldSilent('brightness', String(_ap && _ap.brightness != null ? _ap.brightness : 0.5)); }
     Object.keys(config).forEach(k => { if (k !== 'advancedMode') setFieldSilent(k, config[k]); });
     syncStringSetupControls();
     syncShapeDropdown();
