@@ -206,6 +206,17 @@ The single shared pathway list is being restructured into **per-instrument "Deve
 
 **Build = STAGED, screenshot each stage** (Christian's choice). **Stage 1** = token system + reskin + finish the timeline to Logic-grade (numeric cycle readout, ruler weight, Shift+arrow loop-edge nudge). **Stage 2** = named Setup/Play modes (Focus prototyped separately — `requestFullscreen` host-scope unknown). **Stage 3** = Inspector/browser reskin + engagement spine + two-level picker + the "Development Pathways" rename. **The build hold (pending gamification design) is LIFTED.**
 
+### 🌙 Session end 2026-05-31 — tomorrow's pickup
+
+**SHIPPED + PUSHED today (DAW GUI overhaul):** Stage 1 (themeable `--ss-*` token layer + Logic-grade timeline: monospace cycle readout, weightier ruler, Shift+arrow loop-edge nudge), Stage 2 (`Setup | Play` view modes), **Focus mode** (fullscreen the stage — **verified working in the host page scope**, the one unknown), the **"Development Pathways" rename**, the **Inspector reskin** (one muted Logic section label + hairline separators; softened the loud blue card borders), and the **Feel control** (Straight/Swing/Shuffle in Tempo, writing the existing hidden swing field). All on `main`, pushed; smoke-renderers 4/4.
+
+**TOMORROW — the remaining GUI pieces, built WITH the guitar Core content (they're interdependent):**
+1. **Two-level pathway picker** (L1 band pills → L2 ordered node list, per `slopscale-ux-designer/project_development_pathways_ia.md`). Blocked-on / paired-with: each pathway needs a Core/Style **band** assignment — an **L&D-owned** decision against the guitar Core spec — so build it alongside the **Core content**: the ★ pathways over existing generators + **`buildCompingExercise`** (CAGED triads/7ths on a strum grid). Preserve the wiring-contract IDs.
+2. **Engagement spine** (gamification, SOFT / visual-first): per-node lane-state on the picker list, BPM tempo-tier as a **fill meter**, streak as a **timeline tick row**, one calm "next node" pointer. One schema add: per-node `mastered` flag, shipped **dimmed** (A8 master-mode unbuilt). **Reject** a separate XP economy (BPM number = honest XP).
+3. **Smaller polish:** the **icon-spine** refinement of Play mode (a thin control strip instead of full-hide — needs a small popover system); **canvas-theming** — have the ruler/highway read `--ss-*` via `getComputedStyle` so themes / host paint-over reach the canvas too.
+
+The token framework + contained-playback model are in place; the picker is the gateway into the Core curriculum build.
+
 ### RPG skill-tree evolution (later)
 As guitar-specific content grows (the metal pack), the single shared pathway list/tree is straining. Direction (the dropdown ships first; the tree is the evolution):
 
