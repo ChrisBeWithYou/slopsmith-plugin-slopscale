@@ -323,6 +323,7 @@
     { id: 'chromatic_warmup',      x:  6, y: 50, short: 'Chromatic' },
     { id: 'pent_foundation',       x: 20, y: 27, short: 'Pentatonic' },
     { id: 'blues_foundation',      x: 20, y: 73, short: 'Blues Scale' },
+    { id: 'blues_shuffle',         x: 36, y: 62, short: 'Blues Shuffle' },
     { id: 'major_pent_country',    x: 36, y: 12, short: 'Major Pent' },
     { id: 'dorian_groove',         x: 36, y: 42, short: 'Dorian' },
     { id: 'harmonic_minor_exotic', x: 36, y: 80, short: 'Harm. Minor' },
@@ -346,6 +347,7 @@
     ['chromatic_warmup',    'blues_foundation'],
     ['pent_foundation',     'bend_drill'],
     ['blues_foundation',    'bend_drill'],
+    ['blues_foundation',    'blues_shuffle'],
     ['pent_foundation',     'major_pent_country'],
     ['pent_foundation',     'dorian_groove'],
     ['blues_foundation',    'dorian_groove'],
@@ -392,8 +394,16 @@
       goal:'Minor pentatonic with the flat-5 blue note added. That one extra note is what separates a scale run from a blues lick. Play it over a 12-bar blues and land on the b5 for tension — resolve it up to the 5th.',
       scales:['blues','minor_pentatonic'],
       tempoTiers:[60, 80, 100, 120],
-      base:{ practiceType:'scale', scale:'blues', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'min7' },
+      base:{ practiceType:'scale', scale:'blues', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7' },
       vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ]
+    },
+    blues_shuffle: {
+      label:'Blues Shuffle',
+      goal:'Play blues licks over a real shuffle. The backing walks a root–5–6–♭7 boogie bass with off-beat 9th-chord stabs, all swung — the dominant I7–IV7–V7 feel. Lock your phrasing to the triplet pocket: land chord tones on the beat, save the ♭5 and ♭3 for the swung off-beats. This is where the scale becomes music.',
+      scales:['blues','minor_pentatonic'],
+      tempoTiers:[80, 100, 120, 140],
+      base:{ practiceType:'scale', scale:'blues', meter:'4/4', subdivision:'eighth', bpm:100, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7', backingStyle:'boogie', swing:'shuffle' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' }, { key:'D', shape:'E' } ]
     },
     pent_foundation: {
       label:'Pentatonic Foundation',
@@ -1465,6 +1475,12 @@
         ? (data.get('guideToneProgression') || 'ii-V-I')
         : (advancedMode ? (data.get('progression') || 'diatonic') : 'diatonic'),
       chordOverride: advancedMode ? (data.get('chordOverride') || 'auto') : 'auto',
+      // Backing comp style + feel. Pathway-driven (hidden fields); 'pad' + 'straight'
+      // preserve the original held-pad / no-swing behaviour for everything that
+      // doesn't opt in. 'boogie' walks a R-5-6-♭7 bass with off-beat shell stabs;
+      // 'shuffle'/'swing' bend the eighth grid (see applySwingToBundle).
+      backingStyle: data.get('backingStyle') || 'pad',
+      swing: data.get('swing') || 'straight',
       chromaticPattern: data.get('chromaticPattern') || '1234',
       voices: data.get('voices') || 'thirds_only',
       keyCycle: data.get('keyCycle') || 'none',
@@ -1910,7 +1926,15 @@
       && MINOR_SPELLED_PROGRESSIONS.has(cfg.progression)
       && ROOT_PIN_NATURAL_MINOR_SCALES.has(cfg.scale);
     const rootScale = useNaturalMinorRoots ? 'natural_minor' : cfg.scale;
-    const intervals = SCALE_INTERVALS[rootScale] || SCALE_INTERVALS.major;
+    let intervals = SCALE_INTERVALS[rootScale] || SCALE_INTERVALS.major;
+    // Progression degrees (I/IV/V…) are FUNCTIONAL and need a 7-note scale to index.
+    // Pentatonic / blues / other non-heptatonic lead scales have no usable IV or V
+    // position — indexing them roots the IV on the ♭5 (blues) or 5th (pentatonic),
+    // which is the long-standing blues-IV dissonance. Fall back to a diatonic scale
+    // for root mapping: natural minor for minor-spelled progressions, else major
+    // (the dominant-blues / major-key I–IV–V functional reading). Lead notes still
+    // use cfg.scale; only the chord ROOTS are pinned to a diatonic reading.
+    if (intervals.length !== 7) intervals = SCALE_INTERVALS[useNaturalMinorRoots ? 'natural_minor' : 'major'];
     let rootPc = (keyPc + intervals[(degree - 1 + intervals.length) % intervals.length]) % 12;
     // Tritone substitution: replace a dominant chord with the dominant a tritone
     // (6 semitones) away — G7 → D♭7. Quality stays dominant (so the name follows
@@ -2095,7 +2119,11 @@
     // by the register-anchor + bass-gap, so no upperLow floor here.
     return voiceChord(rootPc, intervals, Object.assign({ instrument, maxVoices: 4, upperHigh: 74 }, bassWin));
   }
+  // Place a pitch class (0..11) at or above a floor MIDI.
+  function pcAtOrAbove(pc, floor) { let m = ((pc % 12) + 12) % 12; while (m < floor) m += 12; return m; }
+
   function buildBackingEvents(cfg, duration) {
+    if (cfg.backingStyle === 'boogie') return buildBoogieBacking(cfg, duration);
     const degrees = progressionDegreesForConfig(cfg);
     const slot = measureSeconds(cfg);
     const events = [];
@@ -2114,6 +2142,59 @@
         prev.end = end;
       } else {
         events.push({ t:Number(t.toFixed(6)), end, name, midis });
+      }
+    }
+    return events;
+  }
+  // Boogie/shuffle backing (blues-idiom + harmony-theory-architect review). Instead
+  // of one sustained pad per bar, walk a root-5-6-♭7 bass figure on the beats and
+  // stab a rootless dom9 shell (3rd / ♭7 / 9th) on the off-beats — the classic
+  // blues shuffle comp. The off-beat stabs swing late once applySwingToBundle runs,
+  // giving the triplet feel. Re-articulated, NOT coalesced — movement is the point.
+  function buildBoogieBacking(cfg, duration) {
+    const degrees = progressionDegreesForConfig(cfg);
+    const slot = measureSeconds(cfg);
+    const beatsPerBar = Math.max(1, cfg.meter.numerator);
+    const beatSec = slot / beatsPerBar;
+    const bassLow = cfg.instrument === 'bass' ? 24 : 36, bassHigh = cfg.instrument === 'bass' ? 38 : 48;
+    const upperLow = cfg.instrument === 'bass' ? 50 : 58, upperHigh = 72;
+    const BOOGIE = [0, 7, 9, 10]; // root, 5th, 6th, ♭7 — the walking boogie figure
+    const events = [];
+    for (let bar = 0, t = 0; t < duration - 0.001; bar++, t += slot) {
+      const degree = degrees[bar % degrees.length];
+      const rootPc = chordRootForDegree(cfg, degree);
+      const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride, cfg.progression);
+      const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj;
+      const name = chordName(rootPc, quality);
+      const ivset = formula.intervals.map(i => ((i % 12) + 12) % 12);
+      // Rootless shell: guide tones (3rd + 7th) + the 9th colour. Falls back to the
+      // full voiced pad when the chord has no clear 3rd/7th (e.g. a power chord).
+      const third = ivset.includes(4) ? 4 : ivset.includes(3) ? 3 : null;
+      const sev = ivset.includes(10) ? 10 : ivset.includes(11) ? 11 : null;
+      let shell;
+      if (third != null && sev != null) {
+        shell = []; let cur = upperLow;
+        for (const iv of [third, sev, 14]) {
+          let m = pcAtOrAbove((rootPc + iv) % 12, cur);
+          if (m > upperHigh) m -= 12;
+          shell.push(m); cur = m + 2;
+        }
+        shell.sort((a, b) => a - b);
+      } else {
+        shell = voiceBackingChord(rootPc, formula.intervals, cfg.instrument);
+      }
+      const bassRoot = pcAtOrAbove(rootPc % 12, bassLow);
+      const root0 = bassRoot > bassHigh ? bassRoot - 12 : bassRoot;
+      for (let b = 0; b < beatsPerBar; b++) {
+        const beatT = t + b * beatSec;
+        if (beatT >= duration - 1e-4) break;
+        const bassMidi = root0 + BOOGIE[b % BOOGIE.length];
+        // Walking bass on the beat (only the bar's downbeat carries the chord name,
+        // so the in-tree backing overlay shows one label per bar, not per hit).
+        events.push({ t:Number(beatT.toFixed(6)), end:Number(Math.min(duration, beatT + beatSec * 0.9).toFixed(6)), name: b === 0 ? name : '', midis:[bassMidi] });
+        // Chord-shell chick on the off-beat (the swung "and").
+        const upT = beatT + beatSec * 0.5;
+        if (upT < duration - 1e-4) events.push({ t:Number(upT.toFixed(6)), end:Number(Math.min(duration, upT + beatSec * 0.4).toFixed(6)), name:'', midis:shell });
       }
     }
     return events;
@@ -3409,6 +3490,33 @@
     return Object.assign({}, chart, { notes, chords, anchors, sections, segmentBounds, beats, duration, leadIn: lead });
   }
 
+  // Swing/shuffle feel as a single post-process over the assembled bundle, so the
+  // lead notes and the backing comp swing together against the steady metronome
+  // (clicks stay on the grid — they're the reference you shuffle against). Warps
+  // each onset's phase WITHIN its beat: the eighth boundary 0.5 → r (0.667 = a
+  // triplet shuffle), so downbeats stay put and off-beats fall late. Count-in and
+  // loop-tail offsets are whole bars, so phase stays aligned across the timeline.
+  const SWING_RATIOS = { straight:0.5, swing:0.6, shuffle:0.667 };
+  function applySwingToBundle(bundle, cfg) {
+    const r = SWING_RATIOS[cfg.swing] || 0.5;
+    if (r === 0.5) return;
+    const beatSec = (60 / cfg.bpm) * (4 / cfg.meter.denominator);
+    const sw = t => {
+      const bi = Math.floor(t / beatSec + 1e-9);
+      const frac = t / beatSec - bi;
+      const f2 = frac < 0.5 ? frac * (2 * r) : r + (frac - 0.5) * 2 * (1 - r);
+      return +(((bi + f2) * beatSec)).toFixed(6);
+    };
+    bundle.notes = (bundle.notes || []).map(n => {
+      const nt = sw(n.t), ne = sw(n.t + (n.sus || 0));
+      return Object.assign({}, n, { t:nt, sus:Math.max(0.02, +(ne - nt).toFixed(6)) });
+    });
+    bundle.backingEvents = (bundle.backingEvents || []).map(ev => {
+      const et = sw(ev.t), ee = sw(ev.end);
+      return Object.assign({}, ev, { t:et, end:Math.max(+(et + 0.02).toFixed(6), ee) });
+    });
+  }
+
   function makeBundle(exercise) {
     const cfg = exercise.session;
     // Count-in is baked here (not at generation) so the stored chart + LCD stay
@@ -3449,6 +3557,7 @@
       getNoteState:function(){return null;}, getNoteStateProvider:function(){return null;}
     };
     syncHighwaySettings(bundle);
+    applySwingToBundle(bundle, cfg);
     // Don't project arpeggio/chord shapes onto the note highway — handShapes
     // drive the highway_3d overlay box. Chord names still appear via `chords`
     // events and the chord-preview thumbnail still renders from chordTemplates.
@@ -3556,6 +3665,7 @@
 
     function drawBackingChords(bundle, now) {
       for (const ev of bundle.backingEvents || []) {
+        if (!ev.name) continue; // boogie emits many nameless hits per bar — one label/bar
         const dt = ev.t - now;
         if (dt < -BEHIND || dt > AHEAD) continue;
         const x = xForDt(dt);
@@ -5870,6 +5980,11 @@
     if (!config) return;
     if (Object.prototype.hasOwnProperty.call(config, 'advancedMode')) setFieldSilent('advancedMode', config.advancedMode);
     syncAdvancedMode();
+    // Specialized backing/feel fields default OFF unless the pathway opts in, so a
+    // boogie/shuffle pathway's settings never leak into the next pathway selected
+    // (applyPathwayConfig doesn't reset the form; it only writes keys it's given).
+    setFieldSilent('backingStyle', config.backingStyle || 'pad');
+    setFieldSilent('swing', config.swing || 'straight');
     Object.keys(config).forEach(k => { if (k !== 'advancedMode') setFieldSilent(k, config[k]); });
     syncStringSetupControls();
     syncShapeDropdown();

@@ -1,7 +1,7 @@
 # SlopScale Roadmap
 
 > Read this at the start of every session. Update it before closing.
-> Current date: 2026-05-30. Total commits: 170.
+> Current date: 2026-05-31. Total commits: 171.
 
 ---
 
@@ -52,10 +52,11 @@
 - ✅ General `{deg|semis,q,rn}` progression token — chromatic roots no scale degree can express (tritone_sub_ii_V_I, backdoor_ii_V, tadd_dameron presets)
 - ✅ **Voicing engine** (`classifyChordTones` + `voiceChord`) — turns the full interval stack into a playable voicing (drops avoid notes, keeps guide tones + top colour, register windowing); wired into the backing pad. See `docs/musicality-guardrails.md`
 
-### Pathways (14 curated)
+### Pathways (15 curated)
 - ✅ Chromatic Warmup
 - ✅ Pentatonic Foundation
 - ✅ Blues Scale Foundation
+- ✅ Blues Shuffle (boogie backing + shuffle feel — `backingStyle:'boogie'` + `swing:'shuffle'`)
 - ✅ Major Pentatonic Country
 - ✅ Dorian Groove
 - ✅ Chord Tone Targeting
@@ -158,7 +159,7 @@ The matrix is clean: **harmony (1) × instrument-playability (3) × genre-idiom 
 
 Diagnosed this session, decisions/fixes pending:
 
-- 🔲 **Blues IV sounds dissonant** — `blues_foundation` sets `chordOverride:'min7'`, forcing I/IV/V all minor 7th (a *minor* blues), so the IV is `ivm7`. Standard blues is **dominant** (I7-IV7-V7), so a minor IV clashes with blues-scale phrasing. The `12_bar_blues` progression is degree-only (`[1,1,1,1,4,4,…]`); quality is the override. Likely fix: `blues_foundation` → `dom7` (and a separate, clearly-labeled minor-blues pathway if that sound is wanted). **Per the agent-workflow rule, run through harmony-theory-architect + blues-idiom-architect before changing.**
+- ✅ **Blues IV dissonance — RESOLVED (2026-05-31), plus a deeper root bug + a new pathway.** Two bugs, both fixed (harmony-theory-architect + blues-idiom-architect reviewed): (1) `blues_foundation` forced `chordOverride:'min7'` (a minor blues) → changed to **`dom7`** (standard dominant I7–IV7–V7). (2) **Root-resolution bug:** `chordRootForDegree` indexed the progression degree into the *lead* scale, so over a non-heptatonic scale the IV rooted on the wrong pitch (blues `[0,3,5,6,7,10]` deg 4 = ♭5 → A#7 in E; minor-pent deg 4 = 5th). Fix: when the root-scale isn't 7-note, map functional roots through **major** (or **natural minor** if minor-spelled); lead notes still use `cfg.scale`. This also corrected `pent_foundation` and `major_pent_country`. Verified: key A → A7/D7/E7. **Backing movement:** added a `backingStyle:'boogie'` comp (walking R-5-6-♭7 bass + off-beat rootless-dom9 shell stabs, re-articulated not coalesced) and a global `swing` post-process (`applySwingToBundle`; straight/swing/shuffle) — both pathway-driven via hidden fields. New **`blues_shuffle`** pathway ("Blues Shuffle") carries boogie+shuffle; `blues_foundation` stays the scale-learning exercise (static pad, no swing). 15 pathways now. Per the agent-workflow rule the root fix got a harmony sign-off.
 - ✅ **3D Highway "fret counter at top / missing nut+string-names" — RESOLVED: it's host viz settings SlopScale inherits, not a SlopScale change (2026-05-30).** The 3D Highway is the **borrowed host `highway_3d`** plugin. Its look is driven by `h3d_bg_*` localStorage keys owned by the **highway_3d plugin's own settings panel**; `_bgPanelKey()` is `'main'` for any canvas and the settings UI writes the **global** slot, so SlopScale and the main game share one settings store — SlopScale inherits whatever's set there. The "non-standard fret counter" = `fretColumnMarkerCadence` (host default `1` = refresh every measure); the missing nut/headstock/open-string-names is just the lookahead camera framing fret 0 off-screen while drilling up-neck (they reappear at low frets). **SlopScale reads/writes NONE of these keys** (grep clean; only sets `inverted`/`lefty`/`renderScale` on the bundle). Empirically verified: `h3d_bg_fretColumnMarkerCadence=0` removes the markers in SlopScale too, and a full highway lifecycle trips **zero** `h3d_bg_*` keys. Christian's "I see it now where I didn't before" → a setting was tripped in his local highway_3d plugin settings; fixing it there flows to SlopScale. Per directive: **follow Slopsmith's settings, never a custom override.** New regression guard: `npm run smoke:hwy-settings` (in `npm test`). The earlier "string-name gutter / built-in 2D Highway restore" thread was a hallucination — **not wanted, do not resurface.**
 
 ## Phase 1 — Foundation Completion
@@ -252,6 +253,11 @@ Diagnosed this session, decisions/fixes pending:
 
 ### Harmony tone selector
 - ✅ `harmonyTone` select in both Single and Session audio sections: **Synth pad** / **E-piano** (triangle+bell, percussive decay) / **Organ** (7-drawbar additive sines, instant on/off). Pure Web Audio, no deps. Passed through `readConfig`, `onLaunchSession`, and `scheduleHarmonyPad`.
+
+### Groove engine (partially shipped 2026-05-31)
+- ✅ **Boogie/shuffle backing comp** (`backingStyle:'boogie'` in `buildBoogieBacking`) — walking R-5-6-♭7 bass + off-beat rootless-dom9 shell stabs, re-articulated per beat (not coalesced). First use: the `blues_shuffle` pathway. Generalizes to any dominant-leaning progression.
+- ✅ **Swing/shuffle feel** (`swing` = straight/swing/shuffle; `applySwingToBundle`) — one post-process over the bundle warps each onset's within-beat phase (eighth boundary → triplet pocket); lead + backing swing together, metronome stays on the grid. Pathway-driven via hidden fields; candidate for a visible Custom "Feel/Backing" control (slopscale-ux-designer).
+- 🔲 Other grooves (straight-4 comp, bossa, the half-time metalcore breakdown feel) + selectable on other genre pathways.
 
 ### Backing track generator (intentional future scope)
 - 🔲 **WebAudioFont or Tone.js Sampler** — load GM-compatible instrument samples from a CDN (piano, acoustic guitar, bass, etc.) for real sampled chord pads. Trigger on each backing event the same way oscillators are today. No audio stem generation needed — purely frontend.
@@ -372,6 +378,7 @@ Framework build order is in that doc §4. These supersede the flat list below.*
 
 | Date | Work done | Key commits |
 |------|-----------|-------------|
+| 2026-05-31 | Blues pass (harmony-theory-architect + blues-idiom-architect reviewed). Fixed the blues-IV dissonance: `blues_foundation` `min7`→`dom7`, AND a deeper **root-resolution bug** (`chordRootForDegree` indexed the progression degree into the non-heptatonic *lead* scale → IV rooted on ♭5/5th; now functional roots map through major / natural-minor while lead notes keep `cfg.scale`) — also fixed `pent_foundation` + `major_pent_country`; harmony sign-off obtained. Added a **groove engine**: `backingStyle:'boogie'` (walking R-5-6-♭7 bass + off-beat rootless-dom9 shell stabs, `buildBoogieBacking`) and a global `swing` post-process (`applySwingToBundle`), both pathway-driven via new hidden form fields (default pad/straight — no change to existing pathways). New **`blues_shuffle`** pathway carries boogie+shuffle; `blues_foundation` reverted to the scale-learning version (static pad). Verified live (key A → A7/D7/E7, boogie bass walk, swung lead); `npm test` green (renderers + 64/64 generators + highway-settings). | — |
 | 2026-05-30 | Open-thread triage. Corrected the 3D-Highway thread: it's the **borrowed host highway_3d**, whose look (fret-counter, nut/headstock, string-names) is host `h3d_bg_*` viz settings SlopScale **inherits via shared localStorage but never writes** (grep-clean; only sets inverted/lefty/renderScale). Proved by screenshot (`fretColumnMarkerCadence=0` removes the markers in SlopScale) and a new assertive guard — a full highway lifecycle trips **zero** `h3d_bg_*` keys. Added `smoke-highway-settings.mjs` (`npm run smoke:hwy-settings`, wired into `npm test`). Killed the hallucinated "restore built-in 2D Highway string-name gutter" thread (not wanted). `npm test` green (renderers + 64/64 generators + highway-settings). Blues-IV minor-blues fix still open. | — |
 | 2026-05-30 | Session checkpoint. Created 5 genre-idiom agents (blues/funk/country/jazz/latin) + bass/piano pedagogy agents; logged the roster + responsibility matrix; codified the required **agent workflow** rule (genre pathway→matching agent, instrument→pedagogy agent, exercise/pathway change→agent review). Demo/diagnosis: identified the blues IV-dissonance (minor-blues `chordOverride`), the dormant built-in 2D Highway (string-name gutter, demoted behind the host Jumping-Tab borrow), and confirmed the 3D-highway fret-number/nut change is host settings/config, not our code. Open threads logged above. | `c1b0792`, `d6b6e8a` |
 | 2026-05-30 | Backing-track quality pass (A timbre / B filter-env + chord-tie / C register) + a harmony-theory-architect voicing/progression audit that, with empirical probing, caught a **critical pre-existing bug**: `voiceChord` voiced upper notes at the bare interval pitch-class, so every non-C-rooted backing chord had wrong upper voices — fixed to `rootPc+interval` (Amin now A-C-E). Also replaced the `upperLow` floor with a register-anchor + bass min-gap (minor chords no longer octave-jump) and respelled two metal progressions as `{semis}` tokens (♭VII was the raised LT over harmonic minor). Created **7 specialist agents** (local): 5 genre-idiom (blues/funk/country/jazz/latin) on the metal-agent structure + `bass-pedagogy-expert` and `piano-pedagogy-expert` on the fretboard-expert structure. Logged the agent roster + responsibility matrix. `npm test` 4/4 + 64/64. | `ca8b931`–`b735f02` |

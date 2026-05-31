@@ -646,6 +646,7 @@
         <optgroup label="Curated">
           <option value="chromatic_warmup">Chromatic Warmup</option>
           <option value="blues_foundation">Blues Scale Foundation</option>
+          <option value="blues_shuffle">Blues Shuffle</option>
           <option value="pent_foundation" selected="selected">Pentatonic Foundation</option>
           <option value="major_pent_country">Major Pentatonic Country</option>
           <option value="dorian_groove">Dorian Groove</option>
@@ -783,6 +784,13 @@
              chord-template helpers (cagedShapeNotesForChord, pickShapeRootFret)
              still receive a CAGED letter when applicable. -->
         <input type="hidden" name="cagedShape" id="slopscale-caged-shape-value" value="C">
+
+        <!-- Backing comp style + feel. Hidden / pathway-driven for now (a blues
+             pathway opts into boogie+shuffle); default values preserve the held-pad,
+             straight-eighth behaviour for everything else. Candidate for a visible
+             Custom-mode "Backing / Feel" control later (slopscale-ux-designer). -->
+        <input type="hidden" name="backingStyle" id="slopscale-backing-style" value="pad">
+        <input type="hidden" name="swing" id="slopscale-swing" value="straight">
 
         <div class="slopscale-grid-2">
           <label>Direction
