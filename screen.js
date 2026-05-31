@@ -1498,20 +1498,20 @@
   // profile's voice/engine maps to those without touching genre data.
   const AUDIO_FAMILY_DEFAULTS = {
     clean:      { harmony: { tone: 'pad',    level: 0.9 },  brightness: 0.5 },
-    acoustic:   { harmony: { tone: 'epiano', level: 0.9 },  brightness: 0.6 },
+    acoustic:   { harmony: { engine: 'sample', tone: 'piano', level: 0.8 }, brightness: 0.6 },
     distorted:  { harmony: { tone: 'pad',    level: 0.7 },  brightness: 0.42 },
     electronic: { harmony: { tone: 'pad',    level: 0.85 }, brightness: 0.7 },
   };
   const GLOBAL_AUDIO_DEFAULT = { family: 'clean', harmony: { tone: 'pad', level: 0.9 }, brightness: 0.5 };
   const AUDIO_PROFILES = {
-    blues:      { family: 'clean',      harmony: { tone: 'organ',  level: 0.9 },  brightness: 0.5 },
-    jazz:       { family: 'clean',      harmony: { tone: 'epiano', level: 0.9 },  brightness: 0.55 },
-    rock:       { family: 'clean',      harmony: { tone: 'organ',  level: 0.85 }, brightness: 0.55 },
-    metal:      { family: 'distorted',  harmony: { tone: 'pad',    level: 0.7 },  brightness: 0.42 },
-    djent:      { family: 'distorted',  harmony: { tone: 'pad',    level: 0.65 }, brightness: 0.38 },
-    gospel:     { family: 'clean',      harmony: { tone: 'organ',  level: 0.95 }, brightness: 0.55 },
-    bluegrass:  { family: 'acoustic',   harmony: { tone: 'epiano', level: 0.8 },  brightness: 0.62 },
-    'city-pop': { family: 'electronic', harmony: { tone: 'epiano', level: 0.85 }, brightness: 0.68 },
+    blues:      { family: 'clean',      harmony: { engine: 'sample', tone: 'organ',  level: 0.85 }, brightness: 0.5 },
+    jazz:       { family: 'clean',      harmony: { engine: 'sample', tone: 'epiano', level: 0.85 }, brightness: 0.55 },
+    rock:       { family: 'clean',      harmony: { engine: 'sample', tone: 'organ',  level: 0.8 },  brightness: 0.55 },
+    metal:      { family: 'distorted',  harmony: { tone: 'pad', level: 0.7 },  brightness: 0.42 },
+    djent:      { family: 'distorted',  harmony: { tone: 'pad', level: 0.65 }, brightness: 0.38 },
+    gospel:     { family: 'clean',      harmony: { engine: 'sample', tone: 'organ',  level: 0.9 },  brightness: 0.55 },
+    bluegrass:  { family: 'acoustic',   harmony: { engine: 'sample', tone: 'guitar', level: 0.78 }, brightness: 0.62 },
+    'city-pop': { family: 'electronic', harmony: { engine: 'sample', tone: 'epiano', level: 0.8 },  brightness: 0.68 },
   };
   // Best-effort family inference for pathways that don't (yet) declare a profile,
   // so an untagged pathway gets a sensible family default — never silence or a
@@ -1541,6 +1541,49 @@
     if (a.harmonyTone && a.harmonyTone !== 'auto') out.harmony.tone = a.harmonyTone; // advanced override
     return out;
   }
+
+  // ── WebAudioFont sampler (the engine:'sample' path) ───────────────────────
+  // Borrows the host's GM-multisample approach (the same JCLive soundfont its
+  // piano plugin plays). Loads the player + a GM preset on demand, caches it,
+  // and harmony notes for sampled profiles play via queueWaveTable onto the
+  // 'harmony' bus — with the oscillator voice as the fallback until the (async)
+  // preset finishes loading. NOTE: loads from the soundfont CDN today (proven,
+  // exactly as the host does); the agreed hardening step is to self-host the
+  // handful of GM programs we actually use under a plugin static route.
+  const WAF_BASE = 'https://surikov.github.io/webaudiofontdata/sound/';
+  const WAF_PLAYER_URL = 'https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js';
+  const WAF_SF = 'JCLive_sf2_file';
+  const TONE_GM = { piano: 0, epiano: 4, organ: 19, strings: 48, guitar: 25, pad: 89 };
+  const wafFile = gm => String(gm * 10).padStart(4, '0') + '_' + WAF_SF;
+  const wafVar  = gm => '_tone_' + wafFile(gm);
+  const wafUrl  = gm => WAF_BASE + wafFile(gm) + '.js';
+  let wafPlayer = null;
+  const wafPresets = {}; // gm -> { state: 'loading'|'ready'|'failed', preset }
+  function loadScriptOnce(url) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector('script[src="' + url + '"]')) { resolve(); return; }
+      const s = document.createElement('script'); s.src = url; s.onload = resolve;
+      s.onerror = () => reject(new Error('failed to load ' + url)); document.head.appendChild(s);
+    });
+  }
+  async function ensureWafPreset(gm) {
+    if (gm == null || wafPresets[gm]) return; // already loading / ready / failed
+    wafPresets[gm] = { state: 'loading', preset: null };
+    try {
+      await loadScriptOnce(WAF_PLAYER_URL);
+      if (typeof WebAudioFontPlayer === 'undefined') throw new Error('WebAudioFontPlayer missing');
+      if (!wafPlayer) wafPlayer = new WebAudioFontPlayer();
+      const ctx = audioCtx || (audioCtx = new (window.AudioContext || window.webkitAudioContext)());
+      if (!window[wafVar(gm)]) await loadScriptOnce(wafUrl(gm));
+      const preset = window[wafVar(gm)];
+      if (!preset) throw new Error('preset var missing');
+      wafPlayer.adjustPreset(ctx, preset);
+      wafPresets[gm] = { state: 'ready', preset };
+    } catch (e) {
+      wafPresets[gm] = { state: 'failed', preset: null }; // silent → oscillator fallback
+    }
+  }
+  function getReadyWafPreset(gm) { return (gm != null && wafPresets[gm] && wafPresets[gm].state === 'ready') ? wafPresets[gm].preset : null; }
 
   function openMidisForConfig(cfg) {
     // A customOpenMidis override on the config wins over the stringSetup's
@@ -5347,10 +5390,23 @@
     const instrument = bundle.config?.instrument || cfg.instrument;
     const duration = bundle.songInfo?.duration || 0;
     const harmProfile = resolveAudioProfile({ ...cfg, audio });
+    // Sample path: if the profile wants a sampled voice, kick its (async) load
+    // and use it once ready; until then, fall back to the oscillator voice.
+    const harmGm = harmProfile.harmony.engine === 'sample' ? TONE_GM[harmProfile.harmony.tone] : null;
+    if (harmGm != null) ensureWafPreset(harmGm);
+    const harmPreset = getReadyWafPreset(harmGm);
     if (audio.harmony) for (const ev of bundle.backingEvents || []) {
       if (ev.end < startFrom || ev.t > duration + 0.1) continue;
       const start = Math.max(ev.t, startFrom), end = Math.min(ev.end, duration);
-      scheduleHarmonyPad(ctx, base + (start - startFrom), ev.midis || [], Math.max(0.2, end - start), instrument, harmProfile.harmony.tone, { bright: harmProfile.brightness, level: harmProfile.harmony.level });
+      const when = base + (start - startFrom), d = Math.max(0.2, end - start);
+      if (harmPreset && wafPlayer) {
+        for (const m of (ev.midis || [])) {
+          const e = wafPlayer.queueWaveTable(ctx, trackBus(ctx, 'harmony'), harmPreset, when, m, d, harmProfile.harmony.level * 0.5);
+          if (e) audioNodes.push({ stop() { try { e.cancel(); } catch (_) {} }, disconnect() {} });
+        }
+      } else {
+        scheduleHarmonyPad(ctx, when, ev.midis || [], d, instrument, harmProfile.harmony.tone, { bright: harmProfile.brightness, level: harmProfile.harmony.level });
+      }
     }
     if (audio.notes) for (const n of bundle.notes || []) {
       if (n._tail) continue;  // visual loop-preview copy; audio loops via the scheduler
