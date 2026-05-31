@@ -2,6 +2,34 @@
 (function () {
   'use strict';
 
+  // ===========================================================================
+  // TABLE OF CONTENTS
+  // One IIFE, loaded by the host as a classic <script> (no type="module", so no
+  // import/export — see CLAUDE.md "screen.js structure"). Major sections are
+  // marked with a "§N" banner below; grep "§" to jump between them.
+  //
+  //   §1  Constants & music-theory data
+  //   §2  Curated pathways (PATHWAYS)
+  //   §3  Built-in sessions (BUILT_IN_SESSIONS)
+  //   §4  CAGED / 3NPS / Open shape system (CAGED_SHAPES, resolveCAGEDShape)
+  //   §5  Chord-depth / diatonic extension engine
+  //   §6  Voicing engine (docs/musicality-guardrails.md Layer 2)
+  //   §7  Exercise builders (scale / chord-scale / arpeggio / sweep / chromatic / guide-tones)
+  //   §8  generateExercise() dispatch
+  //   §9  Session builders (segment / bpm-ladder / session charts, generateSession)
+  //   §10 Exercise title + makeBundle()
+  //   §11 Built-in 2D renderers (Jumping-Tab fallback, Tab, Notation)
+  //   §12 Renderer factory + borrowed host viz
+  //   §13 Live fretboard strip
+  //   §14 Transport, HUD, playback clock + audio engine
+  //   §15 DOM wiring (bind) + public surface (window.SlopScale)
+  // ===========================================================================
+
+  // ===========================================================================
+  // §1 · CONSTANTS & MUSIC-THEORY DATA
+  // note names, string setups, scale intervals, chord formulas, diatonic
+  // qualities, common progressions, sequence + chromatic patterns.
+  // ===========================================================================
   const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   const NOTE_ALIASES = { C:0, 'B#':0, 'C#':1, Db:1, D:2, 'D#':3, Eb:3, E:4, Fb:4, F:5, 'E#':5, 'F#':6, Gb:6, G:7, 'G#':8, Ab:8, A:9, 'A#':10, Bb:10, B:11, Cb:11 };
   const STRING_COLORS = ['#ef4444', '#eab308', '#3b82f6', '#f97316', '#22c55e', '#a855f7', '#ec4899', '#14b8a6'];
@@ -310,6 +338,10 @@
     ['seventh_vocab',       'ii_V_I_workout'],
     ['modal_vamp',          'ii_V_I_workout'],
   ];
+  // ===========================================================================
+  // §2 · CURATED PATHWAYS
+  // label, goal, scales[], tempoTiers[], base config, vary[] (Next-Variation cycle).
+  // ===========================================================================
   const PATHWAYS = {
     chromatic_warmup: {
       label:'Chromatic Warmup',
@@ -443,7 +475,10 @@
   // Only applies when nothing is stored; later launches restore the last pathway.
   const PATHWAY_FIRST_VISIT_DEFAULT = 'chromatic_warmup';
 
-  // === Practice Sessions ===
+  // ===========================================================================
+  // §3 · BUILT-IN SESSIONS
+  // multi-segment session presets (ii-V-I Workshop, Daily 30-min, Blues, Bebop).
+  // ===========================================================================
   //
   // A session is an ordered list of exercise segments. Each segment configures
   // one exercise type and duration. buildSessionChart() concatenates them into
@@ -540,7 +575,10 @@
     }
   };
 
-  // === CAGED + 3NPS + Open shape system ===
+  // ===========================================================================
+  // §4 · CAGED / 3NPS / OPEN SHAPE SYSTEM
+  // CAGED_SHAPES (unified source of truth) + degree-driven, no-unison resolution.
+  // ===========================================================================
   //
   // A "shape" is a way of organizing a scale across the fretboard. SlopScale
   // supports three systems: CAGED (5 shapes), 3NPS (7 modal positions), and
@@ -1633,6 +1671,9 @@
   }
   function buildAnchors(cfg, duration) { const out = [], width = Math.max(3, cfg.fretMax - cfg.fretMin + 1); for (let t = 0; t <= duration + 0.0001; t += 2) out.push({ time: Number(t.toFixed(6)), fret: cfg.fretMin, width }); return out; }
 
+  // ===========================================================================
+  // §5 · CHORD-DEPTH / DIATONIC EXTENSION ENGINE
+  // ===========================================================================
   // --- Chord depth / diatonic extension engine -----------------------------
   // Depth → number of stacked tones. Extended depths stack further diatonic
   // thirds on top of the seventh (9th, 11th, 13th).
@@ -1849,6 +1890,9 @@
     return { name, displayName:name, arp:!!arp, fingers, frets };
   }
 
+  // ===========================================================================
+  // §6 · VOICING ENGINE
+  // ===========================================================================
   // --- Voicing engine (docs/musicality-guardrails.md Layer 2) ----------------
   // Classify each chord-tone pitch class (mod 12) into a role + inclusion rank
   // (lower = kept first). Context resolves ambiguity: a minor 3rd is a ♯9 when a
@@ -1945,6 +1989,10 @@
     return out.sort((a,b) => a.midi - b.midi || a.s - b.s || a.f - b.f);
   }
 
+  // ===========================================================================
+  // §7 · EXERCISE BUILDERS
+  // each returns an { exercise } object (see docs/exercise-schema.md).
+  // ===========================================================================
   function buildChordScaleExercise(cfg) {
     const degrees = progressionDegreesForConfig(cfg);
     const mLen = measureSeconds(cfg), step = secondsPerDivision(cfg);
@@ -2949,6 +2997,10 @@
     return { notes, chords, chordTemplates, handShapes, sections, anchors, duration: t };
   }
 
+  // ===========================================================================
+  // §8 · generateExercise() DISPATCH
+  // routes cfg.practiceType to the correct builder above.
+  // ===========================================================================
   function generateExercise(cfg) {
     const chart = cfg.keyCycle && cfg.keyCycle !== 'none'
       ? buildKeyCycleChart(cfg)
@@ -2960,6 +3012,10 @@
 
   // Build one segment's config by merging session-level defaults, string setup,
   // and segment-level overrides. Resolves shape notes if system is shape-aware.
+  // ===========================================================================
+  // §9 · SESSION BUILDERS
+  // generateSession() mirrors generateExercise() — same { version, session, chart }.
+  // ===========================================================================
   function buildSegmentConfig(segment, session) {
     const stringSetup = session.stringSetup || 'guitar_6_standard';
     const setup = STRING_SETUPS[stringSetup] || STRING_SETUPS.guitar_6_standard;
@@ -3097,6 +3153,10 @@
   // Descriptive exercise title for the bundle's songInfo.title — what each
   // renderer draws as its in-canvas header (and the player HUD for 3D). e.g.
   // "E minor pentatonic". Sessions use their name; chromatic uses the pattern.
+  // ===========================================================================
+  // §10 · EXERCISE TITLE + makeBundle()
+  // wraps an exercise into the renderer-ready bundle (activeBundle).
+  // ===========================================================================
   function exerciseTitle(cfg) {
     try {
       if (!cfg) return 'SlopScale';
@@ -3182,6 +3242,10 @@
     return NOTE_NAMES[pc];
   }
 
+  // ===========================================================================
+  // §11 · BUILT-IN 2D RENDERERS
+  // Jumping-Tab fallback (makeBuiltin2DRenderer), Tab, Notation. Draw #slopscale-canvas.
+  // ===========================================================================
   function makeBuiltin2DRenderer() {
     let canvas = null, ctx = null, W = 0, H = 0;
     const LEFT_PAD = 64, RIGHT_PAD = 28, TOP_PAD = 96, BOTTOM_PAD = 52;
@@ -4145,6 +4209,11 @@
   // briefly for deferred registration — the host may register its global a tick
   // or two after onload fires. Returns null if it never registers so callers
   // can fall back to a built-in renderer.
+  // ===========================================================================
+  // §12 · RENDERER FACTORY + BORROWED HOST VIZ
+  // resolveRendererFactory() selects/loads a renderer; borrowHostViz() lazy-loads
+  // host viz plugins (highway_3d, jumpingtab, piano).
+  // ===========================================================================
   async function borrowHostViz(globalName, scriptPath) {
     if (typeof window[globalName] !== 'function') {
       try { await loadScriptOnce('slopscale-viz-' + globalName, scriptPath); } catch (_) {}
@@ -4378,6 +4447,10 @@
     }
     drawOnce();
   }
+  // ===========================================================================
+  // §13 · LIVE FRETBOARD STRIP
+  // horizontal neck on #slopscale-fretboard; hollow pattern + glowing live notes.
+  // ===========================================================================
   function drawFretboardFrame() {
     const canvas = $('slopscale-fretboard');
     if (!canvas || canvas.offsetParent === null) return;  // hidden (wrong view / toggled off / piano)
@@ -4855,6 +4928,11 @@
     // scheduler can compute when this pass ends and queue the next gaplessly.
     return base;
   }
+  // ===========================================================================
+  // §14 · TRANSPORT, HUD, PLAYBACK CLOCK + AUDIO ENGINE
+  // startPlayback() owns the RAF clock (currentPracticeTime), Web Audio scheduling,
+  // and the Minigames pitch tracker. Contained playback — never hands off to host.
+  // ===========================================================================
   function startPlayback() {
     if (!activeBundle) return;
     sessionEnd(); // flush any in-progress session before starting a new one
@@ -6506,6 +6584,10 @@
     if (activeBundle) onGenerate();
   }
 
+  // ===========================================================================
+  // §15 · DOM WIRING (bind) + PUBLIC SURFACE (window.SlopScale)
+  // bind() wires all DOM events once on DOMContentLoaded.
+  // ===========================================================================
   function bind() {
     const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1';
     const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'), advancedToggle = $('slopscale-advanced-toggle');
