@@ -5110,6 +5110,36 @@
     return bn === 0.5 ? '½' : bn === 1 ? 'full' : bn === 1.5 ? '1½' : '2';
   }
 
+  // ── Audio output bus (master + per-track) ─────────────────────────────────
+  // Every voice routes through a per-track GainNode → a shared master → a safety
+  // limiter → destination, instead of connecting straight to the output. This is
+  // the structural prerequisite for (a) a master limiter that makes sudden loud
+  // peaks / full-density clipping impossible (hearing-safety), and (b) per-track
+  // insert points where the realism upgrade plugs in later — amp/cab modeling on
+  // the distorted track, a sampler on the acoustic track, FX sends owned by
+  // sound-design. Built once per AudioContext; the bus nodes persist across note
+  // stop/start (they are deliberately NOT pushed into audioNodes).
+  let audioBus = null;
+  function ensureAudioBus(ctx) {
+    if (audioBus && audioBus.ctx === ctx) return audioBus;
+    const master = ctx.createGain();
+    master.gain.value = 0.85;                        // trim — headroom into the limiter
+    const limiter = ctx.createDynamicsCompressor();  // transparent safety limiter
+    limiter.threshold.value = -6; limiter.knee.value = 12; limiter.ratio.value = 6;
+    limiter.attack.value = 0.003; limiter.release.value = 0.12;
+    master.connect(limiter); limiter.connect(ctx.destination);
+    audioBus = { ctx, master, limiter, tracks: {} };
+    return audioBus;
+  }
+  // Lazily-created per-track sub-bus ('notes' | 'harmony' | 'click'). Future
+  // per-track processing (amp/cab, sampler, sends) inserts between the track gain
+  // and master without touching the voice code below.
+  function trackBus(ctx, name) {
+    const bus = ensureAudioBus(ctx);
+    if (!bus.tracks[name]) { const g = ctx.createGain(); g.gain.value = 1; g.connect(bus.master); bus.tracks[name] = g; }
+    return bus.tracks[name];
+  }
+
   function schedulePluckedString(ctx, when, freq, dur, instrument, gainScale, bendSemis) {
     // Triangle-based plucked-string synthesis — clean, audible, no WaveShaper
     // over-drive. Sawtooth + heavy distortion (prior approach) produced
@@ -5147,7 +5177,7 @@
     gain.gain.exponentialRampToValueAtTime(amp * 0.50, when + 0.070);
     gain.gain.exponentialRampToValueAtTime(0.0001, when + Math.max(0.12, dur));
     osc1.connect(preGain); osc2.connect(preGain);
-    preGain.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+    preGain.connect(filter); filter.connect(gain); gain.connect(trackBus(ctx, 'notes'));
     osc1.start(when); osc2.start(when);
     const stopAt = when + Math.max(0.14, dur) + 0.03;
     osc1.stop(stopAt); osc2.stop(stopAt);
@@ -5163,7 +5193,7 @@
       const VOLS   = [0.8, 0.5, 0.35, 0.25, 0.18, 0.12, 0.08];
       const master = ctx.createGain();
       master.gain.setValueAtTime(0.13 / Math.max(1, midis.length), when);
-      master.connect(ctx.destination);
+      master.connect(trackBus(ctx, 'harmony'));
       audioNodes.push(master);
       midis.slice(0, 4).forEach(midi => {
         RATIOS.forEach((r, ri) => {
@@ -5187,7 +5217,7 @@
       master.gain.exponentialRampToValueAtTime(0.09, when + Math.min(0.38, dur * 0.35));
       master.gain.linearRampToValueAtTime(0.06, when + Math.max(0.39, dur - 0.06));
       master.gain.linearRampToValueAtTime(0.0001, when + dur);
-      master.connect(ctx.destination);
+      master.connect(trackBus(ctx, 'harmony'));
       audioNodes.push(master);
       midis.slice(0, 4).forEach(midi => {
         const osc = ctx.createOscillator(), bell = ctx.createOscillator();
@@ -5219,7 +5249,7 @@
     master.gain.exponentialRampToValueAtTime(0.26, when + 0.022);
     master.gain.linearRampToValueAtTime(0.2, when + Math.max(0.1, dur - 0.18));
     master.gain.linearRampToValueAtTime(0.0001, when + dur);
-    filter.connect(master); master.connect(ctx.destination);
+    filter.connect(master); master.connect(trackBus(ctx, 'harmony'));
     audioNodes.push(filter, master);
     const voiceGain = 0.5 / Math.sqrt(n);
     midis.slice(0, n).forEach((midi, i) => {
@@ -5240,7 +5270,7 @@
     const decay = accent ? 0.055 : (soft ? 0.03 : 0.04);
     osc.type = 'square'; osc.frequency.setValueAtTime(freq, when); filter.type = 'highpass'; filter.frequency.setValueAtTime(650, when);
     gain.gain.setValueAtTime(0.0001, when); gain.gain.exponentialRampToValueAtTime(peak, when + 0.002); gain.gain.exponentialRampToValueAtTime(0.0001, when + decay);
-    osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination); osc.start(when); osc.stop(when + 0.07); audioNodes.push(osc, filter, gain);
+    osc.connect(filter); filter.connect(gain); gain.connect(trackBus(ctx, 'click')); osc.start(when); osc.stop(when + 0.07); audioNodes.push(osc, filter, gain);
   }
   function schedulePreviewAudio(bundle, fromTime, delaySeconds) {
     const cfg = readConfig();
