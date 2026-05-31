@@ -204,6 +204,21 @@ Consequence: `screen.js` does **not** call `fetch('/api/plugins/slopscale/temp-s
 3. Wire it into the `generateExercise(cfg)` dispatch function.
 4. No backend changes needed unless the new type requires a new route.
 
+## Working sessions (start / end checklist)
+
+A lightweight ritual the **main thread** follows so context survives across sessions — the cheap alternative to a standing PM agent (see the group-design protocol below).
+
+**At session start:**
+- Read `ROADMAP.md` — authoritative for shipped-vs-planned; check **"Open threads"** and any **"STOPPED HERE"** handoff marker.
+- Project memory (`MEMORY.md` index) loads automatically — skim it; for agent work, read the relevant `.claude/agent-memory/<agent>/`.
+- Before acting on anything a memory names (file / function / flag), **verify it still exists** in the current code — memory reflects the past; the code is now.
+
+**At session end (before closing):**
+- Update `ROADMAP.md` — move finished items, log new **Open threads** or a **"STOPPED HERE"** handoff for the next session.
+- Write durable **decisions** (not ephemeral task state) to project memory; spawned agents update their own `.claude/agent-memory/<agent>/`.
+- If conventions changed, keep `CLAUDE.md` and `AGENTS.md` **in sync** (they mirror).
+- If `screen.js` changed, run the smoke suites (`npm test` in `.claude/skills/run-slopscale/`, host running). Commit working changes with a descriptive message; **commit/push only when asked.**
+
 ## Agent workflow (required)
 
 Specialist agents in `.claude/agents/` (local) are the project's review/design layer — using them is part of the workflow, not optional. These are judgment-based conventions (they need the Agent tool + musical expertise), not automatable hooks.
