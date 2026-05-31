@@ -5530,8 +5530,112 @@
   // and master without touching the voice code below.
   function trackBus(ctx, name) {
     const bus = ensureAudioBus(ctx);
-    if (!bus.tracks[name]) { const g = ctx.createGain(); g.gain.value = 1; g.connect(bus.master); bus.tracks[name] = g; }
+    if (!bus.tracks[name]) { const g = ctx.createGain(); g.gain.value = mixerGainFor(name); g.connect(bus.master); bus.tracks[name] = g; }
     return bus.tracks[name];
+  }
+
+  // ── Shell mixer (M) — per-bus faders/mute/solo + a "Backing dim" ───────────
+  // Controls the per-track audio buses (notes/harmony/click/bass). Default state
+  // is unity (level 1, no mute/solo, no dim) → identical to pre-mixer behaviour.
+  const MIXER_CHANNELS = [
+    { key:'notes',   label:'Player',  backing:false },
+    { key:'harmony', label:'Comp',    backing:true },
+    { key:'bass',    label:'Bass',    backing:true },
+    { key:'click',   label:'Click',   backing:false },
+  ];
+  const mixerState = {};
+  let mixerBackingDim = false;
+  MIXER_CHANNELS.forEach(c => { mixerState[c.key] = { level:1, mute:false, solo:false }; });
+  function mixerLoad() {
+    try {
+      const s = JSON.parse(localStorage.getItem('slopscale.mixer') || 'null');
+      if (s && s.ch) { MIXER_CHANNELS.forEach(c => { if (s.ch[c.key]) Object.assign(mixerState[c.key], s.ch[c.key]); }); mixerBackingDim = !!s.dim; }
+    } catch (_) {}
+  }
+  function mixerSave() { try { localStorage.setItem('slopscale.mixer', JSON.stringify({ ch: mixerState, dim: mixerBackingDim })); } catch (_) {} }
+  // Effective gain for a bus given the mixer state (1.0 = no change). Solo on any
+  // channel mutes the un-soloed; Backing dim ducks the backing buses.
+  function mixerGainFor(name) {
+    const st = mixerState[name]; if (!st) return 1;
+    const anySolo = MIXER_CHANNELS.some(c => mixerState[c.key].solo);
+    let v = st.level;
+    if (anySolo) v = st.solo ? v : 0; else if (st.mute) v = 0;
+    const ch = MIXER_CHANNELS.find(c => c.key === name);
+    if (mixerBackingDim && ch && ch.backing) v *= 0.35;
+    return v;
+  }
+  // Push the mixer state onto any live buses with a short ramp (no clicks — the
+  // hearing-sensitivity constraint).
+  function applyMixer() {
+    if (!audioBus) return;
+    const ctx = audioBus.ctx;
+    MIXER_CHANNELS.forEach(c => {
+      const g = audioBus.tracks[c.key]; if (!g) return;
+      const v = mixerGainFor(c.key);
+      try { g.gain.setTargetAtTime(v, ctx.currentTime, 0.02); } catch (_) { g.gain.value = v; }
+    });
+  }
+  function renderMixer() {
+    const host = $('slopscale-mixer-channels'); if (!host) return;
+    host.innerHTML = '';
+    MIXER_CHANNELS.forEach(c => {
+      const st = mixerState[c.key];
+      const row = document.createElement('div');
+      row.className = 'slopscale-mixer-ch';
+      row.innerHTML =
+        `<span class="slopscale-mixer-ch-label">${c.label}</span>` +
+        `<button type="button" class="slopscale-mixer-tog mute${st.mute ? ' active' : ''}" data-k="${c.key}" data-act="mute" title="Mute" aria-pressed="${st.mute}">M</button>` +
+        `<button type="button" class="slopscale-mixer-tog solo${st.solo ? ' active' : ''}" data-k="${c.key}" data-act="solo" title="Solo" aria-pressed="${st.solo}">S</button>` +
+        `<input type="range" class="slopscale-mixer-fader" min="0" max="1.2" step="0.01" value="${st.level}" data-k="${c.key}" aria-label="${c.label} level">` +
+        `<span class="slopscale-mixer-val" data-k="${c.key}">${Math.round(st.level * 100)}</span>`;
+      host.appendChild(row);
+    });
+    const dim = $('slopscale-mixer-dim'); if (dim) dim.checked = mixerBackingDim;
+  }
+  // Panel toggles (M / P / ? overlays). Slide transitions + open state live in CSS
+  // (reduced-motion aware); these flip the root class + aria + the button highlight.
+  function toggleMixer(force) {
+    const root = $('slopscale-root'); if (!root) return;
+    const open = force != null ? force : !root.classList.contains('ss-mixer-open');
+    root.classList.toggle('ss-mixer-open', open);
+    $('slopscale-mixer')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    $('slopscale-mixer-btn')?.classList.toggle('active', open);
+    if (open) { renderMixer(); applyMixer(); }
+  }
+  function toggleProgressSheet(force) {
+    const root = $('slopscale-root'); if (!root) return;
+    const open = force != null ? force : !root.classList.contains('ss-progress-open');
+    root.classList.toggle('ss-progress-open', open);
+    $('slopscale-progress-sheet')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    $('slopscale-progress-btn')?.classList.toggle('active', open);
+    if (open) renderProgressSheet();
+  }
+  function toggleCheatSheet(force) {
+    const root = $('slopscale-root'); if (!root) return;
+    const open = force != null ? force : !root.classList.contains('ss-cheat-open');
+    root.classList.toggle('ss-cheat-open', open);
+    $('slopscale-cheatsheet')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    $('slopscale-help-btn')?.classList.toggle('active', open);
+  }
+  // Progress sheet content (gamification's slot). Renders what exists today — streak
+  // + per-pathway tempo-tier dots — with an honest "coming" state for XP/badges,
+  // since the slopscale.progress store is unbuilt (don't fake XP).
+  function renderProgressSheet() {
+    const body = $('slopscale-progress-sheet-body'); if (!body) return;
+    const pt = pathwayTiersLoad();
+    const streak = (($('slopscale-streak-num') || {}).textContent || '0').trim();
+    const touched = Object.keys(pt)
+      .filter(id => PATHWAYS[id] && (pt[id].highest_tier ?? -1) >= 0)
+      .sort((a, b) => (pt[b].highest_tier ?? -1) - (pt[a].highest_tier ?? -1));
+    const dotRow = (id) => {
+      const pw = PATHWAYS[id], hi = (pt[id].highest_tier ?? -1);
+      const dots = (pw.tempoTiers || []).map((_, i) => `<span class="tree-tier-dot${i <= hi ? ' cleared' : ''}"></span>`).join('');
+      return `<div class="slopscale-pm-row"><span>${pw.label}</span><span class="slopscale-pm-dots">${dots}</span></div>`;
+    };
+    body.innerHTML =
+      `<div class="slopscale-progress-sheet-section"><h4>Streak</h4><div class="slopscale-pm-row"><span>Current streak</span><strong>${streak} ${streak === '1' ? 'day' : 'days'}</strong></div></div>` +
+      `<div class="slopscale-progress-sheet-section"><h4>Tempo-tier progress</h4>${touched.length ? touched.slice(0, 8).map(dotRow).join('') : '<div class="slopscale-pm-coming">Clear a tempo tier to see progress here.</div>'}</div>` +
+      `<div class="slopscale-progress-sheet-section"><h4>XP &amp; badges</h4><div class="slopscale-pm-coming">Coming soon — your time-on-instrument and mastery will show here.</div></div>`;
   }
 
   function schedulePluckedString(ctx, when, freq, dur, instrument, gainScale, bendSemis) {
@@ -6027,9 +6131,16 @@
       case ' ':          e.preventDefault(); onPlayToggle(); break;
       case 'ArrowLeft':  e.preventDefault(); if (e.shiftKey && nudgeLoopEdge(-1)) break; nudgeBar(-1); break;
       case 'ArrowRight': e.preventDefault(); if (e.shiftKey && nudgeLoopEdge(1)) break; nudgeBar(1); break;
-      case '[':          e.preventDefault(); tpA = currentPracticeTime; commitLoop(); break;
-      case ']':          e.preventDefault(); tpB = currentPracticeTime; commitLoop(); break;
+      // Loop in/out moved to i/o (editor in/out convention) so [ is free for the
+      // shell Inspector-collapse hotkey (menu/shell decision); \ still clears the loop.
+      case 'i': case 'I': e.preventDefault(); tpA = currentPracticeTime; commitLoop(); break;
+      case 'o': case 'O': e.preventDefault(); tpB = currentPracticeTime; commitLoop(); break;
       case '\\':         e.preventDefault(); resetTransportLoop(); break;
+      // Shell hotkeys: M mixer · P progress · [ collapse Inspector · ? cheat-sheet.
+      case 'm': case 'M': e.preventDefault(); toggleMixer(); break;
+      case 'p': case 'P': e.preventDefault(); toggleProgressSheet(); break;
+      case '[':          e.preventDefault(); setPanelCollapsed(!panelCollapsed); break;
+      case '?':          e.preventDefault(); toggleCheatSheet(); break;
       case 'Home':       e.preventDefault(); seekTo(0); break;
       case ',':          if (sessionMode) { e.preventDefault(); prevSegment(); } break;
       case '.':          if (sessionMode) { e.preventDefault(); nextSegment(); } break;
@@ -7974,6 +8085,31 @@
       });
     });
     $('slopscale-jam-go')?.addEventListener('click', jamPlay);
+    // Shell panels (M / P / [ / ?): visible buttons + the mixer's own controls.
+    mixerLoad();
+    $('slopscale-mixer-btn')?.addEventListener('click', () => toggleMixer());
+    $('slopscale-progress-btn')?.addEventListener('click', () => toggleProgressSheet());
+    $('slopscale-collapse-btn')?.addEventListener('click', () => setPanelCollapsed(!panelCollapsed));
+    $('slopscale-help-btn')?.addEventListener('click', () => toggleCheatSheet());
+    $('slopscale-mixer-close')?.addEventListener('click', () => toggleMixer(false));
+    $('slopscale-progress-close')?.addEventListener('click', () => toggleProgressSheet(false));
+    $('slopscale-cheat-close')?.addEventListener('click', () => toggleCheatSheet(false));
+    const mixCh = $('slopscale-mixer-channels');
+    mixCh?.addEventListener('input', (ev) => {
+      const f = ev.target.closest && ev.target.closest('.slopscale-mixer-fader'); if (!f) return;
+      const k = f.dataset.k; mixerState[k].level = parseFloat(f.value);
+      const val = mixCh.querySelector(`.slopscale-mixer-val[data-k="${k}"]`); if (val) val.textContent = Math.round(mixerState[k].level * 100);
+      applyMixer(); mixerSave();
+    });
+    mixCh?.addEventListener('click', (ev) => {
+      const t = ev.target.closest && ev.target.closest('.slopscale-mixer-tog'); if (!t) return;
+      const k = t.dataset.k, act = t.dataset.act;
+      mixerState[k][act] = !mixerState[k][act];
+      t.classList.toggle('active', mixerState[k][act]);
+      t.setAttribute('aria-pressed', String(mixerState[k][act]));
+      applyMixer(); mixerSave();
+    });
+    $('slopscale-mixer-dim')?.addEventListener('change', (ev) => { mixerBackingDim = ev.target.checked; applyMixer(); mixerSave(); });
     // Preset picker (Custom): load a saved preset's config into the form.
     $('slopscale-preset-picker')?.addEventListener('change', (ev) => {
       const key = ev.target.value; if (!key) return;

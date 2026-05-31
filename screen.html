@@ -401,6 +401,47 @@
   /* Suppress Jumping Tab's own big vertical chord-box canvas — SlopScale draws
      its own small, consistent chord box (see #slopscale-chordbox) instead. */
   .slopscale-render-host .jumpingtab-chord-canvas { display: none !important; }
+  /* ── Shell hotkey buttons + the M/P/[ panels ─────────────────────────────── */
+  .slopscale-hotkey-bar { display: flex; gap: 4px; margin-left: auto; }
+  .slopscale-hk-btn { padding: 4px 10px; font-size: 11.5px; font-weight: 600; border-radius: 7px; border: 1px solid var(--ss-border, #334155); background: var(--ss-inset, #0b1220); color: var(--ss-text-dim, #94a3b8); cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
+  .slopscale-hk-btn:hover { background: #1e293b; color: #e2e8f0; }
+  .slopscale-hk-btn.active { background: var(--ss-accent-soft, rgba(64,128,224,0.2)); border-color: var(--ss-accent, #4080e0); color: #dbeafe; }
+  .slopscale-hk-help { font-weight: 800; }
+  /* Mixer — slides UP over the stage (overlay, not relayout). */
+  .slopscale-mixer { position: absolute; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--ss-surface-bar, rgba(9,15,30,0.97)); border-top: 1px solid var(--ss-border, #334155); box-shadow: 0 -8px 24px rgba(0,0,0,0.4); transform: translateY(105%); transition: transform 0.22s ease; padding: 10px 14px 14px; max-height: 72%; overflow-y: auto; }
+  .slopscale-root.ss-mixer-open .slopscale-mixer { transform: translateY(0); }
+  .slopscale-mixer-head { display: flex; align-items: center; gap: 12px; }
+  .slopscale-mixer-title { font-size: 13px; font-weight: 700; color: #e2e8f0; }
+  .slopscale-mixer-dim { font-size: 11.5px; color: #94a3b8; display: flex; align-items: center; gap: 5px; margin-left: auto; cursor: pointer; }
+  .slopscale-mixer-channels { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .slopscale-mixer-ch { display: grid; grid-template-columns: 58px 30px 30px 1fr 40px; align-items: center; gap: 8px; }
+  .slopscale-mixer-ch-label { font-size: 12px; font-weight: 600; color: #cbd5e1; }
+  .slopscale-mixer-tog { padding: 3px 0; font-size: 10px; font-weight: 700; border-radius: 5px; border: 1px solid #334155; background: #0b1220; color: #94a3b8; cursor: pointer; }
+  .slopscale-mixer-tog.mute.active { background: #7f1d1d; border-color: #ef4444; color: #fecaca; }
+  .slopscale-mixer-tog.solo.active { background: #1e40af; border-color: #60a5fa; color: #dbeafe; }
+  .slopscale-mixer-fader { width: 100%; accent-color: var(--ss-accent, #4080e0); }
+  .slopscale-mixer-val { font-size: 10px; color: #64748b; font-family: var(--ss-mono, monospace); text-align: right; }
+  /* Progress sheet — slides in from the right. */
+  .slopscale-progress-sheet { position: absolute; top: 0; right: 0; bottom: 0; width: min(320px, 82%); z-index: 21; background: var(--ss-surface, #0d1424); border-left: 1px solid var(--ss-border, #334155); box-shadow: -8px 0 24px rgba(0,0,0,0.4); transform: translateX(105%); transition: transform 0.22s ease; display: flex; flex-direction: column; }
+  .slopscale-root.ss-progress-open .slopscale-progress-sheet { transform: translateX(0); }
+  .slopscale-sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--ss-hairline, rgba(148,163,184,0.14)); font-weight: 700; font-size: 13px; color: #e2e8f0; flex-shrink: 0; }
+  .slopscale-sheet-body { padding: 12px 14px; overflow-y: auto; font-size: 12.5px; color: #cbd5e1; }
+  .slopscale-sheet-close { background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 14px; line-height: 1; padding: 2px 7px; border-radius: 6px; }
+  .slopscale-sheet-close:hover { background: rgba(148,163,184,0.15); color: #f1f5f9; }
+  /* Cheat-sheet — centered modal over the stage. */
+  .slopscale-cheatsheet { position: absolute; inset: 0; z-index: 22; display: none; align-items: center; justify-content: center; background: rgba(2,6,16,0.55); }
+  .slopscale-root.ss-cheat-open .slopscale-cheatsheet { display: flex; }
+  .slopscale-cheat-card { background: var(--ss-surface, #0d1424); border: 1px solid var(--ss-border, #334155); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); min-width: 280px; max-width: 90%; }
+  .slopscale-cheat-list { list-style: none; margin: 0; padding: 10px 16px 14px; display: flex; flex-direction: column; gap: 7px; font-size: 12.5px; color: #cbd5e1; }
+  .slopscale-cheat-list kbd { display: inline-block; min-width: 14px; text-align: center; padding: 1px 6px; font-family: var(--ss-mono, monospace); font-size: 11px; background: #0b1220; border: 1px solid #334155; border-radius: 5px; color: #e2e8f0; }
+  .slopscale-progress-sheet-section { margin-bottom: 14px; }
+  .slopscale-progress-sheet-section h4 { margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #94a3b8; }
+  .slopscale-pm-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0; }
+  .slopscale-pm-dots { display: flex; gap: 3px; }
+  .slopscale-pm-coming { font-size: 11.5px; color: #64748b; font-style: italic; }
+  @media (prefers-reduced-motion: reduce) {
+    .slopscale-mixer, .slopscale-progress-sheet { transition: none; }
+  }
   /* SlopScale's small vertical chord box, top-left over the render (matched to
      the 3D Highway's diagram corner so the position is consistent across views).
      Shown/hidden by drawChordBoxFrame() — hidden by default. */
@@ -1362,6 +1403,14 @@
           <button type="button" class="slopscale-theme-btn active" data-theme="light" title="Parchment + ink">Light</button>
           <button type="button" class="slopscale-theme-btn" data-theme="dark" title="Navy + ink">Dark</button>
         </div>
+        <!-- Shell hotkey buttons (each hotkey has a visible button + the ? cheat-sheet;
+             no keyboard-only affordances). M = mixer, P = progress, [ = collapse. -->
+        <div class="slopscale-hotkey-bar" role="group" aria-label="Panels">
+          <button type="button" id="slopscale-mixer-btn" class="slopscale-hk-btn" title="Mixer (M)">Mixer</button>
+          <button type="button" id="slopscale-progress-btn" class="slopscale-hk-btn" title="Progress (P)">Progress</button>
+          <button type="button" id="slopscale-collapse-btn" class="slopscale-hk-btn" title="Collapse panel ([)" aria-label="Collapse panel">⟨ ⟩</button>
+          <button type="button" id="slopscale-help-btn" class="slopscale-hk-btn slopscale-hk-help" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
+        </div>
       </div>
 
       <!-- Transport CONTROLS bar — centered play cluster directly above the
@@ -1429,6 +1478,45 @@
              chart has chord templates — scales have none, so it stays hidden. -->
         <canvas id="slopscale-chordbox" class="slopscale-chordbox" aria-hidden="true"></canvas>
         <canvas id="slopscale-canvas"></canvas>
+
+        <!-- Mixer (M): slides UP over the stage. Per-bus faders/mute/solo for the
+             player + backing buses, plus a "Backing dim". Overlay, not relayout —
+             the stage renders behind it (no canvas refit). -->
+        <div id="slopscale-mixer" class="slopscale-mixer" aria-hidden="true">
+          <div class="slopscale-mixer-head">
+            <span class="slopscale-mixer-title">Mixer</span>
+            <label class="slopscale-mixer-dim"><input type="checkbox" id="slopscale-mixer-dim"> Backing dim</label>
+            <button type="button" id="slopscale-mixer-close" class="slopscale-sheet-close" title="Close mixer (M)" aria-label="Close mixer">▾</button>
+          </div>
+          <div class="slopscale-mixer-channels" id="slopscale-mixer-channels"><!-- renderMixer() --></div>
+        </div>
+
+        <!-- Progress (P): slides in from the right edge. UX renders the frame +
+             #slopscale-progress-sheet-body slot; gamification owns the content. -->
+        <div id="slopscale-progress-sheet" class="slopscale-progress-sheet" aria-hidden="true">
+          <div class="slopscale-sheet-head">
+            <span>Progress</span>
+            <button type="button" id="slopscale-progress-close" class="slopscale-sheet-close" title="Close (P)" aria-label="Close progress">✕</button>
+          </div>
+          <div class="slopscale-sheet-body" id="slopscale-progress-sheet-body"><!-- renderProgressSheet() --></div>
+        </div>
+
+        <!-- Shortcuts cheat-sheet (?). -->
+        <div id="slopscale-cheatsheet" class="slopscale-cheatsheet" aria-hidden="true">
+          <div class="slopscale-cheat-card">
+            <div class="slopscale-sheet-head"><span>Keyboard shortcuts</span><button type="button" id="slopscale-cheat-close" class="slopscale-sheet-close" aria-label="Close">✕</button></div>
+            <ul class="slopscale-cheat-list">
+              <li><kbd>Space</kbd> Play / Stop</li>
+              <li><kbd>M</kbd> Mixer</li>
+              <li><kbd>P</kbd> Progress</li>
+              <li><kbd>[</kbd> Collapse panel</li>
+              <li><kbd>i</kbd> / <kbd>o</kbd> Loop in / out</li>
+              <li><kbd>\</kbd> Clear loop</li>
+              <li><kbd>←</kbd> <kbd>→</kbd> Step a bar · <kbd>Shift</kbd>+ nudge loop edge</li>
+              <li><kbd>Home</kbd> To start · <kbd>?</kbd> This sheet</li>
+            </ul>
+          </div>
+        </div>
       </div>
       <!-- Live fretboard strip — lights up the currently-sounding notes on a
            neck diagram (the highway shows WHEN, this shows WHERE). Driven by
