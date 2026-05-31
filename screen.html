@@ -105,13 +105,15 @@
   .slopscale-grid-2, .slopscale-grid-3 { display: grid; gap: 10px; }
   .slopscale-grid-2 { grid-template-columns: 1fr 1fr; }
   .slopscale-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
-  .slopscale-group-title { color: #f8fafc; font-size: 12px; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; margin: 4px 0 -4px; }
+  /* One calm Logic-style section label everywhere: muted, tracked, with a
+     hairline separator above so the Inspector reads as discrete sections. */
+  .slopscale-group-title { color: var(--ss-text-muted); font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin: 10px 0 4px; padding-top: 10px; border-top: 1px solid var(--ss-hairline); }
   .slopscale-audio-options {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
     padding: 10px;
-    border: 1px solid rgba(96, 165, 250, 0.7);
+    border: 1px solid var(--ss-hairline);
     border-radius: 12px;
     background: rgba(15, 23, 42, 0.86);
   }
@@ -161,7 +163,7 @@
 
   /* Pathway goal caption gets a little more breathing room and weight when active. */
   .slopscale-pathway-goal-card {
-    border: 1px solid rgba(96, 165, 250, 0.35);
+    border: 1px solid var(--ss-hairline);
     background: rgba(15, 23, 42, 0.6);
     border-radius: 12px;
     padding: 10px 12px;
@@ -273,6 +275,18 @@
   .slopscale-modeview-btn + .slopscale-modeview-btn { box-shadow: inset 1px 0 0 rgba(2,6,23,0.55); }
   .slopscale-modeview-btn:hover:not(.active) { background: #24324a; }
   .slopscale-modeview-btn.active { background: var(--ss-accent); color: #fff; }
+  /* Focus (fullscreen) button — absolute right of the transport, mirroring the
+     Setup|Play switch at left; lit when the stage is fullscreen. */
+  .slopscale-focus-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); z-index: 1; min-height: 28px; min-width: 32px; padding: 0 9px; border: none; border-radius: var(--ss-r-control); background: #141d33; color: var(--ss-text-dim); font-size: 14px; line-height: 1; cursor: pointer; transition: background 0.12s, color 0.12s; }
+  .slopscale-focus-btn:hover { background: #24324a; color: var(--ss-text); }
+  .slopscale-root.slopscale-focused .slopscale-focus-btn { background: var(--ss-accent); color: #fff; }
+  /* Feel — straight/swing/shuffle segmented control in the Tempo group (writes
+     the hidden #slopscale-swing field; visible in both Guided and Custom). */
+  .slopscale-feel { display: inline-flex; border-radius: var(--ss-r-control); overflow: hidden; background: #141d33; }
+  .slopscale-feel-btn { flex: 1; min-height: 34px; padding: 0 8px; border: none; background: transparent; color: var(--ss-text-dim); font-weight: 600; font-size: 12px; cursor: pointer; transition: background 0.12s, color 0.12s; }
+  .slopscale-feel-btn + .slopscale-feel-btn { box-shadow: inset 1px 0 0 rgba(2,6,23,0.55); }
+  .slopscale-feel-btn:hover:not(.active) { background: #24324a; }
+  .slopscale-feel-btn.active { background: var(--ss-accent); color: #fff; }
   /* Tabs read as tabs: unselected is a subtle outlined chip; selected gets
      a saturated background, a bottom highlight, and a slight lift so the
      active view is unmistakable at a glance. */
@@ -608,7 +622,7 @@
 <div id="slopscale-root" class="slopscale-root">
   <section class="slopscale-panel slopscale-header">
     <h1>SlopScale</h1>
-    <p class="slopscale-tagline">Pathway-driven scale, arpeggio, and progression practice. Pick a pathway, or switch to Custom for full control.</p>
+    <p class="slopscale-tagline">Development Pathways — learn and practise scales, arpeggios, and progressions. Pick a pathway, or switch to Custom for full control.</p>
     <div class="slopscale-meta">
       <span id="slopscale-status">Ready</span>
       <span class="slopscale-meta-sep">·</span>
@@ -687,7 +701,7 @@
       <!-- Single exercise mode — pathway + custom controls -->
       <div class="slopscale-single-only">
 
-      <div class="slopscale-group-title slopscale-pathway-only">Pathway</div>
+      <div class="slopscale-group-title slopscale-pathway-only">Development Pathways</div>
       <!-- Hidden select keeps all existing onChange / applyPathwayById logic intact -->
       <select name="pathway" id="slopscale-pathway" style="display:none;">
         <option value="custom">Custom — full control</option>
@@ -970,6 +984,13 @@
             <option value="4">÷4 (sixteenths)</option>
           </select>
         </label>
+        <label>Feel
+          <div class="slopscale-feel" role="group" aria-label="Feel — straight, swing, or shuffle">
+            <button type="button" class="slopscale-feel-btn active" data-feel="straight" aria-pressed="true">Straight</button>
+            <button type="button" class="slopscale-feel-btn" data-feel="swing" aria-pressed="false">Swing</button>
+            <button type="button" class="slopscale-feel-btn" data-feel="shuffle" aria-pressed="false">Shuffle</button>
+          </div>
+        </label>
         <label class="slopscale-custom-only">Meter
           <select name="meter"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="6/8">6/8</option><option value="7/8:2+2+3">7/8 — 2+2+3</option><option value="7/8:3+2+2">7/8 — 3+2+2</option><option value="5/4">5/4</option><option value="5/8:3+2">5/8 — 3+2</option><option value="9/8:3+3+3">9/8 — 3+3+3</option><option value="11/8:3+3+3+2">11/8 — 3+3+3+2</option><option value="12/8:3+3+3+3">12/8 — 3+3+3+3</option><option value="8/8:3+3+2">Djent — 3+3+2 (8/8)</option><option value="16/8:3+3+3+3+2+2">Djent — 3+3+3+3+2+2 (2-bar)</option></select>
         </label>
@@ -1222,6 +1243,7 @@
           <button type="button" class="slopscale-modeview-btn active" data-modeview="setup" aria-pressed="true" title="Setup — full controls">Setup</button>
           <button type="button" class="slopscale-modeview-btn" data-modeview="play" aria-pressed="false" title="Play — hide the controls, widen the stage">Play</button>
         </div>
+        <button type="button" id="slopscale-focus-btn" class="slopscale-focus-btn" title="Focus mode — fullscreen the stage (Esc to exit)" aria-label="Focus mode" aria-pressed="false">⛶</button>
         <div id="slopscale-session-progress" class="slopscale-session-progress slopscale-session-only" role="group" aria-label="Session segments"></div>
         <div class="slopscale-tp-controls">
           <button type="button" id="slopscale-to-start" class="slopscale-tp-btn" title="Back to start (Home)">⏮</button>

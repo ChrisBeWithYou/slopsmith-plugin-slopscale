@@ -4759,6 +4759,16 @@
     $('slopscale-root')?.classList.toggle('slopscale-fb-on', fretboardOn);
     $('slopscale-fretboard-toggle')?.setAttribute('aria-checked', String(fretboardOn));
   }
+  // Reflect the active swing/feel (hidden #slopscale-swing) onto the visible
+  // Feel segmented control.
+  function syncFeelControl() {
+    const v = ($('slopscale-swing')?.value) || 'straight';
+    document.querySelectorAll('.slopscale-feel-btn').forEach(b => {
+      const on = b.dataset.feel === v;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+  }
   // Left settings panel collapse/expand. Reflects state onto the root class
   // (drives the layout) and the chevron button (glyph + a11y).
   function syncPanelToggle() {
@@ -4782,6 +4792,30 @@
     }
     drawOnce();
   }
+  // ── Focus mode (fullscreen the stage) ──────────────────────────────────────
+  // Fullscreens just the .slopscale-stage (transport + ruler + render) so the
+  // host chrome drops away. requestFullscreen needs a user gesture (the click
+  // provides it); Esc exits via the browser before the host's Escape handler.
+  function toggleFocus() {
+    const stage = document.querySelector('.slopscale-stage');
+    if (!stage) return;
+    if (!document.fullscreenElement) { try { stage.requestFullscreen?.(); } catch (_) {} }
+    else { try { document.exitFullscreen?.(); } catch (_) {} }
+  }
+  function onFullscreenChange() {
+    const on = !!document.fullscreenElement;
+    $('slopscale-root')?.classList.toggle('slopscale-focused', on);
+    $('slopscale-focus-btn')?.setAttribute('aria-pressed', String(on));
+    // Re-fit the renderer to the resized stage on the next frame (after layout settles).
+    requestAnimationFrame(() => {
+      if (renderer && typeof renderer.resize === 'function') {
+        const host = $('slopscale-render-host');
+        if (host) { const r = host.getBoundingClientRect(); renderer.resize(Math.round(r.width), Math.round(r.height)); }
+      }
+      drawOnce();
+    });
+  }
+
   // ===========================================================================
   // §13 · LIVE FRETBOARD STRIP
   // horizontal neck on #slopscale-fretboard; hollow pattern + glowing live notes.
@@ -5366,6 +5400,7 @@
     if (lc) { const active = segmentLoopA != null && segmentLoopB != null; lc.hidden = !active || _loopWraps < 1; lc.textContent = 'Loop ' + _loopWraps; }
     const lr = $('slopscale-loop-range');
     if (lr) { const txt = loopReadoutText(); lr.hidden = !txt; lr.textContent = txt || ''; }
+    syncFeelControl();
     const ci = document.querySelector('#slopscale-controls [name="countIn"]')?.value || '0';
     document.querySelectorAll('.slopscale-tp-seg').forEach(b => b.classList.toggle('active', b.dataset.countin === ci));
     renderSessionProgress();
@@ -7197,6 +7232,15 @@
     });
     document.querySelectorAll('.slopscale-modeview-btn').forEach(b =>
       b.addEventListener('click', () => setPanelCollapsed(b.dataset.modeview === 'play')));
+    $('slopscale-focus-btn')?.addEventListener('click', toggleFocus);
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    // Feel control: write the hidden swing field + bubble a change so the
+    // delegated #slopscale-controls handler regenerates with the new feel.
+    document.querySelectorAll('.slopscale-feel-btn').forEach(b => b.addEventListener('click', () => {
+      const sw = $('slopscale-swing'); if (!sw) return;
+      sw.value = b.dataset.feel; syncFeelControl();
+      sw.dispatchEvent(new Event('change', { bubbles: true }));
+    }));
     // Theme toggle (Light / Dark) for Tab + Notation.
     document.querySelectorAll('.slopscale-theme-btn').forEach(btn => {
       btn.addEventListener('click', () => { setRenderTheme(btn.dataset.theme); syncThemeButtons(); });
