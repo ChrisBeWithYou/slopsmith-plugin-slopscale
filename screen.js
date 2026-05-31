@@ -59,6 +59,8 @@
     guitar_6: [
       { id:'standard',     label:'Standard (E A D G B E)',      midis:[40,45,50,55,59,64] },
       { id:'drop_d',       label:'Drop D (D A D G B E)',        midis:[38,45,50,55,59,64] },
+      { id:'drop_c',       label:'Drop C (C G C F A D)',        midis:[36,43,48,53,57,62] },
+      { id:'drop_b',       label:'Drop B (B F# B E G# C#)',     midis:[35,42,47,52,56,61] },
       { id:'eb_standard',  label:'Eb Standard (down ½ step)',   midis:[39,44,49,54,58,63] },
       { id:'d_standard',   label:'D Standard (down 1 step)',    midis:[38,43,48,53,57,62] },
       { id:'dadgad',       label:'DADGAD',                       midis:[38,45,50,55,57,62] },
@@ -124,6 +126,11 @@
     mixolydian_b6:[0,2,4,5,7,8,10],   // mode V: over V7 resolving to minor
     locrian_sharp2:[0,2,3,5,6,8,10],  // mode VI: over m7b5 (preferred over plain Locrian)
     altered:[0,1,3,4,6,8,10],         // mode VII: maximum tension over V7alt
+    // Symmetric / exotic — fusion, neoclassical, metal (genre-framework §2.2)
+    half_whole_dim:[0,1,3,4,6,7,9,10],  // dominant diminished (half-whole) — over dom7, symmetric metal runs
+    double_harmonic:[0,1,4,5,7,8,11],   // Byzantine / double harmonic major — neoclassical / exotic death metal
+    hungarian_minor:[0,2,3,6,7,8,11],   // harmonic minor ♯4 — neoclassical / melodic metal
+    neapolitan_minor:[0,1,3,5,7,8,11],  // dark classical-metal colour
   };
   // Chord qualities defined as semitone intervals from the root. This is a
   // pitch-primary definition: a chord is a stack of intervals, instrument-agnostic
@@ -1358,6 +1365,7 @@
       direction: advancedMode ? (data.get('direction') || 'up_down') : 'up_down',
       repeatCount: advancedMode ? Math.max(1, Math.min(16, parseInt(data.get('repeatCount') || '1', 10))) : 1,
       sequence: advancedMode ? (data.get('sequence') || 'none') : 'none',
+      harmonize: data.get('harmonize') === 'on',   // twin-guitar thirds/sixths (§2.4)
       chordScaleStrategy: advancedMode ? (data.get('chordScaleStrategy') || 'mode_of_moment') : 'mode_of_moment',
       fretMin,
       fretMax,
@@ -1396,7 +1404,18 @@
   }
   function noteDefaults(extra) { return Object.assign({ t:0, s:0, f:0, sus:0, sl:-1, slu:-1, bn:0, ho:false, po:false, hm:false, hp:false, pm:false, mt:false, vb:false, tr:false, ac:false, tp:false }, extra || {}); }
   function scalePcs(cfg) { const keyPc = NOTE_ALIASES[cfg.key] ?? 0; return (SCALE_INTERVALS[cfg.scale] || SCALE_INTERVALS.major).map(i => (keyPc + i) % 12); }
-  function secondsPerDivision(cfg) { const q = 60 / cfg.bpm; return ({ quarter:q, eighth:q/2, sixteenth:q/4, triplet:q/3, eighth_triplet:q/3, sixteenth_triplet:q/6 })[cfg.subdivision] || q/2; }
+  function secondsPerDivision(cfg) { const q = 60 / cfg.bpm; return ({ quarter:q, eighth:q/2, sixteenth:q/4, triplet:q/3, eighth_triplet:q/3, sixteenth_triplet:q/6, gallop:q/2, reverse_gallop:q/2 })[cfg.subdivision] || q/2; }
+  // Non-uniform rhythm patterns (genre-framework §2.5). Returns a cycling array of
+  // per-note durations for one beat, or null for the uniform subdivisions (which
+  // use secondsPerDivision instead). Gallop = eighth + two sixteenths; reverse =
+  // two sixteenths + eighth — the metal rhythm-guitar staple. Consumed by
+  // fillNotesFromSeq's `steps` path; generators opt in via rhythmSteps(cfg).
+  function rhythmSteps(cfg) {
+    const q = 60 / cfg.bpm;
+    if (cfg.subdivision === 'gallop')         return [q / 2, q / 4, q / 4];
+    if (cfg.subdivision === 'reverse_gallop') return [q / 4, q / 4, q / 2];
+    return null;
+  }
   function measureSeconds(cfg) { return (60 / cfg.bpm) * (4 / cfg.meter.denominator) * cfg.meter.numerator; }
   // Seconds per metric beat (the meter's denominator unit) for a rendered
   // bundle. Used to size the Tab/Notation view window in beats rather than
@@ -2043,15 +2062,20 @@
     const positions = scalePositionsForSystem(cfg);
     if (!positions.length) throw new Error('No scale notes found inside this fret range.');
     const sequenced = applySequencePattern(positions, cfg.sequence);
-    const step = secondsPerDivision(cfg), mLen = measureSeconds(cfg), minDuration = cfg.bars * mLen;
+    const step = secondsPerDivision(cfg), steps = rhythmSteps(cfg), mLen = measureSeconds(cfg), minDuration = cfg.bars * mLen;
+    const avgStep = steps ? steps.reduce((a, b) => a + b, 0) / steps.length : step;
     const path = directedPath(sequenced, cfg.direction, cfg.repeatCount);
-    const rawDuration = Math.max(minDuration, path.length * step);
+    const rawDuration = Math.max(minDuration, path.length * avgStep);
     const duration = Math.ceil(rawDuration / mLen - 1e-6) * mLen;
-    const totalEvents = Math.max(path.length, Math.floor(duration / step));
+    // Cumulative clock so non-uniform rhythms (gallop) work; when `steps` is null
+    // each tick is the uniform `step`, identical to the old i*step placement.
     const notes = [];
-    for (let i = 0; i < totalEvents; i++) {
+    let t = 0, i = 0;
+    while (t < duration - 0.001) {
       const p = path[i % path.length];
-      notes.push(noteDefaults({ t:Number((i * step).toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * 0.78), ac:i % Math.max(1, cfg.meter.numerator) === 0 }));
+      const sd = steps ? steps[i % steps.length] : step;
+      notes.push(noteDefaults({ t:Number(t.toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, sd * 0.78), ac:i % Math.max(1, cfg.meter.numerator) === 0 }));
+      t += sd; i++;
     }
     return { notes, chords:[], chordTemplates:[], handShapes:[], sections:[{ name:`scale-${cfg.fretboardSystem || 'position'}`, number:1, time:0 }], duration };
   }
@@ -2352,10 +2376,12 @@
     return events;
   }
 
-  // Fill the timeline with `seq`, cycling it, one note per `step`.
-  // opts: { step, totalTime, sus, name, startAt=0, duration=Math.max(t,totalTime) }
+  // Fill the timeline with `seq`, cycling it, one note per step.
+  // opts: { step, steps?, totalTime, sus, name, startAt=0, duration=Math.max(t,totalTime) }
+  // `steps` (optional) is a cycling array of per-note durations for non-uniform
+  // rhythms (gallop — see rhythmSteps); when absent, the uniform `step` is used.
   function fillNotesFromSeq(seq, opts) {
-    const { step, totalTime, sus, name, startAt = 0 } = opts;
+    const { step, steps, totalTime, sus, name, startAt = 0 } = opts;
     const notes = [], sections = [{ name, number: 1, time: 0 }];
     let t = startAt, idx = 0;
     while (t < totalTime - 0.001) {
@@ -2363,7 +2389,7 @@
       const note = { t: Number(t.toFixed(6)), s: ev.s, f: ev.f, sus };
       for (const k of SEQ_NOTE_FIELDS) if (ev[k] !== undefined) note[k] = ev[k];
       notes.push(noteDefaults(note));
-      t += step; idx++;
+      t += (steps && steps.length) ? steps[idx % steps.length] : step; idx++;
     }
     const duration = opts.duration != null ? opts.duration : Math.max(t, totalTime);
     return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration };
@@ -2464,7 +2490,7 @@
     const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
     const sorted = scalePositionsForSystem(cfg).slice().sort((a, b) => a.midi - b.midi || a.s - b.s);
     if (sorted.length < 2) throw new Error(`Need more scale notes for ${label} — expand fret range.`);
-    const asc = [];
+    const pairs = [];
     for (let i = 0; i < sorted.length; i++) {
       const lo = sorted[i];
       // Find the scale tone whose pitch sits closest to targetSemis above `lo`,
@@ -2477,9 +2503,28 @@
         const err = Math.abs(interval - targetSemis);
         if (err < bestErr) { bestErr = err; partner = sorted[j]; }
       }
-      if (partner) { asc.push(lo); asc.push(partner); }
+      if (partner) pairs.push([lo, partner]);
     }
-    if (asc.length < 2) throw new Error(`No ${label} available in this position — widen the fret range.`);
+    if (!pairs.length) throw new Error(`No ${label} available in this position — widen the fret range.`);
+    // Twin-guitar harmonization (§2.4): the two voices sound TOGETHER (melody +
+    // harmony a 3rd/6th above), one dyad per step — the melodeath/melodic-metal
+    // signature — instead of walking the dyad notes as a single line.
+    if (cfg.harmonize) {
+      const step = secondsPerDivision(cfg), steps = rhythmSteps(cfg);
+      const seq = cfg.direction === 'descending' ? pairs.slice().reverse()
+        : cfg.direction === 'up_down' ? [...pairs, ...pairs.slice().reverse()] : pairs;
+      const sus = Math.max(0.05, (steps ? steps[0] : step) * 0.9);
+      const notes = []; let t = 0, idx = 0;
+      while (t < totalTime - 0.001) {
+        const [lo, hi] = seq[idx % seq.length];
+        notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: lo.s, f: lo.f, sus }));
+        notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: hi.s, f: hi.f, sus }));
+        t += (steps && steps.length) ? steps[idx % steps.length] : step; idx++;
+      }
+      return { notes, chords: [], chordTemplates: [], handShapes: [], sections: [{ name: `Harmonized ${label} — ${cfg.key} ${cfg.scale}`, number: 1, time: 0 }], duration: Math.max(t, totalTime) };
+    }
+    const asc = [];
+    for (const [lo, hi] of pairs) { asc.push(lo); asc.push(hi); }
     // In a "run of thirds/sixths" each dyad's upper voice is frequently the next
     // dyad's lower voice (…A-C, C-E…). Played as a single-note line that yields a
     // repeated pitch (…C, C…). A player never re-articulates the same note there,
@@ -2568,6 +2613,41 @@
     for (const m of melSeq) { events.push(pedal); events.push(m); }
     const sus = Math.max(0.05, step * 0.88);
     return fillNotesFromSeq(events, { step, totalTime, sus, name: `Pedal point — ${cfg.key} ${cfg.scale}` });
+  }
+
+  // Pedal-point RIFF (genre-framework §2.3): a palm-muted low pedal (s=0, tonic,
+  // open on drop tunings) alternating with power chords higher up — the defining
+  // metalcore / djent / melodeath / death-metal riff shape. Power-chord roots walk
+  // the configured progression (degrees → root pcs, including chromatic {semis}
+  // tokens); the pedal/chord alternation honours the gallop subdivision. Power
+  // chords are root+5th+octave on the 4ths-tuned mid strings (s=1/2/3).
+  function buildPedalRiffExercise(cfg) {
+    const opens = openMidisForConfig(cfg);
+    if (opens.length < 4) throw new Error('Pedal-point riff needs at least 4 strings.');
+    const step = secondsPerDivision(cfg), steps = rhythmSteps(cfg), mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
+    const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+    const pedalFret = (((keyPc - (opens[0] % 12)) % 12) + 12) % 12;   // tonic on the lowest string
+    const s1pc = opens[1] % 12;
+    // Movable power chord (root + 5th + octave) for a root pc, rooted on s=1 so it
+    // sits above the pedal; s=1/2/3 are perfect 4ths apart in guitar & bass tunings.
+    const powerChord = (rootPc) => {
+      const rf = (((rootPc - s1pc) % 12) + 12) % 12;
+      return [{ s: 1, f: rf }, { s: 2, f: rf + 2 }, { s: 3, f: rf + 2 }];
+    };
+    const roots = progressionDegreesForConfig(cfg).map(d => chordRootForDegree(cfg, d));
+    const sus = Math.max(0.05, step * 0.9);
+    const notes = []; let t = 0, idx = 0, chordIdx = 0;
+    while (t < totalTime - 0.001) {
+      const tt = Number(t.toFixed(6));
+      if (idx % 2 === 0) {
+        notes.push(noteDefaults({ t: tt, s: 0, f: pedalFret, sus, pm: true }));   // pedal chug
+      } else {
+        for (const n of powerChord(roots[chordIdx % roots.length])) notes.push(noteDefaults({ t: tt, s: n.s, f: n.f, sus }));
+        chordIdx++;
+      }
+      t += (steps && steps.length) ? steps[idx % steps.length] : step; idx++;
+    }
+    return { notes, chords: [], chordTemplates: [], handShapes: [], sections: [{ name: `Pedal-point riff — ${cfg.key} ${cfg.scale}`, number: 1, time: 0 }], duration: Math.max(t, totalTime) };
   }
 
   function buildStringSkippingExercise(cfg) {
@@ -2963,6 +3043,7 @@
     if (mode === 'tremolo_picking')        return buildTremoloPickingExercise(cfg);
     if (mode === 'tapping')                return buildTappingExercise(cfg);
     if (mode === 'pedal_point')            return buildPedalPointExercise(cfg);
+    if (mode === 'pedal_riff')             return buildPedalRiffExercise(cfg);
     if (mode === 'string_skipping')        return buildStringSkippingExercise(cfg);
     if (mode === 'position_shift')         return buildPositionShiftExercise(cfg);
     if (mode === 'rhythmic_displacement')  return buildRhythmicDisplacementExercise(cfg);

@@ -699,6 +699,7 @@
           <option value="tremolo_picking">Tremolo picking</option>
           <option value="tapping">Tapping</option>
           <option value="pedal_point">Pedal point</option>
+          <option value="pedal_riff">Pedal-point riff (power chords)</option>
           <option value="string_skipping">String skipping</option>
           <option value="position_shift">Position shift</option>
           <option value="rhythmic_displacement">Rhythmic displacement</option>
@@ -856,6 +857,12 @@
               <option value="locrian_sharp2">Locrian ♮2 (mm VI)</option>
               <option value="altered">Altered / Super Locrian (mm VII)</option>
             </optgroup>
+            <optgroup label="Symmetric / exotic">
+              <option value="half_whole_dim">Half-whole diminished (dom)</option>
+              <option value="double_harmonic">Double harmonic (Byzantine)</option>
+              <option value="hungarian_minor">Hungarian minor</option>
+              <option value="neapolitan_minor">Neapolitan minor</option>
+            </optgroup>
           </select>
         </label>
       </div>
@@ -901,11 +908,14 @@
           </select>
         </label>
         <label class="slopscale-custom-only">Meter
-          <select name="meter"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="6/8">6/8</option><option value="7/8:2+2+3">7/8 — 2+2+3</option><option value="7/8:3+2+2">7/8 — 3+2+2</option><option value="5/4">5/4</option></select>
+          <select name="meter"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="6/8">6/8</option><option value="7/8:2+2+3">7/8 — 2+2+3</option><option value="7/8:3+2+2">7/8 — 3+2+2</option><option value="5/4">5/4</option><option value="5/8:3+2">5/8 — 3+2</option><option value="9/8:3+3+3">9/8 — 3+3+3</option><option value="11/8:3+3+3+2">11/8 — 3+3+3+2</option><option value="12/8:3+3+3+3">12/8 — 3+3+3+3</option><option value="8/8:3+3+2">Djent — 3+3+2 (8/8)</option><option value="16/8:3+3+3+3+2+2">Djent — 3+3+3+3+2+2 (2-bar)</option></select>
         </label>
         <label class="slopscale-custom-only">Division
-          <select name="subdivision"><option value="quarter">Quarter</option><option value="eighth" selected>Eighth</option><option value="sixteenth">Sixteenth</option><option value="triplet">Triplet</option><option value="eighth_triplet">Eighth triplet</option><option value="sixteenth_triplet">Sixteenth triplet</option></select>
+          <select name="subdivision"><option value="quarter">Quarter</option><option value="eighth" selected>Eighth</option><option value="sixteenth">Sixteenth</option><option value="triplet">Triplet</option><option value="eighth_triplet">Eighth triplet</option><option value="sixteenth_triplet">Sixteenth triplet</option><option value="gallop">Gallop (♪ ♬)</option><option value="reverse_gallop">Reverse gallop (♬ ♪)</option></select>
         </label>
+      </div>
+      <div class="slopscale-grid-2 slopscale-custom-only">
+        <label class="slopscale-toggle"><input name="harmonize" type="checkbox"> Harmonize 3rds/6ths (twin-guitar)</label>
       </div>
 
       <div class="slopscale-group-title">Preview audio</div>
