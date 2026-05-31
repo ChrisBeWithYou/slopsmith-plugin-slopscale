@@ -224,6 +224,8 @@ As guitar-specific content grows (the metal pack), the single shared pathway lis
 
 ### Musicality guardrails (spec: `docs/musicality-guardrails.md`)
 - ✅ **Layer 2 — chord voicing engine** (`classifyChordTones` + `voiceChord`): keeps guide tones, drops the avoid-note natural-11 on major/dominant chords (kept on minor), keeps the top colour tension, places tensions on top, avoids muddy low clusters. Wired into `voiceBackingChord` (backing pad). Verified against spec examples + smoke.
+- ✅ **Backing-quality pass (2026-05-30):** fixed a root-transposition bug (upper voices were voiced as if rooted on C in every key); replaced the `upperLow` floor with a register-anchor + bass→upper min-gap (major/minor now share a register, no octave jump); lightweight pad timbre + filter envelope; consecutive identical chords tied (no per-bar re-attack). See commits `ca8b931`, `b735f02`.
+- 🔲 **Voicing musicality follow-ups (from the harmony-theory-architect audit, Findings 4–6):** extended-chord top-cluster guard (≥3 semitone inter-voice gap below ~G4 on 6/6-9/min11/min13); optional drop-2/drop-3 voicing mode for richer jazz pads; place the `5oct` octave as a distinct MIDI in the pad (currently dedups to a plain `5`).
 - 🔲 Layer 3 — emphasis/landing-note safety (avoid notes on accents/sustains)
 - 🔲 Layer 4 — random-generator guardrails (functional transitions, mandatory cadence, taste filter) — build with Phase C random generator
 - ℹ️ Layer 1 (progression coherence) covered by curation today; formalised checklist in the spec for authored/generated progressions
