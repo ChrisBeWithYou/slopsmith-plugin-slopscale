@@ -2072,7 +2072,11 @@
   }
   function voiceBackingChord(rootPc, intervals, instrument) {
     const bassWin = instrument === 'bass' ? { bassLow: 23, bassHigh: 40 } : { bassLow: 36, bassHigh: 48 };
-    return voiceChord(rootPc, intervals, Object.assign({ instrument, maxVoices: 4, upperLow: 48, upperHigh: 74 }, bassWin));
+    // Lift the upper voices clear of the bass so the lowest upper voice doesn't sit
+    // right on the bass top (guitar bass tops out at 48) — kills low-register mud.
+    // Opts-only tweak; the deeper voicing review lives in harmony-theory-architect.
+    const upperLow = instrument === 'bass' ? 48 : 52;
+    return voiceChord(rootPc, intervals, Object.assign({ instrument, maxVoices: 4, upperLow, upperHigh: 74 }, bassWin));
   }
   function buildBackingEvents(cfg, duration) {
     const degrees = progressionDegreesForConfig(cfg);
@@ -2083,7 +2087,17 @@
       const rootPc = chordRootForDegree(cfg, degree);
       const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride, cfg.progression);
       const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj;
-      events.push({ t:Number(t.toFixed(6)), end:Number(Math.min(duration, t + slot).toFixed(6)), name:chordName(rootPc, quality), midis:voiceBackingChord(rootPc, formula.intervals, cfg.instrument) });
+      const name = chordName(rootPc, quality);
+      const midis = voiceBackingChord(rootPc, formula.intervals, cfg.instrument);
+      const end = Number(Math.min(duration, t + slot).toFixed(6));
+      // Coalesce consecutive identical chords into one sustained event so the pad
+      // doesn't hard re-attack every bar (the "pumping" on held harmony).
+      const prev = events[events.length - 1];
+      if (prev && prev.name === name && prev.midis.length === midis.length && prev.midis.every((m, k) => m === midis[k])) {
+        prev.end = end;
+      } else {
+        events.push({ t:Number(t.toFixed(6)), end, name, midis });
+      }
     }
     return events;
   }
@@ -5025,18 +5039,30 @@
       return;
     }
 
-    // pad (default) — triangle+sawtooth mix, lowpass, slow attack/release
+    // pad (default) — triangle-led voices with ONE soft saw for a little edge
+    // (stacking 4 saws was buzzy/harsh); per-voice gain normalized by voice count
+    // so denser chords don't overdrive; lowpass that opens then settles so the
+    // pad breathes instead of sitting static.
+    const n = Math.min(5, midis.length);
     const master = ctx.createGain(), filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass'; filter.frequency.setValueAtTime(instrument === 'bass' ? 1150 : 1900, when); filter.Q.setValueAtTime(0.7, when);
-    master.gain.setValueAtTime(0.0001, when); master.gain.exponentialRampToValueAtTime(0.24, when + 0.012); master.gain.linearRampToValueAtTime(0.18, when + Math.max(0.08, dur - 0.16)); master.gain.linearRampToValueAtTime(0.0001, when + dur);
+    const fLo = instrument === 'bass' ? 700 : 1100, fHi = instrument === 'bass' ? 1500 : 2600;
+    filter.type = 'lowpass'; filter.Q.setValueAtTime(0.5, when);
+    filter.frequency.setValueAtTime(fLo, when);
+    filter.frequency.exponentialRampToValueAtTime(fHi, when + Math.min(0.18, dur * 0.4));
+    filter.frequency.exponentialRampToValueAtTime(Math.max(fLo, fHi * 0.72), when + dur);
+    master.gain.setValueAtTime(0.0001, when);
+    master.gain.exponentialRampToValueAtTime(0.26, when + 0.022);
+    master.gain.linearRampToValueAtTime(0.2, when + Math.max(0.1, dur - 0.18));
+    master.gain.linearRampToValueAtTime(0.0001, when + dur);
     filter.connect(master); master.connect(ctx.destination);
     audioNodes.push(filter, master);
-    midis.slice(0, 5).forEach((midi, i) => {
+    const voiceGain = 0.5 / Math.sqrt(n);
+    midis.slice(0, n).forEach((midi, i) => {
       const osc = ctx.createOscillator(), g = ctx.createGain();
-      osc.type = i === 0 ? 'triangle' : 'sawtooth';
+      osc.type = (i === 1) ? 'sawtooth' : 'triangle';            // single soft saw for edge; rest triangle
       osc.frequency.setValueAtTime(midiToFreq(midi), when);
-      osc.detune.setValueAtTime((i - 2) * 3, when);
-      g.gain.setValueAtTime(i === 0 ? 0.48 : 0.22, when);
+      osc.detune.setValueAtTime((i - (n - 1) / 2) * 4, when);     // gentle spread, centred
+      g.gain.setValueAtTime(i === 0 ? voiceGain * 1.25 : (i === 1 ? voiceGain * 0.7 : voiceGain), when);
       osc.connect(g); g.connect(filter); osc.start(when); osc.stop(when + dur + 0.05); audioNodes.push(osc, g);
     });
   }
