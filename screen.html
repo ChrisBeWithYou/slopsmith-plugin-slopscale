@@ -266,6 +266,13 @@
      controls stay centered in the bar. */
   .slopscale-collapse-wrap { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 7px; z-index: 1; }
   .slopscale-collapse-label { font-size: 12px; font-weight: 600; color: #94a3b8; white-space: nowrap; }
+  /* Setup | Play view-mode switch — flat segmented control (DAW mode pattern),
+     absolutely placed left of the transport so the play cluster stays centered. */
+  .slopscale-modeview { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); z-index: 1; display: inline-flex; border-radius: var(--ss-r-control); overflow: hidden; background: #141d33; }
+  .slopscale-modeview-btn { min-height: 28px; padding: 0 13px; border: none; background: transparent; color: var(--ss-text-dim); font-weight: 600; font-size: 12px; letter-spacing: 0.01em; cursor: pointer; transition: background 0.12s, color 0.12s; }
+  .slopscale-modeview-btn + .slopscale-modeview-btn { box-shadow: inset 1px 0 0 rgba(2,6,23,0.55); }
+  .slopscale-modeview-btn:hover:not(.active) { background: #24324a; }
+  .slopscale-modeview-btn.active { background: var(--ss-accent); color: #fff; }
   /* Tabs read as tabs: unselected is a subtle outlined chip; selected gets
      a saturated background, a bottom highlight, and a slight lift so the
      active view is unmistakable at a glance. */
@@ -1208,12 +1215,13 @@
            render (DAW transport-bar pattern; never covers the chart). The
            scrub/loop TIMELINE lives as a ruler pinned inside the render below. -->
       <div id="slopscale-transport-bar" class="slopscale-transport-bar" aria-label="Playback transport">
-        <!-- Collapse the left settings panel. Pill toggle, left of the transport
-             row; ON = collapsed (sidebar hidden, render reclaims the width). -->
-        <span class="slopscale-collapse-wrap">
-          <span class="slopscale-collapse-label">Collapse sidebar</span>
-          <button type="button" id="slopscale-panel-toggle" class="slopscale-pill-toggle" role="switch" aria-checked="false" aria-label="Collapse sidebar"><span class="slopscale-pill-knob"></span></button>
-        </span>
+        <!-- View mode: Setup (full controls) ⇄ Play (rail hidden, stage widened).
+             A DAW-style mode switch over the existing .slopscale-collapsed
+             mechanism; absolutely placed left so the play cluster stays centered. -->
+        <div class="slopscale-modeview" role="group" aria-label="View mode">
+          <button type="button" class="slopscale-modeview-btn active" data-modeview="setup" aria-pressed="true" title="Setup — full controls">Setup</button>
+          <button type="button" class="slopscale-modeview-btn" data-modeview="play" aria-pressed="false" title="Play — hide the controls, widen the stage">Play</button>
+        </div>
         <div id="slopscale-session-progress" class="slopscale-session-progress slopscale-session-only" role="group" aria-label="Session segments"></div>
         <div class="slopscale-tp-controls">
           <button type="button" id="slopscale-to-start" class="slopscale-tp-btn" title="Back to start (Home)">⏮</button>

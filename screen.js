@@ -4763,8 +4763,12 @@
   // (drives the layout) and the chevron button (glyph + a11y).
   function syncPanelToggle() {
     $('slopscale-root')?.classList.toggle('slopscale-collapsed', panelCollapsed);
-    // Pill switch: checked = collapsed (sidebar hidden). Label stays static.
-    $('slopscale-panel-toggle')?.setAttribute('aria-checked', String(panelCollapsed));
+    // Setup|Play segmented control: Play == collapsed (rail hidden, stage widened).
+    document.querySelectorAll('.slopscale-modeview-btn').forEach(b => {
+      const on = (b.dataset.modeview === 'play') === panelCollapsed;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
   }
   function setPanelCollapsed(v) {
     panelCollapsed = !!v;  // session-only; startup/selection always resets to expanded
@@ -7191,7 +7195,8 @@
       }
       drawOnce();
     });
-    $('slopscale-panel-toggle')?.addEventListener('click', () => setPanelCollapsed(!panelCollapsed));
+    document.querySelectorAll('.slopscale-modeview-btn').forEach(b =>
+      b.addEventListener('click', () => setPanelCollapsed(b.dataset.modeview === 'play')));
     // Theme toggle (Light / Dark) for Tab + Notation.
     document.querySelectorAll('.slopscale-theme-btn').forEach(btn => {
       btn.addEventListener('click', () => { setRenderTheme(btn.dataset.theme); syncThemeButtons(); });
