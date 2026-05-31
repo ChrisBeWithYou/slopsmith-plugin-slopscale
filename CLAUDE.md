@@ -203,3 +203,11 @@ Consequence: `screen.js` does **not** call `fetch('/api/plugins/slopscale/temp-s
 2. Implement `buildXExercise(cfg)` in `screen.js` returning an `exercise` object matching `docs/exercise-schema.md`.
 3. Wire it into the `generateExercise(cfg)` dispatch function.
 4. No backend changes needed unless the new type requires a new route.
+
+## Agent workflow (required)
+
+Specialist agents in `.claude/agents/` (local) are the project's review/design layer — using them is part of the workflow, not optional. These are judgment-based conventions (they need the Agent tool + musical expertise), not automatable hooks.
+
+1. **New genre pathway → a matching genre-idiom agent must own it.** Every genre pathway is vetted for authenticity by the idiom agent for its style. If a new genre pathway introduces a genre/style not yet covered by an existing genre-idiom agent, **create that agent first** (mirror an existing one, e.g. `metal-idiom-architect`). Agents are scoped per *genre/style*, and one agent owns all of that genre's pathways — do **not** create one agent per pathway (keep the clean matrix in `ROADMAP.md`).
+2. **New instrument → create its pedagogy agent.** Adding an instrument beyond guitar/bass/piano requires a matching instrument-pedagogy agent (mirror `fretboard-pedagogy-expert` / `bass-pedagogy-expert` / `piano-pedagogy-expert`) that verifies techniques, fingering, and scale/arpeggio patterns for that instrument.
+3. **Create or adjust an exercise / generator / genre pathway → run it by the appropriate agents before it's "done."** Review with: the **instrument-playability** agent for the target instrument, the **genre-idiom** agent for its style, and **harmony-theory-architect** when harmony/voicings/progressions are involved. Act on the findings or log them — this is how the metal pack and the backing-track voicings were validated (and how the backing root-transposition bug was caught).
