@@ -1290,8 +1290,13 @@
     const data = new FormData($('slopscale-controls'));
     const stringSetup = data.get('stringSetup') || 'guitar_6_standard';
     const setup = STRING_SETUPS[stringSetup] || STRING_SETUPS.guitar_6_standard;
-    let fretMin = Math.max(0, parseInt(data.get('fretMin') || '0', 10));
-    let fretMax = Math.max(fretMin + 1, parseInt(data.get('fretMax') || '5', 10));
+    // HTML min/max on these inputs are advisory only — a crafted share link (or
+    // any FormData) can carry arbitrary values, and fretMin/fretMax drive
+    // generation loops (e.g. chordScalePositions). Hard-cap the window so a
+    // malicious link can't hang the tab with a giant fret range.
+    const MAX_FRET = 36;
+    let fretMin = Math.min(MAX_FRET - 1, Math.max(0, parseInt(data.get('fretMin') || '0', 10) || 0));
+    let fretMax = Math.min(MAX_FRET, Math.max(fretMin + 1, parseInt(data.get('fretMax') || '5', 10) || 5));
     const practiceType = data.get('practiceType') || data.get('mode') || 'scale';
     const advancedMode = data.get('advancedMode') === 'on';
     // Default fretboard system is CAGED in beginner mode and whatever the user
@@ -6498,7 +6503,10 @@
   function applyFormState(state) {
     const form = $('slopscale-controls'); if (!form || !state || typeof state !== 'object') return;
     for (const [name, value] of Object.entries(state)) {
-      const field = form.querySelector(`[name="${name}"]`);
+      // name comes from an untrusted share payload — CSS.escape keeps a crafted
+      // key (e.g. '"]') from breaking out of the attribute selector and throwing,
+      // which would abort the rest of state restoration (and page init on load).
+      const field = form.querySelector(`[name="${CSS.escape(name)}"]`);
       if (!field) continue;
       if (field.type === 'checkbox') field.checked = value === 'on' || value === true;
       else field.value = value;
