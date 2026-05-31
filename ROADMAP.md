@@ -63,10 +63,17 @@ A 13-agent group-design charette (chaired by `learning-design-architect`; main t
 7. **`buildCompingExercise`** (long-standing generator gap) — comping blocks for Workout + Open-Chord Core nodes.
 8. **Future-proofing touches** (note-schema `hand`/`finger`, `playerRole`, pluggable diagram slot) — alongside, cheap.
 
-### ⏸️ STOPPED HERE — charette done & decided; ready to BUILD (Foundation first) (2026-05-31)
-**Next session:**
-- **Start the build** at queue #1–#3 (guitar Core ★ nodes + `STYLE_PALETTES` + `targetSec`). Apply the north-star tweak into `CLAUDE.md`/`AGENTS.md` "Design north star" (kept in sync).
-- **Run the real `slopsmith-host-expert`** (now registered) to re-verify the stand-in's findings against a live `window` dump — esp. the viz borrow-contract contradiction (`slopsmithRegisterViz` factory vs `window.slopsmithViz_<id>` global) and the Minigames SDK presence at runtime.
+### ⏸️ STOPPED HERE — charette done & decided; NEXT FOCUS = MENU / SHELL DESIGN (2026-05-31)
+Charette synthesis committed + pushed (`a3f8c21`). Christian's next thrust is **menu / shell design** — the DAW-forward container that holds all four pillars (build-queue item #5, designable now ahead of the generators). Design before code.
+
+**Next session (menu/shell design — `slopscale-ux-designer`-led):**
+- **Design the one-shell, four-mode menu/IA** per the charette: `ss-mode-*` root-class mode switch (Pathways · Custom · Workout · Jam), persistent furniture (ruler/transport/stage/Inspector frame) that never rebuilds, Inspector content that swaps per mode, Custom promoted to a co-equal mode. The first screen a user lands on + how they move between modes.
+- **The DAW-forward hotkeys/affordances:** `M` mixer slide-up overlay, `P` progress/XP sheet, `[` sidebar-pill Inspector collapse — each with a visible button + a `?` cheat-sheet. Logic-inspired-but-improved, on overridable `--ss-*` tokens (host may "paint over" later).
+- **Reconcile game ↔ practice-tool** in one menu for beginners/pros/gamers; surface DAW-literacy framing (real DAW vocab) lightly. Read `slopscale-ux-designer` memory (`project_development_pathways_ia`, the DAW design constitution) first — build on it, don't redo.
+
+**Then (build, Foundation first):** queue #1–#3 (guitar Core ★ nodes + `STYLE_PALETTES` + `targetSec`); apply the north-star tweak into `CLAUDE.md`/`AGENTS.md` "Design north star" (keep in sync).
+
+**Also next session (cheap, parallel):** run the now-registered `slopsmith-host-expert` to re-verify the stand-in's findings against a live `window` dump — esp. the viz borrow-contract contradiction (`slopsmithRegisterViz` factory vs `window.slopsmithViz_<id>` global) + Minigames SDK runtime presence. `gamification-architect` + `drum-pedagogy-expert` also newly spawnable.
 
 ---
 
