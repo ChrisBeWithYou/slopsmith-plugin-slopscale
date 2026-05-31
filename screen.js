@@ -405,6 +405,21 @@
     ['sweep_arpeggio_primer','djent_polymeter'],
     ['sweep_arpeggio_primer','death_chromatic'],
   ];
+  // Band map — the single source for the two-level picker that replaces the SVG
+  // skill-tree display (which tangles at 27 nodes). L1 = band (array order); L2 =
+  // ordered pathway list per band (array order, top = do-first). Authored by
+  // learning-design-architect (project_guitar_pathway_bands); the SVG tree
+  // (SKILL_TREE_NODES/EDGES) is kept for the future RPG view. Style pathways' Core
+  // prereq comes from SKILL_TREE_EDGES (first incoming edge), surfaced as a soft
+  // "Builds on …" hint. When a new guitar pathway is added, slot it here.
+  const PATHWAY_BANDS = [
+    { id:'core_beginner',     label:'Beginner',     pathways:['chromatic_warmup','pulse_muting','pent_foundation','power_chord_comping','blues_foundation','bend_drill'] },
+    { id:'core_intermediate', label:'Intermediate', pathways:['major_scale_caged','sixteenth_pocket','dorian_groove','chord_tone_targeting','modal_awareness','diatonic_triad_drill'] },
+    { id:'core_advanced',     label:'Advanced',     pathways:['seventh_vocab','whole_neck_freedom','guide_tones_path','ii_V_I_workout','modal_vamp','melmin_exotic_12key','harmonic_minor_exotic','sweep_arpeggio_primer'] },
+    { id:'style_blues',       label:'Blues',        pathways:['blues_shuffle'] },
+    { id:'style_country',     label:'Country',      pathways:['major_pent_country'] },
+    { id:'style_metal',       label:'Metal',        pathways:['metalcore_chug','melodic_metal_gallop','djent_polymeter','melodeath_twin_leads','death_chromatic'] },
+  ];
   // ===========================================================================
   // §2 · CURATED PATHWAYS
   // label, goal, scales[], tempoTiers[], base config, vary[] (Next-Variation cycle).
@@ -1490,6 +1505,8 @@
   let activePathwayId = null;
   let activePathwayVariationIdx = 0;
   let activeTempoTierIdx = 0;
+  let _activeBandId = null;   // which band the L2 pathway list is showing
+  let jamFeel = 'straight';   // Jam-mode feel (straight / swing / shuffle)
 
   function $(id) { return document.getElementById(id); }
   function pcName(pc) { return NOTE_NAMES[((pc % 12) + 12) % 12]; }
@@ -6552,17 +6569,92 @@
     syncModeBar();
   }
 
-  // The unified mode bar (Guided / Custom / Session) is a view of two root
-  // classes: session-mode wins; otherwise pathway-mode ⇒ Guided, else Custom.
+  // Four-mode shell metadata: data-mode token → { label, the forward-compat ss-mode-*
+  // class suffix, and the "what is this mode" JTBD line under the switcher }.
+  const MODE_META = {
+    guided:  { label:'Pathways', ss:'pathways', desc:'Follow a guided curriculum — we suggest what to work on next.' },
+    custom:  { label:'Custom',   ss:'custom',   desc:'Drill the exact thing you’re stuck on — every control is yours.' },
+    session: { label:'Workout',  ss:'workout',  desc:'Build a timed practice routine — and actually run it.' },
+    jam:     { label:'Jam',      ss:'jam',      desc:'Pick a style and play along on your instrument.' },
+  };
+  // The mode bar (Pathways / Custom / Workout / Jam) is a VIEW of the root classes:
+  // jam-mode wins; else session-mode ⇒ Workout; else pathway-mode ⇒ Pathways; else
+  // Custom. Also sets the single forward-compat ss-mode-* class + the mode-desc line.
   function syncModeBar() {
     const root = $('slopscale-root'); if (!root) return;
-    const mode = root.classList.contains('slopscale-session-mode') ? 'session'
+    const mode = root.classList.contains('slopscale-jam-mode') ? 'jam'
+      : root.classList.contains('slopscale-session-mode') ? 'session'
       : root.classList.contains('slopscale-pathway-mode') ? 'guided' : 'custom';
     document.querySelectorAll('.slopscale-mode-bar .slopscale-mode-btn').forEach(b => {
       const on = b.dataset.mode === mode;
       b.classList.toggle('active', on);
-      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
+    // Forward-compat single mode class (the locked ss-mode-* mechanic) for future CSS.
+    ['pathways','custom','workout','jam'].forEach(s => root.classList.toggle('ss-mode-' + s, MODE_META[mode] && MODE_META[mode].ss === s));
+    const desc = $('slopscale-mode-desc');
+    if (desc && MODE_META[mode]) desc.textContent = MODE_META[mode].desc;
+  }
+
+  // Jam-mode style grid (skeleton) — chips from the shared STYLE_PALETTES; selecting
+  // one marks it active for now. Backing playback + live target-highlight land in the
+  // post-checkpoint pass (Jam is a mirror, never a song generator — north star).
+  function renderJamStyles() {
+    const host = $('slopscale-jam-styles');
+    if (!host) return;
+    host.innerHTML = '';
+    Object.keys(STYLE_PALETTES).forEach((id, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'slopscale-jam-style' + (i === 0 ? ' active' : '');
+      btn.dataset.style = id;
+      btn.textContent = STYLE_PALETTES[id].label;
+      btn.addEventListener('click', () => {
+        host.querySelectorAll('.slopscale-jam-style').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+      host.appendChild(btn);
+    });
+  }
+
+  // Jam: loop a backing in the selected style through the contained player to play
+  // along to. Builds a config from the shared STYLE_PALETTES (the same harmony source
+  // a Pathway/Custom draws from) + the Jam key/tempo/feel; the lead scale is the
+  // reference line and the progression comp is the backing band. Loops [leadIn,
+  // duration] so it keeps going. A MIRROR — no score, no rank (north star).
+  async function jamPlay() {
+    const styleBtn = document.querySelector('#slopscale-jam-styles .slopscale-jam-style.active');
+    const styleId = (styleBtn && styleBtn.dataset.style) || Object.keys(STYLE_PALETTES)[0];
+    const jamKey = ($('slopscale-jam-key') || {}).value || 'A';
+    const jamTempo = Math.max(40, Math.min(220, parseInt(($('slopscale-jam-tempo') || {}).value || '90', 10) || 90));
+    const palette = stylePaletteConfig(styleId, { key: jamKey });
+    if (!palette) return;
+    const base = readConfig();   // instrument / tuning / renderer / audio defaults
+    const cfg = Object.assign({}, base, {
+      mode: undefined, shapeNotes: undefined,
+      practiceType: 'scale',
+      scale: palette.scale, key: palette.key,
+      progression: palette.progression,
+      chordDepth: palette.chordDepth, chordOverride: palette.chordOverride,
+      swing: jamFeel, backingStyle: palette.backingStyle,
+      fretboardSystem: 'position', fretMin: 2, fretMax: 9,   // a movable box — no shape to re-resolve
+      bpm: jamTempo, bars: 8, harmonize: false, keyCycle: 'none', sequence: 'none', direction: 'up_down',
+      audio: Object.assign({}, base.audio, { notes: true, harmony: true, metronome: false, profile: palette.audioProfile || '' }),
+    });
+    try {
+      if (playing) stopPlayback();
+      const exercise = generateExercise(cfg);
+      lastExercise = exercise;
+      await attachRenderer(exercise);
+      const dur = (activeBundle && activeBundle.songInfo && activeBundle.songInfo.duration) || 0;
+      const lead = (activeBundle && activeBundle.leadIn) || 0;
+      if (dur > lead + 0.1) { try { setSegmentLoop(lead, dur); } catch (_) {} }
+      startPlayback();
+      refreshStatusFromState();
+    } catch (e) {
+      showStatus(`Jam error: ${e.message || e}`);
+      console.error('[SlopScale] jam failed', e);
+    }
   }
 
   // Switch top-level practice mode. Guided/Custom drive the hidden pathway
@@ -6574,10 +6666,22 @@
     // stop playback rather than letting audio/playhead bleed into the new mode.
     // Matches onViewSwitch and the session-launch path. No-op before first play.
     if (playing) stopPlayback();
+    const root = $('slopscale-root');
+    if (root) root.classList.remove('slopscale-jam-mode');   // default: not jam (jam re-adds below)
+    if (mode === 'jam') {
+      // Jam = the 4th mode: not session, not pathway. Skeleton — style grid + a
+      // placeholder Inspector; playback/target-highlight wiring is post-checkpoint.
+      syncSessionMode('single');
+      setPathwayModeClass(false);          // clears pathway-mode (calls syncModeBar)
+      if (root) root.classList.add('slopscale-jam-mode');
+      syncModeBar();                       // re-derive now that jam-mode is set
+      return;
+    }
     if (mode === 'session') {
       syncSessionMode('session');
       const s = $('slopscale-session-select');
       if (s) syncSessionSummary(s.value);
+      syncModeBar();
       return;
     }
     syncSessionMode('single');
@@ -6638,6 +6742,8 @@
       // Custom mode hides the goal card via CSS, so no card update needed.
       return;
     }
+    // Selecting a pathway jumps the picker list to that pathway's band.
+    _activeBandId = pathwayBandId(id) || _activeBandId;
     const pw = PATHWAYS[id];
     if (pw && pw.base) {
       const vary = pw.vary && pw.vary.length ? pw.vary : [{}];
@@ -6836,14 +6942,110 @@
     });
   }
 
-  function renderSkillTree() {
-    const container = $('slopscale-skill-tree');
-    if (!container) return;
-    const ptData = pathwayTiersLoad();
-    // Bending is a guitar technique — hide its node (and any edges to it) on bass.
+  // Shared node-visibility predicate (lifted out of renderSkillTree so the list and
+  // the SVG tree never diverge): bending is a guitar technique — hidden on bass.
+  function isHiddenNode(id) {
     const setup = document.querySelector('[name="stringSetup"]');
     const isBass = setup && (STRING_SETUPS[setup.value] || {}).instrument === 'bass';
-    const hiddenNode = id => isBass && id === 'bend_drill';
+    return isBass && id === 'bend_drill';
+  }
+  // A pathway's prerequisite = the first incoming edge in the prereq graph. Used for
+  // the soft "Builds on …" hint (gamification: prereqs suggest, never gate).
+  function pathwayPrereq(id) {
+    const e = SKILL_TREE_EDGES.find(([, b]) => b === id);
+    return e ? e[0] : null;
+  }
+  function pathwayBandId(id) {
+    const b = PATHWAY_BANDS.find(band => band.pathways.includes(id));
+    return b ? b.id : null;
+  }
+  // Single source of truth for a node's progress state — used by the picker list now
+  // and the P-sheet skill rack later (one data, two surfaces). Reads pathway_tiers.
+  function nodeProgressState(id, ptData) {
+    const pw = PATHWAYS[id];
+    const tierCount = (pw && pw.tempoTiers && pw.tempoTiers.length) || 0;
+    const highestTier = (ptData[id] || {}).highest_tier ?? -1;
+    const cleared = tierCount > 0 && highestTier >= tierCount - 1;
+    const inProgress = highestTier >= 0 && !cleared;
+    const prereq = pathwayPrereq(id);
+    const prereqUnmet = prereq ? (((ptData[prereq] || {}).highest_tier ?? -1) < 0) : false;
+    return { tierCount, highestTier, cleared, inProgress, prereq, prereqUnmet };
+  }
+  // The two-level pathway picker (replaces the SVG tree's display role): L1 band bar
+  // + L2 bounded, ordered list for the active band. Full labels, tier-dot progress,
+  // "you are here" on the active row, one "→ next" cue, a soft "Builds on …" sub-line.
+  function renderPathwayList() {
+    const bandBar = $('slopscale-band-bar');
+    const list = $('slopscale-pathway-list');
+    if (!bandBar || !list) return;
+    const ptData = pathwayTiersLoad();
+    const bands = PATHWAY_BANDS
+      .map(b => ({ id:b.id, label:b.label, ids:b.pathways.filter(id => PATHWAYS[id] && !isHiddenNode(id)) }))
+      .filter(b => b.ids.length);
+    if (!bands.length) { bandBar.innerHTML = ''; list.innerHTML = ''; return; }
+    // Which band to show = the user's selected band (_activeBandId), defaulting to the
+    // active pathway's band when unset/stale. Band-chip clicks set _activeBandId directly
+    // (browse); selecting a pathway sets it in applyPathwayById (list follows selection).
+    if (!_activeBandId || !bands.find(b => b.id === _activeBandId)) {
+      const pwBand = bands.find(b => b.ids.includes(activePathwayId));
+      _activeBandId = pwBand ? pwBand.id : bands[0].id;
+    }
+    const activeBand = bands.find(b => b.id === _activeBandId) || bands[0];
+    // L1 — band bar
+    bandBar.innerHTML = '';
+    bands.forEach(b => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'slopscale-band-btn' + (b.id === activeBand.id ? ' active' : '');
+      btn.textContent = b.label;
+      btn.setAttribute('role', 'tab');
+      btn.setAttribute('aria-selected', b.id === activeBand.id ? 'true' : 'false');
+      btn.addEventListener('click', () => { _activeBandId = b.id; renderPathwayList(); });
+      bandBar.appendChild(btn);
+    });
+    // L2 — ordered pathway list for the active band
+    const states = activeBand.ids.map(id => ({ id, st: nodeProgressState(id, ptData) }));
+    const nextId = (states.find(s => !s.st.cleared && s.id !== activePathwayId) || {}).id;
+    list.innerHTML = '';
+    states.forEach(({ id, st }) => {
+      const pw = PATHWAYS[id];
+      const row = document.createElement('div');
+      row.className = 'slopscale-segment-card slopscale-pw-row'
+        + (id === activePathwayId ? ' active' : '') + (st.cleared ? ' cleared' : '');
+      row.setAttribute('role', 'option');
+      row.setAttribute('aria-selected', id === activePathwayId ? 'true' : 'false');
+      const dots = (pw.tempoTiers || []).map((_, i) =>
+        `<span class="tree-tier-dot${i <= st.highestTier ? ' cleared' : ''}"></span>`).join('');
+      const marker = id === activePathwayId ? '<span class="slopscale-pw-here">you are here</span>'
+        : id === nextId ? '<span class="slopscale-pw-next">→ next</span>' : '';
+      // Soft "Builds on …" hint — only when the prereq is in ANOTHER band (a Style
+      // pathway pointing back to its Core foundation). Within a band the top→bottom
+      // order already communicates sequence, so the hint there is just noise.
+      const crossBandPrereq = st.prereq && pathwayBandId(st.prereq) !== activeBand.id;
+      const sub = (st.prereqUnmet && crossBandPrereq && PATHWAYS[st.prereq])
+        ? `<div class="slopscale-pw-sub">Builds on ${PATHWAYS[st.prereq].label} — suggested first</div>` : '';
+      row.innerHTML = `<div class="slopscale-pw-rowtop"><span class="slopscale-pw-label">${pw.label}</span>${marker}</div>`
+        + `<div class="slopscale-pw-dots">${dots}</div>${sub}`;
+      row.addEventListener('click', () => {
+        const sel = $('slopscale-pathway');
+        if (sel) { sel.value = id; sel.dispatchEvent(new Event('change')); }
+      });
+      list.appendChild(row);
+    });
+    // Keep the active row visible — scroll the LIST only (never the outer panel).
+    const activeRow = list.querySelector('.slopscale-pw-row.active');
+    if (activeRow) {
+      const lr = list.getBoundingClientRect(), ar = activeRow.getBoundingClientRect();
+      if (ar.top < lr.top || ar.bottom > lr.bottom) list.scrollTop += (ar.top - lr.top);
+    }
+  }
+
+  function renderSkillTree() {
+    renderPathwayList();   // the live picker; the SVG tree below is shelved-but-kept
+    const container = $('slopscale-skill-tree');
+    if (!container || container.classList.contains('slopscale-tree-shelved')) return;
+    const ptData = pathwayTiersLoad();
+    const hiddenNode = isHiddenNode;
     // Build inner wrapper + SVG edge layer + node buttons
     container.innerHTML = '<div class="slopscale-tree-inner" id="slopscale-tree-inner"></div>';
     const inner = container.firstChild;
@@ -7757,10 +7959,21 @@
       // does not feel sluggish.
       if (activeBundle) onGenerate();
     });
-    // Unified mode bar: Guided / Custom / Session.
-    ['guided', 'custom', 'session'].forEach(m => {
+    // Four-mode shell switcher: Pathways / Custom / Workout / Jam (data-mode tokens
+    // stay guided/custom/session/jam).
+    ['guided', 'custom', 'session', 'jam'].forEach(m => {
       $('slopscale-mode-' + m)?.addEventListener('click', () => selectMode(m));
     });
+    renderJamStyles();
+    // Jam controls: feel toggle + the Jam action.
+    document.querySelectorAll('#slopscale-jam-feel .slopscale-jam-feel-btn').forEach(b => {
+      b.addEventListener('click', () => {
+        document.querySelectorAll('#slopscale-jam-feel .slopscale-jam-feel-btn').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        jamFeel = b.dataset.feel || 'straight';
+      });
+    });
+    $('slopscale-jam-go')?.addEventListener('click', jamPlay);
     // Preset picker (Custom): load a saved preset's config into the form.
     $('slopscale-preset-picker')?.addEventListener('change', (ev) => {
       const key = ev.target.value; if (!key) return;
