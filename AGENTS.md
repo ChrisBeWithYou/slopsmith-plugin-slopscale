@@ -8,6 +8,20 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 The plugin has no build step. There is no `package.json`, no compiler, no bundler. All files are served directly by Slopsmith's FastAPI host.
 
+## Design north star
+
+SlopScale is a **practice & learning tool, not a song/riff generator.** Its purpose is to be the state-of-the-art way to practise and learn an instrument **genre-fluently** — building transferable skills a player takes *off the screen* to write their own songs/solos and to be creative. Generated content is always a means to teach a skill, never the deliverable.
+
+**The filter for every feature, generator, pathway, and agent:** *teach the grammar, not the sentences — build a skill the player owns off the screen; never do the creative work for them.* In practice:
+
+- Every exercise names the transferable skill it builds **and** why it's idiomatic (the pathway goal-cards are the model).
+- Speak the player's theory vocabulary out loud (name the devices: gallop, i–♭VI–♭VII, twin leads) so they learn the language, not just the fingering.
+- Prefer **recombinable primitives** (power chords, gallop, pedal-riffs, harmonized lines) over fixed canned content — give the blocks, let the player assemble their own.
+- Keep a deliberate on-ramp to creation: Guided → Custom → Improv/Jam. Drills are the entrance; creativity (improv, call-and-response, master/memory mode) is the destination, not optional polish.
+- Realism guardrails (no-unison, the voicing engine, fretboard playability) are mission-critical — they're what make practised skill actually *transfer*, and why the harmony / fretboard / metal-idiom review agents matter.
+
+The planned random-style generator is an **idiom-demonstration / practice-variety engine** (show the genre's grammar to learn from and riff against), never a "make me a song" crutch. And when finalising user-facing docs/description, let this framing show **implicitly** — describe SlopScale as a way to *learn and practise* an instrument, not as a generator.
+
 ## File layout
 
 | File | Role |
