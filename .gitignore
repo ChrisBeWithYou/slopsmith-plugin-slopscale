@@ -26,3 +26,7 @@ docs/sources/
 
 # On-hand alternate soundfonts for A/B auditioning (not shipped)
 static/wafonts/alt/
+
+# Local DSP assets pending licensing clearance (commercial cab IRs, NAM captures) — not shipped
+static/irs/
+static/nam/

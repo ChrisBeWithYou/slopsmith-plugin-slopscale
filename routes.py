@@ -539,6 +539,33 @@ def setup(app: FastAPI, context: dict) -> None:
             raise HTTPException(404, "Not found.")
         return FileResponse(str(path), media_type="application/javascript")
 
+    # Distorted-track DSP assets: cab impulse responses (.wav) under static/irs/
+    # and NAM amp captures (.nam, which are JSON) under static/nam/. Served locally
+    # so the amp/cab chain is offline-safe. The NAM *engine* (worklet + wasm) is
+    # borrowed from the host's nam_tone plugin at runtime — not bundled here. Both
+    # dirs are gitignored (commercial IRs / captures pending licensing clearance);
+    # only the declared extension is served and path traversal is rejected.
+    _irs_dir = Path(__file__).resolve().parent / "static" / "irs"
+    _nam_dir = Path(__file__).resolve().parent / "static" / "nam"
+
+    @app.get(f"/api/plugins/{PLUGIN_ID}/ir/{{name}}")
+    def cab_ir(name: str):
+        if not name.endswith(".wav") or "/" in name or "\\" in name or ".." in name:
+            raise HTTPException(404, "Not found.")
+        path = _irs_dir / name
+        if not path.is_file():
+            raise HTTPException(404, "Not found.")
+        return FileResponse(str(path), media_type="audio/wav")
+
+    @app.get(f"/api/plugins/{PLUGIN_ID}/nam/{{name}}")
+    def nam_model(name: str):
+        if not name.endswith(".nam") or "/" in name or "\\" in name or ".." in name:
+            raise HTTPException(404, "Not found.")
+        path = _nam_dir / name
+        if not path.is_file():
+            raise HTTPException(404, "Not found.")
+        return FileResponse(str(path), media_type="application/json")
+
     @app.get(f"/api/plugins/{PLUGIN_ID}/presets")
     def list_presets():
         if meta_db is None:
