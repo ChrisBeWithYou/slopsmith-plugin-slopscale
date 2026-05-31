@@ -178,6 +178,21 @@
     harmonic_minor:{triad:['min','dim','aug','min','maj','maj','dim'],    seventh:['min7','min7b5','maj7','min7','dom7','maj7','dim7']},
     melodic_minor: {triad:['min','min','aug','maj','maj','dim','dim'],    seventh:['min7','min7','maj7','dom7','dom7','min7b5','min7b5']}
   };
+  // Tonic chord identity for genuinely-exotic scales that have NO DIATONIC_QUALITIES
+  // row. Without this, chordQualityForDegree silently borrows major's row (line ~2126),
+  // so a static_i drone under e.g. locrian ♮2 (a m7♭5 chord-scale) or the altered scale
+  // (a dominant) sounds a bare MAJOR triad — a major 3rd ringing against the scale's ♭3.
+  // Only consulted at the TONIC degree (these are used over one-chord drones); non-tonic
+  // degrees of these scales still fall through to the major-borrow (no full rows authored).
+  // Values are existing CHORD_FORMULAS qualities (7th-family = the honest chord-scale tonic).
+  // Pentatonic/blues are deliberately OMITTED — their major-borrow backing is unchanged.
+  // Derived from harmony-theory-architect's spec (2026-05-31 Core review), adapted to
+  // existing qualities; fuller accuracy (7alt / maj7#5) is a logged future enhancement.
+  const SCALE_TONIC_QUALITY = {
+    lydian_dominant:'dom7', altered:'dom7', mixolydian_b6:'dom7', phrygian_dominant:'dom7',
+    bebop_dominant:'dom7', locrian_sharp2:'min7b5', dorian_b2:'min7', bebop_major:'maj7',
+    lydian_augmented:'aug', whole_tone:'aug', diminished:'dim7'
+  };
   const COMMON_PROGRESSIONS = {
     diatonic:[1,2,3,4,5,6,7,1],
     static_i:[1],                 // one-chord vamp — Beginner Core "static vamp" (Pulse & Muting); roots stay on the tonic
@@ -560,11 +575,11 @@
     },
     major_scale_caged: {
       label:'Major Scale — CAGED',
-      goal:'The headline scale, learned as five connected shapes. Play C major in the C shape, then the A, G, E, and D shapes — same notes, five zones of the neck. The skill is connecting positions so the major scale stops being one box and becomes the whole fretboard. The map every other scale is measured against.',
+      goal:'The headline scale, learned as five connected shapes. Start with C major in the E shape (the most ergonomic box), then move through the A, G, C, and D shapes — same notes, five zones of the neck. The skill is connecting positions so the major scale stops being one box and becomes the whole fretboard. The map every other scale is measured against.',
       scales:['major'],
       tempoTiers:[60, 85, 105, 130],
-      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'I-IV-V', chordDepth:'triad', chordOverride:'auto', key:'C', shape:'C' },
-      vary:[ { key:'C', shape:'C' }, { key:'C', shape:'A' }, { key:'C', shape:'G' }, { key:'C', shape:'E' }, { key:'C', shape:'D' } ]
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'I-IV-V', chordDepth:'triad', chordOverride:'auto', key:'C', shape:'E' },
+      vary:[ { key:'C', shape:'E' }, { key:'C', shape:'A' }, { key:'C', shape:'G' }, { key:'C', shape:'C' }, { key:'C', shape:'D' } ]
     },
     sixteenth_pocket: {
       label:'Sixteenth-Note Pocket',
@@ -595,7 +610,7 @@
       goal:'Beyond the diatonic world: melodic-minor modes and symmetric/exotic scales, cycled through keys. Lydian dominant, altered, Locrian ♮2, plus diminished and whole-tone colors — the vocabulary of fusion, film, and modern jazz. The skill is hearing and fingering these unusual scales in any key, on demand.',
       scales:['melodic_minor','lydian_dominant','altered','locrian_sharp2','lydian_augmented','diminished','whole_tone'],
       tempoTiers:[65, 90, 110, 135],
-      base:{ practiceType:'scale', scale:'melodic_minor', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'static_i', chordDepth:'triad', chordOverride:'auto', key:'A', shape:'E' },
+      base:{ practiceType:'scale', scale:'melodic_minor', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'static_i', chordDepth:'seventh', chordOverride:'auto', key:'A', shape:'E' },
       vary:[ { scale:'melodic_minor', key:'A' }, { scale:'lydian_dominant', key:'C' }, { scale:'altered', key:'E' }, { scale:'locrian_sharp2', key:'B' }, { scale:'lydian_augmented', key:'G' } ]
     },
     // ── Metal / heavy-genre pack (genre-framework §3) ────────────────────────
@@ -1633,6 +1648,70 @@
     bluegrass:  { family: 'acoustic',   harmony: { engine: 'sample', tone: 'guitar', level: 0.78 }, brightness: 0.62 },
     'city-pop': { family: 'electronic', harmony: { engine: 'sample', tone: 'epiano', level: 0.8 },  brightness: 0.68 },
   };
+
+  // ── STYLE_PALETTES — one shared style→harmony table (build-queue #2) ──────────
+  // The single source a Pathway, a Custom config, and a Jam style all draw from:
+  // a loopable progression set + lead scales + quality defaults + a guide-tone flag
+  // + the backing feel + the audio profile, per style. It does NOT compose song form
+  // — it hands a consumer the genre's *grammar* to loop and riff against (north star:
+  // "teach the grammar, not the sentences"). Everything here is the style DNA already
+  // encoded in shipped, agent-vetted pathway `base` configs + AUDIO_PROFILES + real
+  // COMMON_PROGRESSIONS/SCALE_INTERVALS tokens — consolidated, not invented. New genre
+  // entries (and broadening this beyond the seed set) want genre-idiom + harmony review
+  // before Jam/pathways consume them (CLAUDE.md agent-workflow). Fields:
+  //   progressions[]  loopable COMMON_PROGRESSIONS keys (index 0 = default)
+  //   leadScales[]    SCALE_INTERVALS keys idiomatic for soloing (index 0 = default)
+  //   chordDepth      'triad'|'seventh'|'ninth'… (power chords come via chordOverride)
+  //   chordOverride   default chord-quality override ('auto'|'dom7'|'min7'|'5'|'5oct'…)
+  //   guideTones      is guide-tone voice-leading a *defining* skill of the style
+  //   feel            { swing, backingStyle } — the backing feel
+  //   audioProfile    AUDIO_PROFILES key (the sound), or null → clean family inferred
+  const STYLE_PALETTES = {
+    blues:   { label:'Blues',      defaultKey:'A', progressions:['12_bar_blues','quick_change_blues'], leadScales:['blues','minor_pentatonic'], chordDepth:'seventh', chordOverride:'dom7', guideTones:false, feel:{ swing:'shuffle', backingStyle:'boogie' }, audioProfile:'blues' },
+    rock:    { label:'Rock',       defaultKey:'E', progressions:['i-VII-VI-VII','I-V-vi-IV','I-IV-V'], leadScales:['minor_pentatonic','natural_minor'], chordDepth:'triad', chordOverride:'5', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'rock' },
+    metal:   { label:'Metal',      defaultKey:'E', progressions:['metal_i_bVI_bVII','metal_pedal_chromatic','metal_i_bVII_bVI_V'], leadScales:['phrygian','natural_minor','harmonic_minor'], chordDepth:'triad', chordOverride:'5', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'metal' },
+    djent:   { label:'Djent',      defaultKey:'E', progressions:['metal_pedal_chromatic'], leadScales:['phrygian','natural_minor'], chordDepth:'triad', chordOverride:'5oct', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'djent' },
+    jazz:    { label:'Jazz',       defaultKey:'C', progressions:['ii-V-I','vi-ii-V-I','rhythm_changes_a'], leadScales:['major','dorian','mixolydian'], chordDepth:'seventh', chordOverride:'auto', guideTones:true, feel:{ swing:'swing', backingStyle:'pad' }, audioProfile:'jazz' },
+    funk:    { label:'Funk / R&B', defaultKey:'A', progressions:['i-VII-VI-VII','static_i'], leadScales:['dorian','minor_pentatonic'], chordDepth:'seventh', chordOverride:'min7', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:null },
+    pop:     { label:'Pop',        defaultKey:'C', progressions:['I-V-vi-IV','vi-IV-I-V','I-vi-IV-V'], leadScales:['major','major_pentatonic'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:null },
+    country: { label:'Country',    defaultKey:'G', progressions:['I-IV-V','I-V-vi-IV'], leadScales:['major_pentatonic','major'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'bluegrass' },
+    gospel:  { label:'Gospel',     defaultKey:'C', progressions:['ii-V-I','I-vi-ii-V'], leadScales:['major','dorian'], chordDepth:'ninth', chordOverride:'auto', guideTones:true, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'gospel' },
+  };
+  // Resolve a style palette into a mergeable partial config the way a Pathway/Custom/
+  // Jam consumer uses it: Object.assign({}, base, stylePaletteConfig('blues')). opts let
+  // a consumer pick a non-default progression/scale (by index) or pin key/progression/scale.
+  function stylePaletteConfig(styleId, opts) {
+    const pal = STYLE_PALETTES[styleId];
+    if (!pal) return null;
+    opts = opts || {};
+    const at = (arr, idx, override) => override != null ? override
+      : arr[(((idx | 0) % arr.length) + arr.length) % arr.length];
+    const out = {
+      style: styleId,
+      progression: at(pal.progressions, opts.progressionIdx || 0, opts.progression),
+      scale:       at(pal.leadScales,   opts.scaleIdx || 0,       opts.scale),
+      key:         opts.key || pal.defaultKey,
+      chordDepth:  pal.chordDepth,
+      chordOverride: pal.chordOverride,
+      swing:       pal.feel.swing,
+      backingStyle: pal.feel.backingStyle,
+      guideTones:  pal.guideTones,        // advisory metadata for the consumer
+    };
+    if (pal.audioProfile) out.audioProfile = pal.audioProfile;
+    return out;
+  }
+  // Startup integrity guard (mirrors the no-unison guard): every palette must point at
+  // real engine tokens, so the shared style table can't silently rot as the engine
+  // evolves. Throws on load if a palette references a missing progression/scale/profile.
+  (function validateStylePalettes() {
+    for (const id of Object.keys(STYLE_PALETTES)) {
+      const p = STYLE_PALETTES[id];
+      for (const pr of p.progressions) if (!COMMON_PROGRESSIONS[pr]) throw new Error(`[SlopScale style-palette] ${id} references unknown progression "${pr}"`);
+      for (const sc of p.leadScales)   if (!SCALE_INTERVALS[sc])     throw new Error(`[SlopScale style-palette] ${id} references unknown scale "${sc}"`);
+      if (p.audioProfile && !AUDIO_PROFILES[p.audioProfile])         throw new Error(`[SlopScale style-palette] ${id} references unknown audioProfile "${p.audioProfile}"`);
+    }
+  })();
+
   // Best-effort family inference for pathways that don't (yet) declare a profile,
   // so an untagged pathway gets a sensible family default — never silence or a
   // wrong-family voice.
@@ -2005,7 +2084,17 @@
     }
     switch (cfg.fretboardSystem) {
       case 'single_string': return singleStringScalePositions(cfg);
-      case 'full_neck': return everyScalePosition(Object.assign({}, cfg, { fretMin:0, fretMax:24 }));
+      // full_neck is the one path that doesn't resolve through a unison-deduping
+      // resolver (shape paths → shapeNotesToPositions; position → allScalePositions
+      // unique-midi). everyScalePosition collects every fret across the neck, so a
+      // pitch recurs on multiple strings — dedupe to one ascending pass (no-unison rule).
+      // FRET-COUNT ASSUMPTION: this sweeps a fixed 0–24 neck. SlopScale has no
+      // instrument fret-count model (MAX_FRET=36 is only an input sanity-clamp, not a
+      // real neck length), so the top of this run reaches fret ~24 — playable on 24-fret
+      // guitars but past the end of 21/22-fret necks (most Fender/Gibson). Accepted by
+      // decision (2026-05-31): leave at 24. Future option if it matters: add a per-
+      // instrument `frets` field to STRING_SETUPS and clamp fretMax to it here.
+      case 'full_neck': return dedupeUnisons(everyScalePosition(Object.assign({}, cfg, { fretMin:0, fretMax:24 })));
       case 'position':
       default: return allScalePositions(cfg);
     }
@@ -2118,6 +2207,13 @@
     // only — the DIATONIC_QUALITIES set); triad/seventh use the hand-verified rows.
     if (ext && DIATONIC_QUALITIES[scale] && (SCALE_INTERVALS[scale] || []).length === 7) {
       return diatonicExtendedQuality(scale, degree, depth);
+    }
+    // Exotic scale with no diatonic row: give its TONIC the honest chord identity
+    // rather than silently borrowing a major triad. Tonic only (degree 1/8); other
+    // degrees still fall through. Pentatonic/blues aren't in the map → unchanged.
+    if (!DIATONIC_QUALITIES[scale] && ((degree - 1 + 7) % 7) === 0 && SCALE_TONIC_QUALITY[scale]) {
+      const base = SCALE_TONIC_QUALITY[scale];
+      return ext ? extendNamedQuality(base, depth) : base;
     }
     const family = DIATONIC_QUALITIES[scale] || DIATONIC_QUALITIES.major;
     if (ext) {
@@ -3533,9 +3629,13 @@
   // routes cfg.practiceType to the correct builder above.
   // ===========================================================================
   function generateExercise(cfg) {
-    const chart = cfg.keyCycle && cfg.keyCycle !== 'none'
+    let chart = cfg.keyCycle && cfg.keyCycle !== 'none'
       ? buildKeyCycleChart(cfg)
       : buildSingleChart(cfg);
+    // Workout single block: a Custom config + a target duration → fill with whole
+    // repetitions before timing (no-op when targetSec is absent, i.e. normal play).
+    const tSec = blockTargetSec(cfg);
+    if (tSec != null) chart = fillBlockToDuration(chart, cfg, tSec);
     const duration = Math.max(chart.duration || 0, cfg.bars * measureSeconds(cfg));
     const anchors = chart.anchors && chart.anchors.length ? chart.anchors : buildAnchors(cfg, duration);
     return { version:1, session:cfg, chart:Object.assign({}, chart, { beats:buildBeats(cfg, duration), anchors, duration }) };
@@ -3608,6 +3708,47 @@
     return { notes, chords, chordTemplates, handShapes, sections, anchors, beats, duration:t };
   }
 
+  // ── Workout time primitive (build-queue #3) ─────────────────────────────────
+  // Repeat a block's WHOLE-CELL content until it fills at least targetSec of
+  // wall-clock time, overshooting to the next whole repetition — never cutting a
+  // run mid-phrase. The "cell" is one full pass of the block exercise (its `bars`);
+  // reps are whole passes, so phrases stay intact and the playhead crossing the
+  // block's end IS the advance (no second clock). Existing builders count bars/reps;
+  // this is the one piece that thinks in seconds. A block stays an existing
+  // curriculum unit (a pathway node / Custom config) — this only extends its length.
+  // Templates are identical across reps, so chord ids are reused (no tplOffset
+  // growth); beats are left to the caller's buildBeats over the new duration.
+  function fillBlockToDuration(chart, segCfg, targetSec) {
+    const cellDur = (chart && chart.duration) || (segCfg.bars * measureSeconds(segCfg));
+    if (!(targetSec > 0) || !(cellDur > 0)) return chart;
+    // ceil → overshoot to a whole cell; the tiny epsilon avoids an extra rep when
+    // targetSec is an exact multiple of cellDur (floating-point safe).
+    const reps = Math.max(1, Math.ceil((targetSec - 1e-6) / cellDur));
+    if (reps === 1) return chart;
+    const notes = [], chords = [], handShapes = [], anchors = [], sections = [], beats = [];
+    for (let r = 0; r < reps; r++) {
+      const off = r * cellDur;
+      (chart.notes || []).forEach(n => notes.push(Object.assign({}, n, { t: Number((n.t + off).toFixed(6)) })));
+      (chart.chords || []).forEach(c => chords.push(Object.assign({}, c, { t: Number((c.t + off).toFixed(6)) })));
+      (chart.handShapes || []).forEach(hs => handShapes.push(Object.assign({}, hs, { start_time: Number((hs.start_time + off).toFixed(6)), end_time: Number((hs.end_time + off).toFixed(6)) })));
+      (chart.anchors || []).forEach(a => anchors.push(Object.assign({}, a, { time: Number((a.time + off).toFixed(6)) })));
+      if (chart.sections) (chart.sections || []).forEach(s => sections.push(Object.assign({}, s, { number: sections.length + 1, time: Number((s.time + off).toFixed(6)) })));
+      if (chart.beats)    (chart.beats || []).forEach(b => beats.push(Object.assign({}, b, { time: Number((b.time + off).toFixed(6)) })));
+    }
+    const out = Object.assign({}, chart, { notes, chords, handShapes, anchors, duration: Number((reps * cellDur).toFixed(6)) });
+    if (chart.sections) out.sections = sections;
+    if (chart.beats) out.beats = beats;
+    return out;
+  }
+  // A block's target duration in seconds (Workout). Reads it off the segment, or its
+  // config, or the cfg directly (single-exercise Custom block). null = bars-driven.
+  function blockTargetSec(src) {
+    if (!src) return null;
+    if (src.targetSec != null) return Number(src.targetSec) || null;
+    if (src.config && src.config.targetSec != null) return Number(src.config.targetSec) || null;
+    return null;
+  }
+
   // Concatenate all session segments into one chart with section markers.
   // Each segment's times are offset by the cumulative duration of prior segments.
   // BPM ladder and key cycle are applied per-segment as configured.
@@ -3637,6 +3778,13 @@
       } else {
         chart = buildSingleChart(segCfg);
       }
+
+      // Workout block: if the block declares a target wall-clock duration, fill it
+      // with whole repetitions (overshoot, never cut a phrase). The block stays an
+      // existing curriculum unit; only its length changes. Beats are regenerated
+      // below over the filled duration.
+      const tSec = blockTargetSec(segment);
+      if (tSec != null) chart = fillBlockToDuration(chart, segCfg, tSec);
 
       const dur = chart.duration || (segCfg.bars * measureSeconds(segCfg));
 
@@ -6494,9 +6642,12 @@
     if (pw && pw.base) {
       const vary = pw.vary && pw.vary.length ? pw.vary : [{}];
       const len = vary.length;
+      // Selecting a pathway opens deterministically on its first variation (the
+      // named entry / "first step" of the curriculum rung); Next Variation is the
+      // explicit "give me another on-theme shape/key" control (decided 2026-05-31).
       const idx = variationIdx != null
         ? ((variationIdx % len) + len) % len
-        : Math.floor(Math.random() * len);
+        : 0;
       activePathwayVariationIdx = idx;
       const variation = vary[idx] || {};
       // Reset tier to Slow when switching to a different pathway; preserve it on variation rotation
@@ -7747,7 +7898,7 @@
   }
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
-  window.SlopScale = { generateExercise, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop };
+  window.SlopScale = { generateExercise, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig };
   if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
