@@ -27,8 +27,10 @@
    not just a handful of buttons.
 4. **Native to the host.** Match Slopsmith's flat-pill transport language; SlopScale
    should read as a first-class part of the host, not bolted on.
-5. **Hearing-safe & reduced-motion-aware.** No sudden audio, no victory stingers; all
-   slide/transition gated by `@media (prefers-reduced-motion: reduce)`.
+5. **Safe, normalized audio & reduced-motion-aware.** Standard loudness limits — no
+   clipping, no gratuitous full-volume transients, no victory stingers, predictable
+   starts (the audio we serve users should meet normal safe-audio practice, not a
+   personal accommodation); all slide/transition gated by `@media (prefers-reduced-motion: reduce)`.
 6. **Practice-not-generation in all copy.** Verbs are *drill / build / run / play
    along*, never "generate a song/riff." Jam stays "a mirror, not a judge / find your
    own voice." This is load-bearing positioning **and** north-star — protect it.
@@ -185,8 +187,8 @@ band bar  →  pathway list (active row lit)  →  one-line orientation block  �
   picker and trimmed to one line.
 - **Start button:** label-sized, `≤360px`, verb + name only; the skill hook moves up
   into the orientation block.
-- Static preview, **no auto-play, no modal intro** stays (hearing-safe; the primed-CTA
-  model is market-right — confirmed by all non-UX lanes).
+- Static preview, **no auto-play, no modal intro** stays (a predictable, non-startling
+  start; the primed-CTA model is market-right — confirmed by all non-UX lanes).
 
 ---
 
@@ -309,7 +311,7 @@ earned shows "Builds on Beginner Core" (informational), never a lock.
 - **No FOMO / loss-aversion:** a missed day is a blank dot, never a red mark or a
   "don't lose your streak!" nag. Streaks have grace; absence is silent.
 - **No audio victory stingers** — celebratory cues are gentle *visual* moments (the
-  tier-glow), never a sound. Hearing-safe is non-negotiable.
+  tier-glow), never a sound (visual-first; we don't fire gratuitous audio at users).
 - **The whole layer toggles Off / Casual / Hardcore.** Off collapses to a bare
   functional tool (the standing proof gamification never gates). Hardcore's stricter
   rules are opt-in *bonus recognition*, never penalties.
