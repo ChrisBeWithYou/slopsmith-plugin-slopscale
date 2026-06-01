@@ -1,7 +1,7 @@
 {
   "id": "slopscale",
   "name": "SlopScale",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "nav": {
     "label": "SlopScale",
     "screen": "slopscale"
