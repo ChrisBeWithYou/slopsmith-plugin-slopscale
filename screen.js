@@ -1673,6 +1673,20 @@
     'city-pop': { family: 'electronic', harmony: { engine: 'sample', tone: 'epiano', level: 0.8 },  brightness: 0.68 },
   };
 
+  // ── Drum kits (audio-realism Phase D) ────────────────────────────────────────
+  // A kit is a SOUND set; the groove (DRUM_GROOVES) is separate. Phase D1–D3 ship
+  // only the procedural synth kits (zero asset, zero licensing, authentic-by-
+  // construction, and the never-silent failover). Sampled CC0 acoustic kits
+  // (kit_rock/kit_jazz/kit_acoustic_soft/…) land in Phase D4. `resolveDrumKit`
+  // falls any unregistered kit id back to kit_909 → in D1–D3 every style plays a
+  // synth beat until the sampled kits exist (intentional; fix on the backend in D4).
+  const KIT_REGISTRY = {
+    kit_909: { engine: 'synth', preset: '909' },   // tight/punchy default electronic
+    kit_808: { engine: 'synth', preset: '808' },   // sub-heavy, long kick tail
+    // kit_rock / kit_jazz / kit_acoustic_soft / kit_latin / kit_afro → Phase D4 (sampled CC0)
+  };
+  const DRUM_KIT_FAMILY_DEFAULT = { electronic: 'kit_909', acoustic: 'kit_rock', clean: 'kit_rock', distorted: 'kit_rock' };
+
   // ── STYLE_PALETTES — one shared style→harmony table (build-queue #2) ──────────
   // The single source a Pathway, a Custom config, and a Jam style all draw from:
   // a loopable progression set + lead scales + quality defaults + a guide-tone flag
@@ -1758,6 +1772,10 @@
       harmony: { ...GLOBAL_AUDIO_DEFAULT.harmony, ...famDef.harmony, ...(profDef ? profDef.harmony : {}) },
       notes:   { ...GLOBAL_AUDIO_DEFAULT.notes,   ...famDef.notes,   ...(profDef ? profDef.notes   : {}) },
       bass:    { ...GLOBAL_AUDIO_DEFAULT.bass,    ...famDef.bass,    ...(profDef ? profDef.bass    : {}) },
+      // Ensemble drums slot (Phase D): a kit id resolved profile ← family default;
+      // resolveDrumKit() applies the mixer override + the unregistered→kit_909 fallback.
+      drums:   { kit: (profDef && profDef.drums && profDef.drums.kit) || DRUM_KIT_FAMILY_DEFAULT[fam] || 'kit_909',
+                 level: (profDef && profDef.drums && Number.isFinite(profDef.drums.level)) ? profDef.drums.level : 1 },
       brightness: (profDef && profDef.brightness != null) ? profDef.brightness
                 : (famDef.brightness != null) ? famDef.brightness
                 : GLOBAL_AUDIO_DEFAULT.brightness,
@@ -2590,6 +2608,89 @@
         const upT = beatT + beatSec * 0.5;
         if (upT < duration - 1e-4) events.push({ t:Number(upT.toFixed(6)), end:Number(Math.min(duration, upT + beatSec * 0.4).toFixed(6)), name:'', midis:shell, cpcs, gpcs });
       }
+    }
+    return events;
+  }
+
+  // ── Drum grooves (audio-realism Phase D) ────────────────────────────────────
+  // A groove is a declarative per-voice lane cell on a subdivision grid. `div` =
+  // steps per beat (2=8ths, 3=triplets, 4=16ths). Each lane is a token string of
+  // length stepsPerBar (numerator*div): 'a'=accent, 'n'=normal, 'g'=ghost,
+  // '.'/'0'=rest. Pre-swung triplet cells (shuffle/jazz) set `preSwung` so
+  // applySwingToBundle skips them (no double-swing); straight cells (div=2) ride
+  // the global swing warp. buildDrumEvents tiles the cell across the content
+  // length using the same beat math buildBeats uses. Fills are a Phase D5 concern.
+  const DRUM_VELOCITY = { a: 0.95, n: 0.78, g: 0.32 };
+  const DRUM_GROOVES = {
+    // 8-step (4/4 ·div2) backbeat: kick 1+3, snare 2+4, straight 8th hats.
+    straight_8th_rock: { div: 2, preSwung: false, lanes: {
+      kick:      'n...n...',
+      snare:     '..a...a.',
+      hatClosed: 'nnnnnnnn',
+    } },
+    // Disco/dance: four-on-the-floor kick, backbeat snare, open hat on every "&"
+    // (choked by the next closed hat — the genre-defining sizzle).
+    four_on_floor: { div: 2, preSwung: false, lanes: {
+      kick:      'n.n.n.n.',
+      snare:     '..a...a.',
+      hatClosed: 'n.n.n.n.',
+      hatOpen:   '.n.n.n.n',
+    } },
+    // Half-time: backbeat moves to beat 3 only, lots of space.
+    half_time: { div: 2, preSwung: false, lanes: {
+      kick:      'n....n..',
+      snare:     '....a...',
+      hatClosed: 'nnnnnnnn',
+    } },
+    // 12-step (4/4 ·div3) triplet shuffle, authored pre-swung: hats play the
+    // "spang" skip (downbeat + last triplet), kick 1+3, snare 2+4.
+    shuffle_blues: { div: 3, preSwung: true, lanes: {
+      kick:      'n.....n.....',
+      snare:     '...a.....a..',
+      hatClosed: 'n.nn.nn.nn.n',
+    } },
+  };
+  // Resolve which groove a config plays. Shuffle feel → the triplet shuffle;
+  // everything else → the straight backbeat. (four_on_floor / half_time are wired
+  // and reachable via an explicit cfg.groove or a future electronic palette.)
+  function resolveGroove(cfg) {
+    if (cfg.groove && DRUM_GROOVES[cfg.groove]) return cfg.groove;
+    if (cfg.swing === 'shuffle') return 'shuffle_blues';
+    return 'straight_8th_rock';
+  }
+  // Emit role:'drums' backing events for [0, duration). Pitch-less: each event is
+  // a kit-piece `voice` + time + structural `velocity` (+ accent/ghost flags +
+  // a `noSwing` flag for pre-swung cells). Concatenated into backingEvents in
+  // makeBundle BEFORE the count-in shift + swing, so drums get count-in silence
+  // and the global swing warp for free. Open hats are choked to the next hat.
+  function buildDrumEvents(cfg, duration, grooveId) {
+    const groove = DRUM_GROOVES[grooveId];
+    if (!groove || !(duration > 0)) return [];
+    const beatSec = (60 / cfg.bpm) * (4 / cfg.meter.denominator);
+    const div = Math.max(1, groove.div), numer = Math.max(1, cfg.meter.numerator);
+    const stepSec = beatSec / div, stepsPerBar = numer * div;
+    const voices = Object.keys(groove.lanes);
+    const events = [];
+    for (let barStart = 0; barStart < duration - 1e-4; barStart += stepsPerBar * stepSec) {
+      for (const voice of voices) {
+        const pat = groove.lanes[voice];
+        for (let s = 0; s < stepsPerBar; s++) {
+          const tok = pat[s % pat.length];
+          if (!tok || tok === '.' || tok === '0') continue;
+          const t = barStart + s * stepSec;
+          if (t >= duration - 1e-4) break;
+          events.push({ t: +t.toFixed(6), end: +(t + 0.1).toFixed(6), role: 'drums', voice,
+            velocity: DRUM_VELOCITY[tok] ?? 0.78, accent: tok === 'a', ghost: tok === 'g',
+            noSwing: !!groove.preSwung });
+        }
+      }
+    }
+    // Open-hat choke: an open hat rings only until the next hat (closed or open).
+    const hats = events.filter(e => e.voice === 'hatOpen' || e.voice === 'hatClosed').sort((a, b) => a.t - b.t);
+    for (let i = 0; i < hats.length; i++) {
+      if (hats[i].voice !== 'hatOpen') continue;
+      const next = hats[i + 1];
+      if (next) hats[i].dur = Math.max(0.04, +(next.t - hats[i].t - 0.005).toFixed(6));
     }
     return events;
   }
@@ -3958,6 +4059,7 @@
       return Object.assign({}, n, { t:nt, sus:Math.max(0.02, +(ne - nt).toFixed(6)) });
     });
     bundle.backingEvents = (bundle.backingEvents || []).map(ev => {
+      if (ev.noSwing) return ev;   // pre-swung triplet drum cells carry their own feel
       const et = sw(ev.t), ee = sw(ev.end);
       return Object.assign({}, ev, { t:et, end:Math.max(+(et + 0.02).toFixed(6), ee) });
     });
@@ -3994,9 +4096,14 @@
       config:cfg,
     isReady:true, notes:notesWithTail, chords:c.chords, anchors:c.anchors, beats:beatsWithTail, sections:c.sections, chordTemplates:c.chordTemplates, handShapes:c.handShapes, segmentBounds:c.segmentBounds || null,
       leadIn:lead,
-      // Backing harmony covers the music only ([lead, duration]); generate it for
-      // the content length, then shift past the count-in.
-      backingEvents:buildBackingEvents(cfg, Math.max(0, c.duration - lead)).map(ev => lead ? Object.assign({}, ev, { t:+(ev.t + lead).toFixed(6), end:+(ev.end + lead).toFixed(6) }) : ev),
+      // Backing comp/bass + drums cover the music only ([lead, duration]); generate
+      // both for the content length, concat, then shift past the count-in (so drums
+      // are silent through the count-in and swung with the band — Phase D).
+      backingEvents:(function(){
+        const cl = Math.max(0, c.duration - lead);
+        const evs = buildBackingEvents(cfg, cl).concat(buildDrumEvents(cfg, cl, resolveGroove(cfg)));
+        return lead ? evs.map(ev => Object.assign({}, ev, { t:+(ev.t + lead).toFixed(6), end:+(ev.end + lead).toFixed(6) })) : evs;
+      })(),
       stringCount:cfg.stringCount, tuning:tuningOffsetsForConfig(cfg), openMidis:openMidisForConfig(cfg), capo:0,
       lyrics:[], toneChanges:[], toneBase:'', drumTab:null, mastery:1, hasPhraseData:false,
       inverted:readHighwayInverted(), lefty:readLefty(), renderScale:readRenderScale(), lyricsVisible:false, project:null, fretX:null,
@@ -5638,7 +5745,24 @@
   // and master without touching the voice code below.
   function trackBus(ctx, name) {
     const bus = ensureAudioBus(ctx);
-    if (!bus.tracks[name]) { const g = ctx.createGain(); g.gain.value = mixerGainFor(name); g.connect(bus.master); bus.tracks[name] = g; }
+    if (!bus.tracks[name]) {
+      const g = ctx.createGain(); g.gain.value = mixerGainFor(name);
+      if (name === 'drums') {
+        // Drum sub-bus (Phase D): a dedicated compressor BEFORE the master limiter
+        // — the punch lever is THIS comp's makeup, NEVER a looser master limiter —
+        // plus a gentle >8 kHz shelf so hats stay out of the player's pick-attack
+        // air-band. The per-hit 3–6 ms attack ramp lives in scheduleDrumHit.
+        const comp = ctx.createDynamicsCompressor();
+        comp.threshold.value = -18; comp.knee.value = 6; comp.ratio.value = 3;
+        comp.attack.value = 0.005; comp.release.value = 0.12;
+        const shelf = ctx.createBiquadFilter();
+        shelf.type = 'highshelf'; shelf.frequency.value = 8000; shelf.gain.value = -3;
+        g.connect(comp); comp.connect(shelf); shelf.connect(bus.master);
+      } else {
+        g.connect(bus.master);
+      }
+      bus.tracks[name] = g;
+    }
     return bus.tracks[name];
   }
 
@@ -5649,6 +5773,7 @@
     { key:'notes',   label:'Player',  backing:false, instr:'melodic' },
     { key:'harmony', label:'Comp',    backing:true,  instr:'melodic' },
     { key:'bass',    label:'Bass',    backing:true,  instr:'bass' },
+    { key:'drums',   label:'Drums',   backing:true,  kit:true },
     { key:'click',   label:'Click',   backing:false },
   ];
   // Per-channel instrument options (Phase C — backing-voice selection lives here now,
@@ -5657,13 +5782,21 @@
     melodic: [['','Auto'],['epiano','E-piano'],['organ','Organ'],['piano','Piano'],['clean','Clean gtr'],['guitar','Acoustic'],['nylon','Nylon'],['clav','Clav'],['strings','Strings'],['pad','Synth pad']],
     bass:    [['','Auto'],['bass','Electric'],['upright','Upright']],
   };
+  // Per-channel kit options for the Drums channel (Phase D). Values are KIT_REGISTRY
+  // ids; '' = Auto (use the style profile's kit). Sampled kits join in D4.
+  const MIXER_KITS = [['','Auto'],['kit_909','Synth 909'],['kit_808','Synth 808']];
   const mixerState = {};
   let mixerBackingDim = false;
-  MIXER_CHANNELS.forEach(c => { mixerState[c.key] = { level:1, mute:false, solo:false, instrument:null }; });
+  MIXER_CHANNELS.forEach(c => { mixerState[c.key] = { level:1, mute:false, solo:false, instrument:null, kit:null }; });
   // The GM preset a channel's instrument override resolves to, or null = use the profile.
   function mixerInstrumentFor(key) {
     const tone = mixerState[key] && mixerState[key].instrument;
     return tone ? (TONE_GM[tone] ?? null) : null;
+  }
+  // The kit id a channel's kit override is pinned to, or null = use the profile.
+  function mixerKitFor(key) {
+    const k = mixerState[key] && mixerState[key].kit;
+    return (k && KIT_REGISTRY[k]) ? k : null;
   }
   function mixerLoad() {
     try {
@@ -5706,6 +5839,10 @@
         (c.instr
           ? `<select class="slopscale-mixer-instr" data-k="${c.key}" title="${c.label} instrument" aria-label="${c.label} instrument">` +
               MIXER_INSTRUMENTS[c.instr].map(([v, l]) => `<option value="${v}"${(st.instrument || '') === v ? ' selected' : ''}>${l}</option>`).join('') +
+            `</select>`
+          : c.kit
+          ? `<select class="slopscale-mixer-kit" data-k="${c.key}" title="${c.label} kit" aria-label="${c.label} kit">` +
+              MIXER_KITS.map(([v, l]) => `<option value="${v}"${(st.kit || '') === v ? ' selected' : ''}>${l}</option>`).join('') +
             `</select>`
           : `<span class="slopscale-mixer-instr-none" aria-hidden="true"></span>`) +
         `<button type="button" class="slopscale-mixer-tog mute${st.mute ? ' active' : ''}" data-k="${c.key}" data-act="mute" title="Mute" aria-pressed="${st.mute}">M</button>` +
@@ -6006,6 +6143,109 @@
     gain.gain.setValueAtTime(0.0001, when); gain.gain.exponentialRampToValueAtTime(peak, when + 0.002); gain.gain.exponentialRampToValueAtTime(0.0001, when + decay);
     osc.connect(filter); filter.connect(gain); gain.connect(trackBus(ctx, 'click')); osc.start(when); osc.stop(when + 0.07); audioNodes.push(osc, filter, gain);
   }
+  // ── Procedural drum kit (audio-realism Phase D — synth 808/909) ─────────────
+  // Zero-asset, zero-licensing, authentic-by-construction electronic kit (and the
+  // never-silent failover for the sampled kits in D4). Every hit gets a 3–6 ms
+  // attack ramp (no hard transient) and routes through the drum sub-bus (its own
+  // compressor + >8 kHz shelf, before the master limiter). `vol` already carries
+  // the role level × structural velocity; per-piece peak gains shape the balance
+  // (kick softened most). Starting numbers — ear-tunable on the backend.
+  let _drumNoiseBuf = null, _drumNoiseCtx = null;
+  function drumNoiseBuffer(ctx) {
+    if (_drumNoiseBuf && _drumNoiseCtx === ctx) return _drumNoiseBuf;
+    const len = Math.floor(ctx.sampleRate * 1.0);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    _drumNoiseBuf = buf; _drumNoiseCtx = ctx; return buf;
+  }
+  function scheduleDrumHit(ctx, kit, piece, when, vol, dur) {
+    const out = trackBus(ctx, 'drums');
+    const v = Math.max(0, vol || 0);
+    if (v <= 0) return;
+    const RAMP = 0.004;   // 4 ms attack ramp — hearing-safe, no click transient
+    const env = (g, peak, decay) => {
+      const p = Math.max(0.0002, peak);
+      g.gain.setValueAtTime(0.0001, when);
+      g.gain.exponentialRampToValueAtTime(p, when + RAMP);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + RAMP + Math.max(0.02, decay));
+    };
+    const is808 = kit === '808';
+    const noise = (peak, decay, type, freq, q) => {
+      const n = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+      n.buffer = drumNoiseBuffer(ctx);
+      f.type = type; f.frequency.value = freq; if (q != null) f.Q.value = q;
+      env(g, peak, decay);
+      n.connect(f); f.connect(g); g.connect(out);
+      n.start(when); n.stop(when + RAMP + decay + 0.05);
+      audioNodes.push(n, f, g);
+    };
+    switch (piece) {
+      case 'kick': {
+        const osc = ctx.createOscillator(), g = ctx.createGain();
+        osc.type = 'sine';
+        const f0 = is808 ? 120 : 170, f1 = is808 ? 43 : 52, pdrop = is808 ? 0.05 : 0.04;
+        const decay = is808 ? 0.6 : 0.22;
+        osc.frequency.setValueAtTime(f0, when);
+        osc.frequency.exponentialRampToValueAtTime(f1, when + pdrop);
+        env(g, 0.5 * v, decay);            // kick softened most (biggest peak risk)
+        let tail = g;
+        if (is808) { const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 30; g.connect(hp); tail = hp; audioNodes.push(hp); }
+        osc.connect(g); tail.connect(out);
+        osc.start(when); osc.stop(when + RAMP + decay + 0.05); audioNodes.push(osc, g);
+        if (!is808) noise(0.16 * v, 0.02, 'bandpass', 2200, 0.8);   // 909 click layer
+        break;
+      }
+      case 'snare':
+        noise(0.5 * v, 0.16, 'bandpass', 2600, 0.6);                // crack (70%)
+        { const osc = ctx.createOscillator(), g = ctx.createGain();  // tone body (30%)
+          osc.type = 'triangle'; osc.frequency.setValueAtTime(190, when);
+          env(g, 0.22 * v, 0.1); osc.connect(g); g.connect(out);
+          osc.start(when); osc.stop(when + RAMP + 0.12 + 0.05); audioNodes.push(osc, g); }
+        break;
+      case 'hatClosed':
+        noise(0.32 * v, 0.035, 'highpass', 7500);
+        break;
+      case 'hatOpen':
+        noise(0.28 * v, (Number.isFinite(dur) ? dur : 0.32), 'highpass', 7500);
+        break;
+      case 'clap': {
+        const n = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+        n.buffer = drumNoiseBuffer(ctx); f.type = 'bandpass'; f.frequency.value = 1500; f.Q.value = 0.7;
+        g.gain.setValueAtTime(0.0001, when);
+        [0, 0.01, 0.02].forEach(off => {                            // 3 retriggered bursts
+          g.gain.exponentialRampToValueAtTime(0.4 * v, when + off + 0.002);
+          g.gain.exponentialRampToValueAtTime(Math.max(0.0002, 0.08 * v), when + off + 0.008);
+        });
+        g.gain.exponentialRampToValueAtTime(0.0001, when + 0.18);
+        n.connect(f); f.connect(g); g.connect(out);
+        n.start(when); n.stop(when + 0.2); audioNodes.push(n, f, g);
+        break;
+      }
+      case 'tomHi': case 'tomMid': case 'tomLo': {
+        const osc = ctx.createOscillator(), g = ctx.createGain();
+        const f0 = piece === 'tomHi' ? 220 : piece === 'tomMid' ? 150 : 100;
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(f0, when);
+        osc.frequency.exponentialRampToValueAtTime(f0 * 0.7, when + 0.12);
+        env(g, 0.42 * v, 0.25); osc.connect(g); g.connect(out);
+        osc.start(when); osc.stop(when + RAMP + 0.25 + 0.05); audioNodes.push(osc, g);
+        break;
+      }
+      case 'crash':
+        noise(0.3 * v, 0.6, 'highpass', 5000);                      // electronic cymbal only
+        break;
+    }
+  }
+  // Resolve the active drum kit's synth preset id ('808'|'909'). Mixer kit override
+  // wins; an unregistered kit (e.g. a sampled kit before Phase D4) falls back to
+  // kit_909 so the band is never silent.
+  function resolveDrumKit(profile) {
+    let kitId = mixerKitFor('drums') || (profile && profile.drums && profile.drums.kit) || 'kit_909';
+    let reg = KIT_REGISTRY[kitId];
+    if (!reg) reg = KIT_REGISTRY.kit_909;
+    return reg.preset;
+  }
   // ── Per-voice level consistency (audio-realism Phase A) ─────────────────────
   // One named vol per role (not magic scalars scattered through the scheduler) +
   // a perceptual loudness-trim tilt by pitch, so WAF's per-keymap level variance
@@ -6062,6 +6302,7 @@
       if (e) audioNodes.push({ stop() { try { e.cancel(); } catch (_) {} }, disconnect() {} });
     };
     if (audio.harmony) for (const ev of bundle.backingEvents || []) {
+      if (ev.role === 'drums') continue;   // drums have their own kit/bus/loop below
       if (ev.end < startFrom || ev.t > duration + 0.1) continue;
       const start = Math.max(ev.t, startFrom), end = Math.min(ev.end, duration);
       const when = base + (start - startFrom), d = Math.max(0.2, end - start);
@@ -6078,6 +6319,21 @@
         for (const m of (ev.midis || [])) wafVoice(harmPreset, 'harmony', when, m, d, harmProfile.harmony.level * WAF_VOICE_VOL.harmony * hScale);
       } else {
         scheduleHarmonyPad(ctx, when, ev.midis || [], d, instrument, harmProfile.harmony.tone, { bright: harmProfile.brightness, level: harmProfile.harmony.level });
+      }
+    }
+    // Drums (Phase D) — role:'drums' events on their own kit + drum sub-bus. The
+    // band plays together, so drums follow the harmony backing (mute via the Mixer
+    // Drums channel, or set audio.drums:false). Silent through the count-in: no
+    // drum event exists in [0, lead) after the makeBundle shift, and the guard
+    // catches any early fill/anticipation a future groove might add.
+    if (audio.harmony && audio.drums !== false) {
+      const drumKit = resolveDrumKit(harmProfile);
+      for (const ev of bundle.backingEvents || []) {
+        if (ev.role !== 'drums') continue;
+        if (ev.t < lead - 1e-4) continue;                 // count-in silence
+        if (ev.t < startFrom || ev.t > duration + 0.1) continue;
+        scheduleDrumHit(ctx, drumKit, ev.voice, base + (ev.t - startFrom),
+          WAF_VOICE_VOL.drums * (Number.isFinite(ev.velocity) ? ev.velocity : 0.78), ev.dur);
       }
     }
     if (audio.notes) for (const n of bundle.notes || []) {
@@ -8434,8 +8690,10 @@
     // Per-channel instrument select (Phase C) — set the override, load the voice,
     // and (if playing) re-schedule from the playhead so it switches on WAF cleanly.
     mixCh?.addEventListener('change', async (ev) => {
-      const sel = ev.target.closest && ev.target.closest('.slopscale-mixer-instr'); if (!sel) return;
-      mixerState[sel.dataset.k].instrument = sel.value || null;
+      const kitSel = ev.target.closest && ev.target.closest('.slopscale-mixer-kit');
+      const sel = kitSel || (ev.target.closest && ev.target.closest('.slopscale-mixer-instr')); if (!sel) return;
+      if (kitSel) mixerState[sel.dataset.k].kit = sel.value || null;
+      else mixerState[sel.dataset.k].instrument = sel.value || null;
       mixerSave();
       if (activeBundle) {
         await awaitVoices(activeBundle);
