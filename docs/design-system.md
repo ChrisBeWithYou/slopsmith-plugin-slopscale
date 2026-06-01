@@ -274,6 +274,15 @@ stage** on resize (that triggers renderer refits every drag) — the chart sits 
 - Reuse `.slopscale-pw-row` / `.slopscale-segment-card` row styling so the transfer list
   reads as "the same pathways, relocated."
 
+**✅ BUILT 2026-06-01** (group-designed: ux-designer + learning-design; commit pending). As-built decisions:
+- **A pack === a band** — `PATHWAY_BANDS` gained `kind:'core'|'style'`, `pinned` (Core), and `buildsOn` + `family` (Style); no parallel registry. A startup integrity guard throws if a Style pack lacks `buildsOn`/`family` (pack-layer analog of the no-unison guard).
+- **Core = THREE pinned packs**, not one (the mock's single "▸ Core (pinned)" became three rows: Beginner/Intermediate/Advanced). The Beginner→Advanced climb must *read* in the manager (§12). Christian's call; chose 3 over 1.
+- **Core is derived in code, not stored.** `localStorage['slopscale.packs'] = { installed:[styleIds], order:[styleIds] }` tracks **Style packs only**; Core always renders pinned-first regardless (corrupt/empty storage still yields a full curriculum).
+- **First-run default = Core only** (Christian's call) — all Style packs start in Available; the `+` IS the breadth-reveal. Future-shipped packs land in Available (opt-in), not auto-installed.
+- **Available column groups by `family`** (`PACK_FAMILY_ORDER`) so a 20+ roster reads as a curriculum map; Installed stays flat.
+- Overlay is its **own** class (`.slopscale-packs-modal` + root `ss-packs-open`, `togglePackManager()`), *not* `.slopscale-cheatsheet` — sharing that class would let the cheat-sheet's open-state also reveal the pack modal. Reuses the cheat-*card* chrome only. Move via drag **or** `‹`/`›`; commit-on-Save (draft copy); scrim/✕/Cancel discard. **Esc is NOT bound** (host owns Escape — supersedes the §6 "Esc" column for this modal).
+- **Note for whoever adds Style packs:** today there are 3 broad Style bands (the §11 mock imagined per-genre Funk/Gospel/Surf); the manager operates on bands, so the model is unchanged — new packs just need `kind:'style'` + `buildsOn` + `family`.
+
 ---
 
 ## 12. Learning-journey expression (the arc must read)
@@ -350,6 +359,50 @@ earned shows "Builds on Beginner Core" (informational), never a lock.
   gained-only (what you practised · time · tempo-tier · streak); meter-green only for a
   freshly-cleared tier; no score/rank. Needs no XP store.
 
+**Decided 2026-06-01 (Christian) — rhythm controls & Preview-Audio consolidation**
+(the "preview panel is redundant now there's a Mixer / consolidate the BPM that shows
+up twice / DAWs keep rhythm settings by the transport" pass; five-lane group-design,
+ux chaired, host/sound-design/L&D/gamification lanes). **Folds into the queued §9 + §11
+builds — captured, not built now** (queue item #9):
+- **Organising principle (the call behind the rest):** *generation params* (reshape the
+  chart — meter, division, key, scale, bars) stay in the Inspector, Custom-gated;
+  *playback/feel params* (count-in, loop, transport) live by the transport. Transport
+  contents are **mode-aware** (Pathways: tiers + count-in + loop; meter/division only in
+  Custom). ux proposed a §4a taxonomy note for this — queued, not yet written.
+- **Preview Audio panel — retire it.** sound-design verified the three toggles are *pure
+  playback mutes, not generation gates* (read only in `schedulePreviewAudio`,
+  `screen.js:~6376-6507`; the chart is identical either way) — safe to fold into per-bus
+  control. But they carry pedagogy (mute backing = self-test; mute notes =
+  play-by-ear/minus-one; mute click = the T1 hold-tempo test), so they must **not** vanish
+  into the hidden Mixer overlay: surface **Click / Backing (± Notes) as small,
+  practice-framed toggles next to the Mixer button** in the view bar (else best fit in the
+  transport area). Preserve: all buses default un-muted; count-in always clicks even with
+  the click bus muted (carve-out stays in the scheduler); 30 ms ramped mute/tone (no zipper).
+- **"Backing tone" (brightness) → a per-channel Tone knob on the harmony/comp channel in
+  the Mixer** (rides with §11 mixer-growth). Flag for audio-engine: near-dead today (only
+  shapes the oscillator pad / distorted family; sampled harmony ignores it) — wire it to
+  the sampled path when it moves.
+- **Feel stays in the Inspector** — it's a *skill being practised* (swing/shuffle = a T1
+  rhythmic competency), not a playback knob. No transport mirror.
+- **BPM de-dup:** the SPEED tiers stay the **primary learning ladder** (labelled rungs +
+  cleared-✓ + the one `tier-glow`); the precise BPM field is the **readout/override of the
+  active tier**, Custom-precise. Never *blank* the tier-dots when BPM is nudged off-tier
+  (show "between Fast and Push"). Count-in is already a clean one-source model (inspector
+  source + transport mirror + settings default) — leave it. **Anti-dark-pattern (hard):**
+  no "tempo PR / fastest-cleared" badge on any transport tempo control — the ✓ + glow on
+  the ladder are the only sanctioned tempo recognition; a knob shows a number, never a
+  celebration.
+- **Glance strip (`#slopscale-summary`) — keep whole** (Key·Tempo·Meter·Bars·Length·Notes);
+  Christian's call — the Tempo/Meter echo of their controls is accepted for one "what I
+  generated" block. (Note: it *does* exist — populated by `summarize()`; an earlier review
+  grep missed it.)
+- **Host check (slopsmith-host-expert):** the host exposes **no** tempo/meter/count-in/
+  transport control, and its mixer registry (`window.slopsmith.audio.registerFader`) is
+  player-screen-gated/unusable on our screen — so this is a pure internal cleanup, nothing
+  to borrow; **match** only the host chrome grammar (single small-pill transport row,
+  `accent-accent` sliders, popover mixer, loop A/B). See agent-memory
+  `reference_host_transport_mixer.md`.
+
 **Confirmed clean (no action):** progress signals are de-duped (chip owns `P`; three
 calm signals present, unduplicated); mixer/Jam are mirror-not-judge today.
 
@@ -374,8 +427,14 @@ celebratory beat in the system is dead — rebind it.
    climb from Style branches (§12). Highest learning leverage.
 6. **Mixer growth** (§11): per-channel instrument `<select>`, master channel, resizable,
    vertical-strip orientation. (Pairs with the audio pass below.)
-7. **Pack manager** (§11): the `+` + dual-column transfer modal.
+7. ✅ **Pack manager** (§11): the `+` + dual-column transfer modal — BUILT 2026-06-01.
 8. ✅ **Session-end summary card** — BUILT 2026-05-31 (§14).
+9. **Rhythm-controls & Preview-Audio consolidation** (§14, decided 2026-06-01) — *not a
+   separate build; folds into the queued items*: the audio-toggle relocation + "Backing
+   tone → Mixer Tone knob" ride with **#6 (Mixer growth, §11)**; the BPM-as-tier-readout +
+   never-blank-the-dots rides with **#5 (tier-dots, §12)**; the generation-vs-playback
+   placement + mode-aware transport informs **#2 (onboarding, §9)**. Feel stays Inspector;
+   glance strip kept whole; introduces no new control family (respects #4).
 
 **Separate track (not GUI — needs the audio agents):** the #1 audio work — per-note
 velocity/volume consistency (entangled with the WAF-vs-oscillator voice split + GM
@@ -393,10 +452,11 @@ backing-voice override dropdown (its selection moves into the mixer per §11). R
 | Settings | `#slopscale-settings-btn` | header | icon dropdown | accent/XP/count-in defaults |
 | Pathway picker | `#slopscale-pathway-picker` | rail | chip group | band bar + list |
 | Primary CTA | `.slopscale-primary-cta` *(planned shared)* | rail | primary | one per mode, ≤360px |
-| Feel | `.slopscale-feel` | rail | segmented | unify with jam-feel |
+| Feel | `.slopscale-feel` | rail | segmented | stays in rail — skill, not transport (§14, 2026-06-01); unify with jam-feel |
+| Practice toggles | *(planned)* Click / Backing / Notes | stage view-bar, by Mixer | toggle (pill) | retires the Preview Audio panel (§14, 2026-06-01) |
 | View switcher | `.slopscale-view-btn` | stage | segmented (tabs) | renderer pick |
 | Transport | `#slopscale-play` + cluster | stage | transport | play/nudge/loop/count-in |
 | Setup/Play | `.slopscale-modeview-btn` | stage | segmented | **sole** collapse control |
 | Focus | `#slopscale-focus-btn` | stage | icon toggle | fullscreen stage |
-| Mixer | `#slopscale-mixer` | stage overlay | panel | → resizable, master, strips |
+| Mixer | `#slopscale-mixer` | stage overlay | panel | → resizable, master, strips; gains a per-channel Tone knob (absorbs "Backing tone") |
 | Pack `+` | *(planned)* `.slopscale-band-btn.add` | rail band bar | chip | opens pack modal |
