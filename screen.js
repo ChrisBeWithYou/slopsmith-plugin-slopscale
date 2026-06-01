@@ -4252,7 +4252,8 @@
 
     function resize() {
       if (!canvas) return;
-      const r = canvas.parentElement.getBoundingClientRect();
+      const box = canvas.parentElement || $('slopscale-render-host');
+      const r = box ? box.getBoundingClientRect() : { width: canvas.width, height: canvas.height };
       W = Math.max(640, Math.round(r.width || 1280));
       H = Math.max(420, Math.round(r.height || 720));
       canvas.width = W;
@@ -5215,8 +5216,16 @@
   // host viz plugins (highway_3d, jumpingtab, piano).
   // ===========================================================================
   async function borrowHostViz(globalName, scriptPath) {
-    if (typeof window[globalName] !== 'function') {
-      try { await loadScriptOnce('slopscale-viz-' + globalName, scriptPath); } catch (_) {}
+    if (typeof window[globalName] === 'function') return window[globalName];
+    let loaded = true;
+    // If the script 404s / errors (the host doesn't ship this viz plugin — e.g.
+    // a source checkout without the Desktop-bundled Jumping Tab/Piano), bail
+    // immediately instead of polling 3s for a global that will never register.
+    // Fast, clean fallback to the in-tree renderer.
+    try { await loadScriptOnce('slopscale-viz-' + globalName, scriptPath); }
+    catch (_) { loaded = false; }
+    if (loaded) {
+      // Loaded — but the host may register its global a tick or two after onload.
       const start = Date.now();
       while (typeof window[globalName] !== 'function' && Date.now() - start < 3000) {
         await new Promise(r => setTimeout(r, 50));
@@ -5250,7 +5259,7 @@
     return { factory:makeBuiltin2DRenderer, label:'2D Highway (default)' };
   }
 
-  function replaceCanvas() { const host = $('slopscale-render-host'), old = $('slopscale-canvas'), canvas = document.createElement('canvas'); canvas.id = 'slopscale-canvas'; canvas.style.width = '100%'; canvas.style.height = '100%'; if (old) old.replaceWith(canvas); else host.appendChild(canvas); const rect = host.getBoundingClientRect(); canvas.width = Math.max(640, Math.round(rect.width || 1280)); canvas.height = Math.max(420, Math.round(rect.height || 720)); return canvas; }
+  function replaceCanvas() { const host = $('slopscale-render-host'), old = $('slopscale-canvas'), canvas = document.createElement('canvas'); canvas.id = 'slopscale-canvas'; canvas.style.width = '100%'; canvas.style.height = '100%'; if (old && old.parentElement) old.replaceWith(canvas); else if (host) host.appendChild(canvas); const rect = (host || canvas).getBoundingClientRect(); canvas.width = Math.max(640, Math.round(rect.width || 1280)); canvas.height = Math.max(420, Math.round(rect.height || 720)); return canvas; }
   function stopAudio() { for (const n of audioNodes) { try { n.stop && n.stop(0); } catch {} try { n.disconnect && n.disconnect(); } catch {} } audioNodes = []; nextLoopAudioBase = 0; loopPasses = []; }
 
   // ── Continuous whole-chart loop scheduling ───────────────────────────────────
@@ -5354,12 +5363,17 @@
     rendererBundle = (cfg.renderer === 'highway_3d')
       ? Object.assign({}, activeBundle, { chords: [], chordTemplates: [] })
       : activeBundle;
-    const canvas = replaceCanvas(), resolved = await resolveRendererFactory(cfg.renderer);
+    // Resolve the factory FIRST (a borrowed host viz can take up to ~3s to load),
+    // THEN create the canvas — so the fresh canvas isn't sitting in the DOM through
+    // that await window, where the just-torn-down prior renderer can detach it
+    // (which left the fallback renderer's resize() reading a null parentElement).
+    const resolved = await resolveRendererFactory(cfg.renderer);
+    const canvas = replaceCanvas();
     renderer = resolved.factory();
     if (!renderer || typeof renderer.draw !== 'function') throw new Error('Selected renderer did not return a Slopsmith-compatible renderer object.');
     if (typeof renderer.init === 'function') { renderer.init(canvas, rendererBundle); if (renderer.readyPromise && typeof renderer.readyPromise.then === 'function') await renderer.readyPromise; }
     if (cfg.renderer === 'notation_2d') renderer?.setMode?.(notationMode);
-    const rect = canvas.parentElement.getBoundingClientRect();
+    const rect = (canvas.parentElement || $('slopscale-render-host'))?.getBoundingClientRect() || { width: canvas.width, height: canvas.height };
     if (typeof renderer.resize === 'function') renderer.resize(Math.round(rect.width || canvas.width), Math.round(rect.height || canvas.height));
     const rendererStatus = $('slopscale-renderer-status'); if (rendererStatus) rendererStatus.textContent = resolved.label; drawOnce();
     resetTransportLoop();
@@ -5770,7 +5784,7 @@
     }
   }
 
-  function drawOnce() { drawFretboardFrame(); drawRulerFrame(); drawChordBoxFrame(); if (!renderer || !activeBundle) return; const vb = rendererBundle || activeBundle; vb.currentTime = currentPracticeTime; syncHighwaySettings(vb); renderer.draw(vb); syncTransportTime(); }
+  function drawOnce() { drawFretboardFrame(); drawRulerFrame(); drawChordBoxFrame(); if (!renderer || !activeBundle) return; const vb = rendererBundle || activeBundle; vb.currentTime = currentPracticeTime; syncHighwaySettings(vb); try { renderer.draw(vb); } catch (e) { console.warn('[SlopScale] renderer draw failed', e); } syncTransportTime(); }
   function tick(nowMs) {
     if (!renderer || !activeBundle) return;
     if (playing) {
@@ -8145,7 +8159,13 @@
     _ptNotes = [...(bundle.notes || [])].sort((a, b) => a.t - b.t);
     _ptOpenMidis = bundle.openMidis || [];
     _ptScored = new Set();
-    _ptHandle = window.slopsmithMinigames.scoring.createContinuous({ smoothingMs: 40 });
+    // Scoring is optional. Guard the host-SDK call: it can throw or return null
+    // when the tracker can't start (no mic, unsupported/secure-context, a host
+    // SDK version mismatch). Playback must run regardless.
+    try {
+      _ptHandle = window.slopsmithMinigames.scoring.createContinuous({ smoothingMs: 40 });
+    } catch (_) { _ptHandle = null; return; }
+    if (!_ptHandle || typeof _ptHandle.on !== 'function') { _ptHandle = null; return; }
     _ptHandle.on('pitch', ptOnPitch);
     _ptHandle.on('end', () => { _ptHandle = null; });
     ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: 0, total: 0 });
