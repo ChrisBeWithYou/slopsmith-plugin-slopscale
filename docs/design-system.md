@@ -151,6 +151,15 @@ Close-glyph convention: slide-in sheets/modals get `✕`; the mixer keeps `▾`
 - **Activity ≠ competency:** practiced-day calendar dots use **accent blue**, never
   green. "I showed up" is not "I cleared a skill."
 - **Accent** (`--ss-accent*`, themeable) = selection / active / armed / primary.
+- **Dropdowns follow the dark UI (2026-06-01).** The app/host is **dark-only** (no light
+  scheme — SlopScale's themes only recolor the *accent*, and the host has no light mode).
+  So native `<select>` dropdowns render dark: `.slopscale-root` declares
+  **`color-scheme: dark`** (the host never declares it, so the plugin must — otherwise a
+  bare select inherits Tailwind's light text on a default-light popup → low contrast),
+  and `.slopscale-root option` carries the dark list styling (`#111827`/`#f8fafc`) the
+  form selects already use, now applied to **all** selects incl. ones outside
+  `.slopscale-controls` (the bug was the Setup-popover tuning selector). Don't hard-code
+  black-on-white — go with the host's dark flow.
 
 ---
 

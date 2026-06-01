@@ -8,6 +8,11 @@
      the host page. Defaults mirror the prior literal values — this pass is a
      refactor, not a recolor; the few deliberate nudges are noted inline. */
   .slopscale-root {
+    /* Dark UI (follow the host): tell the browser this subtree is dark so native
+       controls — dropdown option popups, scrollbars — render dark + high-contrast
+       to match. The host never declares color-scheme, so a bare <select> otherwise
+       inherits Tailwind's light text on a default-light popup (low contrast). */
+    color-scheme: dark;
     /* palette */
     --ss-bg-0: #080812;
     --ss-bg-1: #0d0d18;
@@ -170,7 +175,12 @@
     outline: none;
     width: 100%;
   }
-  .slopscale-controls option { background: #111827; color: #f8fafc; }
+  /* Dropdowns follow the host's dark UI. Apply the dark option-list styling the
+     form selects already use to ALL selects in the plugin — incl. the Setup-popover
+     tuning selector, which sits outside .slopscale-controls and was otherwise
+     falling through to Tailwind's inherit-light-text default (a low-contrast list).
+     Paired with color-scheme:dark on .slopscale-root for the native dropdown chrome. */
+  .slopscale-root option { background: #111827; color: #f8fafc; }
   .slopscale-controls input:focus, .slopscale-controls select:focus { border-color: #60a5fa !important; box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.22); }
   .slopscale-grid-2, .slopscale-grid-3 { display: grid; gap: 10px; }
   .slopscale-grid-2 { grid-template-columns: 1fr 1fr; }
@@ -628,7 +638,11 @@
   }
   .slopscale-string-count-btn:hover { color: #e2e8f0; border-color: #475569; }
   .slopscale-string-count-btn.active { background: #1e293b; color: #f8fafc; border-color: var(--ss-accent-edge); }
-  #slopscale-tuning-select { flex: 1; min-height: 28px; }
+  /* The tuning selector lives in the header Setup popover, OUTSIDE
+     .slopscale-controls, so it misses the form-select styling — give it the same
+     readable closed-control look here (the open option list is black-on-white via
+     the .slopscale-root option rule above). */
+  #slopscale-tuning-select { flex: 1; min-height: 30px; background: #111827; color: #f8fafc; border: 1px solid #475569; border-radius: 8px; padding: 0 8px; }
   .slopscale-custom-tuning { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; border-top: 1px dashed #334155; }
   .slopscale-custom-tuning-inputs { display: flex; gap: 4px; flex-wrap: wrap; }
   /* Override the global .slopscale-controls input width:100% so the custom-
