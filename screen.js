@@ -1644,15 +1644,20 @@
   // bass line, e.g. a boogie walk). notes/bass are sampled by default (real
   // instrument, oscillator fallback until the async preset loads). The notes
   // tone is overridden to a bass program when the instrument itself is a bass.
+  // Phase B (WAF for all backing): the comp is a SAMPLED instrument by default, with
+  // the synth pad (scheduleHarmonyPad) as the per-voice failover until the preset
+  // loads. The distorted family keeps the synth pad for now — a distorted comp's
+  // real voice is the NAM amp model (in progress); a sampled e-piano under metal
+  // would be a regression, so pad stays its placeholder/failover until NAM lands.
   const AUDIO_FAMILY_DEFAULTS = {
-    clean:      { harmony: { tone: 'pad',    level: 0.9 },  notes: { tone: 'clean'  }, bass: { tone: 'bass'    }, brightness: 0.5 },
-    acoustic:   { harmony: { engine: 'sample', tone: 'piano', level: 0.8 }, notes: { tone: 'guitar' }, bass: { tone: 'upright' }, brightness: 0.6 },
+    clean:      { harmony: { engine: 'sample', tone: 'epiano', level: 0.9 },  notes: { tone: 'clean'  }, bass: { tone: 'bass'    }, brightness: 0.5 },
+    acoustic:   { harmony: { engine: 'sample', tone: 'piano',  level: 0.8 },  notes: { tone: 'guitar' }, bass: { tone: 'upright' }, brightness: 0.6 },
     distorted:  { harmony: { tone: 'pad',    level: 0.7 },  notes: { tone: 'clean'  }, bass: { tone: 'bass'    }, brightness: 0.42 },
-    electronic: { harmony: { tone: 'pad',    level: 0.85 }, notes: { tone: 'clean'  }, bass: { tone: 'bass'    }, brightness: 0.7 },
+    electronic: { harmony: { engine: 'sample', tone: 'epiano', level: 0.85 }, notes: { tone: 'clean'  }, bass: { tone: 'bass'    }, brightness: 0.7 },
   };
   const GLOBAL_AUDIO_DEFAULT = {
     family: 'clean',
-    harmony: { tone: 'pad', level: 0.9 },
+    harmony: { engine: 'sample', tone: 'epiano', level: 0.9 },
     notes:   { engine: 'sample', tone: 'clean', level: 1.0 },
     bass:    { engine: 'sample', tone: 'bass',  level: 0.95 },
     brightness: 0.5,
@@ -5611,7 +5616,7 @@
   // Every voice routes through a per-track GainNode → a shared master → a safety
   // limiter → destination, instead of connecting straight to the output. This is
   // the structural prerequisite for (a) a master limiter that makes sudden loud
-  // peaks / full-density clipping impossible (hearing-safety), and (b) per-track
+  // peaks / full-density clipping impossible (safe, normalized output), and (b) per-track
   // insert points where the realism upgrade plugs in later — amp/cab modeling on
   // the distorted track, a sampler on the acoustic track, FX sends owned by
   // sound-design. Built once per AudioContext; the bus nodes persist across note
@@ -5667,8 +5672,8 @@
     if (mixerBackingDim && ch && ch.backing) v *= 0.35;
     return v;
   }
-  // Push the mixer state onto any live buses with a short ramp (no clicks — the
-  // hearing-sensitivity constraint).
+  // Push the mixer state onto any live buses with a short ramp (no clicks — clean,
+  // safe audio).
   function applyMixer() {
     if (!audioBus) return;
     const ctx = audioBus.ctx;
@@ -6050,7 +6055,10 @@
           else schedulePluckedString(ctx, when, midiToFreq(m), d, 'bass', harmProfile.bass.level, 0);
         }
       } else if (harmPreset && wafPlayer) {
-        for (const m of (ev.midis || [])) wafVoice(harmPreset, 'harmony', when, m, d, harmProfile.harmony.level * WAF_VOICE_VOL.harmony);
+        // Scale per-voice level by 1/√(chord size) so a dense comp doesn't sum hot
+        // into the limiter (anti-clip; matches the synth pad's density-scaling).
+        const hn = (ev.midis || []).length, hScale = 1 / Math.sqrt(Math.max(1, hn));
+        for (const m of (ev.midis || [])) wafVoice(harmPreset, 'harmony', when, m, d, harmProfile.harmony.level * WAF_VOICE_VOL.harmony * hScale);
       } else {
         scheduleHarmonyPad(ctx, when, ev.midis || [], d, instrument, harmProfile.harmony.tone, { bright: harmProfile.brightness, level: harmProfile.harmony.level });
       }
