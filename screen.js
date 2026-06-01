@@ -2871,6 +2871,30 @@
     const keyParent = strategy === 'chord_tone_emphasis' ? scalePositionsForSystem(cfg) : null;
     const notes = [], chordTemplates = [], chords = [], handShapes = [], sections = [];
     let cursor = 0;
+    let prevMidi = null; // last note's pitch — threads voice-leading across the changes (Connect)
+    // Connect: choose where the new chord's run STARTS so the line resolves INTO
+    // the chord instead of restarting on its root. Prefer the nearest 3rd/7th
+    // (guide tone) to the previous note, then nearest chord tone, then nearest
+    // scale note; the first bar (no previous note) opens on the root. Ties prefer
+    // the lower fret (stay in a comfortable hand position) — mirrors
+    // nearestPositionForPc, the voice-leading primitive used by guide tones.
+    function connectStartIdx(path, prev, guidePcs, chordPcs, rootPc) {
+      if (prev == null) { for (let k = 0; k < path.length; k++) if (path[k].pc === rootPc) return k; return 0; }
+      const nearest = (test) => {
+        let bestK = -1, bestD = Infinity, bestF = Infinity;
+        for (let k = 0; k < path.length; k++) {
+          const p = path[k];
+          if (p.midi == null || !test(p)) continue;
+          const d = Math.abs(p.midi - prev);
+          if (d < bestD || (d === bestD && p.f < bestF)) { bestK = k; bestD = d; bestF = p.f; }
+        }
+        return bestK;
+      };
+      let k = nearest(p => guidePcs.has(p.pc));
+      if (k < 0) k = nearest(p => chordPcs.has(p.pc));
+      if (k < 0) k = nearest(() => true);
+      return k < 0 ? 0 : k;
+    }
     for (let bar = 0; bar < totalBars; bar++) {
       const degree = degrees[bar % degrees.length];
       const rootPc = chordRootForDegree(cfg, degree);
@@ -2884,21 +2908,35 @@
       const name = chordName(rootPc, quality), templateId = chordTemplates.length;
       const tones = chordTonePositionsInPosition(cfg, rootPc, quality);
       const displayTones = tones.length ? tones : pickChordPositions(cfg, rootPc, quality);
-      const chordPcs = new Set((CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj).intervals.map(iv => (rootPc + iv) % 12));
+      const formula = (CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj).intervals;
+      const chordPcs = new Set(formula.map(iv => (rootPc + iv) % 12));
+      // Guide tones (3rd + 7th) define the chord's quality and are the natural
+      // resolution targets when the harmony moves — Connect lands the change here.
+      const guidePcs = new Set([
+        (rootPc + (formula[1] ?? formula[0])) % 12,
+        (rootPc + (formula.length >= 4 ? formula[3] : (formula[2] ?? formula[1] ?? formula[0]))) % 12,
+      ]);
       chordTemplates.push(templateFromPositions(name, displayTones, cfg, false));
       chords.push({ t:Number(barStart.toFixed(6)), id:templateId, hd:false, notes:displayTones.map(p => noteDefaults({ s:p.s, f:p.f, sus:0 })) });
       handShapes.push({ chord_id:templateId, start_time:Number(barStart.toFixed(6)), end_time:Number((barStart + mLen).toFixed(6)), arp:false });
       sections.push({ name, number:templateId + 1, time:Number(barStart.toFixed(6)) });
-      let startIdx = 0;
+      // PARK (chord_tone_emphasis) walks one parent scale continuously (cursor).
+      // CONNECT (scale-follows-chord) voice-leads: start the new chord's run on the
+      // guide tone nearest the previous note, then continue — no more root-restart.
+      let startIdx;
       if (strategy === 'chord_tone_emphasis') startIdx = cursor;
-      else for (let k = 0; k < path.length; k++) if (path[k].pc === rootPc) { startIdx = k; break; }
+      else startIdx = connectStartIdx(path, prevMidi, guidePcs, chordPcs, rootPc);
+      let lastMidi = prevMidi;
       for (let i = 0; i < notesPerBar; i++) {
         const p = path[(startIdx + i) % path.length];
         const onBeat = i % Math.max(1, cfg.meter.numerator) === 0;
+        const isTarget = strategy !== 'chord_tone_emphasis' && i === 0 && guidePcs.has(p.pc); // the resolved guide tone on the change
         const isChordTone = strategy === 'chord_tone_emphasis' && chordPcs.has(p.pc);
-        notes.push(noteDefaults({ t:Number((barStart + i * step).toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * 0.78), ac:onBeat || isChordTone }));
+        notes.push(noteDefaults({ t:Number((barStart + i * step).toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * 0.78), ac:onBeat || isChordTone || isTarget }));
+        if (p.midi != null) lastMidi = p.midi;
       }
       if (strategy === 'chord_tone_emphasis') cursor += notesPerBar;
+      else prevMidi = lastMidi;
     }
     return { notes, chords, chordTemplates, handShapes, sections:sections.length ? sections : [{ name:'chord-scales', number:1, time:0 }], duration };
   }
@@ -8492,7 +8530,7 @@
       parts.push({ thirds_only:'3rds', sevenths_only:'7ths', both_alternating:'3rds+7ths' }[cfg.voices] || cfg.voices);
     }
     if (seg.kind === 'chord_scales' && cfg.chordScaleStrategy) {
-      parts.push(cfg.chordScaleStrategy === 'chord_tone_emphasis' ? 'chord tones' : 'mode of moment');
+      parts.push(cfg.chordScaleStrategy === 'chord_tone_emphasis' ? 'park' : 'connect');
     }
     if (cfg.bpm) parts.push(`${cfg.bpm} BPM`);
     if (cfg.bars) parts.push(`${cfg.bars} bars`);

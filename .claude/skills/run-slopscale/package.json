@@ -9,7 +9,8 @@
     "smoke:hwy-settings": "node smoke-highway-settings.mjs",
     "smoke:strings": "node smoke-strings.mjs",
     "smoke:audioctx": "node smoke-audioctx.mjs",
-    "test": "node smoke-renderers.mjs && node smoke-generators.mjs && node smoke-highway-settings.mjs && node smoke-strings.mjs && node smoke-audioctx.mjs"
+    "smoke:connect": "node smoke-connect.mjs",
+    "test": "node smoke-renderers.mjs && node smoke-generators.mjs && node smoke-highway-settings.mjs && node smoke-strings.mjs && node smoke-audioctx.mjs && node smoke-connect.mjs"
   },
   "keywords": [],
   "author": "",
