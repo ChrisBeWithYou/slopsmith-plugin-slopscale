@@ -406,10 +406,11 @@ builds — captured, not built now** (queue item #9):
 **Confirmed clean (no action):** progress signals are de-duped (chip owns `P`; three
 calm signals present, unduplicated); mixer/Jam are mirror-not-judge today.
 
-**Verify during the build:** does the `tier-glow` celebration still fire on a *list-row*
-clear now that the SVG tree became a list? (Its keyframe is bound to
-`.slopscale-tier-btn`, but rows use `.slopscale-pw-row`/`tree-tier-dot`.) If not, the one
-celebratory beat in the system is dead — rebind it.
+**Verified (2026-06-01):** the `tier-glow` celebration lives on the **SPEED tier buttons**
+(`.slopscale-tier-btn` — the tempo control), where it's alive and fires on a fresh clear
+(confirmed by gamification's review). The picker-list `tree-tier-dot`s are a quiet
+*readout* (they fill green on clear, now also labelled per §12) and intentionally do NOT
+glow — the celebratory beat belongs on the control, not the readout. Nothing to rebind.
 
 ---
 
@@ -423,8 +424,13 @@ celebratory beat in the system is dead — rebind it.
    recurring hex, add `#slopscale-mode-desc`, delete the orphan CSS, retire the literal
    gradient. (Unlocks full accent-theme recolor.)
 4. **Consolidate the control families** (§5): `.ss-seg` + `.ss-chip`.
-5. **`→ next` crosses band boundaries** + label the tier-dots + distinguish the Core
-   climb from Style branches (§12). Highest learning leverage.
+5. ✅ **`→ next` crosses band boundaries** + label the tier-dots + distinguish the Core
+   climb from Style branches (§12) — BUILT 2026-06-01. In `renderPathwayList`: a
+   cross-band cue (`.slopscale-pw-nextband`) appears when the active band has no
+   un-cleared next rung, pointing forward to the next un-cleared pathway (click to
+   jump); tier-dots carry `title`/`aria-label` tempo-tier labels (Slow→Push +
+   cleared state); a `.slopscale-band-sep` hairline + `.slopscale-band-core/-style`
+   classes split the Core climb from the Style branches in the band bar.
 6. **Mixer growth** (§11): per-channel instrument `<select>`, master channel, resizable,
    vertical-strip orientation. (Pairs with the audio pass below.)
 7. ✅ **Pack manager** (§11): the `+` + dual-column transfer modal — BUILT 2026-06-01.

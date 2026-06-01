@@ -7917,7 +7917,7 @@
     const bands = visiblePackOrder()
       .map(id => PATHWAY_BANDS.find(b => b.id === id))
       .filter(Boolean)
-      .map(b => ({ id:b.id, label:b.label, ids:b.pathways.filter(id => PATHWAYS[id] && !isHiddenNode(id)) }))
+      .map(b => ({ id:b.id, label:b.label, kind:b.kind, ids:b.pathways.filter(id => PATHWAYS[id] && !isHiddenNode(id)) }))
       .filter(b => b.ids.length);
     if (!bands.length) { bandBar.innerHTML = ''; list.innerHTML = ''; return; }
     // Which band to show = the user's selected band (_activeBandId), defaulting to the
@@ -7930,15 +7930,26 @@
     const activeBand = bands.find(b => b.id === _activeBandId) || bands[0];
     // L1 — band bar
     bandBar.innerHTML = '';
+    // Two axes (§12): the Core bands (Beginner→Advanced) are an ordered CLIMB;
+    // the Style bands are LATERAL branches. Render them as two groups separated
+    // by a hairline, so the bar doesn't read as one undifferentiated row.
+    let _prevKind = null;
     bands.forEach(b => {
+      if (_prevKind === 'core' && b.kind !== 'core') {
+        const sep = document.createElement('span');
+        sep.className = 'slopscale-band-sep';
+        sep.setAttribute('aria-hidden', 'true');
+        bandBar.appendChild(sep);
+      }
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'slopscale-band-btn' + (b.id === activeBand.id ? ' active' : '');
+      btn.className = 'slopscale-band-btn slopscale-band-' + (b.kind || 'style') + (b.id === activeBand.id ? ' active' : '');
       btn.textContent = b.label;
       btn.setAttribute('role', 'tab');
       btn.setAttribute('aria-selected', b.id === activeBand.id ? 'true' : 'false');
       btn.addEventListener('click', () => { _activeBandId = b.id; renderPathwayList(); });
       bandBar.appendChild(btn);
+      _prevKind = b.kind;
     });
     // Trailing "+" — open the Pack manager (install / order / hide packs). It's an
     // action, not a tab (no role=tab / aria-selected); right-aligned via CSS.
@@ -7962,8 +7973,13 @@
         + (id === activePathwayId ? ' active' : '') + (st.cleared ? ' cleared' : '');
       row.setAttribute('role', 'option');
       row.setAttribute('aria-selected', id === activePathwayId ? 'true' : 'false');
-      const dots = (pw.tempoTiers || []).map((_, i) =>
-        `<span class="tree-tier-dot${i <= st.highestTier ? ' cleared' : ''}"></span>`).join('');
+      // Tier dots, now LABELLED (§12): each dot names its tempo tier (Slow→Push)
+      // + cleared state, so the picker reads the climb, not just anonymous pips.
+      const dots = (pw.tempoTiers || []).map((_, i) => {
+        const done = i <= st.highestTier;
+        const lbl = TIER_LABELS[i] || ('Tier ' + (i + 1));
+        return `<span class="tree-tier-dot${done ? ' cleared' : ''}" title="${lbl} — ${done ? 'cleared' : 'not yet'}" aria-label="${lbl}, ${done ? 'cleared' : 'not cleared'}"></span>`;
+      }).join('');
       const marker = id === activePathwayId ? '<span class="slopscale-pw-here">you are here</span>'
         : id === nextId ? '<span class="slopscale-pw-next">→ next</span>' : '';
       // Soft "Builds on …" hint — only when the prereq is in ANOTHER band (a Style
@@ -7980,6 +7996,38 @@
       });
       list.appendChild(row);
     });
+    // Cross-band "→ next" (§12 — the highest-leverage fix): the climb must never
+    // go silent at a band seam. When the active band has no un-cleared next rung,
+    // point to the next un-cleared pathway forward in the band order (wrapping to
+    // an earlier gap only if everything ahead is cleared), and let the learner
+    // jump straight to it — so "what's next" survives the Beginner→Intermediate
+    // (etc.) boundary where learners otherwise quit.
+    if (!nextId) {
+      const ai = bands.findIndex(b => b.id === activeBand.id);
+      const scan = bands.slice(ai + 1).concat(bands.slice(0, Math.max(0, ai)));
+      let cross = null;
+      for (const b of scan) {
+        const hit = b.ids.find(id => !nodeProgressState(id, ptData).cleared);
+        if (hit) { cross = { id: hit, band: b }; break; }
+      }
+      if (cross && PATHWAYS[cross.id]) {
+        const cue = document.createElement('div');
+        cue.className = 'slopscale-pw-nextband';
+        cue.setAttribute('role', 'button');
+        cue.tabIndex = 0;
+        cue.title = `Go to ${PATHWAYS[cross.id].label} in ${cross.band.label}`;
+        cue.innerHTML = `<span class="slopscale-pw-next">→ next</span>`
+          + `<span class="slopscale-pw-nextband-label">${PATHWAYS[cross.id].label}</span>`
+          + `<span class="slopscale-pw-nextband-band">in ${cross.band.label}</span>`;
+        const go = () => {
+          _activeBandId = cross.band.id; renderPathwayList();
+          const sel = $('slopscale-pathway'); if (sel) { sel.value = cross.id; sel.dispatchEvent(new Event('change')); }
+        };
+        cue.addEventListener('click', go);
+        cue.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+        list.appendChild(cue);
+      }
+    }
     // Keep the active row visible — scroll the LIST only (never the outer panel).
     const activeRow = list.querySelector('.slopscale-pw-row.active');
     if (activeRow) {
