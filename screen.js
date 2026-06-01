@@ -5360,8 +5360,14 @@
     // highway a chord-free view of the bundle so the lane stays clean; SlopScale
     // draws its own small chord box (drawChordBoxFrame) on every view, including
     // 3D, for the chord reference. Other renderers get the full bundle.
+    // bgReactive:false opts the highway out of its audio-reactive background
+    // (slopsmith#650). SlopScale doesn't route audio through the host <audio>
+    // element, so that analyser only ever fails + click-on-close for us. On a
+    // host with #650 this disables it cleanly (the proper fix); on older hosts
+    // the field is ignored (the screen-scoped patchAudioContextForSharing stub
+    // still suppresses the click — Stage 2 removes that once #650 is the baseline).
     rendererBundle = (cfg.renderer === 'highway_3d')
-      ? Object.assign({}, activeBundle, { chords: [], chordTemplates: [] })
+      ? Object.assign({}, activeBundle, { chords: [], chordTemplates: [], bgReactive: false })
       : activeBundle;
     // Resolve the factory FIRST (a borrowed host viz can take up to ~3s to load),
     // THEN create the canvas — so the fresh canvas isn't sitting in the DOM through
