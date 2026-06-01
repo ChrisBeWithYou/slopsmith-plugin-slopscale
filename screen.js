@@ -412,14 +412,29 @@
   // (SKILL_TREE_NODES/EDGES) is kept for the future RPG view. Style pathways' Core
   // prereq comes from SKILL_TREE_EDGES (first incoming edge), surfaced as a soft
   // "Builds on …" hint. When a new guitar pathway is added, slot it here.
+  // A "pack" === a band (no parallel registry). `kind` drives the Pack-manager
+  // (§11): Core packs are pinned-first / locked / always-installed (the staircase),
+  // Style packs are installable/orderable and each declares a Core foundation
+  // (`buildsOn`, player vocabulary, informational — never a lock) + a `family`
+  // (groups the Available column into a curriculum map as the roster grows).
   const PATHWAY_BANDS = [
-    { id:'core_beginner',     label:'Beginner',     pathways:['chromatic_warmup','pulse_muting','pent_foundation','power_chord_comping','blues_foundation','bend_drill'] },
-    { id:'core_intermediate', label:'Intermediate', pathways:['major_scale_caged','sixteenth_pocket','dorian_groove','chord_tone_targeting','modal_awareness','diatonic_triad_drill'] },
-    { id:'core_advanced',     label:'Advanced',     pathways:['seventh_vocab','whole_neck_freedom','guide_tones_path','ii_V_I_workout','modal_vamp','melmin_exotic_12key','harmonic_minor_exotic','sweep_arpeggio_primer'] },
-    { id:'style_blues',       label:'Blues',        pathways:['blues_shuffle'] },
-    { id:'style_country',     label:'Country',      pathways:['major_pent_country'] },
-    { id:'style_metal',       label:'Metal',        pathways:['metalcore_chug','melodic_metal_gallop','djent_polymeter','melodeath_twin_leads','death_chromatic'] },
+    { id:'core_beginner',     label:'Beginner',     kind:'core', pinned:true, pathways:['chromatic_warmup','pulse_muting','pent_foundation','power_chord_comping','blues_foundation','bend_drill'] },
+    { id:'core_intermediate', label:'Intermediate', kind:'core', pinned:true, pathways:['major_scale_caged','sixteenth_pocket','dorian_groove','chord_tone_targeting','modal_awareness','diatonic_triad_drill'] },
+    { id:'core_advanced',     label:'Advanced',     kind:'core', pinned:true, pathways:['seventh_vocab','whole_neck_freedom','guide_tones_path','ii_V_I_workout','modal_vamp','melmin_exotic_12key','harmonic_minor_exotic','sweep_arpeggio_primer'] },
+    { id:'style_blues',       label:'Blues',        kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner — minor-pentatonic box 1, the blue note (♭5), and a steady pulse over the 12-bar form.', pathways:['blues_shuffle'] },
+    { id:'style_country',     label:'Country',      kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner→Intermediate — major pentatonic and the CAGED major scale; you target chord tones inside the shape.', pathways:['major_pent_country'] },
+    { id:'style_metal',       label:'Metal',        kind:'style', family:'High-Gain & Technical', buildsOn:'Builds on Core — power chords and palm-mute pulse (Beginner), tight 16th picking (Intermediate), plus exotic/harmonic-minor scales and sweep mechanics (Advanced).', pathways:['metalcore_chug','melodic_metal_gallop','djent_polymeter','melodeath_twin_leads','death_chromatic'] },
   ];
+  // Family display order for the Pack-manager Available column (Core-branch-point
+  // depth → the catalog reads as a curriculum map, not a scrolling wall).
+  const PACK_FAMILY_ORDER = ['Roots & Rock', 'Groove', 'Jazz & Sophisticated Harmony', 'High-Gain & Technical', 'Acoustic & Fingerstyle'];
+  // Pack integrity guard (the pack-layer analog of the no-unison guard): a Style
+  // pack with no Core foundation or family is a curricular error — fail loudly on load.
+  PATHWAY_BANDS.forEach(b => {
+    if (b.kind === 'style' && (!b.buildsOn || !b.family)) {
+      throw new Error(`[SlopScale pack] style pack "${b.id}" must declare buildsOn + family`);
+    }
+  });
   // ===========================================================================
   // §2 · CURATED PATHWAYS
   // label, goal, scales[], tempoTiers[], base config, vary[] (Next-Variation cycle).
@@ -1538,6 +1553,19 @@
     const data = new FormData($('slopscale-controls'));
     const stringSetup = data.get('stringSetup') || 'guitar_6_standard';
     const setup = STRING_SETUPS[stringSetup] || STRING_SETUPS.guitar_6_standard;
+    // Effective open-string tuning: a custom per-string override (DADGAD, Drop A,
+    // baritone — comma-separated MIDI, low→high) when it's valid for this string
+    // count, else the stringSetup's standard midis. Computed HERE, before shape
+    // resolution, so CAGED/3NPS/Open shapes resolve against the tuning the player
+    // actually has — not the standard one (openMidisForConfig + the resolvers
+    // already honour it; this closes the gap for the pre-resolved shape path).
+    const customOpenMidis = (() => {
+      const raw = (data.get('customOpenMidis') || '').toString().trim();
+      if (!raw) return null;
+      const list = raw.split(',').map(s => parseInt(s, 10)).filter(Number.isFinite);
+      return list.length === setup.openMidis.length ? list : null;
+    })();
+    const effectiveOpenMidis = customOpenMidis || setup.openMidis;
     // HTML min/max on these inputs are advisory only — a crafted share link (or
     // any FormData) can carry arbitrary values, and fretMin/fretMax drive
     // generation loops (e.g. chordScalePositions). Hard-cap the window so a
@@ -1555,7 +1583,7 @@
     let shape = data.get('shape');
     let shapeNotes = null, shapeDisplayName = null;
     if (isShapeAwareSystem(fretboardSystem)) {
-      const resolved = resolveCurrentShape({ fretboardSystem, key: data.get('key') || 'C', scale: data.get('scale') || 'major', shape }, setup.openMidis);
+      const resolved = resolveCurrentShape({ fretboardSystem, key: data.get('key') || 'C', scale: data.get('scale') || 'major', shape }, effectiveOpenMidis);
       if (resolved) {
         shape = resolved.shape;
         shapeNotes = resolved.resolved.notes;
@@ -1580,12 +1608,7 @@
       // Custom per-string tuning override (comma-separated MIDI numbers in
       // low → high order). When non-empty + length matches the stringSetup,
       // openMidisForConfig prefers it over the stringSetup's defaults.
-      customOpenMidis: (() => {
-        const raw = (data.get('customOpenMidis') || '').toString().trim();
-        if (!raw) return null;
-        const list = raw.split(',').map(s => parseInt(s, 10)).filter(Number.isFinite);
-        return list.length === setup.openMidis.length ? list : null;
-      })(),
+      customOpenMidis,
       stringCount: setup.openMidis.length,
       key: data.get('key') || 'C',
       scale: data.get('scale') || 'major',
@@ -5957,6 +5980,140 @@
     $('slopscale-cheatsheet')?.setAttribute('aria-hidden', open ? 'false' : 'true');
     $('slopscale-help-btn')?.classList.toggle('active', open);
   }
+
+  // ── Pack manager (the band-bar "+") ─────────────────────────────────────────
+  // A pack === a band. Core packs (kind:'core') are DERIVED — always installed,
+  // pinned first in fixed staircase order, never written to storage. Storage tracks
+  // only the user's Style packs: { installed:[styleIds], order:[styleIds] }. A
+  // missing/corrupt key = Core only (Style packs start in the Available column —
+  // the "+" IS the breadth-reveal). Reuses the cheat-card overlay; commits nothing
+  // until Save (works on a draft copy). "Remove" = move back to Available, never delete.
+  function packsLoad() {
+    try {
+      const o = JSON.parse(localStorage.getItem('slopscale.packs') || '{}');
+      return { installed: Array.isArray(o.installed) ? o.installed : [],
+               order:     Array.isArray(o.order)     ? o.order     : [] };
+    } catch { return { installed: [], order: [] }; }
+  }
+  function packsSave(state) {
+    try { localStorage.setItem('slopscale.packs', JSON.stringify({ installed: state.order.slice(), order: state.order.slice() })); }
+    catch (e) { console.warn('[SlopScale] packs save failed', e); }
+  }
+  const _stylePackIds = () => PATHWAY_BANDS.filter(b => b.kind === 'style').map(b => b.id);
+  const _corePackIds  = () => PATHWAY_BANDS.filter(b => b.kind === 'core').map(b => b.id);
+  // Installed Style packs in saved order — self-healing: existing+installed style
+  // ids only, deduped, with any installed-but-unordered id appended.
+  function installedStyleOrder(state) {
+    const st = state || packsLoad();
+    const styles = _stylePackIds();
+    const inst = st.installed.filter(id => styles.includes(id));
+    const ordered = st.order.filter(id => inst.includes(id));
+    inst.forEach(id => { if (!ordered.includes(id)) ordered.push(id); });
+    return ordered;
+  }
+  // The picker's band order: Core (fixed) + installed Style packs (user order).
+  function visiblePackOrder() { return _corePackIds().concat(installedStyleOrder()); }
+
+  let _packsDraft = null;   // { order:[styleIds] } working copy while the modal is open
+  let _packsSel = null;     // { col:'available'|'installed', id } current selection
+
+  function togglePackManager(force) {
+    const root = $('slopscale-root'); if (!root) return;
+    const open = force != null ? force : !root.classList.contains('ss-packs-open');
+    if (open) { _packsDraft = { order: installedStyleOrder() }; _packsSel = null; }
+    root.classList.toggle('ss-packs-open', open);
+    $('slopscale-packs-modal')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    document.querySelectorAll('.slopscale-band-add').forEach(b => b.classList.toggle('active', open));
+    if (open) renderPackManager(); else { _packsDraft = null; _packsSel = null; }
+  }
+
+  function renderPackManager() {
+    const inst = $('slopscale-packs-installed');
+    const avail = $('slopscale-packs-available');
+    if (!inst || !avail || !_packsDraft) return;
+    const installedStyles = _packsDraft.order.slice();
+    const availableStyles = _stylePackIds().filter(id => !installedStyles.includes(id));
+
+    // Installed column: Core (pinned, locked) → hairline → Style (draggable, ordered)
+    inst.innerHTML = '';
+    _corePackIds().forEach(id => inst.appendChild(_packRow(id, 'installed', { core: true })));
+    const hr = document.createElement('div'); hr.className = 'slopscale-pack-hairline'; inst.appendChild(hr);
+    if (!installedStyles.length) {
+      inst.appendChild(_packEmpty('No style packs installed — add one from Available.'));
+    } else {
+      installedStyles.forEach(id => inst.appendChild(_packRow(id, 'installed', {})));
+    }
+
+    // Available column: grouped by family in curriculum-map order
+    avail.innerHTML = '';
+    if (!availableStyles.length) {
+      avail.appendChild(_packEmpty('All style packs installed — drag one here to hide it.'));
+    } else {
+      const famOf = id => (PATHWAY_BANDS.find(b => b.id === id) || {}).family;
+      const fams = PACK_FAMILY_ORDER.filter(f => availableStyles.some(id => famOf(id) === f));
+      availableStyles.forEach(id => { const f = famOf(id); if (f && !fams.includes(f)) fams.push(f); });
+      fams.forEach(f => {
+        const head = document.createElement('div'); head.className = 'slopscale-pack-fam'; head.textContent = f; avail.appendChild(head);
+        availableStyles.filter(id => famOf(id) === f).forEach(id => avail.appendChild(_packRow(id, 'available', {})));
+      });
+    }
+    _syncPackMoveButtons();
+  }
+
+  function _packEmpty(msg) { const d = document.createElement('div'); d.className = 'slopscale-pack-empty'; d.textContent = msg; return d; }
+
+  function _packRow(id, col, opts) {
+    const b = PATHWAY_BANDS.find(x => x.id === id) || { label: id };
+    const row = document.createElement('div');
+    row.className = 'slopscale-segment-card slopscale-pack-row'
+      + (opts.core ? ' is-core' : '')
+      + (_packsSel && _packsSel.col === col && _packsSel.id === id ? ' active' : '');
+    row.dataset.packId = id;
+    row.dataset.col = col;
+    row.setAttribute('role', 'option');
+    const lead = opts.core ? '<span class="slopscale-pack-lock" title="Core — always included" aria-hidden="true">🔒</span>'
+      : (col === 'installed' ? '<span class="slopscale-pack-grip" aria-hidden="true">⋮⋮</span>' : '');
+    const sub = (b.kind === 'style' && b.buildsOn) ? `<div class="slopscale-pw-sub">${b.buildsOn}</div>` : '';
+    row.innerHTML = `<div class="slopscale-pw-rowtop">${lead}<span class="slopscale-pw-label">${b.label}${opts.core ? ' · Core' : ''}</span></div>${sub}`;
+    if (!opts.core) {
+      row.tabIndex = 0;
+      const select = () => { _packsSel = { col, id }; renderPackManager(); };
+      row.addEventListener('click', select);
+      row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(); } });
+      row.setAttribute('draggable', 'true');
+      row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed = 'move'; row.classList.add('dragging'); });
+      row.addEventListener('dragend', () => row.classList.remove('dragging'));
+    }
+    return row;
+  }
+
+  function _packInstall(id) {
+    if (!_packsDraft || _packsDraft.order.includes(id) || !_stylePackIds().includes(id)) return;
+    _packsDraft.order.push(id);
+  }
+  function _packUninstall(id) {
+    if (!_packsDraft) return;
+    _packsDraft.order = _packsDraft.order.filter(x => x !== id);
+  }
+  function _packReorder(id, beforeId) {
+    if (!_packsDraft) return;
+    const arr = _packsDraft.order.filter(x => x !== id);
+    const at = beforeId ? arr.indexOf(beforeId) : -1;
+    if (at < 0) arr.push(id); else arr.splice(at, 0, id);
+    _packsDraft.order = arr;
+  }
+  // Which installed Style row a drop at clientY lands before (null = append to end).
+  function _packRowUnder(container, clientY) {
+    const rows = [...container.querySelectorAll('.slopscale-pack-row:not(.is-core)')];
+    for (const r of rows) { const box = r.getBoundingClientRect(); if (clientY < box.top + box.height / 2) return r.dataset.packId; }
+    return null;
+  }
+  function _syncPackMoveButtons() {
+    const toInst = $('slopscale-packs-to-installed');
+    const toAvail = $('slopscale-packs-to-available');
+    if (toInst) toInst.disabled = !(_packsSel && _packsSel.col === 'available');
+    if (toAvail) toAvail.disabled = !(_packsSel && _packsSel.col === 'installed');
+  }
   // ── Session-end summary ("Last session" card in the P sheet) ────────────────
   // A calm, dismissible mirror of the run that just ended — what you practised,
   // time on the instrument, tempo-tier reached, streak. Descriptive + gained-only
@@ -7740,7 +7897,12 @@
     const list = $('slopscale-pathway-list');
     if (!bandBar || !list) return;
     const ptData = pathwayTiersLoad();
-    const bands = PATHWAY_BANDS
+    // Visible bands = Core packs (pinned, fixed order) + installed Style packs in
+    // the user's saved order. Uninstalled Style packs live in the Pack-manager's
+    // Available column (the "+"), not the picker.
+    const bands = visiblePackOrder()
+      .map(id => PATHWAY_BANDS.find(b => b.id === id))
+      .filter(Boolean)
       .map(b => ({ id:b.id, label:b.label, ids:b.pathways.filter(id => PATHWAYS[id] && !isHiddenNode(id)) }))
       .filter(b => b.ids.length);
     if (!bands.length) { bandBar.innerHTML = ''; list.innerHTML = ''; return; }
@@ -7764,6 +7926,17 @@
       btn.addEventListener('click', () => { _activeBandId = b.id; renderPathwayList(); });
       bandBar.appendChild(btn);
     });
+    // Trailing "+" — open the Pack manager (install / order / hide packs). It's an
+    // action, not a tab (no role=tab / aria-selected); right-aligned via CSS.
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'slopscale-band-btn slopscale-band-add'
+      + ($('slopscale-root')?.classList.contains('ss-packs-open') ? ' active' : '');
+    addBtn.textContent = '+';
+    addBtn.title = 'Manage pathway packs';
+    addBtn.setAttribute('aria-label', 'Manage pathway packs');
+    addBtn.addEventListener('click', () => togglePackManager(true));
+    bandBar.appendChild(addBtn);
     // L2 — ordered pathway list for the active band
     const states = activeBand.ids.map(id => ({ id, st: nodeProgressState(id, ptData) }));
     const nextId = (states.find(s => !s.st.cleared && s.id !== activePathwayId) || {}).id;
@@ -8469,7 +8642,16 @@
       syncInstrumentClass();
       if (activeBundle) onGenerate();
     });
-    setup?.addEventListener('change', () => { syncStringSetupControls(); syncInstrumentClass(); syncStringCountChips(); syncTuningOptions(); });
+    setup?.addEventListener('change', () => {
+      syncStringSetupControls(); syncInstrumentClass(); syncStringCountChips(); syncTuningOptions();
+      // A string-count/tuning change reshapes the generated pattern (different
+      // string count, different open pitches) — regenerate so the displayed
+      // chart + audio actually reflect it. Mirrors the instrument/tuning-select
+      // handlers, which already regenerate. (Programmatic value-sets that must
+      // NOT regenerate, e.g. the instrument handler's reset, assign .value
+      // without dispatching 'change', so they don't reach here.)
+      if (activeBundle) onGenerate();
+    });
     // Top-level instrument-family chips (Bass / Guitar / Piano).
     document.querySelectorAll('.slopscale-instr-btn').forEach(btn => {
       btn.addEventListener('click', () => onInstrumentFamilyClick(btn.dataset.instrument));
@@ -8782,6 +8964,38 @@
       if (e.target.closest('[data-act="dismiss-summary"]')) { _lastEndedSession = null; renderProgressSheet(); }
     });
     $('slopscale-cheat-close')?.addEventListener('click', () => toggleCheatSheet(false));
+    // Pack manager (the band-bar "+"). Open is wired on the "+" chip in
+    // renderPathwayList. Close/Cancel discard the draft; Save commits + re-renders.
+    $('slopscale-packs-close')?.addEventListener('click', () => togglePackManager(false));
+    $('slopscale-packs-cancel')?.addEventListener('click', () => togglePackManager(false));
+    $('slopscale-packs-modal')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) togglePackManager(false); });  // scrim → cancel
+    $('slopscale-packs-save')?.addEventListener('click', () => {
+      if (_packsDraft) packsSave(_packsDraft);
+      togglePackManager(false);
+      renderPathwayList();
+    });
+    $('slopscale-packs-to-installed')?.addEventListener('click', () => {
+      if (_packsSel && _packsSel.col === 'available') { _packInstall(_packsSel.id); _packsSel = { col: 'installed', id: _packsSel.id }; renderPackManager(); }
+    });
+    $('slopscale-packs-to-available')?.addEventListener('click', () => {
+      if (_packsSel && _packsSel.col === 'installed') { _packUninstall(_packsSel.id); _packsSel = null; renderPackManager(); }
+    });
+    const _instCol = $('slopscale-packs-installed'), _availCol = $('slopscale-packs-available');
+    _instCol?.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+    _instCol?.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const id = e.dataTransfer.getData('text/plain'); if (!id || !_packsDraft) return;
+      const beforeId = _packRowUnder(_instCol, e.clientY);
+      if (!_packsDraft.order.includes(id)) _packInstall(id);
+      _packReorder(id, beforeId);
+      _packsSel = null; renderPackManager();
+    });
+    _availCol?.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+    _availCol?.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const id = e.dataTransfer.getData('text/plain'); if (!id || !_packsDraft) return;
+      _packUninstall(id); _packsSel = null; renderPackManager();
+    });
     const mixCh = $('slopscale-mixer-channels');
     mixCh?.addEventListener('input', (ev) => {
       const f = ev.target.closest && ev.target.closest('.slopscale-mixer-fader'); if (!f) return;
