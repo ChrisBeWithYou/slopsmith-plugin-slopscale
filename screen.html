@@ -23,6 +23,8 @@
     --ss-accent: #4080e0;                      /* host accent — the host-theming paint-over seam */
     --ss-accent-hover: #60a0ff;
     --ss-accent-soft: rgba(96, 165, 250, 0.22);
+    --ss-accent-grad: linear-gradient(180deg, #1e40af, #1d4ed8); /* active-state fill (themeable) */
+    --ss-accent-edge: #60a5fa;                 /* active-state border (themeable) */
     --ss-playhead: #f43f5e;                    /* reserved: means "now", nowhere else */
     --ss-danger: #b91c1c;
     --ss-meter: #22c55e;                       /* progress / cleared fill */
@@ -36,6 +38,17 @@
     --ss-mono: ui-monospace, "SF Mono", Menlo, monospace;
     /* elevation */
     --ss-shadow-panel: 0 14px 48px rgba(0, 0, 0, 0.28);
+  }
+  /* Accent themes (settings → Accent). Remap the accent tokens via a root class —
+     additive, default = the base tokens above. As more CSS moves to tokens these
+     recolor more of the UI; today they cover the active-state accents. */
+  .slopscale-root.ss-theme-ember {
+    --ss-accent: #e0803a; --ss-accent-hover: #f0974f; --ss-accent-soft: rgba(224,128,58,0.20);
+    --ss-accent-grad: linear-gradient(180deg, #9a4a12, #c2630f); --ss-accent-edge: #f0a050;
+  }
+  .slopscale-root.ss-theme-violet {
+    --ss-accent: #8b5cf6; --ss-accent-hover: #a78bfa; --ss-accent-soft: rgba(139,92,246,0.20);
+    --ss-accent-grad: linear-gradient(180deg, #5b21b6, #6d28d9); --ss-accent-edge: #a78bfa;
   }
 
   .slopscale-root {
@@ -102,6 +115,33 @@
   .slopscale-settings-menu[hidden] { display: none; }
   .slopscale-settings-item { text-align: left; padding: 8px 10px; font-size: 12.5px; border: none; background: none; color: #cbd5e1; cursor: pointer; border-radius: 6px; }
   .slopscale-settings-item:hover { background: rgba(148,163,184,0.12); color: #f1f5f9; }
+  .slopscale-settings-menu { min-width: 224px; }
+  .slopscale-settings-group { padding: 7px 9px; }
+  .slopscale-settings-lbl { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ss-text-muted, #94a3b8); margin-bottom: 6px; }
+  .slopscale-settings-row { display: flex; gap: 5px; }
+  .slopscale-theme-swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #334155; background: var(--sw); cursor: pointer; padding: 0; }
+  .slopscale-theme-swatch.active { border-color: #f8fafc; box-shadow: 0 0 0 2px rgba(248,250,252,0.2); }
+  .slopscale-mini-btn { flex: 1; padding: 5px 0; font-size: 11px; font-weight: 600; border-radius: 6px; border: 1px solid #334155; background: #0b1220; color: #94a3b8; cursor: pointer; }
+  .slopscale-mini-btn:hover { background: #1e293b; color: #e2e8f0; }
+  .slopscale-mini-btn.active { background: var(--ss-accent-grad); border-color: var(--ss-accent-edge); color: #f8fafc; }
+  .slopscale-settings-select { width: 100%; padding: 5px 8px; font-size: 12px; border-radius: 6px; border: 1px solid #334155; background: #0b1220; color: #e2e8f0; }
+  .slopscale-settings-divider { height: 1px; background: var(--ss-hairline, rgba(148,163,184,0.14)); margin: 4px 6px; }
+  /* Mode dropdown fallback — hidden until the narrowest breakpoint. */
+  .slopscale-mode-select { display: none; padding: 6px 10px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1px solid var(--ss-border, #334155); background: var(--ss-inset, #0b1220); color: var(--ss-text, #e2e8f0); }
+  /* Narrow-width header degrade (spec order): tagline already dropped → Setup label
+     shortens → view-bar secondary toggles hide → mode segments → Mode ▾ dropdown LAST
+     (primary nav protected longest). */
+  @media (max-width: 1120px) {
+    #slopscale-setup-label { font-size: 0; }
+    #slopscale-setup-label::after { content: attr(data-short); font-size: 12.5px; font-weight: 600; }
+  }
+  @media (max-width: 1000px) {
+    .slopscale-view-label, .slopscale-fb-toggle-label, #slopscale-theme-toggle { display: none !important; }
+  }
+  @media (max-width: 880px) {
+    .slopscale-header-modes .slopscale-mode-bar { display: none; }
+    .slopscale-mode-select { display: inline-block; }
+  }
   .slopscale-header h1 { margin: 0; font-size: 22px; line-height: 1.1; letter-spacing: -0.02em; color: #f8fafc; font-weight: 700; }
   .slopscale-tagline { margin: 3px 0 6px 0; font-size: 12px; color: #94a3b8; max-width: 760px; }
   .slopscale-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: #cbd5e1; }
@@ -245,7 +285,7 @@
   .slopscale-button.secondary,
   .slopscale-actions button.secondary,
   .slopscale-actions-secondary button.secondary { background: #0f172a; color: #cbd5e1; }
-  .slopscale-actions button.primary { background: linear-gradient(180deg, #2563eb, #1d4ed8); border-color: #60a5fa; min-height: 48px; font-size: 15px; letter-spacing: 0.02em; }
+  .slopscale-actions button.primary { background: linear-gradient(180deg, #2563eb, #1d4ed8); border-color: var(--ss-accent-edge); min-height: 48px; font-size: 15px; letter-spacing: 0.02em; }
   .slopscale-actions button.primary:hover { background: linear-gradient(180deg, #1d4ed8, #1e40af); }
   .slopscale-actions button.primary.is-playing { background: linear-gradient(180deg, #b91c1c, #991b1b); border-color: #f87171; }
   .slopscale-actions button.primary.is-playing:hover { background: linear-gradient(180deg, #991b1b, #7f1d1d); }
@@ -258,7 +298,7 @@
   #slopscale-paste-share { width: 100%; min-height: 30px; padding: 0 10px;
     background: #0a1322; color: #cbd5e1; border: 1px solid #334155;
     border-radius: 8px; font-size: 12px; font-family: var(--ss-mono); }
-  #slopscale-paste-share:focus { outline: none; border-color: #60a5fa; }
+  #slopscale-paste-share:focus { outline: none; border-color: var(--ss-accent-edge); }
   #slopscale-paste-share.flash-ok { border-color: #16a34a; }
   #slopscale-paste-share.flash-bad { border-color: #b91c1c; }
   /* ── Playback transport ──────────────────────────────────────────────────
@@ -276,7 +316,7 @@
   .slopscale-session-progress:empty { display: none; }
   .slopscale-progress-seg { position: relative; flex-basis: 0; min-width: 16px; border: 1px solid #334155; border-radius: 5px; background: #131c2e; color: #94a3b8; font-size: 10px; font-weight: 700; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0 6px; line-height: 20px; text-align: center; }
   .slopscale-progress-seg:hover { background: #1e293b; color: #e2e8f0; border-color: #475569; }
-  .slopscale-progress-seg.active { background: linear-gradient(180deg, #2563eb, #1d4ed8); border-color: #60a5fa; color: #fff; }
+  .slopscale-progress-seg.active { background: linear-gradient(180deg, #2563eb, #1d4ed8); border-color: var(--ss-accent-edge); color: #fff; }
   /* Unified DAW ruler — one canvas drawing bars/beats + playhead + A–B loop.
      50px + container padding (6+4) = 60px total, matching the HUD's top:60px offset.
      touch-action:none so drags don't scroll. */
@@ -351,7 +391,7 @@
   }
   .slopscale-view-btn:hover { background: rgba(30,41,59,0.6); color: #e2e8f0; border-color: #334155; }
   .slopscale-view-btn.active {
-    background: linear-gradient(180deg, #1e40af, #1d4ed8);
+    background: var(--ss-accent-grad);
     border-color: #3b82f6;
     color: #f8fafc;
     box-shadow: 0 0 0 1px rgba(96,165,250,0.4), 0 2px 6px rgba(29,78,216,0.35);
@@ -407,6 +447,9 @@
   .slopscale-fretboard-strip { position: relative; flex-shrink: 0; height: 132px; background: #08080f; border-top: 1px solid rgba(75,85,99,0.4); display: none; }
   #slopscale-fretboard { display: block; width: 100%; height: 100%; }
   .slopscale-root.slopscale-fb-capable.slopscale-fb-on .slopscale-fretboard-strip { display: block; }
+  /* Jam mode always shows the strip (it's the target-highlight teaching surface),
+     regardless of the renderer view. Piano stays hidden (its !important wins). */
+  .slopscale-root.ss-mode-jam .slopscale-fretboard-strip { display: block; }
   .slopscale-root.slopscale-piano-instrument .slopscale-fretboard-strip { display: none !important; }
   /* "Fretboard view" label + pill toggle — only shown for fretboard-capable
      views; margin-left:auto pushes it (and the theme toggle after it) right,
@@ -442,7 +485,7 @@
   .slopscale-mixer-ch-label { font-size: 12px; font-weight: 600; color: #cbd5e1; }
   .slopscale-mixer-tog { padding: 3px 0; font-size: 10px; font-weight: 700; border-radius: 5px; border: 1px solid #334155; background: #0b1220; color: #94a3b8; cursor: pointer; }
   .slopscale-mixer-tog.mute.active { background: #7f1d1d; border-color: #ef4444; color: #fecaca; }
-  .slopscale-mixer-tog.solo.active { background: #1e40af; border-color: #60a5fa; color: #dbeafe; }
+  .slopscale-mixer-tog.solo.active { background: #1e40af; border-color: var(--ss-accent-edge); color: #dbeafe; }
   .slopscale-mixer-fader { width: 100%; accent-color: var(--ss-accent, #4080e0); }
   .slopscale-mixer-val { font-size: 10px; color: #64748b; font-family: var(--ss-mono, monospace); text-align: right; }
   /* Progress sheet — slides in from the right. */
@@ -508,7 +551,7 @@
   .slopscale-tier-btn .tier-name { font-size: 12px; }
   .slopscale-tier-btn .tier-bpm { font-size: 10px; font-weight: 600; opacity: 0.75; }
   .slopscale-tier-btn:hover { background: #1e293b; color: #e2e8f0; }
-  .slopscale-tier-btn.active { background: linear-gradient(180deg, #1e40af, #1d4ed8); border-color: #60a5fa; color: #f8fafc; }
+  .slopscale-tier-btn.active { background: var(--ss-accent-grad); border-color: var(--ss-accent-edge); color: #f8fafc; }
 
   /* Single ↔ Session mode toggle pill */
   /* Instrument family selector — three-way segmented control above the
@@ -545,7 +588,7 @@
     transition: background 0.12s, color 0.12s, border-color 0.12s;
   }
   .slopscale-string-count-btn:hover { color: #e2e8f0; border-color: #475569; }
-  .slopscale-string-count-btn.active { background: #1e293b; color: #f8fafc; border-color: #60a5fa; }
+  .slopscale-string-count-btn.active { background: #1e293b; color: #f8fafc; border-color: var(--ss-accent-edge); }
   #slopscale-tuning-select { flex: 1; min-height: 28px; }
   .slopscale-custom-tuning { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; border-top: 1px dashed #334155; }
   .slopscale-custom-tuning-inputs { display: flex; gap: 4px; flex-wrap: wrap; }
@@ -569,8 +612,8 @@
   .slopscale-mode-toggle { display: flex; gap: 4px; background: #050b18; border: 1px solid #334155; border-radius: 12px; padding: 4px; }
   .slopscale-mode-btn { flex: 1; min-height: 32px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #94a3b8; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
   .slopscale-mode-btn:hover { color: #e2e8f0; border-color: #475569; }
-  .slopscale-mode-btn.active { background: linear-gradient(180deg, #1e3a8a, #1e40af); color: #f8fafc; border-color: #60a5fa; box-shadow: 0 1px 4px rgba(0,0,0,0.45); }
-  .slopscale-mode-btn.active:hover { border-color: #60a5fa; }
+  .slopscale-mode-btn.active { background: linear-gradient(180deg, #1e3a8a, #1e40af); color: #f8fafc; border-color: var(--ss-accent-edge); box-shadow: 0 1px 4px rgba(0,0,0,0.45); }
+  .slopscale-mode-btn.active:hover { border-color: var(--ss-accent-edge); }
 
   /* Session vs Single mode visibility */
   .slopscale-root.slopscale-session-mode .slopscale-single-only { display: none !important; }
@@ -608,7 +651,7 @@
   .slopscale-cal-dot { width: 9px; height: 9px; border-radius: 50%; background: #0f172a; border: 1px solid #1e293b; transition: background 0.15s, border-color 0.15s; }
   .slopscale-cal-dot.practiced { background: #1d4ed8; border-color: #3b82f6; }
   .slopscale-cal-day.today .slopscale-cal-dot { border-color: #475569; }
-  .slopscale-cal-day.today .slopscale-cal-dot.practiced { background: #2563eb; border-color: #60a5fa; box-shadow: 0 0 5px rgba(96,165,250,0.4); }
+  .slopscale-cal-day.today .slopscale-cal-dot.practiced { background: #2563eb; border-color: var(--ss-accent-edge); box-shadow: 0 0 5px rgba(96,165,250,0.4); }
   .slopscale-cal-lbl { font-size: 9px; color: #334155; font-weight: 600; }
   .slopscale-cal-day.today .slopscale-cal-lbl { color: #64748b; }
   /* Pathway tier cleared state + unlock glow animation */
@@ -654,7 +697,7 @@
   .slopscale-band-bar { display: flex; flex-wrap: wrap; gap: 4px; }
   .slopscale-band-btn { padding: 5px 11px; font-size: 12px; font-weight: 600; border-radius: 8px; border: 1px solid #334155; background: #0b1220; color: #94a3b8; cursor: pointer; flex: 0 0 auto; transition: background 0.12s, color 0.12s, border-color 0.12s; }
   .slopscale-band-btn:hover { background: #1e293b; color: #e2e8f0; }
-  .slopscale-band-btn.active { background: linear-gradient(180deg, #1e40af, #1d4ed8); border-color: #60a5fa; color: #f8fafc; }
+  .slopscale-band-btn.active { background: var(--ss-accent-grad); border-color: var(--ss-accent-edge); color: #f8fafc; }
   .slopscale-pathway-list { display: flex; flex-direction: column; gap: 5px; max-height: 240px; overflow-y: auto; padding: 1px; }
   .slopscale-pw-row { padding: 8px 10px; gap: 4px; }
   .slopscale-pw-rowtop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -666,7 +709,7 @@
   .slopscale-pw-dots { display: flex; gap: 3px; }
   .slopscale-pw-sub { font-size: 10.5px; color: #94a3b8; }
   /* First-run primed START CTA — the one lit primary action in Pathways mode. */
-  .slopscale-start-cta { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: left; padding: 11px 14px; margin: 6px 0 2px; border-radius: 10px; border: 1px solid var(--ss-accent, #4080e0); background: linear-gradient(180deg, #1e40af, #1d4ed8); color: #f8fafc; cursor: pointer; transition: filter 0.12s; box-shadow: 0 2px 12px rgba(29,78,216,0.35); }
+  .slopscale-start-cta { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: left; padding: 11px 14px; margin: 6px 0 2px; border-radius: 10px; border: 1px solid var(--ss-accent, #4080e0); background: var(--ss-accent-grad); color: #f8fafc; cursor: pointer; transition: filter 0.12s; box-shadow: 0 2px 12px rgba(29,78,216,0.35); }
   .slopscale-start-cta:hover { filter: brightness(1.08); }
   .slopscale-start-cta:active { filter: brightness(0.95); }
   .slopscale-start-main { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
@@ -693,13 +736,15 @@
   .slopscale-jam-styles { display: flex; flex-wrap: wrap; gap: 6px; }
   .slopscale-jam-style { padding: 7px 12px; font-size: 12.5px; font-weight: 600; border-radius: 8px; border: 1px solid #334155; background: #0b1220; color: #cbd5e1; cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s; }
   .slopscale-jam-style:hover { background: #1e293b; color: #f1f5f9; }
-  .slopscale-jam-style.active { background: linear-gradient(180deg, #1e40af, #1d4ed8); border-color: #60a5fa; color: #f8fafc; }
+  .slopscale-jam-style.active { background: var(--ss-accent-grad); border-color: var(--ss-accent-edge); color: #f8fafc; }
   .slopscale-jam-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .slopscale-jam-feel { display: flex; gap: 4px; }
-  .slopscale-jam-feel-btn { flex: 1; padding: 7px 0; font-size: 12px; font-weight: 600; border-radius: 8px; border: 1px solid #334155; background: #0b1220; color: #94a3b8; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
-  .slopscale-jam-feel-btn:hover { background: #1e293b; color: #e2e8f0; }
-  .slopscale-jam-feel-btn.active { background: linear-gradient(180deg, #1e40af, #1d4ed8); border-color: #60a5fa; color: #f8fafc; }
-  .slopscale-jam-go { margin-top: 4px; padding: 11px; font-size: 14px; font-weight: 700; border-radius: 9px; border: 1px solid var(--ss-accent, #4080e0); background: linear-gradient(180deg, #1e40af, #1d4ed8); color: #f8fafc; cursor: pointer; transition: filter 0.12s; }
+  .slopscale-jam-feel, .slopscale-jam-hl { display: flex; gap: 4px; }
+  .slopscale-jam-feel-btn, .slopscale-jam-hl-btn { flex: 1; padding: 7px 0; font-size: 12px; font-weight: 600; border-radius: 8px; border: 1px solid #334155; background: #0b1220; color: #94a3b8; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
+  .slopscale-jam-feel-btn:hover, .slopscale-jam-hl-btn:hover { background: #1e293b; color: #e2e8f0; }
+  .slopscale-jam-feel-btn.active { background: var(--ss-accent-grad); border-color: var(--ss-accent-edge); color: #f8fafc; }
+  /* Highlight active = the target green (--ss-meter), matching the strip markers. */
+  .slopscale-jam-hl-btn.active { background: rgba(34,197,94,0.18); border-color: #22c55e; color: #bbf7d0; }
+  .slopscale-jam-go { margin-top: 4px; padding: 11px; font-size: 14px; font-weight: 700; border-radius: 9px; border: 1px solid var(--ss-accent, #4080e0); background: var(--ss-accent-grad); color: #f8fafc; cursor: pointer; transition: filter 0.12s; }
   .slopscale-jam-go:hover { filter: brightness(1.08); }
   .slopscale-jam-go:active { filter: brightness(0.94); }
   .slopscale-tree-switch-link {
@@ -827,6 +872,15 @@
         <button type="button" id="slopscale-mode-session" class="slopscale-mode-btn" data-mode="session" role="tab" aria-selected="false" title="Build a timed routine — and actually run it">Workout</button>
         <button type="button" id="slopscale-mode-jam"     class="slopscale-mode-btn" data-mode="jam"     role="tab" aria-selected="false" title="Pick a style and play along on your instrument">Jam</button>
       </div>
+      <!-- Narrowest-width fallback: the 4 segments collapse to one Mode dropdown
+           (last in the degrade order — primary nav is protected longest). Synced by
+           syncModeBar; switches via selectMode. Hidden until the edge breakpoint. -->
+      <select id="slopscale-mode-select" class="slopscale-mode-select" aria-label="Practice mode">
+        <option value="guided">Pathways</option>
+        <option value="custom">Custom</option>
+        <option value="session">Workout</option>
+        <option value="jam">Jam</option>
+      </select>
     </div>
     <!-- Progress chip — streak + 7-day calendar (ambient progress, header-right).
          IS the P-sheet's open affordance (tap → Progress sheet); de-dups the old
@@ -846,6 +900,32 @@
     <div class="slopscale-header-settings">
       <button type="button" id="slopscale-settings-btn" class="slopscale-settings-btn" aria-haspopup="true" aria-expanded="false" aria-label="Settings" title="Settings">⚙</button>
       <div id="slopscale-settings-menu" class="slopscale-settings-menu" hidden role="menu" aria-label="Settings">
+        <div class="slopscale-settings-group">
+          <span class="slopscale-settings-lbl">Accent</span>
+          <div class="slopscale-settings-row" id="slopscale-theme-pick">
+            <button type="button" class="slopscale-theme-swatch active" data-theme="" style="--sw:#1d4ed8" title="Blue" aria-label="Blue"></button>
+            <button type="button" class="slopscale-theme-swatch" data-theme="ember" style="--sw:#c2630f" title="Ember" aria-label="Ember"></button>
+            <button type="button" class="slopscale-theme-swatch" data-theme="violet" style="--sw:#6d28d9" title="Violet" aria-label="Violet"></button>
+          </div>
+        </div>
+        <div class="slopscale-settings-group">
+          <span class="slopscale-settings-lbl">XP mode (default)</span>
+          <div class="slopscale-settings-row" id="slopscale-xp-mode">
+            <button type="button" class="slopscale-mini-btn" data-xp="off">Off</button>
+            <button type="button" class="slopscale-mini-btn active" data-xp="casual">Casual</button>
+            <button type="button" class="slopscale-mini-btn" data-xp="hardcore">Hardcore</button>
+          </div>
+        </div>
+        <div class="slopscale-settings-group">
+          <span class="slopscale-settings-lbl">Count-in (default)</span>
+          <select id="slopscale-countin-default" class="slopscale-settings-select">
+            <option value="0">Off</option>
+            <option value="1">1 bar</option>
+            <option value="2">2 bars</option>
+            <option value="4">4 bars</option>
+          </select>
+        </div>
+        <div class="slopscale-settings-divider"></div>
         <button type="button" class="slopscale-settings-item" id="slopscale-settings-shortcuts" role="menuitem">Keyboard shortcuts</button>
         <button type="button" class="slopscale-settings-item" id="slopscale-settings-host" role="menuitem">Plugin settings ↗</button>
       </div>
@@ -885,6 +965,16 @@
           <button type="button" class="slopscale-jam-feel-btn" data-feel="swing">Swing</button>
           <button type="button" class="slopscale-jam-feel-btn" data-feel="shuffle">Shuffle</button>
         </div>
+        <!-- Highlight: the teaching mirror — lights the current chord's tones on the
+             fretboard strip as the backing moves through changes. Default chord-tones. -->
+        <div class="slopscale-group-title">Highlight</div>
+        <div class="slopscale-jam-hl" id="slopscale-jam-hl" role="group" aria-label="Fretboard highlight">
+          <button type="button" class="slopscale-jam-hl-btn active" data-hl="chord">Chord</button>
+          <button type="button" class="slopscale-jam-hl-btn" data-hl="guide">Guide</button>
+          <button type="button" class="slopscale-jam-hl-btn" data-hl="scale">Scale</button>
+          <button type="button" class="slopscale-jam-hl-btn" data-hl="off">Off</button>
+        </div>
+        <div class="slopscale-help">The fretboard strip lights these on your neck as the backing moves through the changes.</div>
         <button type="button" class="slopscale-jam-go" id="slopscale-jam-go">▶ Jam</button>
         <div class="slopscale-help">Loops a backing in the chosen style — improvise over it. No score, no rank; it's a mirror, not a judge.</div>
       </div>

@@ -2463,6 +2463,16 @@
   // Place a pitch class (0..11) at or above a floor MIDI.
   function pcAtOrAbove(pc, floor) { let m = ((pc % 12) + 12) % 12; while (m < floor) m += 12; return m; }
 
+  // Chord-tone + guide-tone pitch classes for a chord, for the Jam target-highlight.
+  // cpcs = all chord tones; gpcs = the guide tones (3rd + 7th — the chord's identity).
+  function chordHighlightPcs(rootPc, intervals) {
+    const ivset = intervals.map(i => ((i % 12) + 12) % 12);
+    const cpcs = Array.from(new Set(ivset.map(iv => (rootPc + iv) % 12)));
+    const third = ivset.includes(4) ? 4 : ivset.includes(3) ? 3 : null;
+    const sev = ivset.includes(10) ? 10 : ivset.includes(11) ? 11 : null;
+    const gpcs = [third, sev].filter(x => x != null).map(iv => (rootPc + iv) % 12);
+    return { cpcs, gpcs };
+  }
   function buildBackingEvents(cfg, duration) {
     if (cfg.backingStyle === 'boogie') return buildBoogieBacking(cfg, duration);
     const degrees = progressionDegreesForConfig(cfg);
@@ -2476,13 +2486,16 @@
       const name = chordName(rootPc, quality);
       const midis = voiceBackingChord(rootPc, formula.intervals, cfg.instrument);
       const end = Number(Math.min(duration, t + slot).toFixed(6));
+      // Chord-tone + guide-tone pitch classes for the Jam target-highlight (teaching
+      // mirror — lights which neck notes are chord/guide tones for the current chord).
+      const { cpcs, gpcs } = chordHighlightPcs(rootPc, formula.intervals);
       // Coalesce consecutive identical chords into one sustained event so the pad
       // doesn't hard re-attack every bar (the "pumping" on held harmony).
       const prev = events[events.length - 1];
       if (prev && prev.name === name && prev.midis.length === midis.length && prev.midis.every((m, k) => m === midis[k])) {
         prev.end = end;
       } else {
-        events.push({ t:Number(t.toFixed(6)), end, name, midis });
+        events.push({ t:Number(t.toFixed(6)), end, name, midis, cpcs, gpcs });
       }
     }
     return events;
@@ -2507,6 +2520,7 @@
       const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride, cfg.progression);
       const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj;
       const name = chordName(rootPc, quality);
+      const { cpcs, gpcs } = chordHighlightPcs(rootPc, formula.intervals);   // Jam highlight
       const ivset = formula.intervals.map(i => ((i % 12) + 12) % 12);
       // Rootless shell: guide tones (3rd + 7th) + the 9th colour. Falls back to the
       // full voiced pad when the chord has no clear 3rd/7th (e.g. a power chord).
@@ -2534,10 +2548,10 @@
         // so the in-tree backing overlay shows one label per bar, not per hit).
         // role:'bass' routes it to the sampled bass voice / 'bass' bus, distinct
         // from the harmony shell — so the boogie walks like a bass, not an organ.
-        events.push({ t:Number(beatT.toFixed(6)), end:Number(Math.min(duration, beatT + beatSec * 0.9).toFixed(6)), name: b === 0 ? name : '', midis:[bassMidi], role:'bass' });
+        events.push({ t:Number(beatT.toFixed(6)), end:Number(Math.min(duration, beatT + beatSec * 0.9).toFixed(6)), name: b === 0 ? name : '', midis:[bassMidi], role:'bass', cpcs, gpcs });
         // Chord-shell chick on the off-beat (the swung "and").
         const upT = beatT + beatSec * 0.5;
-        if (upT < duration - 1e-4) events.push({ t:Number(upT.toFixed(6)), end:Number(Math.min(duration, upT + beatSec * 0.4).toFixed(6)), name:'', midis:shell });
+        if (upT < duration - 1e-4) events.push({ t:Number(upT.toFixed(6)), end:Number(Math.min(duration, upT + beatSec * 0.4).toFixed(6)), name:'', midis:shell, cpcs, gpcs });
       }
     }
     return events;
@@ -5151,6 +5165,27 @@
     if (hi - lo < MIN_SPAN) lo = Math.max(0, hi - MIN_SPAN);
     fbFretLo = lo; fbFretHi = hi;
   }
+  // Jam target-highlight: which pitch classes to light on the strip right now, given
+  // the Highlight mode (chord tones / guide tones / scale / off) and the chord at the
+  // playhead (from the enriched backing events). The teaching mirror.
+  let jamHighlightMode = 'chord';   // chord | guide | scale | off
+  try { const m = localStorage.getItem('slopscale.jamHighlight'); if (m) jamHighlightMode = m; } catch (_) {}
+  function jamTargetPcs(t) {
+    if (jamHighlightMode === 'off' || !activeBundle) return null;
+    if (jamHighlightMode === 'scale') {
+      const cfg = activeBundle.config; if (!cfg) return null;
+      const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+      const ivs = SCALE_INTERVALS[cfg.scale] || [];
+      return ivs.length ? new Set(ivs.map(i => (keyPc + i) % 12)) : null;
+    }
+    // chord / guide — the most recent backing chord at or before the playhead.
+    const evs = activeBundle.backingEvents || [];
+    let cur = null;
+    for (const e of evs) { if (e.t > t + 1e-6) break; if (e.cpcs) cur = e; }
+    if (!cur) return null;
+    const pcs = jamHighlightMode === 'guide' ? cur.gpcs : cur.cpcs;
+    return (pcs && pcs.length) ? new Set(pcs) : null;
+  }
   // Notes sounding within ~80ms of the playhead, with a sustain-based fade.
   function fretboardActiveNotes(t) {
     const out = [], win = 0.08, notes = activeBundle?.notes || [];
@@ -5299,6 +5334,23 @@
       ctx.strokeStyle = STRING_COLORS[p.s % STRING_COLORS.length]; ctx.lineWidth = 1.8; ctx.globalAlpha = 0.85;
       ctx.beginPath(); ctx.arc(xNote(p.f), rowY(p.s), 7, 0, 6.2832); ctx.stroke();
       ctx.globalAlpha = 1;
+    }
+    // Jam target-highlight: light the current chord's chord/guide/scale tones within
+    // the lead box (green = --ss-meter "target") so the player sees which box notes to
+    // aim for as the changes move. Drawn under the live glow.
+    const targetPcs = $('slopscale-root')?.classList.contains('ss-mode-jam')
+      ? jamTargetPcs(currentPracticeTime) : null;
+    if (targetPcs) {
+      for (const p of fbPattern) {
+        if (p.s < 0 || p.s >= nStrings) continue;
+        if (!targetPcs.has((opens[p.s] + p.f) % 12)) continue;
+        const x = xNote(p.f), y = rowY(p.s);
+        ctx.globalAlpha = 0.30; ctx.fillStyle = '#22c55e';
+        ctx.beginPath(); ctx.arc(x, y, 10, 0, 6.2832); ctx.fill();
+        ctx.globalAlpha = 0.95; ctx.lineWidth = 2; ctx.strokeStyle = '#4ade80';
+        ctx.beginPath(); ctx.arc(x, y, 8, 0, 6.2832); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
     }
     // Currently-sounding notes glow (filled) on top of their hollow markers.
     for (const n of fretboardActiveNotes(currentPracticeTime)) {
@@ -5673,7 +5725,16 @@
   }
   function updateSetupButton() {
     const lbl = $('slopscale-setup-label');
-    if (lbl) lbl.textContent = setupLabelText();
+    if (!lbl) return;
+    lbl.textContent = setupLabelText();
+    // Short form for the narrow-width degrade (CSS swaps to data-short via ::after).
+    const instrSel = document.querySelector('[name="instrument"]');
+    const v = instrSel ? instrSel.value : 'guitar';
+    const short = v === 'bass' ? 'Bass' : v === 'piano' ? 'Pno' : 'Gtr';
+    const tun = $('slopscale-tuning-select');
+    const tShort = (tun && tun.selectedOptions && tun.selectedOptions[0])
+      ? tun.selectedOptions[0].textContent.replace(/\s*\(.*\)\s*/, '').trim().slice(0, 4) : '';
+    lbl.dataset.short = tShort ? `${short} · ${tShort}` : short;
   }
   function toggleSetupPopover(force) {
     const pop = $('slopscale-setup-popover'), btn = $('slopscale-setup-btn');
@@ -5682,13 +5743,40 @@
     pop.hidden = !open;
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
-  // Header settings menu (⚙). Skeleton: keyboard-shortcuts + host plugin-settings.
+  // Header settings menu (⚙) + its prefs: accent theme (live), default XP mode (a
+  // stored default — ready for the unbuilt XP store), default count-in (seeds the
+  // count-in control on load). All persisted to localStorage.
   function toggleSettingsMenu(force) {
     const menu = $('slopscale-settings-menu'), btn = $('slopscale-settings-btn');
     if (!menu || !btn) return;
     const open = force != null ? force : menu.hidden;
     menu.hidden = !open;
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  function applyTheme(name) {
+    const root = $('slopscale-root'); if (!root) return;
+    root.classList.remove('ss-theme-ember', 'ss-theme-violet');
+    if (name) root.classList.add('ss-theme-' + name);
+    try { localStorage.setItem('slopscale.theme', name || ''); } catch (_) {}
+    document.querySelectorAll('#slopscale-theme-pick .slopscale-theme-swatch').forEach(b => b.classList.toggle('active', (b.dataset.theme || '') === (name || '')));
+  }
+  function applyXpModeDefault(mode) {
+    try { localStorage.setItem('slopscale.xpMode', mode); } catch (_) {}
+    document.querySelectorAll('#slopscale-xp-mode .slopscale-mini-btn').forEach(b => b.classList.toggle('active', b.dataset.xp === mode));
+  }
+  function applyCountInDefault(val) {
+    setFieldSilent('countIn', String(val));   // the field is the source; syncTransport reflects the segments
+    syncTransport();
+  }
+  function loadSettingsPrefs() {
+    let theme = '', xp = 'casual', ci = null;
+    try { theme = localStorage.getItem('slopscale.theme') || ''; } catch (_) {}
+    try { xp = localStorage.getItem('slopscale.xpMode') || 'casual'; } catch (_) {}
+    try { ci = localStorage.getItem('slopscale.countInDefault'); } catch (_) {}
+    applyTheme(theme);
+    applyXpModeDefault(xp);
+    const sel = $('slopscale-countin-default');
+    if (sel && ci != null) { sel.value = ci; applyCountInDefault(ci); }
   }
 
   function schedulePluckedString(ctx, when, freq, dur, instrument, gainScale, bendSemis) {
@@ -6755,6 +6843,7 @@
       b.classList.toggle('active', on);
       b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
+    const ms = $('slopscale-mode-select'); if (ms && ms.value !== mode) ms.value = mode;   // narrow-width fallback
     // Forward-compat single mode class (the locked ss-mode-* mechanic) for future CSS.
     ['pathways','custom','workout','jam'].forEach(s => root.classList.toggle('ss-mode-' + s, MODE_META[mode] && MODE_META[mode].ss === s));
     const desc = $('slopscale-mode-desc');
@@ -8139,6 +8228,7 @@
     ['guided', 'custom', 'session', 'jam'].forEach(m => {
       $('slopscale-mode-' + m)?.addEventListener('click', () => selectMode(m));
     });
+    $('slopscale-mode-select')?.addEventListener('change', (e) => selectMode(e.target.value));   // narrow-width fallback
     renderJamStyles();
     // Jam controls: feel toggle + the Jam action.
     document.querySelectorAll('#slopscale-jam-feel .slopscale-jam-feel-btn').forEach(b => {
@@ -8149,6 +8239,18 @@
       });
     });
     $('slopscale-jam-go')?.addEventListener('click', jamPlay);
+    // Jam target-highlight selector (chord / guide / scale / off). Reflects the
+    // persisted mode, repaints the strip live on change.
+    document.querySelectorAll('#slopscale-jam-hl .slopscale-jam-hl-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.hl === jamHighlightMode);
+      b.addEventListener('click', () => {
+        document.querySelectorAll('#slopscale-jam-hl .slopscale-jam-hl-btn').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        jamHighlightMode = b.dataset.hl || 'chord';
+        try { localStorage.setItem('slopscale.jamHighlight', jamHighlightMode); } catch (_) {}
+        drawOnce();
+      });
+    });
     // First-run primed START CTA — starts the selected pathway (the one lit primary).
     $('slopscale-start-cta')?.addEventListener('click', () => onPlayToggle());
     // Shell panels (M / P / [ / ?): visible buttons + the mixer's own controls.
@@ -8195,6 +8297,11 @@
       toggleSettingsMenu(false);
       try { if (window.slopsmith && typeof window.slopsmith.navigate === 'function') window.slopsmith.navigate('settings'); } catch (_) {}
     });
+    // Settings prefs: accent theme · default XP mode · default count-in.
+    document.querySelectorAll('#slopscale-theme-pick .slopscale-theme-swatch').forEach(b => b.addEventListener('click', () => applyTheme(b.dataset.theme || '')));
+    document.querySelectorAll('#slopscale-xp-mode .slopscale-mini-btn').forEach(b => b.addEventListener('click', () => applyXpModeDefault(b.dataset.xp)));
+    $('slopscale-countin-default')?.addEventListener('change', (e) => { try { localStorage.setItem('slopscale.countInDefault', e.target.value); } catch (_) {} applyCountInDefault(e.target.value); });
+    loadSettingsPrefs();
     document.addEventListener('click', (e) => {
       const menu = $('slopscale-settings-menu'); if (!menu || menu.hidden) return;
       const btn = $('slopscale-settings-btn');
