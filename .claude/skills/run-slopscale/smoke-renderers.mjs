@@ -48,8 +48,16 @@ const BENIGN = [
   /audiocontext was not allowed to start/i,
   /the audiocontext was (not allowed|prevented)/i,
   /play\(\) request was interrupted/i,
+  /continuous scoring failed to start/i,   // host Minigames SDK can't start mic in headless — scoring is optional
 ];
 const isBenign = (msg) => BENIGN.some((re) => re.test(msg));
+// A borrowed host-viz plugin (Jumping Tab / Piano) that isn't present in the
+// RUNNING host 404s on its screen.js — e.g. when testing against the source
+// CHECKOUT, which lacks the Desktop-bundled viz plugins. SlopScale falls back to
+// its in-tree renderer. Benign here; on the bundled target the plugin exists so
+// this never fires. Scoped to those plugin script URLs (the 404 text alone has no URL).
+const isBenignResource = (text, url) =>
+  /failed to load resource/i.test(text) && /\/api\/plugins\/(jumpingtab|piano)\/screen\.js/.test(url || "");
 
 async function ensureHost() {
   const r = await fetch(`${HOST}/api/plugins/slopscale/status`).catch(() => null);
@@ -157,7 +165,11 @@ async function run() {
     const page = await ctx.newPage();
     page.on("pageerror", (e) => { if (!isBenign(e.message)) pageErrors.push(e.message); });
     page.on("console", (m) => {
-      if (m.type() === "error" && !isBenign(m.text())) consoleErrors.push(m.text());
+      if (m.type() !== "error") return;
+      const text = m.text();
+      const url = (m.location() && m.location().url) || "";
+      if (isBenign(text) || isBenignResource(text, url)) return;
+      consoleErrors.push(text);
     });
 
     await gotoSlopScale(page);

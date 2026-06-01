@@ -98,6 +98,37 @@ To stop the host:
 Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force }
 ```
 
+## Testing against CURRENT Slopsmith (bundled vs checkout)
+
+`launch.ps1` can boot **two different Slopsmith runtimes**, selected by `SLOPSMITH_SOURCE`:
+
+- **`bundled`** (default) — the frozen Desktop install at `C:\Program Files\Slopsmith\…`
+  (~0.2.7). Its `python312._pth` pins imports to the bundled code, so this tests against
+  **what users currently run**. This is the default and needs no setup.
+- **`checkout`** — your git checkout (`C:\Users\chris\slopsmith`, kept current with
+  `git pull`) run via a **venv python** (no `._pth` isolation → the checkout's own code
+  loads). This tests against **current Slopsmith** (e.g. new host APIs / merged PRs). Run:
+  ```powershell
+  $env:SLOPSMITH_SOURCE = 'checkout'; & .claude\skills\run-slopscale\launch.ps1
+  ```
+
+**One-time setup for the checkout runtime** (a venv at `C:\Users\chris\slopsmith-venv`,
+overridable via `SLOPSMITH_VENV`):
+```powershell
+git -C C:\Users\chris\slopsmith pull          # Slopsmith ships from `main`, not Desktop installers — pulling IS updating
+py -3 -m venv C:\Users\chris\slopsmith-venv
+& C:\Users\chris\slopsmith-venv\Scripts\python.exe -m pip install -r C:\Users\chris\slopsmith\requirements.txt
+```
+No build step (Tailwind via CDN, static served as-is). `launch.ps1` sets `PYTHONPATH`
+(checkout root + `lib/`, mirroring the bundled `._pth`) and `SLOPSMITH_PLUGINS_DIR`
+(the junction dir, so the checkout discovers SlopScale) for the checkout path.
+
+**Why two targets:** test `bundled` to avoid breaking the installed base, and `checkout`
+to catch forward-compat breakage before users update. (This immediately caught two
+real issues 2026-06-01: SlopScale's `borrowHostViz` fetching `/api/plugins/jumpingtab/screen.js`
+404s on current Slopsmith — the host's plugin-asset route changed in #620 — and the
+Minigames scoring SDK throwing `NotSupportedError`.)
+
 ## Run (human path)
 
 Just open the Slopsmith Desktop app from the Start menu and click SlopScale in the navigation. This skips the junction step **only if** the Desktop app has already auto-installed a `slopscale` plugin entry (it may be stale). The agent path replaces that stale copy with a junction every time; the human path may show old code if the user has never pulled.

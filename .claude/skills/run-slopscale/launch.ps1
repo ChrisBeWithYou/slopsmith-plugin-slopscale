@@ -21,7 +21,21 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $PluginRoot = (Resolve-Path (Join-Path $ScriptDir '..\..\..')).Path
 $Port = if ($env:SLOPSCALE_PORT) { $env:SLOPSCALE_PORT } else { '8765' }
 $Checkout = if ($env:SLOPSMITH_CHECKOUT) { $env:SLOPSMITH_CHECKOUT } else { 'C:\Users\chris\slopsmith' }
-$PythonExe = 'C:\Program Files\Slopsmith\resources\python\python.exe'
+# Which Slopsmith RUNTIME to boot:
+#   bundled  (default) — the frozen Desktop install (resources\slopsmith, ~0.2.7).
+#            Its python312._pth pins imports to the bundled code, so this tests
+#            against what users currently run.
+#   checkout — your git checkout ($Checkout, kept current with `git pull`), run via
+#            a normal venv python (no ._pth isolation → the checkout's own code
+#            loads). Tests against CURRENT Slopsmith. Needs a venv at $VenvDir with
+#            requirements.txt installed (see SKILL.md "Testing against current Slopsmith").
+$Source = if ($env:SLOPSMITH_SOURCE) { $env:SLOPSMITH_SOURCE } else { 'bundled' }
+$VenvDir = if ($env:SLOPSMITH_VENV) { $env:SLOPSMITH_VENV } else { 'C:\Users\chris\slopsmith-venv' }
+if ($Source -eq 'checkout') {
+  $PythonExe = Join-Path $VenvDir 'Scripts\python.exe'
+} else {
+  $PythonExe = 'C:\Program Files\Slopsmith\resources\python\python.exe'
+}
 $DlcDir = if ($env:DLC_DIR) { $env:DLC_DIR } else { 'C:\Users\chris\slopsmith-dlc' }
 $ConfigDir = if ($env:CONFIG_DIR) { $env:CONFIG_DIR } else { 'C:\Users\chris\slopsmith-config' }
 $PluginsBase = Join-Path $env:LOCALAPPDATA 'Slopsmith\plugins'
@@ -30,6 +44,9 @@ $LogDir = Join-Path $env:TEMP 'slopscale'
 $LogFile = Join-Path $LogDir 'server.log'
 
 if (-not (Test-Path $PythonExe)) {
+  if ($Source -eq 'checkout') {
+    throw "Checkout venv python not found at $PythonExe. Create it once: py -3 -m venv $VenvDir; & '$VenvDir\Scripts\python.exe' -m pip install -r '$Checkout\requirements.txt'  (see SKILL.md)."
+  }
   throw "Bundled Python not found at $PythonExe. Install Slopsmith Desktop first."
 }
 if (-not (Test-Path (Join-Path $Checkout 'main.py'))) {
@@ -67,11 +84,22 @@ if (Test-Path $JunctionPath) {
   cmd /c mklink /J "$JunctionPath" "$PluginRoot" | Out-Null
 }
 
-Write-Host "[launch] starting server on http://127.0.0.1:$Port/ (log: $LogFile)"
+Write-Host "[launch] starting server [$Source] via $PythonExe on http://127.0.0.1:$Port/ (log: $LogFile)"
 $env:HOST = '127.0.0.1'
 $env:PORT = $Port
 $env:DLC_DIR = $DlcDir
 $env:CONFIG_DIR = $ConfigDir
+# Running the checkout: its built-in plugins/ dir is the checkout's own, so point
+# user-plugin discovery (SLOPSMITH_PLUGINS_DIR, read by server.py/plugins) at the
+# junction dir where this script links SlopScale. (The bundled runtime already
+# defaults there, so we only set it for the checkout path.)
+if ($Source -eq 'checkout') {
+  $env:SLOPSMITH_PLUGINS_DIR = $PluginsBase
+  # main.py imports top-level modules from BOTH the checkout root and lib/ (the
+  # bundled python's ._pth listed ../slopsmith + ../slopsmith/lib). The venv
+  # python isn't ._pth-isolated, so it honours PYTHONPATH — mirror those here.
+  $env:PYTHONPATH = "$Checkout;$(Join-Path $Checkout 'lib')"
+}
 
 $proc = Start-Process -FilePath $PythonExe -ArgumentList 'main.py' `
   -WorkingDirectory $Checkout `
