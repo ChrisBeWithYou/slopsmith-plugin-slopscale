@@ -660,6 +660,17 @@ slate + flagged primitive dependencies.
   memorised *as content*, that strings primitives into a finished statement *for* the player, or
   that pursues length/completeness over skill-isolation. Reframe down to the primitive or cut.
 
+**Riffs are load-bearing primitives (DECIDED 2026-06-01).** A riff is a *cell, not a sentence* —
+recombinable, so it's a premium primitive, not a north-star violation. For **riff-first genres
+(metal, country, funk, surf, stoner-doom, hard rock, punk) the riff is the PRIMARY domain** — a
+pack that teaches only scales/arps for these is the *authenticity* failure. Riffs ship as
+**generated parameterized archetypes** (the `pedal_riff`/`gallop` model), never transcriptions —
+simultaneously necessary, north-star-clean, and IP-clean. **IP/naming posture = archetype + era
+framing:** goal-card copy may evoke a scene/era generically ("80s thrash downpicking,"
+"Bakersfield shuffle"), public-domain/traditional riffs are nameable, but **no song/artist/band
+proper noun in a tracked file** (existing attribution rule holds) and **no copyrighted
+transcription.** Full treatment: `docs/genre-research-spec.md` §0.
+
 **Research-effort tiers (effort is uneven — theory base already carries the harmony).**
 - **Tier 1 — ~1–2 days, mostly a vetting pass.** Jazz, Blues, Metal, Fusion — primitives already
   in `theory-*` + `genre-framework-guitar.md`; research = idiom + harmony sign-off on existing
@@ -676,13 +687,13 @@ slate + flagged primitive dependencies.
 |-------|------|---------------------|--------------------|------------------------------|
 | Blues | 1 | blues | ~10 (3 shipped) | `bend_microtonal`, `blues_turnaround`, `double_stop_bend`, `attack_rake` |
 | Jazz | 1 | jazz | ~10 (ii–V–I shipped) | `buildCompingExercise`, comping-rhythm cell |
-| Metal | 1 | metal | ~8 (5 shipped) | half-time-breakdown, composed harmonized-lead, true tremolo re-artic, herta/long-cycle |
+| Metal ⚡riff-first | 1 | metal | ~8 (5 shipped) | half-time-breakdown, composed harmonized-lead, true tremolo re-artic, herta/long-cycle (all riff primitives) |
 | Fusion | 1 | jazz/prog | ~6 | decoupled phrase clock, chromatic-enclosure (✅) |
 | Rock | 2 | rock | ~8 | dynamics/section model, open→barre bridge (✅ planned) |
-| Country | 2 | country | ~8 | banjo-roll/let-ring, hybrid-pick flag, oblique double-stop bend |
+| Country ⚡riff-first | 2 | country | ~8 | **riff-archetype lib** (boom-chick/chicken-pickin'), banjo-roll/let-ring, hybrid-pick flag, oblique double-stop bend |
 | Prog | 2 | prog | ~6 | decoupled phrase clock, true compositional unison, odd/changing meter |
 | Gospel | 2 | gospel | ~6 | `buildCompingExercise`, extended-voicing comp, **drums** |
-| Funk / R&B | 2 | funk | ~7 | 16th-pocket groove, ghost-note model, **drums** |
+| Funk / R&B ⚡riff-first | 2 | funk | ~7 | **riff-archetype lib** (16th one-chord vamp), 16th-pocket groove, ghost-note model, **drums** |
 | Pop | 2 | pop | ~5 | four-on-floor backingStyle, **drums** |
 | Classical / fingerstyle | 2 | classical/flamenco | ~6 | **p-i-m-a RH-finger field**, counterpoint/voice model |
 | Latin | 3⛔ | latin/tango/norteno | ~6 | clave/montuno/tumbao groove cells, **drums (kit_latin)** |
@@ -697,6 +708,9 @@ slate + flagged primitive dependencies.
 
 **The real lever (not per-genre hours): the shared primitives.** Building the cross-genre
 primitives **once** collapses whole tiers from weeks to days — they each serve many genres:
+- **Riff-archetype template library** (generalize the metal `pedal_riff`/`gallop` into country
+  boom-chick/chicken-pickin', funk 16th-vamp, surf, stoner-doom) → every riff-first genre; the
+  single highest-leverage content primitive for metal+country authenticity.
 - `buildCompingExercise` (queued #7) → jazz, gospel, rock, country, pop.
 - Drum/groove engine (Phase D D5–D6) → every Tier-3 genre at once.
 - `bend_microtonal` / `double_stop_bend` / `attack_rake` → blues, country, rock.

@@ -60,6 +60,38 @@ Width is welcome. The cap on a genre is **not a pathway quota** — it is the **
 
 A pathway must pass **all four.** Fail any → cut, or reframe down to the primitive it's hiding.
 
+### Riffs are first-class primitives — and load-bearing for some genres
+
+A **riff is a cell, not a sentence** — short, looping, recombinable. That puts it firmly on the
+*primitive* side of the line (arguably more so than a scale run). So riffs don't strain the north
+star; they're its purest expression — "teach the grammar" and a riff-archetype *is* grammar.
+
+For **riff-first genres the riff is the PRIMARY domain, not a footnote.** Metal's rhythm-guitar
+craft *is* riffs (chug, gallop, pedal-point, tremolo single-note lines, breakdowns) — scales and
+sweeps are the lead-side garnish. Country's rhythm vocabulary is riffs/figures too (boom-chick,
+Travis picking, chicken-pickin' double-stop pull-offs, banjo-roll). **A metal or country pack
+that taught only scales/arpeggios would be teaching the garnish and skipping the meal** — omitting
+riffs is the *authenticity* failure for these genres. (Riff-first genres to flag: metal/all
+sub-genres · country · funk · surf · stoner-doom · hard rock · punk.)
+
+**Riffs are generated archetypes, never transcriptions** — this is what makes them simultaneously
+*necessary, north-star-clean, and IP-clean.* `pedal_riff` and `gallop` already prove the model: a
+**parameterized template** the engine frets into the current key/scale, producing a *fresh*
+idiomatic riff every time. It's the genre's real device (authentic), a recombinable loop (a
+primitive, not a sentence), and template-generated (no copyrighted cell stored). The shared
+infrastructure to grow is a **riff-archetype template library** per riff-genre — generalize the
+metal `pedal_riff`/`gallop` proof-of-concept to country/funk/surf/etc. (See the §5 dependency
+list; the ROADMAP "Genre & pathway expansion plan" tracks it.)
+
+**IP / naming posture — DECIDED 2026-06-01 (archetype + era framing):**
+- ✅ Generate parameterized riff archetypes; goal-card copy **may evoke a scene/era generically**
+  — "the engine behind 80s thrash downpicking," "a Bakersfield shuffle feel," "NWOBHM gallop."
+- ✅ **Public-domain / traditional** riffs are nameable (12-bar blues, boogie-woogie bassline,
+  trad fiddle tunes, Bach/Sor/Giuliani etudes).
+- ❌ **Never** a specific song/artist/band **proper noun** in a tracked file (the existing
+  attribution-cleanup rule still holds — eras/scenes, not names).
+- ❌ **Never** a transcription of a copyrighted riff as the exercise content.
+
 ---
 
 ## 1. Genre identity
@@ -84,9 +116,13 @@ the Primitive Test stops yielding new rows.
 
 | # | Primitive (device) | Transferable skill (`teaches you to …`) | Domain | Generator status | Dependency |
 |---|--------------------|------------------------------------------|--------|------------------|------------|
-| 1 | | | harmony / rhythm-feel / articulation / phrasing / form / tone | ✅ existing `buildXExercise` · ◐ existing-needs-flag · 🔲 new primitive | (flag id, or —) |
+| 1 | | | riff / harmony / rhythm-feel / articulation / phrasing / form / tone | ✅ existing `buildXExercise` · ◐ existing-needs-flag · 🔲 new primitive | (flag id, or —) |
 
 **Domains to sweep (don't skip any — gaps are where genres feel fake):**
+- **Riff / figure** — the genre's signature looping cells (chug, gallop, pedal-point, boom-chick,
+  Travis pattern, chicken-pickin', one-chord 16th vamp). **For riff-first genres this is the
+  headline domain — sweep it first and widest.** Each = a parameterized archetype template (see
+  §0 "Riffs are first-class primitives"), generated in-key, never transcribed.
 - **Harmony** — progressions, chord qualities/depth, substitutions, characteristic motion.
 - **Rhythm / feel** — subdivision, swing/shuffle/straight, groove cell, gallop, clave, pocket,
   metric devices. (rhythm-meter-architect owns the engine; you name the feel.)
