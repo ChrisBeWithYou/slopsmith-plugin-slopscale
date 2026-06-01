@@ -62,11 +62,12 @@ To run, screenshot, or smoke-test the plugin without doing the clone/restart dan
 
 There is **no unit-test or lint suite**. Verification is behavioural, via three Playwright smoke suites in the `run-slopscale` skill, run against a live host (start it with `launch.ps1` first):
 
-- `npm test` (from `.claude/skills/run-slopscale/`) runs **all four** suites — renderers, then generators, then highway-settings, then strings/tuning.
+- `npm test` (from `.claude/skills/run-slopscale/`) runs **all five** suites — renderers, then generators, then highway-settings, then strings/tuning, then audiocontext-sharing.
 - `smoke-renderers.mjs` (`npm run smoke`) — walks all four renderers; asserts each attaches, draws, advances the playback clock, and throws no errors.
 - `smoke-generators.mjs` (`npm run smoke:gen`) — drives `generateExercise()` across every practice type + scale, a bass pass, and all built-in sessions; validates chart structure.
 - `smoke-highway-settings.mjs` (`npm run smoke:hwy-settings`) — guards that the borrowed 3D Highway inherits the host's `h3d_bg_*` look settings (and never writes them); see the "3D Highway inherits host settings" memory.
 - `smoke-strings.mjs` (`npm run smoke:strings`) — drives the real form → `readConfig` path to guard that generated charts adjust for **string count** (4–8) and **tuning** (the displayed pattern + notes change), so the 2026-06-01 string/tuning plumbing bugs can't silently return; see the "stringed-instrument tuning/count framework" memory.
+- `smoke-audioctx.mjs` (`npm run smoke:audioctx`) — guards that SlopScale's `window.AudioContext` patch (the highway-click stub) stays scoped to its **own active screen**: stub while SlopScale is visible, but a **real** `AudioContext` (with `decodeAudioData`) when backgrounded, so other plugins' stem loaders aren't poisoned. Regression guard for the v0.5.0 cross-plugin bug; see the "AudioContext patch must be screen-scoped" memory.
 
 These plus the startup regression guards baked into `screen.js` (e.g. the no-unison check, which throws on load if a resolved shape doubles a pitch) are the safety net before/after any `screen.js` change.
 
@@ -198,6 +199,7 @@ All note objects in the exercise payload use compact keys (see `docs/exercise-sc
 - **Never duplicate the player.** SlopScale generates chart data; Slopsmith plays it. Do not build a second transport, WebSocket handler, or canvas lifecycle inside the plugin.
 - **Backend routes must stay under `/api/plugins/slopscale/…`.**
 - **`window.playSong`, `window.showScreen`, `window.createHighway`, and `window.slopsmith`** are Slopsmith's public frontend APIs. Do not monkey-patch them. (`goScreen()` uses `window.slopsmith.navigate` / `window.showScreen` for navigation only.)
+- **Don't globally clobber `window.AudioContext`** (or any shared browser global) in a way that degrades it for other plugins. SlopScale *does* replace it (`patchAudioContextForSharing`) with a click-suppressing stub for the borrowed highway_3d — but the stub is returned **only while SlopScale's own screen is active** (`#slopscale-root` has an `offsetParent`); when SlopScale is backgrounded, `new AudioContext()` must be the real thing, or the host player's stem loader gets a context with no `decodeAudioData` (the v0.5.0 cross-plugin regression: a too-broad gate poisoned the global session-wide once the pathway-select preload created the ctx). Guarded by `smoke-audioctx.mjs`.
 - **Do not override Escape.** Slopsmith owns Escape for return-to-menu. The plugin's keyboard handler (`screen.js`) deliberately never touches it. (The old launch model used a `sessionStorage['slopscale.returnToMenu']` marker to override Escape; that flow is gone with contained playback.)
 - **Do not add the temp sloppak to Slopsmith's library index.** It lives under `.slopscale-temp/` specifically to avoid indexing.
 - **No-unison rule:** a scale/mode/arpeggio run must never sound the same pitch (same MIDI) twice across strings. Shapes are degree-driven, not fret-window blocks, and there is a startup regression guard that throws `[SlopScale no-unison] … doubles a pitch` if a resolved CAGED/Open shape doubles a note. When adding or editing shapes, preserve this — don't reintroduce fret-window selection.

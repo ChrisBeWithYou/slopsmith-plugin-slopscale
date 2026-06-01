@@ -1447,10 +1447,24 @@
         },
       });
     };
+    // Only hand out the click-suppressing stub while SlopScale's OWN screen is
+    // the active one (its root has a layout box → offsetParent set; the host
+    // hides inactive plugin screens with display:none). When SlopScale is
+    // backgrounded — the user is on the host player loading a song — every
+    // `new AudioContext()` MUST be the real thing, or OTHER plugins' stem
+    // loaders get a context with no decodeAudioData/etc.
+    //
+    // This is the fix for the v0.5.0 cross-plugin regression: the old gate keyed
+    // off "a SlopScale audioCtx exists and isn't closed", which (once the
+    // pathway-select preload created the ctx) stayed true for the rest of the
+    // session and globally crippled `window.AudioContext` for the whole page —
+    // breaking the host's stem decode ("ctx.decodeAudioData is not a function").
+    // Scoping to the active screen keeps the highway-click fix (SlopScale on
+    // screen) while leaving the global pristine for everyone else.
+    const slopscaleActive = () => { const r = document.getElementById('slopscale-root'); return !!(r && r.offsetParent); };
     const Patched = function(...args) {
-      if (audioCtx && audioCtx.state !== 'closed') return makeFakeCtx();
-      const ctx = new Ctor(...args);
-      return ctx;
+      if (slopscaleActive() && audioCtx && audioCtx.state !== 'closed') return makeFakeCtx();
+      return new Ctor(...args);
     };
     Patched.prototype = Ctor.prototype;
     Object.defineProperty(window, 'AudioContext', { value: Patched, configurable: true, writable: true });
