@@ -5954,6 +5954,23 @@
     gain.gain.setValueAtTime(0.0001, when); gain.gain.exponentialRampToValueAtTime(peak, when + 0.002); gain.gain.exponentialRampToValueAtTime(0.0001, when + decay);
     osc.connect(filter); filter.connect(gain); gain.connect(trackBus(ctx, 'click')); osc.start(when); osc.stop(when + 0.07); audioNodes.push(osc, filter, gain);
   }
+  // ── Per-voice level consistency (audio-realism Phase A) ─────────────────────
+  // One named vol per role (not magic scalars scattered through the scheduler) +
+  // a perceptual loudness-trim tilt by pitch, so WAF's per-keymap level variance
+  // and the Fletcher-Munson low-end dip don't make a run sound uneven. Sound-design
+  // targets: lift <150 Hz ~+2.5 dB, flat through the mid band, tame >2 kHz ~−1.5 dB.
+  // Applied inside wafVoice (and to the bent-note oscillator fallback so it matches
+  // the sampled voice it stands in for). See ROADMAP audio-realism Phase A.
+  const WAF_VOICE_VOL = { notes: 0.7, harmony: 0.5, bass: 0.8, drums: 0.7 };
+  function wafLoudnessTrim(midi) {
+    const f = 440 * Math.pow(2, (midi - 69) / 12);
+    let db;
+    if (f <= 150) db = 2.5;
+    else if (f <= 600) db = 2.5 * (1 - (f - 150) / 450);        // 150→600 Hz: +2.5 → 0 dB
+    else if (f <= 2000) db = -1.5 * ((f - 600) / 1400);         // 600→2000 Hz: 0 → −1.5 dB
+    else db = -1.5;
+    return Math.pow(10, db / 20);
+  }
   function schedulePreviewAudio(bundle, fromTime, delaySeconds) {
     const cfg = readConfig();
     // Prefer the bundle's own audio settings (sessions patch their own config)
@@ -5988,7 +6005,7 @@
     const bassPreset = getReadyWafPreset(bassGm);
     const notesPreset = getReadyWafPreset(notesGm);
     const wafVoice = (preset, busName, when, midi, d, vol) => {
-      const e = wafPlayer.queueWaveTable(ctx, trackBus(ctx, busName), preset, when, midi, d, vol);
+      const e = wafPlayer.queueWaveTable(ctx, trackBus(ctx, busName), preset, when, midi, d, vol * wafLoudnessTrim(midi));
       if (e) audioNodes.push({ stop() { try { e.cancel(); } catch (_) {} }, disconnect() {} });
     };
     if (audio.harmony) for (const ev of bundle.backingEvents || []) {
@@ -5998,11 +6015,11 @@
       if (ev.role === 'bass') {
         // Backing bass line — a real bass voice on its own bus, not the harmony pad.
         for (const m of (ev.midis || [])) {
-          if (bassPreset && wafPlayer) wafVoice(bassPreset, 'bass', when, m, d, harmProfile.bass.level * 0.8);
+          if (bassPreset && wafPlayer) wafVoice(bassPreset, 'bass', when, m, d, harmProfile.bass.level * WAF_VOICE_VOL.bass);
           else schedulePluckedString(ctx, when, midiToFreq(m), d, 'bass', harmProfile.bass.level, 0);
         }
       } else if (harmPreset && wafPlayer) {
-        for (const m of (ev.midis || [])) wafVoice(harmPreset, 'harmony', when, m, d, harmProfile.harmony.level * 0.5);
+        for (const m of (ev.midis || [])) wafVoice(harmPreset, 'harmony', when, m, d, harmProfile.harmony.level * WAF_VOICE_VOL.harmony);
       } else {
         scheduleHarmonyPad(ctx, when, ev.midis || [], d, instrument, harmProfile.harmony.tone, { bright: harmProfile.brightness, level: harmProfile.harmony.level });
       }
@@ -6015,8 +6032,19 @@
       const dur = Math.max(0.10, Math.min(0.85, n.sus || 0.24)), bend = bendSemitones(n.bn);
       // Sampled practice voice for plain notes; the oscillator voice still owns
       // BENT notes (the sampler can't slide pitch) so blues bends stay audible.
-      if (notesPreset && wafPlayer && bend <= 0) wafVoice(notesPreset, 'notes', when, midi, dur, harmProfile.notes.level * 0.7);
-      else schedulePluckedString(ctx, when, midiToFreq(midi), dur, instrument, audio.harmony ? 0.9 : 1.25, bend);
+      if (notesPreset && wafPlayer && bend <= 0) {
+        wafVoice(notesPreset, 'notes', when, midi, dur, harmProfile.notes.level * WAF_VOICE_VOL.notes);
+      } else {
+        // When a sampled voice IS available but this note bends, the oscillator
+        // stands in for it — match its level to the sampler (incl. the loudness
+        // trim) so the bend doesn't lurch in volume mid-run (audio-realism A3).
+        // Oscillator-only profiles (no notesPreset) keep their own level.
+        const sampled = notesPreset && wafPlayer;
+        const g = sampled
+          ? harmProfile.notes.level * WAF_VOICE_VOL.notes * wafLoudnessTrim(midi)
+          : (audio.harmony ? 0.9 : 1.25);
+        schedulePluckedString(ctx, when, midiToFreq(midi), dur, instrument, g, bend);
+      }
     }
     // Music beats click only when the metronome option is on; the count-in
     // lead-in bars ([0, leadIn)) ALWAYS click so the count is audible even with
