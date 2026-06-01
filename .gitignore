@@ -1,0 +1,32 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.env
+node_modules/
+dist/
+docs/sources/
+.slopscale-shots/
+.claude/skills/run-slopscale/node_modules/
+.claude/skills/run-slopscale/package-lock.json
+.claude/skills/run-slopscale/dump-chords.mjs
+.claude/skills/run-slopscale/audit-ux.mjs
+.claude/skills/run-slopscale/probe-share.mjs
+.claude/skills/run-slopscale/probe-audio.mjs
+.claude/skills/run-slopscale/probe-loop.mjs
+.claude/skills/run-slopscale/probe-blank-load.mjs
+.claude/skills/run-slopscale/probe-themes.mjs
+.claude/skills/run-slopscale/probe-instr.mjs
+.claude/skills/run-slopscale/probe-tuning.mjs
+.claude/skills/run-slopscale/probe-night.mjs
+.slopscale-shots/blank-load.png
+
+# Local agent tooling (subagent definitions + their persisted memory)
+.claude/agents/
+.claude/agent-memory/
+
+# On-hand alternate soundfonts for A/B auditioning (not shipped)
+static/wafonts/alt/
+
+# Local DSP assets pending licensing clearance (commercial cab IRs, NAM captures) — not shipped
+static/irs/
+static/nam/

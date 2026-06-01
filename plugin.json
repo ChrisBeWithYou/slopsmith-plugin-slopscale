@@ -1,0 +1,18 @@
+{
+  "id": "slopscale",
+  "name": "SlopScale",
+  "version": "0.5.1",
+  "nav": {
+    "label": "SlopScale",
+    "screen": "slopscale"
+  },
+  "screen": "screen.html",
+  "script": "screen.js",
+  "settings": {
+    "html": "settings.html",
+    "server_files": [
+      "plugin_data/slopscale/presets.json"
+    ]
+  },
+  "routes": "routes.py"
+}
