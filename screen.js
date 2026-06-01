@@ -1794,26 +1794,57 @@
   // Script loading reuses the existing host-viz loader `loadScriptOnce(id, src)`
   // defined in §12 (do NOT add a second loadScriptOnce — function declarations
   // collide and the later one wins).
-  async function ensureWafPreset(gm) {
-    if (gm == null) return;
+  // Returns an awaitable promise that resolves when the load SETTLES (ready OR
+  // failed) — so callers can wait for the voice before scheduling, preventing the
+  // oscillator→WAF swap mid-exercise. Concurrent calls share the in-flight promise.
+  function ensureWafPreset(gm) {
+    if (gm == null) return Promise.resolve();
     const prev = wafPresets[gm];
-    if (prev && (prev.state === 'loading' || prev.state === 'ready')) return; // in-flight or done; RETRY on prior 'failed'
-    wafPresets[gm] = { state: 'loading', preset: null };
-    try {
-      await loadScriptOnce('slopscale-waf-player', WAF_PLAYER_URL);
-      if (typeof WebAudioFontPlayer === 'undefined') throw new Error('WebAudioFontPlayer missing');
-      if (!wafPlayer) wafPlayer = new WebAudioFontPlayer();
-      const ctx = audioCtx || (audioCtx = new (window.AudioContext || window.webkitAudioContext)());
-      if (!window[wafVar(gm)]) await loadScriptOnce('slopscale-waf-' + gm, wafUrl(gm));
-      const preset = window[wafVar(gm)];
-      if (!preset) throw new Error('preset var missing');
-      wafPlayer.adjustPreset(ctx, preset);
-      wafPresets[gm] = { state: 'ready', preset };
-    } catch (e) {
-      wafPresets[gm] = { state: 'failed', preset: null }; // silent → oscillator fallback
-    }
+    if (prev && (prev.state === 'loading' || prev.state === 'ready')) return prev.promise || Promise.resolve(); // in-flight or done; RETRY on prior 'failed'
+    const entry = { state: 'loading', preset: null, promise: null };
+    wafPresets[gm] = entry;
+    entry.promise = (async () => {
+      try {
+        await loadScriptOnce('slopscale-waf-player', WAF_PLAYER_URL);
+        if (typeof WebAudioFontPlayer === 'undefined') throw new Error('WebAudioFontPlayer missing');
+        if (!wafPlayer) wafPlayer = new WebAudioFontPlayer();
+        const ctx = audioCtx || (audioCtx = new (window.AudioContext || window.webkitAudioContext)());
+        if (!window[wafVar(gm)]) await loadScriptOnce('slopscale-waf-' + gm, wafUrl(gm));
+        const preset = window[wafVar(gm)];
+        if (!preset) throw new Error('preset var missing');
+        wafPlayer.adjustPreset(ctx, preset);
+        entry.state = 'ready'; entry.preset = preset;
+      } catch (e) {
+        entry.state = 'failed'; entry.preset = null; // silent → oscillator fallback
+      }
+    })();
+    return entry.promise;
   }
   function getReadyWafPreset(gm) { return (gm != null && wafPresets[gm] && wafPresets[gm].state === 'ready') ? wafPresets[gm].preset : null; }
+  // Which sampled-voice GM presets the bundle's ENABLED audio actually needs.
+  function resolveVoiceGms(bundle) {
+    const cfg = readConfig();
+    const audio = (bundle && bundle.config && bundle.config.audio) || cfg.audio;
+    const prof = resolveAudioProfile({ ...cfg, audio });
+    const out = [];
+    const pick = (role, on) => { if (on && prof[role] && prof[role].engine === 'sample') { const g = TONE_GM[prof[role].tone]; if (g != null && out.indexOf(g) < 0) out.push(g); } };
+    pick('notes', audio.notes); pick('harmony', audio.harmony); pick('bass', audio.harmony);
+    return out;
+  }
+  // Kick the (async) load of every sampled voice the bundle needs, WITHOUT waiting —
+  // call at generate time so the preset is usually warm by the time Play is pressed.
+  function prewarmVoices(bundle) { resolveVoiceGms(bundle || activeBundle).forEach(gm => ensureWafPreset(gm)); }
+  // WAIT (capped) for those loads before the first pass is scheduled, so playback
+  // starts on the sampled voice instead of starting on the oscillator and swapping
+  // to WAF mid-exercise once the load lands. Falls through on timeout/failure (the
+  // per-voice oscillator fallback still covers it).
+  async function awaitVoices(bundle, capMs) {
+    const gms = resolveVoiceGms(bundle || activeBundle);
+    if (!gms.length) return;
+    let timer; const cap = new Promise(r => { timer = setTimeout(r, capMs || 2000); });
+    try { await Promise.race([Promise.all(gms.map(gm => ensureWafPreset(gm))), cap]); }
+    finally { clearTimeout(timer); }
+  }
 
   function openMidisForConfig(cfg) {
     // A customOpenMidis override on the config wins over the stringSetup's
@@ -6120,14 +6151,20 @@
   // generate one first so the very first click always plays something.
   async function onPlayToggle() {
     if (playing) { stopPlayback(); return; }
+    // Create/resume the AudioContext inside the click gesture (before any await) so
+    // the voice warm-up + playback don't start on a suspended context.
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
     // In session mode, Play builds + starts the selected session if one isn't
     // already loaded; otherwise it replays the built session from the playhead.
     if ($('slopscale-root')?.classList.contains('slopscale-session-mode')) {
       if (!activeBundle || activeBundle.config?.mode !== 'session') { await onLaunchSession(); return; }
+      await awaitVoices(activeBundle);  // start on WAF, not the oscillator
       startPlayback();
       return;
     }
     if (!activeBundle) { await onGenerate(); }
+    await awaitVoices(activeBundle);  // start on WAF, not the oscillator
     startPlayback();
   }
 
@@ -6416,6 +6453,7 @@
       lastExercise = exercise;
       summary.innerHTML = summarize(exercise);
       await attachRenderer(exercise);
+      prewarmVoices(activeBundle);  // start the sampled-voice load now so Play starts on WAF, not the oscillator
       refreshStatusFromState();
     } catch (e) {
       showStatus(`Error: ${e.message || e}`);
@@ -7840,6 +7878,7 @@
       lastExercise = exercise;
       if (summary) summary.innerHTML = summarize(exercise);
       await attachRenderer(exercise);
+      await awaitVoices(activeBundle);  // start on WAF, not the oscillator
       startPlayback();
       refreshStatusFromState();
     } catch (e) {
