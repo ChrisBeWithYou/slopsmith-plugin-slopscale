@@ -1629,7 +1629,7 @@
       keyCycle: data.get('keyCycle') || 'none',
       keyCycleLength: Math.max(2, Math.min(12, parseInt(data.get('keyCycleLength') || '4', 10))),
       bendTarget: data.get('bendTarget') || 'whole',
-      audio: { notes: data.get('audioNotes') === 'on', metronome: data.get('audioMetronome') === 'on', harmony: data.get('audioHarmony') === 'on', harmonyTone: data.get('harmonyTone') || 'auto', profile: data.get('audioProfile') || '', brightness: Math.max(0, Math.min(1, parseFloat(data.get('brightness')))) }
+      audio: { notes: data.get('audioNotes') === 'on', metronome: data.get('audioMetronome') === 'on', harmony: data.get('audioHarmony') === 'on', profile: data.get('audioProfile') || '', brightness: Math.max(0, Math.min(1, parseFloat(data.get('brightness')))) }
     };
   }
 
@@ -1766,7 +1766,7 @@
     // notes should sound like a bass regardless of the backing's family.
     if (cfg && cfg.instrument === 'bass') out.notes.tone = 'bass';
     if (Number.isFinite(a.brightness)) out.brightness = a.brightness;           // slider overrides
-    if (a.harmonyTone && a.harmonyTone !== 'auto') out.harmony.tone = a.harmonyTone; // advanced override
+    // (backing-voice override moved to the Mixer's per-channel instrument select — Phase C)
     return out;
   }
 
@@ -1832,7 +1832,7 @@
     const audio = (bundle && bundle.config && bundle.config.audio) || cfg.audio;
     const prof = resolveAudioProfile({ ...cfg, audio });
     const out = [];
-    const pick = (role, on) => { if (on && prof[role] && prof[role].engine === 'sample') { const g = TONE_GM[prof[role].tone]; if (g != null && out.indexOf(g) < 0) out.push(g); } };
+    const pick = (role, on) => { if (!on) return; const g = mixerInstrumentFor(role) ?? (prof[role] && prof[role].engine === 'sample' ? TONE_GM[prof[role].tone] : null); if (g != null && out.indexOf(g) < 0) out.push(g); };
     pick('notes', audio.notes); pick('harmony', audio.harmony); pick('bass', audio.harmony);
     return out;
   }
@@ -5646,14 +5646,25 @@
   // Controls the per-track audio buses (notes/harmony/click/bass). Default state
   // is unity (level 1, no mute/solo, no dim) → identical to pre-mixer behaviour.
   const MIXER_CHANNELS = [
-    { key:'notes',   label:'Player',  backing:false },
-    { key:'harmony', label:'Comp',    backing:true },
-    { key:'bass',    label:'Bass',    backing:true },
+    { key:'notes',   label:'Player',  backing:false, instr:'melodic' },
+    { key:'harmony', label:'Comp',    backing:true,  instr:'melodic' },
+    { key:'bass',    label:'Bass',    backing:true,  instr:'bass' },
     { key:'click',   label:'Click',   backing:false },
   ];
+  // Per-channel instrument options (Phase C — backing-voice selection lives here now,
+  // moved out of the form). Values are TONE_GM keys; '' = Auto (use the style profile).
+  const MIXER_INSTRUMENTS = {
+    melodic: [['','Auto'],['epiano','E-piano'],['organ','Organ'],['piano','Piano'],['clean','Clean gtr'],['guitar','Acoustic'],['nylon','Nylon'],['clav','Clav'],['strings','Strings'],['pad','Synth pad']],
+    bass:    [['','Auto'],['bass','Electric'],['upright','Upright']],
+  };
   const mixerState = {};
   let mixerBackingDim = false;
-  MIXER_CHANNELS.forEach(c => { mixerState[c.key] = { level:1, mute:false, solo:false }; });
+  MIXER_CHANNELS.forEach(c => { mixerState[c.key] = { level:1, mute:false, solo:false, instrument:null }; });
+  // The GM preset a channel's instrument override resolves to, or null = use the profile.
+  function mixerInstrumentFor(key) {
+    const tone = mixerState[key] && mixerState[key].instrument;
+    return tone ? (TONE_GM[tone] ?? null) : null;
+  }
   function mixerLoad() {
     try {
       const s = JSON.parse(localStorage.getItem('slopscale.mixer') || 'null');
@@ -5692,6 +5703,11 @@
       row.className = 'slopscale-mixer-ch';
       row.innerHTML =
         `<span class="slopscale-mixer-ch-label">${c.label}</span>` +
+        (c.instr
+          ? `<select class="slopscale-mixer-instr" data-k="${c.key}" title="${c.label} instrument" aria-label="${c.label} instrument">` +
+              MIXER_INSTRUMENTS[c.instr].map(([v, l]) => `<option value="${v}"${(st.instrument || '') === v ? ' selected' : ''}>${l}</option>`).join('') +
+            `</select>`
+          : `<span class="slopscale-mixer-instr-none" aria-hidden="true"></span>`) +
         `<button type="button" class="slopscale-mixer-tog mute${st.mute ? ' active' : ''}" data-k="${c.key}" data-act="mute" title="Mute" aria-pressed="${st.mute}">M</button>` +
         `<button type="button" class="slopscale-mixer-tog solo${st.solo ? ' active' : ''}" data-k="${c.key}" data-act="solo" title="Solo" aria-pressed="${st.solo}">S</button>` +
         `<input type="range" class="slopscale-mixer-fader" min="0" max="1.2" step="0.01" value="${st.level}" data-k="${c.key}" aria-label="${c.label} level">` +
@@ -6031,9 +6047,10 @@
     // and use it once ready; until then, fall back to the oscillator voice.
     // Three sampled voices: harmony (backing comp), bass (backing bass line),
     // notes (the practice voice). Each falls back independently.
-    const harmGm  = harmProfile.harmony.engine === 'sample' ? TONE_GM[harmProfile.harmony.tone] : null;
-    const bassGm  = harmProfile.bass.engine    === 'sample' ? TONE_GM[harmProfile.bass.tone]    : null;
-    const notesGm = harmProfile.notes.engine   === 'sample' ? TONE_GM[harmProfile.notes.tone]   : null;
+    // Mixer per-channel instrument override wins over the profile's voice (Phase C).
+    const harmGm  = mixerInstrumentFor('harmony') ?? (harmProfile.harmony.engine === 'sample' ? TONE_GM[harmProfile.harmony.tone] : null);
+    const bassGm  = mixerInstrumentFor('bass')    ?? (harmProfile.bass.engine    === 'sample' ? TONE_GM[harmProfile.bass.tone]    : null);
+    const notesGm = mixerInstrumentFor('notes')   ?? (harmProfile.notes.engine   === 'sample' ? TONE_GM[harmProfile.notes.tone]   : null);
     if (audio.harmony && harmGm != null) ensureWafPreset(harmGm);
     if (audio.harmony && bassGm != null) ensureWafPreset(bassGm);   // backing bass (boogie walk)
     if (audio.notes   && notesGm != null) ensureWafPreset(notesGm); // practice voice
@@ -7099,7 +7116,7 @@
   // and in pathway mode those controls are hidden anyway.
   function markPathwayModifiedIfApplicable(targetName) {
     if (!activePathwayId || activePathwayId === 'custom') return;
-    const ignore = new Set(['pathway', 'shape', 'fretboardSystem', 'fretMin', 'fretMax', 'key', 'bpm', 'audioNotes', 'audioMetronome', 'audioHarmony', 'harmonyTone']);
+    const ignore = new Set(['pathway', 'shape', 'fretboardSystem', 'fretMin', 'fretMax', 'key', 'bpm', 'audioNotes', 'audioMetronome', 'audioHarmony']);
     if (ignore.has(targetName)) return;
     updatePathwayGoalCard(activePathwayId, true);
   }
@@ -7859,7 +7876,6 @@
       notes:      !!document.getElementById('slopscale-session-audio-notes')?.checked,
       metronome:  !!document.getElementById('slopscale-session-audio-metronome')?.checked,
       harmony:    !!document.getElementById('slopscale-session-audio-harmony')?.checked,
-      harmonyTone: document.getElementById('slopscale-session-audio-harmony-tone')?.value || 'pad',
     };
     // Pre-warm the AudioContext while still in the button-click user-gesture context
     // (before any await). Without this, new AudioContext() created inside the
@@ -8414,6 +8430,22 @@
       t.classList.toggle('active', mixerState[k][act]);
       t.setAttribute('aria-pressed', String(mixerState[k][act]));
       applyMixer(); mixerSave();
+    });
+    // Per-channel instrument select (Phase C) — set the override, load the voice,
+    // and (if playing) re-schedule from the playhead so it switches on WAF cleanly.
+    mixCh?.addEventListener('change', async (ev) => {
+      const sel = ev.target.closest && ev.target.closest('.slopscale-mixer-instr'); if (!sel) return;
+      mixerState[sel.dataset.k].instrument = sel.value || null;
+      mixerSave();
+      if (activeBundle) {
+        await awaitVoices(activeBundle);
+        if (playing) {
+          playAnchorChartTime = currentPracticeTime;
+          playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
+          stopAudio();
+          scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
+        }
+      }
     });
     $('slopscale-mixer-dim')?.addEventListener('change', (ev) => { mixerBackingDim = ev.target.checked; applyMixer(); mixerSave(); });
     // Header Setup popover: toggle on the button, close on outside click, label tracks tuning.
