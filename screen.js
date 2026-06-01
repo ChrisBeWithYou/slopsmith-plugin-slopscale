@@ -8260,7 +8260,9 @@
     const progChip = $('slopscale-progress-strip');
     progChip?.addEventListener('click', () => toggleProgressSheet());
     progChip?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleProgressSheet(); } });
-    $('slopscale-collapse-btn')?.addEventListener('click', () => setPanelCollapsed(!panelCollapsed));
+    // Collapse is the labelled Setup/Play pill + the [ hotkey; the duplicate
+    // ⟨ ⟩ icon button was removed (GUI audit B1). The [ binding lives in the
+    // keydown handler; setPanelCollapsed is unchanged.
     $('slopscale-help-btn')?.addEventListener('click', () => toggleCheatSheet());
     $('slopscale-mixer-close')?.addEventListener('click', () => toggleMixer(false));
     $('slopscale-progress-close')?.addEventListener('click', () => toggleProgressSheet(false));

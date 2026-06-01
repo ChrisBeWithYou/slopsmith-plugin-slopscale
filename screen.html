@@ -709,7 +709,10 @@
   .slopscale-pw-dots { display: flex; gap: 3px; }
   .slopscale-pw-sub { font-size: 10.5px; color: #94a3b8; }
   /* First-run primed START CTA — the one lit primary action in Pathways mode. */
-  .slopscale-start-cta { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: left; padding: 11px 14px; margin: 6px 0 2px; border-radius: 10px; border: 1px solid var(--ss-accent, #4080e0); background: var(--ss-accent-grad); color: #f8fafc; cursor: pointer; transition: filter 0.12s; box-shadow: 0 2px 12px rgba(29,78,216,0.35); }
+  /* A primary action is sized to its label, never to its container — cap the
+     width so it stays a button, not a banner (esp. on the ultrawide 2-col rail
+     where it otherwise smeared to ~800px). See docs/design-system.md §1, §7. */
+  .slopscale-start-cta { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; max-width: 360px; align-self: start; text-align: left; padding: 11px 14px; margin: 6px 0 2px; border-radius: 10px; border: 1px solid var(--ss-accent, #4080e0); background: var(--ss-accent-grad); color: #f8fafc; cursor: pointer; transition: filter 0.12s; box-shadow: 0 2px 12px rgba(29,78,216,0.35); }
   .slopscale-start-cta:hover { filter: brightness(1.08); }
   .slopscale-start-cta:active { filter: brightness(0.95); }
   .slopscale-start-main { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
@@ -1547,10 +1550,12 @@
         </div>
         <!-- Shell hotkey buttons (each hotkey has a visible button + the ? cheat-sheet;
              no keyboard-only affordances). M = mixer, P = progress, [ = collapse. -->
-        <!-- P is opened by the header progress chip (de-dup) — only M / [ / ? here. -->
+        <!-- P is opened by the header progress chip; collapse is the labelled
+             Setup/Play pill (transport bar) + the [ hotkey. The duplicate ⟨ ⟩
+             icon button was removed (GUI audit B1 — recognition over an unlabelled
+             glyph). Only M / ? live here. See docs/design-system.md §B1. -->
         <div class="slopscale-hotkey-bar" role="group" aria-label="Panels">
           <button type="button" id="slopscale-mixer-btn" class="slopscale-hk-btn" title="Mixer (M)">Mixer</button>
-          <button type="button" id="slopscale-collapse-btn" class="slopscale-hk-btn" title="Collapse panel ([)" aria-label="Collapse panel">⟨ ⟩</button>
           <button type="button" id="slopscale-help-btn" class="slopscale-hk-btn slopscale-hk-help" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
         </div>
       </div>

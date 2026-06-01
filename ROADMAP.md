@@ -106,6 +106,38 @@ Build-queue **#1 (reviewed+fixed), #2 STYLE_PALETTES, #3 targetSec, and the ENTI
 
 ---
 
+## 🎨 GUI Design Audit (2026-05-31) — design system written; #3/#4 fixed; build queue
+
+A four-lane GUI design audit (UX-chaired, + learning-design + gamification + market-analyst; main thread synthesized) on button placement/layout vs the docs — repeats, gaps, conflicting design language. Output: **`docs/design-system.md`** (the project's first style guide — read it before any GUI change), plus the decisions below. Triggered by Christian's batch (the audio/mixer rework, the ultrawide START button, the Setup/Play-vs-`[` toggle, the pathway pack-manager). Per-lane raw findings in each agent's `.claude/agent-memory/<agent>/`.
+
+**Shipped this session (commit pending) — the two contained, unanimous fixes:**
+- **B1 — collapse-toggle was a TRIPLE** (Setup/Play pill + `⟨ ⟩` icon button `#slopscale-collapse-btn` + `[` hotkey, all → `setPanelCollapsed`). **Kept the labelled Setup/Play pill + the `[` hotkey; removed the unlabelled `⟨ ⟩` button** (recognition over an unlabelled glyph). [Christian's #4]
+- **B2-width — the ultrawide START-CTA banner.** Root cause: `.slopscale-start-cta` is `width:100%` in a rail that widens to 660–800px @1800px. **Capped at `max-width:360px`** (`+ align-self:start`). The full onboarding restructure is queued (below). [Christian's #3]
+- Smoke-green after both (4/4 renderers · 64/64 generators · highway-settings).
+
+**Answered — #2 (no fresh-install intro popup):** absent **by design** — the primed-CTA first-run model (one lit primary, static preview, no survey/coach-marks, ≤90s to first note) is market-right; all non-UX lanes said don't add a modal. The ultrawide-button complaint (#3) is the *execution* of that onboarding failing, not the model.
+
+**Key audit findings (full detail in `docs/design-system.md`):**
+- **The arc is invisible** (L&D, highest leverage): the four modes AND the Core/Style bands render as flat parallel tabs, not an easy→mastery climb; and **`→ next` dead-ends at the Beginner→Intermediate seam** (the worst place to go silent). Make `→ next` cross band boundaries; distinguish the Core *climb* from lateral Style *branches*; label the tier-dots.
+- **Four divergent "pick one" treatments** + **~70% of component CSS uses raw hex** despite the token layer → accent themes only half-recolor. Collapse to two families (`.ss-seg` / `.ss-chip`); add 5 missing semantic tokens (`--ss-track/-btn/-btn-hover/-hover-soft/-stop`); migrate the hex.
+- **Dead code:** `#slopscale-mode-desc` (JS+CSS but no element — add it for activation legibility); orphan CSS `.slopscale-sticky-modes`/`.slopscale-collapse-wrap` (remove).
+- **No primary-action parity:** 3 of 4 modes have an in-rail "go" (3 different sizes); Custom has none. One shared `.slopscale-primary-cta` (one lit, label-sized, ≤360px) across all modes.
+- **Confirmed clean:** progress signals de-duped (chip owns `P`; three calm signals intact); mixer/Jam are mirror-not-judge. **Verify in build:** `tier-glow` still fires on a list-row clear (keyframe bound to the old `.slopscale-tier-btn`).
+- **Market wins to protect:** Custom co-equal, Workout first-class, Jam's "mirror not a judge" copy (verbatim), DAW restraint, one-lit-primary, practice-not-generation copy.
+
+**Open forks for Christian (defaults noted):**
+- **B2-shape:** Pathways primary as a Start button **docked to the active picker row** vs **one Start below the goal caption.** Default: **goal-caption** (UX + me).
+- **Session-end summary card** (biggest motivation gap; needs no XP store — reads `slopscale.sessions` + `pathway_tiers` today). Default: **yes, near-term.**
+
+**Post-audit GUI build queue (conforms to `docs/design-system.md` §15):** 1 ✅ B1+B2-width · 2 onboarding restructure + shared primary-cta · 3 token migration + dead-code · 4 control-family consolidation · 5 cross-band `→ next` + tier-dot labels + Core-vs-Style distinction · 6 mixer growth (per-channel instrument `<select>` + master channel + resizable + vertical strips) · 7 pack-manager (`+` + dual-column transfer modal) · 8 session-end card (if green-lit).
+
+**Separate track — #1 AUDIO (needs the audio agents, NOT in the GUI panel):** per-note velocity/volume consistency (entangled with the WAF-vs-oscillator voice split at screen.js ~5978 + GM sample-level variance — not a one-line constant), WAF-for-all-backing with synth failover, remove the backing-voice override dropdown (its selection moves into the mixer per §11). **Run `audio-engine-architect` + `sound-design-architect` first.**
+
+### ⏸️ STOPPED HERE (2026-05-31, late) — GUI audit done + #3/#4 fixed; NEXT = the post-audit build
+The design foundation is in place (`docs/design-system.md`) and the two contained fixes shipped. **Next session, in order:** GUI build queue #2→#7 above (all conform to the style guide); the **#1 audio** track behind an `audio-engine-architect` + `sound-design-architect` pass; then the still-pending **#4 drums** + **#6 progress store** from the prior handoff (they unblock the `P`-sheet XP + the arc's mastered-state). Christian to resolve the two open forks (B2-shape, session-end card).
+
+---
+
 ## Current state — what's actually shipped
 
 ### Generators
