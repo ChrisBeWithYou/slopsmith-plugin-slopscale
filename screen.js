@@ -696,6 +696,7 @@
     }
   };
   const PATHWAY_STORAGE_KEY = 'slopscale.lastPathway';
+  const MODE_STORAGE_KEY = 'slopscale.lastMode';   // resume-last-mode (data-mode token)
   // First-ever launch lands on the first pathway (Chromatic Warmup, the root of
   // the skill tree) on 6-string guitar — its base config sets guitar_6_standard.
   // Only applies when nothing is stored; later launches restore the last pathway.
@@ -5625,7 +5626,7 @@
     const open = force != null ? force : !root.classList.contains('ss-progress-open');
     root.classList.toggle('ss-progress-open', open);
     $('slopscale-progress-sheet')?.setAttribute('aria-hidden', open ? 'false' : 'true');
-    $('slopscale-progress-btn')?.classList.toggle('active', open);
+    $('slopscale-progress-strip')?.classList.toggle('chip-open', open);   // the header chip is P's affordance
     if (open) renderProgressSheet();
   }
   function toggleCheatSheet(force) {
@@ -5654,6 +5655,40 @@
       `<div class="slopscale-progress-sheet-section"><h4>Streak</h4><div class="slopscale-pm-row"><span>Current streak</span><strong>${streak} ${streak === '1' ? 'day' : 'days'}</strong></div></div>` +
       `<div class="slopscale-progress-sheet-section"><h4>Tempo-tier progress</h4>${touched.length ? touched.slice(0, 8).map(dotRow).join('') : '<div class="slopscale-pm-coming">Clear a tempo tier to see progress here.</div>'}</div>` +
       `<div class="slopscale-progress-sheet-section"><h4>XP &amp; badges</h4><div class="slopscale-pm-coming">Coming soon — your time-on-instrument and mastery will show here.</div></div>`;
+  }
+  // Header Setup popover (instrument + strings + tuning). The button shows the live
+  // instrument + tuning; the popover toggles open. Closing on outside-click is bound
+  // in bind(). The controls inside keep their IDs, so all instrument/tuning wiring is
+  // unchanged — they just live in the header now.
+  function setupLabelText() {
+    const instrSel = document.querySelector('[name="instrument"]');
+    const v = instrSel ? instrSel.value : 'guitar';
+    const instr = v === 'bass' ? 'Bass' : v === 'piano' ? 'Piano' : 'Guitar';
+    const tun = $('slopscale-tuning-select');
+    let tuning = '';
+    if (tun && tun.selectedOptions && tun.selectedOptions[0]) {
+      tuning = tun.selectedOptions[0].textContent.replace(/\s*\(.*\)\s*/, '').trim();
+    }
+    return tuning ? `${instr} · ${tuning}` : instr;
+  }
+  function updateSetupButton() {
+    const lbl = $('slopscale-setup-label');
+    if (lbl) lbl.textContent = setupLabelText();
+  }
+  function toggleSetupPopover(force) {
+    const pop = $('slopscale-setup-popover'), btn = $('slopscale-setup-btn');
+    if (!pop || !btn) return;
+    const open = force != null ? force : pop.hidden;
+    pop.hidden = !open;
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  // Header settings menu (⚙). Skeleton: keyboard-shortcuts + host plugin-settings.
+  function toggleSettingsMenu(force) {
+    const menu = $('slopscale-settings-menu'), btn = $('slopscale-settings-btn');
+    if (!menu || !btn) return;
+    const open = force != null ? force : menu.hidden;
+    menu.hidden = !open;
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
 
   function schedulePluckedString(ctx, when, freq, dur, instrument, gainScale, bendSemis) {
@@ -6473,6 +6508,7 @@
     if (!activeId && customMidis && customMidis.length === count) activeId = 'custom';
     sel.value = activeId || (presets[0] && presets[0].id) || 'custom';
     syncCustomTuningInputs();
+    updateSetupButton();   // header Setup button shows the live instrument + tuning
   }
   // Persist the active custom tuning to the DB under a user-supplied name.
   // After save, refetch the saved-tunings list so the dropdown reflects the
@@ -6795,6 +6831,7 @@
     // stop playback rather than letting audio/playhead bleed into the new mode.
     // Matches onViewSwitch and the session-launch path. No-op before first play.
     if (playing) stopPlayback();
+    try { localStorage.setItem(MODE_STORAGE_KEY, mode); } catch (_) {}   // resume-last-mode
     const root = $('slopscale-root');
     if (root) root.classList.remove('slopscale-jam-mode');   // default: not jam (jam re-adds below)
     if (mode === 'jam') {
@@ -7038,6 +7075,14 @@
     select.value = initial;
     applyPathwayById(initial);
     try { localStorage.setItem(PATHWAY_STORAGE_KEY, initial); } catch (_) {}
+  }
+  // Resume-last-mode: first-ever launch lands on Pathways (the primed START CTA);
+  // a returning user who last left in Custom/Workout/Jam resumes there. Called only
+  // when there's no share link (a share URL wins). applyInitialPathway has already
+  // set up the Pathways defaults, so a non-Pathways resume just switches the view.
+  function resumeLastMode() {
+    let m = null; try { m = localStorage.getItem(MODE_STORAGE_KEY); } catch (_) {}
+    if (m && m !== 'guided' && (m === 'custom' || m === 'session' || m === 'jam')) selectMode(m);
   }
 
   // The LCD readout no longer surfaces highway-inverted (it's a menu setting,
@@ -8109,7 +8154,10 @@
     // Shell panels (M / P / [ / ?): visible buttons + the mixer's own controls.
     mixerLoad();
     $('slopscale-mixer-btn')?.addEventListener('click', () => toggleMixer());
-    $('slopscale-progress-btn')?.addEventListener('click', () => toggleProgressSheet());
+    // The header progress chip opens P (de-dups the old view-bar Progress button).
+    const progChip = $('slopscale-progress-strip');
+    progChip?.addEventListener('click', () => toggleProgressSheet());
+    progChip?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleProgressSheet(); } });
     $('slopscale-collapse-btn')?.addEventListener('click', () => setPanelCollapsed(!panelCollapsed));
     $('slopscale-help-btn')?.addEventListener('click', () => toggleCheatSheet());
     $('slopscale-mixer-close')?.addEventListener('click', () => toggleMixer(false));
@@ -8131,6 +8179,27 @@
       applyMixer(); mixerSave();
     });
     $('slopscale-mixer-dim')?.addEventListener('change', (ev) => { mixerBackingDim = ev.target.checked; applyMixer(); mixerSave(); });
+    // Header Setup popover: toggle on the button, close on outside click, label tracks tuning.
+    $('slopscale-setup-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSetupPopover(); });
+    $('slopscale-tuning-select')?.addEventListener('change', updateSetupButton);
+    document.addEventListener('click', (e) => {
+      const pop = $('slopscale-setup-popover'); if (!pop || pop.hidden) return;
+      const btn = $('slopscale-setup-btn');
+      if (!pop.contains(e.target) && btn && !btn.contains(e.target)) toggleSetupPopover(false);
+    });
+    updateSetupButton();
+    // Header settings menu (⚙): toggle, items, close-on-outside-click.
+    $('slopscale-settings-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSettingsMenu(); });
+    $('slopscale-settings-shortcuts')?.addEventListener('click', () => { toggleSettingsMenu(false); toggleCheatSheet(true); });
+    $('slopscale-settings-host')?.addEventListener('click', () => {
+      toggleSettingsMenu(false);
+      try { if (window.slopsmith && typeof window.slopsmith.navigate === 'function') window.slopsmith.navigate('settings'); } catch (_) {}
+    });
+    document.addEventListener('click', (e) => {
+      const menu = $('slopscale-settings-menu'); if (!menu || menu.hidden) return;
+      const btn = $('slopscale-settings-btn');
+      if (!menu.contains(e.target) && btn && !btn.contains(e.target)) toggleSettingsMenu(false);
+    });
     // Preset picker (Custom): load a saved preset's config into the form.
     $('slopscale-preset-picker')?.addEventListener('change', (ev) => {
       const key = ev.target.value; if (!key) return;
@@ -8163,6 +8232,8 @@
       syncInstrumentClass();
       syncAdvancedMode();
       syncChromaticVisibility();
+    } else {
+      resumeLastMode();   // returning user resumes their last mode; first-run stays on Pathways
     }
     syncViewSwitcher(document.querySelector('[name="renderer"]')?.value || 'highway_3d');
     window.addEventListener('storage', (ev) => { if (ev.key === 'invertHighway' || ev.key === 'lefty' || ev.key === 'renderScale') refreshForHostSettingChange(); });

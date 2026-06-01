@@ -76,8 +76,32 @@
     margin-bottom: 12px;
     flex-shrink: 0;
   }
-  .slopscale-header-main { min-width: 0; }
-  .slopscale-header .slopscale-progress-strip { flex: 0 0 auto; min-width: 220px; }
+  .slopscale-header-main { min-width: 0; flex: 0 1 auto; }
+  .slopscale-header-modes { flex: 1 1 auto; display: flex; justify-content: center; min-width: 0; }
+  .slopscale-header-modes .slopscale-mode-bar { flex: 0 0 auto; }
+  .slopscale-header .slopscale-progress-strip { flex: 0 0 auto; min-width: 200px; }
+  /* Setup popover (instrument + strings + tuning) — collapsed behind one header button. */
+  .slopscale-header-setup { position: relative; flex: 0 0 auto; }
+  .slopscale-setup-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; font-size: 12.5px; font-weight: 600; border-radius: 8px; border: 1px solid var(--ss-border, #334155); background: var(--ss-inset, #0b1220); color: var(--ss-text, #e2e8f0); cursor: pointer; transition: background 0.12s, border-color 0.12s; white-space: nowrap; }
+  .slopscale-setup-btn:hover { background: #1e293b; }
+  .slopscale-setup-btn[aria-expanded="true"] { border-color: var(--ss-accent, #4080e0); }
+  .slopscale-setup-caret { color: var(--ss-text-faint, #64748b); font-size: 10px; }
+  .slopscale-setup-popover { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 290px; padding: 12px; display: flex; flex-direction: column; gap: 10px; background: var(--ss-surface, #0d1424); border: 1px solid var(--ss-border, #334155); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.45); }
+  .slopscale-setup-popover[hidden] { display: none; }
+  /* Progress chip — the header strip is now P's open affordance (clickable). */
+  .slopscale-progress-chip { cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+  .slopscale-progress-chip:hover { border-color: var(--ss-accent, #4080e0); }
+  .slopscale-progress-chip:focus-visible { outline: 2px solid var(--ss-accent, #4080e0); outline-offset: 2px; }
+  .slopscale-progress-chip.chip-open { border-color: var(--ss-accent, #4080e0); background: var(--ss-accent-soft, rgba(64,128,224,0.12)); }
+  /* Settings menu (⚙) — header-right dropdown. */
+  .slopscale-header-settings { position: relative; flex: 0 0 auto; }
+  .slopscale-settings-btn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; border-radius: 8px; border: 1px solid var(--ss-border, #334155); background: var(--ss-inset, #0b1220); color: var(--ss-text-dim, #94a3b8); cursor: pointer; transition: background 0.12s, color 0.12s; }
+  .slopscale-settings-btn:hover { background: #1e293b; color: #e2e8f0; }
+  .slopscale-settings-btn[aria-expanded="true"] { border-color: var(--ss-accent, #4080e0); color: #e2e8f0; }
+  .slopscale-settings-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 180px; padding: 5px; display: flex; flex-direction: column; gap: 2px; background: var(--ss-surface, #0d1424); border: 1px solid var(--ss-border, #334155); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.45); }
+  .slopscale-settings-menu[hidden] { display: none; }
+  .slopscale-settings-item { text-align: left; padding: 8px 10px; font-size: 12.5px; border: none; background: none; color: #cbd5e1; cursor: pointer; border-radius: 6px; }
+  .slopscale-settings-item:hover { background: rgba(148,163,184,0.12); color: #f1f5f9; }
   .slopscale-header h1 { margin: 0; font-size: 22px; line-height: 1.1; letter-spacing: -0.02em; color: #f8fafc; font-weight: 700; }
   .slopscale-tagline { margin: 3px 0 6px 0; font-size: 12px; color: #94a3b8; max-width: 760px; }
   .slopscale-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: #cbd5e1; }
@@ -664,7 +688,7 @@
     border-bottom: 1px solid var(--ss-hairline, rgba(148,163,184,0.14));
   }
   .slopscale-jam-inspector { display: flex; flex-direction: column; gap: var(--ss-sp-2, 8px); }
-  .slopscale-jam-intro { font-size: 12.5px; line-height: 1.45; color: #cbd5e1; }
+  .slopscale-jam-intro, .slopscale-mode-intro { font-size: 12.5px; line-height: 1.45; color: #cbd5e1; }
   .slopscale-jam-soon { color: var(--ss-accent, #4080e0); font-weight: 600; }
   .slopscale-jam-styles { display: flex; flex-wrap: wrap; gap: 6px; }
   .slopscale-jam-style { padding: 7px 12px; font-size: 12.5px; font-weight: 600; border-radius: 8px; border: 1px solid #334155; background: #0b1220; color: #cbd5e1; cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s; }
@@ -745,19 +769,71 @@
 </style>
 
 <div id="slopscale-root" class="slopscale-root">
+  <!-- Global top bar (shell IA): identity (left) · the 4 mode segments (center) ·
+       progress + status (right). Setup popover + settings menu land in later stages. -->
   <section class="slopscale-panel slopscale-header">
     <div class="slopscale-header-main">
       <h1>SlopScale</h1>
-      <p class="slopscale-tagline">Development Pathways — learn and practise scales, arpeggios, and progressions. Pick a pathway, or switch to Custom for full control.</p>
+      <!-- renderer-status dropped from the meta (the view switcher already shows the
+           active renderer — shell-IA de-dup). Kept as a hidden span so the JS that
+           writes it (guarded) doesn't need changing. -->
       <div class="slopscale-meta">
         <span id="slopscale-status">Ready</span>
-        <span class="slopscale-meta-sep">·</span>
-        <span id="slopscale-renderer-status">3D Highway</span>
+      </div>
+      <span id="slopscale-renderer-status" hidden></span>
+    </div>
+    <!-- Setup popover — instrument + strings + tuning collapsed behind one labeled
+         button (set-once, orthogonal to mode). The button shows the live instrument
+         + tuning; clicking opens the popover. Moved out of the rail (shell IA). -->
+    <div class="slopscale-header-setup">
+      <button type="button" id="slopscale-setup-btn" class="slopscale-setup-btn" aria-haspopup="true" aria-expanded="false" title="Instrument, strings &amp; tuning"><span id="slopscale-setup-label">Guitar · Standard</span> <span class="slopscale-setup-caret">▾</span></button>
+      <div id="slopscale-setup-popover" class="slopscale-setup-popover" hidden role="dialog" aria-label="Instrument setup">
+        <!-- Instrument family selector (moved from the rail). Drives the existing
+             [name="instrument"] field via syncInstrumentFamily(). -->
+        <div class="slopscale-instrument-toggle" role="group" aria-label="Instrument">
+          <button type="button" class="slopscale-instr-btn" data-instrument="bass">Bass</button>
+          <button type="button" class="slopscale-instr-btn active" data-instrument="guitar">Guitar</button>
+          <button type="button" class="slopscale-instr-btn" data-instrument="piano" disabled title="Piano support is coming in a future release">Piano</button>
+        </div>
+        <!-- Strings + tuning (moved from the rail). 4/5/6 for bass, 6/7/8 for guitar;
+             tuning dropdown repopulated by syncTuningOptions(); custom-tuning row on "Custom…". -->
+        <div class="slopscale-tuning-block" id="slopscale-tuning-block">
+          <div class="slopscale-tuning-row">
+            <span class="slopscale-tuning-label">Strings</span>
+            <div class="slopscale-string-count-row" id="slopscale-string-count-row" role="group" aria-label="String count"><!-- syncStringCountChips() --></div>
+          </div>
+          <div class="slopscale-tuning-row">
+            <span class="slopscale-tuning-label">Tuning</span>
+            <select id="slopscale-tuning-select" aria-label="Tuning"><!-- syncTuningOptions() --></select>
+          </div>
+          <div class="slopscale-custom-tuning" id="slopscale-custom-tuning" style="display:none">
+            <span class="slopscale-tuning-label">Notes (low → high)</span>
+            <div class="slopscale-custom-tuning-inputs" id="slopscale-custom-tuning-inputs"><!-- syncCustomTuningInputs() --></div>
+            <div class="slopscale-custom-tuning-save">
+              <button type="button" id="slopscale-save-tuning" class="secondary" title="Save this tuning so it appears in the dropdown next time">+ Save tuning…</button>
+            </div>
+          </div>
+          <input type="hidden" name="customOpenMidis" id="slopscale-custom-open-midis" value="">
+        </div>
       </div>
     </div>
-    <!-- Progress strip — streak + 7-day calendar. Moved out of the rail into the
-         header (ambient progress, not config) — reclaims rail height in every mode. -->
-    <div class="slopscale-progress-strip" id="slopscale-progress-strip">
+    <!-- Four-mode shell switcher, now top-level nav in the header (Layout A).
+         Internal data-mode tokens stay stable (guided→Pathways, session→Workout)
+         so the existing selectMode/syncModeBar wiring is untouched. -->
+    <div class="slopscale-header-modes">
+      <div class="slopscale-mode-toggle slopscale-mode-bar" role="tablist" aria-label="Practice mode">
+        <button type="button" id="slopscale-mode-guided"  class="slopscale-mode-btn active" data-mode="guided"  role="tab" aria-selected="true"  title="Follow a guided curriculum">Pathways</button>
+        <button type="button" id="slopscale-mode-custom"  class="slopscale-mode-btn" data-mode="custom"  role="tab" aria-selected="false" title="Drill the exact thing you're stuck on">Custom</button>
+        <button type="button" id="slopscale-mode-session" class="slopscale-mode-btn" data-mode="session" role="tab" aria-selected="false" title="Build a timed routine — and actually run it">Workout</button>
+        <button type="button" id="slopscale-mode-jam"     class="slopscale-mode-btn" data-mode="jam"     role="tab" aria-selected="false" title="Pick a style and play along on your instrument">Jam</button>
+      </div>
+    </div>
+    <!-- Progress chip — streak + 7-day calendar (ambient progress, header-right).
+         IS the P-sheet's open affordance (tap → Progress sheet); de-dups the old
+         view-bar Progress button. The full 3-signal chip (armed-lane · →next) is a
+         gamification-content refinement on the same element. -->
+    <div class="slopscale-progress-strip slopscale-progress-chip" id="slopscale-progress-strip"
+         role="button" tabindex="0" aria-label="Open progress" title="Progress (P)">
       <div class="slopscale-streak-block">
         <span class="slopscale-streak-num" id="slopscale-streak-num">0</span>
         <span class="slopscale-streak-word">day streak</span>
@@ -765,73 +841,29 @@
       <div class="slopscale-progress-divider"></div>
       <div class="slopscale-cal-dots" id="slopscale-cal-dots"><!-- populated by syncProgressStrip() --></div>
     </div>
+    <!-- Settings menu (⚙) — header-right. Skeleton items wired to what exists today;
+         theme / XP-mode default / count-in default land as those systems do. -->
+    <div class="slopscale-header-settings">
+      <button type="button" id="slopscale-settings-btn" class="slopscale-settings-btn" aria-haspopup="true" aria-expanded="false" aria-label="Settings" title="Settings">⚙</button>
+      <div id="slopscale-settings-menu" class="slopscale-settings-menu" hidden role="menu" aria-label="Settings">
+        <button type="button" class="slopscale-settings-item" id="slopscale-settings-shortcuts" role="menuitem">Keyboard shortcuts</button>
+        <button type="button" class="slopscale-settings-item" id="slopscale-settings-host" role="menuitem">Plugin settings ↗</button>
+      </div>
+    </div>
   </section>
 
   <section class="slopscale-layout">
     <form id="slopscale-controls" class="slopscale-panel slopscale-controls">
 
-      <!-- Instrument family selector — always visible at top of left panel.
-           Drives the existing #slopscale-controls [name="instrument"] field
-           via syncInstrumentFamily() in screen.js. Piano is scaffolded UI;
-           generators don't yet emit keyboard data (see ROADMAP Phase 5). -->
-      <div class="slopscale-instrument-toggle" role="group" aria-label="Instrument">
-        <button type="button" class="slopscale-instr-btn" data-instrument="bass">Bass</button>
-        <button type="button" class="slopscale-instr-btn active" data-instrument="guitar">Guitar</button>
-        <button type="button" class="slopscale-instr-btn" data-instrument="piano" disabled title="Piano support is coming in a future release">Piano</button>
-      </div>
-
-      <!-- Strings + tuning (hidden when Piano is active). The chip row offers
-           4/5/6 for bass, 6/7/8 for guitar; the tuning dropdown is repopulated
-           by syncTuningOptions() whenever family or count changes. The
-           custom-tuning row only appears when the user picks "Custom…". -->
-      <div class="slopscale-tuning-block" id="slopscale-tuning-block">
-        <div class="slopscale-tuning-row">
-          <span class="slopscale-tuning-label">Strings</span>
-          <div class="slopscale-string-count-row" id="slopscale-string-count-row" role="group" aria-label="String count">
-            <!-- populated by syncStringCountChips() -->
-          </div>
-        </div>
-        <div class="slopscale-tuning-row">
-          <span class="slopscale-tuning-label">Tuning</span>
-          <select id="slopscale-tuning-select" aria-label="Tuning">
-            <!-- populated by syncTuningOptions() -->
-          </select>
-        </div>
-        <div class="slopscale-custom-tuning" id="slopscale-custom-tuning" style="display:none">
-          <span class="slopscale-tuning-label">Notes (low → high)</span>
-          <div class="slopscale-custom-tuning-inputs" id="slopscale-custom-tuning-inputs">
-            <!-- populated by syncCustomTuningInputs() -->
-          </div>
-          <div class="slopscale-custom-tuning-save">
-            <button type="button" id="slopscale-save-tuning" class="secondary" title="Save this tuning so it appears in the dropdown next time">+ Save tuning…</button>
-          </div>
-        </div>
-        <!-- Hidden field — keeps any per-string custom tuning in the form so
-             it round-trips through the share URL alongside everything else. -->
-        <input type="hidden" name="customOpenMidis" id="slopscale-custom-open-midis" value="">
-      </div>
-
-      <!-- Four-mode shell switcher (Pathways/Custom/Workout/Jam), PINNED at the top of
-           the scrolling Inspector (sticky WHAT). Internal data-mode tokens stay stable
-           (guided→Pathways, session→Workout) so existing wiring is untouched.
-           role=tablist keeps the Layout-B rail-spine migration additive. The mode-desc
-           line is the "what is this mode" slot (activation best-practice). -->
-      <div class="slopscale-sticky-modes">
-        <div class="slopscale-mode-toggle slopscale-mode-bar" role="tablist" aria-label="Practice mode">
-          <button type="button" id="slopscale-mode-guided"  class="slopscale-mode-btn active" data-mode="guided"  role="tab" aria-selected="true"  title="Follow a guided curriculum">Pathways</button>
-          <button type="button" id="slopscale-mode-custom"  class="slopscale-mode-btn" data-mode="custom"  role="tab" aria-selected="false" title="Drill the exact thing you're stuck on">Custom</button>
-          <button type="button" id="slopscale-mode-session" class="slopscale-mode-btn" data-mode="session" role="tab" aria-selected="false" title="Build a timed routine — and actually run it">Workout</button>
-          <button type="button" id="slopscale-mode-jam"     class="slopscale-mode-btn" data-mode="jam"     role="tab" aria-selected="false" title="Pick a style and play along on your instrument">Jam</button>
-        </div>
-        <div class="slopscale-mode-desc" id="slopscale-mode-desc"></div>
-      </div>
+      <!-- (Instrument + strings + tuning moved to the header Setup popover; the
+           four-mode switcher moved to the header top bar — see above.) -->
 
       <!-- Jam mode Inspector. Style grid (from STYLE_PALETTES) + key/tempo/feel + the
            Jam action, which loops a style backing through the contained player to play
            along to. Jam is a MIRROR, not graded — and never a song generator (north star).
            The live target-highlight + mix bar are the next pass. -->
       <div class="slopscale-jam-only slopscale-jam-inspector">
-        <div class="slopscale-jam-intro">Pick a style and play along on your instrument — apply the skill, find your own voice.</div>
+        <div class="slopscale-jam-intro">Apply what you've drilled over a style backing — and find your own voice.</div>
         <div class="slopscale-group-title">Style</div>
         <div class="slopscale-jam-styles" id="slopscale-jam-styles"><!-- renderJamStyles() --></div>
         <div class="slopscale-jam-row">
@@ -1347,9 +1379,10 @@
 
       </div><!-- end .slopscale-single-only -->
 
-      <!-- Session mode panel -->
+      <!-- Workout (session) mode panel -->
       <div class="slopscale-session-only" id="slopscale-session-panel">
 
+        <div class="slopscale-mode-intro">Stack your pathways and drills into timed blocks — warm-up, technique, application — then run the whole set.</div>
         <div class="slopscale-group-title">Program</div>
         <label>Session
           <select id="slopscale-session-select">
@@ -1424,9 +1457,9 @@
         </div>
         <!-- Shell hotkey buttons (each hotkey has a visible button + the ? cheat-sheet;
              no keyboard-only affordances). M = mixer, P = progress, [ = collapse. -->
+        <!-- P is opened by the header progress chip (de-dup) — only M / [ / ? here. -->
         <div class="slopscale-hotkey-bar" role="group" aria-label="Panels">
           <button type="button" id="slopscale-mixer-btn" class="slopscale-hk-btn" title="Mixer (M)">Mixer</button>
-          <button type="button" id="slopscale-progress-btn" class="slopscale-hk-btn" title="Progress (P)">Progress</button>
           <button type="button" id="slopscale-collapse-btn" class="slopscale-hk-btn" title="Collapse panel ([)" aria-label="Collapse panel">⟨ ⟩</button>
           <button type="button" id="slopscale-help-btn" class="slopscale-hk-btn slopscale-hk-help" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
         </div>
