@@ -1379,6 +1379,7 @@
   // the playhead here). Unlike playAnchorChartTime, it does NOT drift on loop wrap.
   let playStartChartTime = 0;
   let _activeSession = null, _sessionStartMs = 0, _newlyUnlockedTier = null;
+  let _lastEndedSession = null;  // the just-finished session → the P-sheet "Last session" card
   // A-B segment loop endpoints in chart-time seconds. Null = no loop.
   // See docs/section-looping.md for the design + phasing.
   let segmentLoopA = null, segmentLoopB = null;
@@ -5688,9 +5689,47 @@
     $('slopscale-cheatsheet')?.setAttribute('aria-hidden', open ? 'false' : 'true');
     $('slopscale-help-btn')?.classList.toggle('active', open);
   }
-  // Progress sheet content (gamification's slot). Renders what exists today — streak
-  // + per-pathway tempo-tier dots — with an honest "coming" state for XP/badges,
-  // since the slopscale.progress store is unbuilt (don't fake XP).
+  // ── Session-end summary ("Last session" card in the P sheet) ────────────────
+  // A calm, dismissible mirror of the run that just ended — what you practised,
+  // time on the instrument, tempo-tier reached, streak. Descriptive + gained-only
+  // (no score/accuracy/rank); meter-green only for a freshly-cleared tier. See
+  // docs/design-system.md §13/§14. Inputs are controlled internal strings.
+  function sessionSummaryCardHtml() {
+    const s = _lastEndedSession; if (!s) return '';
+    const mins = Math.floor(s.duration_ms / 60000), secs = Math.round((s.duration_ms % 60000) / 1000);
+    const dur = `${mins}:${String(secs).padStart(2, '0')}`;
+    const sk = s.scale ? `${s.key || ''} ${String(s.scale).replace(/_/g, ' ')}`.trim() : '';
+    let tierLine = '';
+    if (s.tierCleared && s.clearedTier != null) {
+      tierLine = `<div class="slopscale-ss-cleared">▲ New tier cleared — ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}</div>`;
+    } else if (s.mode === 'pathway' && s.bpm_tier != null && s.bpm_tier >= 0) {
+      tierLine = `<div class="slopscale-ss-line">Reached ${TIER_LABELS[s.bpm_tier] || ('Tier ' + (s.bpm_tier + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}</div>`;
+    } else if (s.bpm) {
+      tierLine = `<div class="slopscale-ss-line">${s.bpm} BPM</div>`;
+    }
+    const streakLine = s.streak > 0
+      ? `<div class="slopscale-ss-line">${s.streak === 1 ? 'Streak started — day 1' : `Day ${s.streak} streak`}</div>`
+      : '';
+    return `<div class="slopscale-progress-sheet-section slopscale-ss-card">` +
+      `<div class="slopscale-ss-head"><h4>Last session</h4>` +
+      `<button type="button" class="slopscale-ss-dismiss" data-act="dismiss-summary" title="Dismiss" aria-label="Dismiss last-session card">✕</button></div>` +
+      `<div class="slopscale-ss-what">${s.displayName}</div>` +
+      (sk ? `<div class="slopscale-ss-sub">${sk}</div>` : '') +
+      `<div class="slopscale-ss-line">Practiced ${dur}</div>` +
+      tierLine + streakLine +
+      `</div>`;
+  }
+  // Auto-present the card on a notable end (a tier cleared, or a real ≥20s run) by
+  // opening P; for short blips just refresh so the card is ready when P next opens.
+  function presentSessionSummary() {
+    const root = $('slopscale-root');
+    const notable = _lastEndedSession && (_lastEndedSession.tierCleared || _lastEndedSession.duration_ms >= 20000);
+    if (notable && root && !root.classList.contains('ss-progress-open')) toggleProgressSheet(true);
+    else renderProgressSheet();
+  }
+  // Progress sheet content (gamification's slot). Renders the "Last session" card
+  // (if any) + streak + per-pathway tempo-tier dots — with an honest "coming" state
+  // for XP/badges, since the slopscale.progress store is unbuilt (don't fake XP).
   function renderProgressSheet() {
     const body = $('slopscale-progress-sheet-body'); if (!body) return;
     const pt = pathwayTiersLoad();
@@ -5704,6 +5743,7 @@
       return `<div class="slopscale-pm-row"><span>${pw.label}</span><span class="slopscale-pm-dots">${dots}</span></div>`;
     };
     body.innerHTML =
+      sessionSummaryCardHtml() +
       `<div class="slopscale-progress-sheet-section"><h4>Streak</h4><div class="slopscale-pm-row"><span>Current streak</span><strong>${streak} ${streak === '1' ? 'day' : 'days'}</strong></div></div>` +
       `<div class="slopscale-progress-sheet-section"><h4>Tempo-tier progress</h4>${touched.length ? touched.slice(0, 8).map(dotRow).join('') : '<div class="slopscale-pm-coming">Clear a tempo tier to see progress here.</div>'}</div>` +
       `<div class="slopscale-progress-sheet-section"><h4>XP &amp; badges</h4><div class="slopscale-pm-coming">Coming soon — your time-on-instrument and mastery will show here.</div></div>`;
@@ -7587,9 +7627,23 @@
     sessions.unshift(_activeSession);
     sessionsSave(sessions);
     const unlock = advancePathwayTier(_activeSession);
+    // Snapshot for the P-sheet "Last session" card — descriptive + gained-only,
+    // no score/accuracy (mirror not judge; see docs/design-system.md §13).
+    let displayName;
+    if (_activeSession.mode === 'pathway' && PATHWAYS[_activeSession.pathway_id]) displayName = PATHWAYS[_activeSession.pathway_id].label;
+    else if (_activeSession.mode === 'session') displayName = ($('slopscale-session-select')?.selectedOptions?.[0]?.textContent || 'Session practice').trim();
+    else displayName = 'Custom practice';
+    _lastEndedSession = {
+      mode: _activeSession.mode, scale: _activeSession.scale, key: _activeSession.key,
+      bpm: _activeSession.bpm, bpm_tier: _activeSession.bpm_tier,
+      duration_ms: _activeSession.duration_ms, displayName,
+      tierCleared: !!unlock, clearedTier: unlock ? unlock.tier : null,
+      streak: streakCount(sessions),
+    };
     _activeSession = null;
     if (unlock) { _newlyUnlockedTier = unlock.tier; syncTempoTierButtons(); renderSkillTree(); _newlyUnlockedTier = null; }
     syncProgressStrip();
+    presentSessionSummary();
   }
 
   function localDateStr(d = new Date()) {
@@ -8266,6 +8320,10 @@
     $('slopscale-help-btn')?.addEventListener('click', () => toggleCheatSheet());
     $('slopscale-mixer-close')?.addEventListener('click', () => toggleMixer(false));
     $('slopscale-progress-close')?.addEventListener('click', () => toggleProgressSheet(false));
+    // "Last session" card dismiss (delegated — the sheet body is re-rendered each open).
+    $('slopscale-progress-sheet-body')?.addEventListener('click', (e) => {
+      if (e.target.closest('[data-act="dismiss-summary"]')) { _lastEndedSession = null; renderProgressSheet(); }
+    });
     $('slopscale-cheat-close')?.addEventListener('click', () => toggleCheatSheet(false));
     const mixCh = $('slopscale-mixer-channels');
     mixCh?.addEventListener('input', (ev) => {

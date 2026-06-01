@@ -336,13 +336,17 @@ earned shows "Builds on Beginner Core" (informational), never a lock.
   market-right; lean on the (to-be-added) `mode-desc` one-liner as the ambient "what is
   this." Don't add a blocking onboarding step.
 
-**Open forks for Christian** (defaults noted; "going with X unless you object"):
-- **B2-shape:** Pathways primary as a Start button **docked to the active picker row**
-  (tightest) *vs* **one Start below the goal caption** (simpler reading order). UX (and
-  I) lean the **goal-caption version**.
-- **Session-end summary card:** the biggest motivation gap; needs **no** XP store (reads
-  `slopscale.sessions` + `pathway_tiers` today). In-scope as a near-term build item — I
-  recommend **yes**.
+**Decided 2026-05-31 (Christian):**
+- **B2-shape: the goal-caption version** — Pathways' primary is one Start button *below
+  the goal caption* (not docked to the picker row), for cross-mode consistency (the
+  shared `.slopscale-primary-cta`), cleanest top-down reading order, and a simpler build.
+  The onboarding restructure that places it is queue item #2.
+- **Session-end summary card: YES — BUILT 2026-05-31.** A calm, dismissible "Last
+  session" card at the top of the P sheet (`sessionSummaryCardHtml` + `presentSessionSummary`),
+  fed from the just-ended session in `sessionEnd()`; gently auto-presents (opens P) on a
+  notable end (a tier cleared, or a ≥20s run), else refreshes silently. Descriptive +
+  gained-only (what you practised · time · tempo-tier · streak); meter-green only for a
+  freshly-cleared tier; no score/rank. Needs no XP store.
 
 **Confirmed clean (no action):** progress signals are de-duped (chip owns `P`; three
 calm signals present, unduplicated); mixer/Jam are mirror-not-judge today.
@@ -359,6 +363,7 @@ celebratory beat in the system is dead — rebind it.
 1. ✅ **B1 toggle dedupe** + **B2 CTA width cap** (2026-05-31).
 2. **Onboarding restructure** (§9): orientation block + breadcrumb + the shared
    `.slopscale-primary-cta` across all four modes (fixes G3 — Custom's missing primary).
+   *Start-button shape decided: below the goal caption (§14).*
 3. **Token migration + dead-code cleanup** (§10): add the five semantic tokens, swap the
    recurring hex, add `#slopscale-mode-desc`, delete the orphan CSS, retire the literal
    gradient. (Unlocks full accent-theme recolor.)
@@ -368,7 +373,7 @@ celebratory beat in the system is dead — rebind it.
 6. **Mixer growth** (§11): per-channel instrument `<select>`, master channel, resizable,
    vertical-strip orientation. (Pairs with the audio pass below.)
 7. **Pack manager** (§11): the `+` + dual-column transfer modal.
-8. **Session-end summary card** (if Christian green-lights — §14).
+8. ✅ **Session-end summary card** — BUILT 2026-05-31 (§14).
 
 **Separate track (not GUI — needs the audio agents):** the #1 audio work — per-note
 velocity/volume consistency (entangled with the WAF-vs-oscillator voice split + GM

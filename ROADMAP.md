@@ -125,16 +125,16 @@ A four-lane GUI design audit (UX-chaired, + learning-design + gamification + mar
 - **Confirmed clean:** progress signals de-duped (chip owns `P`; three calm signals intact); mixer/Jam are mirror-not-judge. **Verify in build:** `tier-glow` still fires on a list-row clear (keyframe bound to the old `.slopscale-tier-btn`).
 - **Market wins to protect:** Custom co-equal, Workout first-class, Jam's "mirror not a judge" copy (verbatim), DAW restraint, one-lit-primary, practice-not-generation copy.
 
-**Open forks for Christian (defaults noted):**
-- **B2-shape:** Pathways primary as a Start button **docked to the active picker row** vs **one Start below the goal caption.** Default: **goal-caption** (UX + me).
-- **Session-end summary card** (biggest motivation gap; needs no XP store — reads `slopscale.sessions` + `pathway_tiers` today). Default: **yes, near-term.**
+**Decided 2026-05-31 (Christian):**
+- **B2-shape = the goal-caption version** — Pathways' primary is one Start *below the goal caption* (cross-mode consistency via the shared `.slopscale-primary-cta`, cleanest reading order, simpler build). Placed by the onboarding restructure (build-queue #2).
+- **Session-end summary card = YES, BUILT 2026-05-31** — the "Last session" card in the P sheet (`sessionSummaryCardHtml`/`presentSessionSummary`, fed from `sessionEnd()`); auto-presents on a notable end (tier cleared / ≥20s), else refreshes silently. Descriptive + gained-only, meter-green only for a cleared tier, no score. Verified via a one-off probe (card content + dismiss + auto-present-on-tier-clear; probe removed).
 
-**Post-audit GUI build queue (conforms to `docs/design-system.md` §15):** 1 ✅ B1+B2-width · 2 onboarding restructure + shared primary-cta · 3 token migration + dead-code · 4 control-family consolidation · 5 cross-band `→ next` + tier-dot labels + Core-vs-Style distinction · 6 mixer growth (per-channel instrument `<select>` + master channel + resizable + vertical strips) · 7 pack-manager (`+` + dual-column transfer modal) · 8 session-end card (if green-lit).
+**Post-audit GUI build queue (conforms to `docs/design-system.md` §15):** 1 ✅ B1+B2-width · 2 onboarding restructure + shared primary-cta · 3 token migration + dead-code · 4 control-family consolidation · 5 cross-band `→ next` + tier-dot labels + Core-vs-Style distinction · 6 mixer growth (per-channel instrument `<select>` + master channel + resizable + vertical strips) · 7 pack-manager (`+` + dual-column transfer modal) · 8 ✅ session-end card (BUILT 2026-05-31).
 
 **Separate track — #1 AUDIO (needs the audio agents, NOT in the GUI panel):** per-note velocity/volume consistency (entangled with the WAF-vs-oscillator voice split at screen.js ~5978 + GM sample-level variance — not a one-line constant), WAF-for-all-backing with synth failover, remove the backing-voice override dropdown (its selection moves into the mixer per §11). **Run `audio-engine-architect` + `sound-design-architect` first.**
 
-### ⏸️ STOPPED HERE (2026-05-31, late) — GUI audit done + #3/#4 fixed; NEXT = the post-audit build
-The design foundation is in place (`docs/design-system.md`) and the two contained fixes shipped. **Next session, in order:** GUI build queue #2→#7 above (all conform to the style guide); the **#1 audio** track behind an `audio-engine-architect` + `sound-design-architect` pass; then the still-pending **#4 drums** + **#6 progress store** from the prior handoff (they unblock the `P`-sheet XP + the arc's mastered-state). Christian to resolve the two open forks (B2-shape, session-end card).
+### ⏸️ STOPPED HERE (2026-05-31, late) — GUI audit done; #3/#4 fixed + session-end card BUILT; NEXT = the post-audit build
+The design foundation is in place (`docs/design-system.md`); shipped this session: the two contained fixes (#3 CTA cap, #4 toggle dedupe) **and** the session-end "Last session" card (queue #8). Both open forks resolved (B2-shape = goal-caption; card = built). **Next session, in order:** GUI build queue **#2→#7** (all conform to the style guide — onboarding restructure + shared `.slopscale-primary-cta`, token migration + dead-code, control-family consolidation, cross-band `→ next`, mixer growth, pack-manager); the **#1 audio** track behind an `audio-engine-architect` + `sound-design-architect` pass; then the still-pending **#4 drums** + **#6 progress store** from the prior handoff (they unblock the `P`-sheet XP + the arc's mastered-state).
 
 ---
 

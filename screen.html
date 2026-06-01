@@ -506,6 +506,18 @@
   .slopscale-pm-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0; }
   .slopscale-pm-dots { display: flex; gap: 3px; }
   .slopscale-pm-coming { font-size: 11.5px; color: #64748b; font-style: italic; }
+  /* "Last session" card — a calm, dismissible mirror of the run that just ended.
+     Descriptive + gained-only (no score/rank); meter-green ONLY for a cleared tier
+     (see docs/design-system.md §8/§13). */
+  .slopscale-ss-card { background: var(--ss-inset, #0b1220); border: 1px solid var(--ss-hairline, rgba(148,163,184,0.14)); border-radius: 8px; padding: 10px 12px; }
+  .slopscale-ss-head { display: flex; align-items: center; justify-content: space-between; }
+  .slopscale-ss-head h4 { margin: 0; }
+  .slopscale-ss-dismiss { background: none; border: none; color: var(--ss-text-muted, #94a3b8); cursor: pointer; font-size: 12px; line-height: 1; padding: 0 2px; }
+  .slopscale-ss-dismiss:hover { color: #e2e8f0; }
+  .slopscale-ss-what { font-size: 13px; font-weight: 700; color: #e2e8f0; margin-top: 2px; }
+  .slopscale-ss-sub { font-size: 11.5px; color: var(--ss-text-muted, #94a3b8); margin-top: 1px; }
+  .slopscale-ss-line { font-size: 12px; color: #cbd5e1; padding: 2px 0; }
+  .slopscale-ss-cleared { font-size: 12px; font-weight: 700; color: var(--ss-meter, #22c55e); padding: 3px 0; }
   @media (prefers-reduced-motion: reduce) {
     .slopscale-mixer, .slopscale-progress-sheet { transition: none; }
   }
