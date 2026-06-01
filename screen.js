@@ -1664,12 +1664,12 @@
   };
   const AUDIO_PROFILES = {
     blues:      { family: 'clean',      harmony: { engine: 'sample', tone: 'organ',  level: 0.85 }, brightness: 0.5 },
-    jazz:       { family: 'clean',      harmony: { engine: 'sample', tone: 'epiano', level: 0.85 }, brightness: 0.55 },
+    jazz:       { family: 'clean',      harmony: { engine: 'sample', tone: 'epiano', level: 0.85 }, brightness: 0.55, drums: { kit: 'kit_jazz' } },
     rock:       { family: 'clean',      harmony: { engine: 'sample', tone: 'organ',  level: 0.8 },  brightness: 0.55 },
     metal:      { family: 'distorted',  harmony: { tone: 'pad', level: 0.7 },  brightness: 0.42 },
     djent:      { family: 'distorted',  harmony: { tone: 'pad', level: 0.65 }, brightness: 0.38 },
     gospel:     { family: 'clean',      harmony: { engine: 'sample', tone: 'organ',  level: 0.9 },  brightness: 0.55 },
-    bluegrass:  { family: 'acoustic',   harmony: { engine: 'sample', tone: 'guitar', level: 0.78 }, brightness: 0.62 },
+    bluegrass:  { family: 'acoustic',   harmony: { engine: 'sample', tone: 'guitar', level: 0.78 }, brightness: 0.62, drums: { kit: 'kit_acoustic_soft' } },
     'city-pop': { family: 'electronic', harmony: { engine: 'sample', tone: 'epiano', level: 0.8 },  brightness: 0.68 },
   };
 
@@ -1680,12 +1680,28 @@
   // (kit_rock/kit_jazz/kit_acoustic_soft/…) land in Phase D4. `resolveDrumKit`
   // falls any unregistered kit id back to kit_909 → in D1–D3 every style plays a
   // synth beat until the sampled kits exist (intentional; fix on the backend in D4).
+  // Sampled kits (Phase D4) play self-hosted WebAudioFont drum one-shots — one tiny
+  // preset file per GM percussion note, served from static/wafonts/ by the /wafont
+  // route (zero route changes), same MIT WAF provenance as the melodic tones. The
+  // piece→GM-note map is shared (FluidR3_GM kit); kits differ by level/groove, not
+  // sample set (brush/percussion sample sets are a later curation pass). NOTE: the
+  // FluidR3_GM drum DATA redistribution should be verified before any public release
+  // (same caveat as the bundled JCLive melodic data).
+  const ACOUSTIC_PIECES = { kick:36, snare:38, hatClosed:42, hatOpen:46, hatPedal:44, ride:51, crash:49, tomHi:50, tomMid:47, tomLo:43, clap:39 };
+  const drumFile = (note, font, variant) => `128${note}_${variant}_${font}_sf2_file.js`;
+  const drumVar  = (note, font, variant) => `_drum_${note}_${variant}_${font}_sf2_file`;
   const KIT_REGISTRY = {
     kit_909: { engine: 'synth', preset: '909' },   // tight/punchy default electronic
     kit_808: { engine: 'synth', preset: '808' },   // sub-heavy, long kick tail
-    // kit_rock / kit_jazz / kit_acoustic_soft / kit_latin / kit_afro → Phase D4 (sampled CC0)
+    // Sampled acoustic kits (FluidR3_GM). Share the piece set; differ by level.
+    kit_rock:          { engine: 'sample', font: 'FluidR3_GM', variant: 0, level: 1.0,  pieces: ACOUSTIC_PIECES },
+    kit_acoustic_soft: { engine: 'sample', font: 'FluidR3_GM', variant: 0, level: 0.82, pieces: ACOUSTIC_PIECES },
+    kit_jazz:          { engine: 'sample', font: 'FluidR3_GM', variant: 0, level: 0.8,  pieces: ACOUSTIC_PIECES },  // brush sample set = later curation
+    // kit_latin / kit_afro (percussion-led) → Phase D6
   };
-  const DRUM_KIT_FAMILY_DEFAULT = { electronic: 'kit_909', acoustic: 'kit_rock', clean: 'kit_rock', distorted: 'kit_rock' };
+  const DRUM_KIT_FAMILY_DEFAULT = { electronic: 'kit_909', acoustic: 'kit_acoustic_soft', clean: 'kit_rock', distorted: 'kit_rock' };
+  // Core groove staples preloaded at generate; cymbals/toms lazy-load on first hit.
+  const DRUM_CORE_PIECES = ['kick', 'snare', 'hatClosed', 'hatOpen'];
 
   // ── STYLE_PALETTES — one shared style→harmony table (build-queue #2) ──────────
   // The single source a Pathway, a Custom config, and a Jam style all draw from:
@@ -1820,29 +1836,38 @@
   // Returns an awaitable promise that resolves when the load SETTLES (ready OR
   // failed) — so callers can wait for the voice before scheduling, preventing the
   // oscillator→WAF swap mid-exercise. Concurrent calls share the in-flight promise.
-  function ensureWafPreset(gm) {
-    if (gm == null) return Promise.resolve();
-    const prev = wafPresets[gm];
+  // Low-level loader: cache `key` → load `varName` from `url` (settles ready|failed).
+  // Both the melodic GM path and the drum-preset path (Phase D4) go through this.
+  function loadWafPreset(key, varName, url) {
+    if (key == null) return Promise.resolve();
+    const prev = wafPresets[key];
     if (prev && (prev.state === 'loading' || prev.state === 'ready')) return prev.promise || Promise.resolve(); // in-flight or done; RETRY on prior 'failed'
     const entry = { state: 'loading', preset: null, promise: null };
-    wafPresets[gm] = entry;
+    wafPresets[key] = entry;
     entry.promise = (async () => {
       try {
         await loadScriptOnce('slopscale-waf-player', WAF_PLAYER_URL);
         if (typeof WebAudioFontPlayer === 'undefined') throw new Error('WebAudioFontPlayer missing');
         if (!wafPlayer) wafPlayer = new WebAudioFontPlayer();
         const ctx = audioCtx || (audioCtx = new (window.AudioContext || window.webkitAudioContext)());
-        if (!window[wafVar(gm)]) await loadScriptOnce('slopscale-waf-' + gm, wafUrl(gm));
-        const preset = window[wafVar(gm)];
+        if (!window[varName]) await loadScriptOnce('slopscale-waf-' + key, url);
+        const preset = window[varName];
         if (!preset) throw new Error('preset var missing');
         wafPlayer.adjustPreset(ctx, preset);
         entry.state = 'ready'; entry.preset = preset;
       } catch (e) {
-        entry.state = 'failed'; entry.preset = null; // silent → oscillator fallback
+        entry.state = 'failed'; entry.preset = null; // silent → oscillator/synth fallback
       }
     })();
     return entry.promise;
   }
+  function ensureWafPreset(gm) {
+    if (gm == null) return Promise.resolve();
+    return loadWafPreset(gm, wafVar(gm), wafUrl(gm));
+  }
+  // Load a drum one-shot preset (Phase D4). Keyed by its var name (no collision with
+  // the melodic GM-number keys), served from static/wafonts/ by the /wafont route.
+  function ensureDrumPreset(varName, file) { return loadWafPreset(varName, varName, WAF_BASE + file); }
   function getReadyWafPreset(gm) { return (gm != null && wafPresets[gm] && wafPresets[gm].state === 'ready') ? wafPresets[gm].preset : null; }
   // Which sampled-voice GM presets the bundle's ENABLED audio actually needs.
   function resolveVoiceGms(bundle) {
@@ -1856,16 +1881,35 @@
   }
   // Kick the (async) load of every sampled voice the bundle needs, WITHOUT waiting —
   // call at generate time so the preset is usually warm by the time Play is pressed.
-  function prewarmVoices(bundle) { resolveVoiceGms(bundle || activeBundle).forEach(gm => ensureWafPreset(gm)); }
+  function prewarmVoices(bundle) {
+    resolveVoiceGms(bundle || activeBundle).forEach(gm => ensureWafPreset(gm));
+    const dk = activeSampleDrumKit(bundle || activeBundle);
+    if (dk) DRUM_CORE_PIECES.forEach(p => ensureDrumPiece(dk, p));   // preload the groove staples (Phase D4)
+  }
+  // The active sample-engine drum kit for this bundle (or null: synth kit / drums off).
+  function activeSampleDrumKit(bundle) {
+    const cfg = readConfig();
+    const audio = (bundle && bundle.config && bundle.config.audio) || cfg.audio;
+    if (!audio || !audio.harmony || audio.drums === false) return null;
+    const kit = resolveDrumKit(resolveAudioProfile({ ...cfg, audio }));
+    return (kit && kit.engine === 'sample' && kit.pieces) ? kit : null;
+  }
+  function ensureDrumPiece(kit, piece) {
+    const note = kit.pieces[piece]; if (note == null) return Promise.resolve();
+    return ensureDrumPreset(drumVar(note, kit.font, kit.variant), drumFile(note, kit.font, kit.variant));
+  }
   // WAIT (capped) for those loads before the first pass is scheduled, so playback
   // starts on the sampled voice instead of starting on the oscillator and swapping
   // to WAF mid-exercise once the load lands. Falls through on timeout/failure (the
-  // per-voice oscillator fallback still covers it).
+  // per-voice oscillator/synth fallback still covers it). Includes the core drum
+  // pieces so the kit starts on samples, not the synth fallback.
   async function awaitVoices(bundle, capMs) {
     const gms = resolveVoiceGms(bundle || activeBundle);
-    if (!gms.length) return;
+    const dk = activeSampleDrumKit(bundle || activeBundle);
+    const drumPromises = dk ? DRUM_CORE_PIECES.map(p => ensureDrumPiece(dk, p)) : [];
+    if (!gms.length && !drumPromises.length) return;
     let timer; const cap = new Promise(r => { timer = setTimeout(r, capMs || 2000); });
-    try { await Promise.race([Promise.all(gms.map(gm => ensureWafPreset(gm))), cap]); }
+    try { await Promise.race([Promise.all([...gms.map(gm => ensureWafPreset(gm)), ...drumPromises]), cap]); }
     finally { clearTimeout(timer); }
   }
 
@@ -2663,20 +2707,36 @@
   // a `noSwing` flag for pre-swung cells). Concatenated into backingEvents in
   // makeBundle BEFORE the count-in shift + swing, so drums get count-in silence
   // and the global swing warp for free. Open hats are choked to the next hat.
+  // Open-hat choke: an open hat rings only until the next hat (closed or open).
+  function chokeOpenHats(events) {
+    const hats = events.filter(e => e.voice === 'hatOpen' || e.voice === 'hatClosed').sort((a, b) => a.t - b.t);
+    for (let i = 0; i < hats.length; i++) {
+      if (hats[i].voice !== 'hatOpen') continue;
+      const next = hats[i + 1];
+      if (next) hats[i].dur = Math.max(0.04, +(next.t - hats[i].t - 0.005).toFixed(6));
+    }
+    return events;
+  }
   function buildDrumEvents(cfg, duration, grooveId) {
+    if (!(duration > 0)) return [];
     const groove = DRUM_GROOVES[grooveId];
-    if (!groove || !(duration > 0)) return [];
-    const beatSec = (60 / cfg.bpm) * (4 / cfg.meter.denominator);
-    const div = Math.max(1, groove.div), numer = Math.max(1, cfg.meter.numerator);
-    const stepSec = beatSec / div, stepsPerBar = numer * div;
+    const numer = Math.max(1, cfg.meter.numerator), denom = cfg.meter.denominator;
+    const div = groove ? Math.max(1, groove.div) : 2, stepsPerBar = numer * div;
+    const cellLen = groove ? Math.max(...Object.values(groove.lanes).map(s => s.length)) : 0;
+    // The authored cells are written for one meter (default 4/4). For any OTHER meter
+    // (odd/changing — out of authored-cell v1 scope per ROADMAP) we must NOT wrap a
+    // 4/4 cell across the bar; degrade to a grouping-based generic keep instead.
+    const fits = groove && (groove.sig || '4/4') === (numer + '/' + denom) && cellLen === stepsPerBar;
+    if (!fits) return chokeOpenHats(buildGenericDrumGroove(cfg, duration));
+    const beatSec = (60 / cfg.bpm) * (4 / denom), stepSec = beatSec / div;
     const voices = Object.keys(groove.lanes);
     const events = [];
     for (let barStart = 0; barStart < duration - 1e-4; barStart += stepsPerBar * stepSec) {
       for (const voice of voices) {
         const pat = groove.lanes[voice];
         for (let s = 0; s < stepsPerBar; s++) {
-          const tok = pat[s % pat.length];
-          if (!tok || tok === '.' || tok === '0') continue;
+          const tok = pat[s] || '.';
+          if (tok === '.' || tok === '0') continue;
           const t = barStart + s * stepSec;
           if (t >= duration - 1e-4) break;
           events.push({ t: +t.toFixed(6), end: +(t + 0.1).toFixed(6), role: 'drums', voice,
@@ -2685,12 +2745,31 @@
         }
       }
     }
-    // Open-hat choke: an open hat rings only until the next hat (closed or open).
-    const hats = events.filter(e => e.voice === 'hatOpen' || e.voice === 'hatClosed').sort((a, b) => a.t - b.t);
-    for (let i = 0; i < hats.length; i++) {
-      if (hats[i].voice !== 'hatOpen') continue;
-      const next = hats[i + 1];
-      if (next) hats[i].dur = Math.max(0.04, +(next.t - hats[i].t - 0.005).toFixed(6));
+    return chokeOpenHats(events);
+  }
+  // Meter-agnostic generic time-keep for any meter the authored cells don't cover.
+  // Kick on the group-starts (the felt pulse — 7/8 = 2+2+3 kicks at beats 0,2), snare
+  // on the last group-start (a backbeat-ish accent), closed hat on every beat. Never
+  // crams a 4/4 cell into an odd bar, and follows cfg.meter.grouping so 7/8 limps as
+  // 2+2+3 rather than a square 4. Not pre-swung, so a global swing still applies.
+  function buildGenericDrumGroove(cfg, duration) {
+    const numer = Math.max(1, cfg.meter.numerator);
+    const beatSec = (60 / cfg.bpm) * (4 / cfg.meter.denominator);
+    const grouping = (cfg.meter.grouping && cfg.meter.grouping.length) ? cfg.meter.grouping : [numer];
+    const groupStarts = []; { let g = 0; for (const w of grouping) { if (g < numer) groupStarts.push(g); g += w; } }
+    let kickBeats, snareBeats;
+    if (groupStarts.length >= 2) { kickBeats = new Set(groupStarts.slice(0, -1)); snareBeats = new Set([groupStarts[groupStarts.length - 1]]); }
+    else { kickBeats = new Set([0]); snareBeats = new Set([Math.floor(numer / 2)]); }
+    const barSec = numer * beatSec, events = [];
+    for (let barStart = 0; barStart < duration - 1e-4; barStart += barSec) {
+      for (let i = 0; i < numer; i++) {
+        const t = barStart + i * beatSec;
+        if (t >= duration - 1e-4) break;
+        const mk = (voice, vel, accent) => events.push({ t:+t.toFixed(6), end:+(t + 0.1).toFixed(6), role:'drums', voice, velocity:vel, accent:!!accent, ghost:false, noSwing:false });
+        mk('hatClosed', DRUM_VELOCITY.n, false);
+        if (kickBeats.has(i)) mk('kick', i === 0 ? DRUM_VELOCITY.a : DRUM_VELOCITY.n, i === 0);
+        if (snareBeats.has(i)) mk('snare', DRUM_VELOCITY.a, true);
+      }
     }
     return events;
   }
@@ -5784,7 +5863,7 @@
   };
   // Per-channel kit options for the Drums channel (Phase D). Values are KIT_REGISTRY
   // ids; '' = Auto (use the style profile's kit). Sampled kits join in D4.
-  const MIXER_KITS = [['','Auto'],['kit_909','Synth 909'],['kit_808','Synth 808']];
+  const MIXER_KITS = [['','Auto'],['kit_rock','Acoustic rock'],['kit_acoustic_soft','Acoustic soft'],['kit_jazz','Jazz kit'],['kit_909','Synth 909'],['kit_808','Synth 808']];
   const mixerState = {};
   let mixerBackingDim = false;
   MIXER_CHANNELS.forEach(c => { mixerState[c.key] = { level:1, mute:false, solo:false, instrument:null, kit:null }; });
@@ -6159,7 +6238,39 @@
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     _drumNoiseBuf = buf; _drumNoiseCtx = ctx; return buf;
   }
+  // Natural ring-out per piece for sampled hits (cymbals ring; hats/kick are short).
+  // hatOpen uses the choke dur from buildDrumEvents instead.
+  const DRUM_NATURAL_DUR = { kick:0.5, snare:0.4, hatClosed:0.12, hatPedal:0.1, hatOpen:0.5, ride:0.6, crash:2.0, tomHi:0.5, tomMid:0.5, tomLo:0.5, clap:0.3 };
+  // Play one sampled drum hit via WebAudioFont — wafVoice MINUS wafLoudnessTrim (a
+  // drum note number is a piece selector, not a pitch, so the pitch-tilt is wrong).
+  // Routes through the drum sub-bus (its own comp + shelf, before the master limiter).
+  function wafDrumVoice(ctx, preset, note, when, vol, dur) {
+    if (!wafPlayer || !preset) return;
+    const e = wafPlayer.queueWaveTable(ctx, trackBus(ctx, 'drums'), preset, when, note, Math.max(0.08, dur || 0.4), Math.max(0, vol));
+    if (e) audioNodes.push({ stop() { try { e.cancel(); } catch (_) {} }, disconnect() {} });
+  }
+  // Dispatch one drum hit. Sample kits (Phase D4) play the FluidR3 one-shot when its
+  // preset is loaded; until then (or for a missing piece) they fall back to the synth
+  // 909 voice — degraded-but-audible, never silent (matches the melodic failover).
   function scheduleDrumHit(ctx, kit, piece, when, vol, dur) {
+    if (kit && kit.engine === 'sample' && kit.pieces) {
+      const note = kit.pieces[piece];
+      if (note != null) {
+        ensureDrumPiece(kit, piece);   // lazy-load cymbals/toms on first use
+        const preset = getReadyWafPreset(drumVar(note, kit.font, kit.variant));
+        if (preset) {
+          const d = (piece === 'hatOpen' && Number.isFinite(dur)) ? dur : (DRUM_NATURAL_DUR[piece] || 0.4);
+          wafDrumVoice(ctx, preset, note, when, Math.max(0, vol) * (kit.level || 1), d);
+          return;
+        }
+      }
+      scheduleSynthDrumHit(ctx, '909', piece, when, vol, dur);   // fallback: cold-load / missing piece
+      return;
+    }
+    scheduleSynthDrumHit(ctx, (kit && kit.preset) || '909', piece, when, vol, dur);
+  }
+  // Procedural synth drum voice (808/909) — the electronic kits + the sample failover.
+  function scheduleSynthDrumHit(ctx, preset, piece, when, vol, dur) {
     const out = trackBus(ctx, 'drums');
     const v = Math.max(0, vol || 0);
     if (v <= 0) return;
@@ -6170,7 +6281,7 @@
       g.gain.exponentialRampToValueAtTime(p, when + RAMP);
       g.gain.exponentialRampToValueAtTime(0.0001, when + RAMP + Math.max(0.02, decay));
     };
-    const is808 = kit === '808';
+    const is808 = preset === '808';
     const noise = (peak, decay, type, freq, q) => {
       const n = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
       n.buffer = drumNoiseBuffer(ctx);
@@ -6237,14 +6348,13 @@
         break;
     }
   }
-  // Resolve the active drum kit's synth preset id ('808'|'909'). Mixer kit override
-  // wins; an unregistered kit (e.g. a sampled kit before Phase D4) falls back to
-  // kit_909 so the band is never silent.
+  // Resolve the active drum kit OBJECT. Mixer kit override wins, then the profile's
+  // kit, then kit_909. An unregistered id falls back to kit_909 so the band is never
+  // silent. The returned object carries `id` + the kit's engine/preset/pieces.
   function resolveDrumKit(profile) {
-    let kitId = mixerKitFor('drums') || (profile && profile.drums && profile.drums.kit) || 'kit_909';
-    let reg = KIT_REGISTRY[kitId];
-    if (!reg) reg = KIT_REGISTRY.kit_909;
-    return reg.preset;
+    const kitId = mixerKitFor('drums') || (profile && profile.drums && profile.drums.kit) || 'kit_909';
+    const reg = KIT_REGISTRY[kitId] || KIT_REGISTRY.kit_909;
+    return Object.assign({ id: KIT_REGISTRY[kitId] ? kitId : 'kit_909' }, reg);
   }
   // ── Per-voice level consistency (audio-realism Phase A) ─────────────────────
   // One named vol per role (not magic scalars scattered through the scheduler) +
