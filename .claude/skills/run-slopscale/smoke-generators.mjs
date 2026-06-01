@@ -62,15 +62,16 @@ function runMatrixInPage({ mode, overridesList, stringCount }) {
     const notes = Array.isArray(c.notes) ? c.notes : [];
     if (notes.length === 0) fatal.push("no notes");
     if (!Array.isArray(c.beats) || c.beats.length === 0) warn.push("no beats");
-    let maxS = -1;
+    // String index must be inside the instrument's range — FATAL, not a warning
+    // (a bass-invalid string is a real regression, not a nit). Use the chart's
+    // string count; fall back to the 8-string guitar ceiling if it's unknown.
+    const maxStrings = Number.isInteger(sc) && sc > 0 ? sc : 8;
     for (const n of notes) {
       if (typeof n.t !== "number" || !isFinite(n.t) || n.t < 0) { fatal.push(`bad t=${n.t}`); break; }
-      if (!Number.isInteger(n.s) || n.s < 0 || n.s >= 8) { fatal.push(`bad string=${n.s}`); break; }
+      if (!Number.isInteger(n.s) || n.s < 0 || n.s >= maxStrings) { fatal.push(`bad string=${n.s} (max ${maxStrings})`); break; }
       if (!Number.isInteger(n.f) || n.f < 0 || n.f > 30) { fatal.push(`bad fret=${n.f}`); break; }
       if (n.sus !== undefined && (typeof n.sus !== "number" || n.sus <= 0)) { fatal.push(`bad sus=${n.sus}`); break; }
-      if (n.s > maxS) maxS = n.s;
     }
-    if (maxS >= sc) warn.push(`string ${maxS} >= count ${sc}`);
     return { fatal, warn, notes: notes.length };
   }
 
@@ -142,7 +143,8 @@ async function run() {
       });
       sections.push({ name: `bass (${bassVal}) practice types`, rows: p3 });
     } else {
-      sections.push({ name: "bass", rows: [{ label: "instrument select / bass option not found", ok: true, fatal: [], warn: ["skipped"], notes: 0 }] });
+      // A missing bass option is a real UI/config regression — fail, don't skip.
+      sections.push({ name: "bass", rows: [{ label: "instrument select / bass option not found", ok: false, fatal: ["bass option missing; bass string-count smoke not executed"], warn: [], notes: 0 }] });
     }
 
     // ── Phase 4: built-in sessions via the UI launch path ──────────────────

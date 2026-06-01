@@ -257,7 +257,7 @@ Take a jazz standard's chord changes. Apply the bebop scale exercise over one fu
 
 6. **Song context as the long-term motivator.** Established pedagogy emphasizes that exercises only stick when tied to real music. SlopScale could add a "song suggestion" display on pathway screens — e.g., "This scale is used in [song] — try it there after this drill."
 
-7. **The student should improvise over the exercise backing.** The current architecture launches into the main Slopsmith player, which provides backing audio. Rhythm-section backing as soon as possible is the recommended approach. The "Play" flow is correct; maintain it as the primary UX.
+7. **The student should improvise over the exercise backing.** The current architecture uses contained playback inside SlopScale (its own transport + Web Audio backing, not the host player). Rhythm-section backing as soon as possible is the recommended approach. Keep the in-plugin "Play" flow as the primary UX.
 
 8. **The 12-step procedure maps onto a pathway level system.** SlopScale could surface this as an explicit "Depth" setting: Level 1 = root only, Level 2 = root + 2 notes, ... Level 8 = full scale, Level 12 = broken thirds + arpeggios. Each level is a distinct exercise, not just the same exercise faster.
 

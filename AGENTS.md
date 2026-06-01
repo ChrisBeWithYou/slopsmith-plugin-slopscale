@@ -4,7 +4,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## What this is
 
-**SlopScale** is a **Slopsmith plugin** — it is not a standalone app. It generates guitar/bass scale, arpeggio, and sweep-arpeggio practice routines and runs them through Slopsmith's existing player. Install by dropping the repo into Slopsmith's `plugins/` directory and restarting; the plugin then appears in the Slopsmith navigation as "SlopScale".
+**SlopScale** is a **Slopsmith plugin** — it is not a standalone app. It generates guitar/bass scale, arpeggio, and sweep-arpeggio practice routines and plays them back inside the plugin (contained playback — see "Contained playback" below). Install by dropping the repo into Slopsmith's `plugins/` directory and restarting; the plugin then appears in the Slopsmith navigation as "SlopScale".
 
 The plugin has no build step. There is no `package.json`, no compiler, no bundler. All files are served directly by Slopsmith's FastAPI host.
 
@@ -196,7 +196,7 @@ All note objects in the exercise payload use compact keys (see `docs/exercise-sc
 
 ## Key constraints (from docs/architecture.md)
 
-- **Never duplicate the player.** SlopScale generates chart data; Slopsmith plays it. Do not build a second transport, WebSocket handler, or canvas lifecycle inside the plugin.
+- **Contained playback — one player, owned by SlopScale.** Under the current model (decided 2026-05-30; see "Contained playback") SlopScale runs its **own** transport/audio/canvas lifecycle in `screen.js`. Do NOT reintroduce host-player handoff (`window.playSong`), and do NOT build a *second* transport/WebSocket/canvas beyond that one contained player.
 - **Backend routes must stay under `/api/plugins/slopscale/…`.**
 - **`window.playSong`, `window.showScreen`, `window.createHighway`, and `window.slopsmith`** are Slopsmith's public frontend APIs. Do not monkey-patch them. (`goScreen()` uses `window.slopsmith.navigate` / `window.showScreen` for navigation only.)
 - **Don't globally clobber `window.AudioContext`** (or any shared browser global) in a way that degrades it for other plugins. SlopScale *does* replace it (`patchAudioContextForSharing`) with a click-suppressing stub for the borrowed highway_3d — but the stub is returned **only while SlopScale's own screen is active** (`#slopscale-root` has an `offsetParent`); when SlopScale is backgrounded, `new AudioContext()` must be the real thing, or the host player's stem loader gets a context with no `decodeAudioData` (the v0.5.0 cross-plugin regression: a too-broad gate poisoned the global session-wide once the pathway-select preload created the ctx). Guarded by `smoke-audioctx.mjs`.
