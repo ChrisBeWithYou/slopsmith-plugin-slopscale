@@ -2153,6 +2153,19 @@
     return out;
   }
 
+  // Map a (possibly out-of-range) linear index onto [0, len-1] by REFLECTION
+  // (a triangle wave) instead of wraparound (a sawtooth). When a run walks past
+  // the end of a box, wraparound teleports top→bottom (a ~2-octave leap); a
+  // reflection bounces back stepwise, the way a player turns a run around at the
+  // edge of a position. Used by the chord-scale bar emission so neither a short
+  // box nor a mid-box entry point produces an unplayable intra-bar jump.
+  function reflectIdx(p, len) {
+    if (len <= 1) return 0;
+    const period = 2 * (len - 1);
+    const m = ((p % period) + period) % period;
+    return m < len ? m : period - m;
+  }
+
   function positionsForPitchClass(pc, cfg) {
     const opens = openMidisForConfig(cfg), out = [];
     for (let s = 0; s < cfg.stringCount; s++) for (let f = cfg.fretMin; f <= cfg.fretMax; f++) {
@@ -2928,7 +2941,10 @@
       else startIdx = connectStartIdx(path, prevMidi, guidePcs, chordPcs, rootPc);
       let lastMidi = prevMidi;
       for (let i = 0; i < notesPerBar; i++) {
-        const p = path[(startIdx + i) % path.length];
+        // Reflect (bounce at the box edges) rather than wrap (teleport top→bottom)
+        // — keeps the run stepwise when notesPerBar exceeds the box or the entry
+        // point is mid-box. Pre-existing leap fixed for both Park and Connect.
+        const p = path[reflectIdx(startIdx + i, path.length)];
         const onBeat = i % Math.max(1, cfg.meter.numerator) === 0;
         const isTarget = strategy !== 'chord_tone_emphasis' && i === 0 && guidePcs.has(p.pc); // the resolved guide tone on the change
         const isChordTone = strategy === 'chord_tone_emphasis' && chordPcs.has(p.pc);

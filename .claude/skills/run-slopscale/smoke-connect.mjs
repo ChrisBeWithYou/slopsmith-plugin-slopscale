@@ -30,13 +30,26 @@ try {
   await page.waitForSelector(".slopscale-view-btn");
   await page.waitForFunction(() => window.SlopScale && typeof window.SlopScale.generateExercise === "function", { timeout: 10000 });
 
-  const ex = await page.evaluate(() => {
+  const run = (form) => page.evaluate((f) => {
     const setForm = (o) => { for (const [k, v] of Object.entries(o)) { const el = document.querySelector(`#slopscale-controls [name="${k}"]`); if (el) el.value = String(v); } };
     const adv = document.querySelector('[name="advancedMode"]'); if (adv) { adv.checked = true; adv.dispatchEvent(new Event("change", { bubbles: true })); }
-    setForm({ stringSetup: "guitar_6_standard", practiceType: "chord_scales", chordScaleStrategy: "mode_of_moment", progression: "ii-V-I", key: "C", scale: "major", chordDepth: "seventh", chordOverride: "auto", fretboardSystem: "caged", shape: "E", subdivision: "eighth", bars: "6", direction: "up_down", sequence: "none" });
+    setForm(f);
     const e = window.SlopScale.generateExercise(window.SlopScale.readConfig());
     return { notes: e.chart.notes.map(n => ({ t: n.t, s: n.s, f: n.f })), sections: (e.chart.sections || []).map(x => ({ name: x.name, time: x.time })), chords: (e.chart.chords || []).map(c => ({ t: c.t })) };
-  });
+  }, form);
+
+  // Largest interval between TIME-CONSECUTIVE notes across the whole run. The
+  // pre-existing intra-bar wrap bug produced ~29-39st leaps here; legit motion
+  // (in-box steps + voice-led seams + reflective turnarounds) stays well under an
+  // octave. Guards the reflectIdx fix against regression.
+  const maxConsecutive = (notes) => {
+    const seq = notes.slice().sort((a, b) => a.t - b.t).map(n => OPENS_6[n.s] + n.f);
+    let mx = 0;
+    for (let i = 1; i < seq.length; i++) mx = Math.max(mx, Math.abs(seq[i] - seq[i - 1]));
+    return mx;
+  };
+
+  const ex = await run({ stringSetup: "guitar_6_standard", practiceType: "chord_scales", chordScaleStrategy: "mode_of_moment", progression: "ii-V-I", key: "C", scale: "major", chordDepth: "seventh", chordOverride: "auto", fretboardSystem: "caged", shape: "E", subdivision: "eighth", bars: "6", direction: "up_down", sequence: "none" });
 
   // Group notes into bars by chord start time; first/last note per bar.
   const bars = ex.chords.map((c, i) => {
@@ -70,6 +83,24 @@ try {
   ok(rootStarts === 0, "no chord (after the first) restarts the run on its root", `${rootStarts}/${checked} were root-starts`);
   ok(guideStarts >= Math.ceil(checked * 0.75), "most changes land on a guide tone (3rd/7th)", `${guideStarts}/${checked} guide-tone landings`);
   ok(maxSeam > 0 && maxSeam <= 7, "seam interval stays small (voice-leading, not a jump)", `max seam ${maxSeam}st`);
+
+  console.log("-- intra-bar leap guard (the pre-existing modulo-wrap bug; stress configs) --");
+  const baseMx = maxConsecutive(ex.notes);
+  ok(baseMx <= 13, "ii-V-I run has no teleport leap", `max consecutive ${baseMx}st`);
+  // Sparse box + fast subdivision: minor-pentatonic CAGED at 16ths (few notes/box,
+  // many notes/bar — the case that wrapped multiple times).
+  const sparse = await run({ stringSetup: "guitar_6_standard", practiceType: "chord_scales", chordScaleStrategy: "mode_of_moment", progression: "12_bar_blues", key: "A", scale: "minor_pentatonic", chordDepth: "seventh", chordOverride: "dom7", fretboardSystem: "caged", shape: "E", subdivision: "sixteenth", bars: "6", direction: "up_down", sequence: "none" });
+  const sparseMx = maxConsecutive(sparse.notes);
+  ok(sparseMx <= 13, "sparse pentatonic @16ths has no teleport leap", `max consecutive ${sparseMx}st`);
+  // Wide window: full-neck-ish position range.
+  const wide = await run({ stringSetup: "guitar_6_standard", practiceType: "chord_scales", chordScaleStrategy: "mode_of_moment", progression: "ii-V-I", key: "C", scale: "major", chordDepth: "seventh", chordOverride: "auto", fretboardSystem: "position", fretMin: "0", fretMax: "15", subdivision: "eighth", bars: "6", direction: "up_down", sequence: "none" });
+  const wideMx = maxConsecutive(wide.notes);
+  ok(wideMx <= 13, "wide 0-15 position window has no teleport leap", `max consecutive ${wideMx}st`);
+  // Park (chord_tone_emphasis) shared the bug — guard it too.
+  const park = await run({ stringSetup: "guitar_6_standard", practiceType: "chord_scales", chordScaleStrategy: "chord_tone_emphasis", progression: "12_bar_blues", key: "A", scale: "minor_pentatonic", chordDepth: "seventh", chordOverride: "dom7", fretboardSystem: "caged", shape: "E", subdivision: "sixteenth", bars: "6", direction: "up_down", sequence: "none" });
+  const parkMx = maxConsecutive(park.notes);
+  ok(parkMx <= 13, "Park strategy also has no teleport leap", `max consecutive ${parkMx}st`);
+
   ok(pageErrs.length === 0, "no uncaught page errors", pageErrs.join(" | "));
   console.log(`\n${fails === 0 ? "PASS" : "FAIL"}  connect keystone: ${fails} failure(s)`);
   process.exit(fails ? 1 : 0);
