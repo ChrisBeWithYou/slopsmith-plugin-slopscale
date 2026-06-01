@@ -170,7 +170,7 @@ Expected: 2 bars of metronome click, then a D major scale run in DADGAD tuning a
 | `screen.js` | Practice generator + built-in renderers + theme + tuning + share-link logic |
 | `routes.py` | DB-backed preset + tuning persistence, temporary chart-export backend |
 | `settings.html` | Plugin settings / info panel |
-| `static/slopscale.css` | External stylesheet |
+| `static/` | Self-hosted audio assets (`wafonts/` sampler, `irs/` cab IRs, `nam/` amp captures) served by `routes.py` |
 | `docs/architecture.md` | Integration design notes |
 | `docs/section-looping.md` | A-B loop framework + Slopsmith looping recon |
 | `docs/exercise-schema.md` | Internal generated exercise schema |
