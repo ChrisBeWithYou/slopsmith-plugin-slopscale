@@ -726,6 +726,22 @@ primitives **once** collapses whole tiers from weeks to days — they each serve
 3. **Wave 3 — Tier 2 genres** over the new primitives (rock, country, prog, gospel, funk, pop).
 4. **Wave 4 — drum engine D5–D6**, then the Tier-3 groove genres collapse to cheap content waves.
 
+**Progress (2026-06-01) — Wave 1 vet + riff-library spec drafted (idiom sign-off pending):**
+- `docs/riff-archetypes.md` — the riff-template library spec. Finding: **metal is ~85%
+  expressible today** (7 ✅ archetypes over `pedal_riff`/`gallop`/polymeter; gaps = the 4
+  roadmap-flagged follow-ups T1–T4); **country's riff vocab is essentially unmodelled** (mostly
+  🔲, clustering on C1–C4 — alternating-bass, oblique double-stop bend, chicken-pickin' attack,
+  banjo-roll). Keystone: **C1 alternating-bass rides on `buildCompingExercise` (#7)**.
+- `docs/wave1-palette-vet.md` — **all 9 palettes are token-valid** (integrity guard passes); idiom
+  flags are minor/non-blocking (mostly `backingStyle:'pad'` placeholders pending the groove
+  engine). Identified **~16 new pathways buildable TODAY over existing generators** (5 blues + 8
+  jazz + 5 metal), each passing the Primitive Test — ~doubles blues/jazz/metal with zero engine
+  work. Deferred pathways all cluster onto Wave 2 primitives.
+- ⚠ **Sign-off pending (local-only agents):** both docs are main-thread drafts; `metal-idiom`,
+  `country-idiom`, `harmony-theory`, `guitar-pedagogy` review is the queued "done" gate. Then:
+  build the ~16 vetted pathways as one content commit; schedule `buildCompingExercise`+`altBass`
+  as the first Wave 2 primitive (unblocks the most deferred pathways across 6 genres).
+
 ---
 
 ## Phase 5 — Scoring Integration + Adaptive Practice

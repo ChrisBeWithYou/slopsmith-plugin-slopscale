@@ -41,6 +41,8 @@ The planned random-style generator is an **idiom-demonstration / practice-variet
 | `docs/theory-caged.md` / `theory-scales.md` / `theory-arpeggios.md` / `theory-jazz-advanced.md` / `theory-progressions.md` | Distilled theory knowledge base (CAGED, scales, arpeggios, advanced jazz, cross-genre progressions). |
 | `docs/genre-framework-guitar.md` | Genre/style framework behind the progression library and random-style generator. |
 | `docs/genre-research-spec.md` | Repeatable per-genre intake form + the Width Doctrine + Primitive Test (how to author a genre pack wide without becoming a solo generator). Read before authoring any genre pack; the ROADMAP "Genre & pathway expansion plan" tracks the backlog. |
+| `docs/riff-archetypes.md` | Riff-archetype template library spec (metal + country + funk preview): each signature riff as a parameterized template mapped to real generator knobs or a flagged new primitive. Draft — idiom sign-off pending. |
+| `docs/wave1-palette-vet.md` | Wave 1 of the expansion plan: the 9-palette content vet + ~16 widened blues/jazz/metal pathways buildable over existing generators. Draft — idiom/harmony sign-off pending. |
 | `docs/musicality-guardrails.md` | Spec for keeping generated output musically pleasing, not just theoretically correct (voicing engine rationale). |
 | `docs/section-looping.md` | Section/segment looping design notes. |
 | `docs/ui-session.md` | Session UI design notes. |
