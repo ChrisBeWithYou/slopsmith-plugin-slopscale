@@ -641,6 +641,16 @@
   .slopscale-pw-next { font-size: 10px; color: #94a3b8; font-weight: 700; white-space: nowrap; }
   .slopscale-pw-dots { display: flex; gap: 3px; }
   .slopscale-pw-sub { font-size: 10.5px; color: #94a3b8; }
+  /* First-run primed START CTA — the one lit primary action in Pathways mode. */
+  .slopscale-start-cta { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: left; padding: 11px 14px; margin: 6px 0 2px; border-radius: 10px; border: 1px solid var(--ss-accent, #4080e0); background: linear-gradient(180deg, #1e40af, #1d4ed8); color: #f8fafc; cursor: pointer; transition: filter 0.12s; box-shadow: 0 2px 12px rgba(29,78,216,0.35); }
+  .slopscale-start-cta:hover { filter: brightness(1.08); }
+  .slopscale-start-cta:active { filter: brightness(0.95); }
+  .slopscale-start-main { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .slopscale-start-verb { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; opacity: 0.85; }
+  .slopscale-start-name { font-size: 15px; font-weight: 700; }
+  .slopscale-start-skill { font-size: 11.5px; color: #c7d2fe; }
+  .slopscale-start-skill:empty { display: none; }
+  .slopscale-start-cta.playing { background: linear-gradient(180deg, #7f1d1d, #991b1b); border-color: #ef4444; box-shadow: 0 2px 12px rgba(153,27,27,0.35); }
   /* Four-mode shell: the "what is this mode" line under the switcher (activation
      legibility), and the Jam-mode Inspector skeleton (style grid + Jam action). */
   .slopscale-mode-desc { font-size: 11.5px; color: var(--ss-text-muted, #94a3b8); margin: -2px 2px 2px; min-height: 14px; }
@@ -851,6 +861,15 @@
       <div class="slopscale-single-only">
 
       <div class="slopscale-group-title slopscale-pathway-only">Development Pathways</div>
+      <!-- First-run primed primary action: ONE lit "▶ START" CTA naming the exercise
+           + a short skill hook (market activation guardrail = exactly one lit primary,
+           visible on first paint — so it sits above the picker). Starts the pathway
+           (onPlayToggle); the preview stays static until pressed (no auto-play,
+           hearing-safe). Reflects play/stop state; the picker below changes it. -->
+      <button type="button" class="slopscale-start-cta slopscale-pathway-only" id="slopscale-start-cta">
+        <span class="slopscale-start-main"><span class="slopscale-start-verb" id="slopscale-start-verb">▶ START</span> <span class="slopscale-start-name" id="slopscale-start-name">Chromatic Warmup</span></span>
+        <span class="slopscale-start-skill" id="slopscale-start-skill"></span>
+      </button>
       <!-- Hidden select keeps all existing onChange / applyPathwayById logic intact -->
       <select name="pathway" id="slopscale-pathway" style="display:none;">
         <option value="custom">Custom — full control</option>

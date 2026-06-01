@@ -5095,6 +5095,24 @@
     if (!btn) return;
     btn.classList.toggle('is-playing', !!playing);
     btn.textContent = playing ? '■ Stop' : '▶ Play';
+    updateStartCta();
+  }
+  // First-run primed START CTA (Pathways mode): names the exercise + a short skill
+  // hook from the goal, and mirrors the transport (START ⇄ STOP). The one lit primary
+  // action on first paint; the preview stays static until pressed (no auto-play).
+  function startSkillHook(pw) {
+    if (!pw || !pw.goal) return '';
+    const seg = pw.goal.split(/[—:.]/)[0].trim();
+    return seg.length > 52 ? seg.slice(0, 50).trim() + '…' : seg;
+  }
+  function updateStartCta() {
+    const cta = $('slopscale-start-cta'); if (!cta) return;
+    const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
+    const verb = $('slopscale-start-verb'), name = $('slopscale-start-name'), skill = $('slopscale-start-skill');
+    if (verb) verb.textContent = playing ? '■ STOP' : '▶ START';
+    if (name) name.textContent = pw ? pw.label : 'this exercise';
+    if (skill) skill.textContent = pw ? startSkillHook(pw) : '';
+    cta.classList.toggle('playing', !!playing);
   }
   // ── Live fretboard strip ──────────────────────────────────────────────────
   // A horizontal neck diagram docked under the highway that lights up the
@@ -6828,6 +6846,7 @@
       if (tag) tag.textContent = modified ? 'Modified' : 'Goal';
       card.classList.toggle('modified', !!modified);
     }
+    updateStartCta();   // keep the primed START CTA's name/skill in sync
   }
 
   // Translate the named Position dropdown into raw fretMin/fretMax inputs.
@@ -8085,6 +8104,8 @@
       });
     });
     $('slopscale-jam-go')?.addEventListener('click', jamPlay);
+    // First-run primed START CTA — starts the selected pathway (the one lit primary).
+    $('slopscale-start-cta')?.addEventListener('click', () => onPlayToggle());
     // Shell panels (M / P / [ / ?): visible buttons + the mixer's own controls.
     mixerLoad();
     $('slopscale-mixer-btn')?.addEventListener('click', () => toggleMixer());
