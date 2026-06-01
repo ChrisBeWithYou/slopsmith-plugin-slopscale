@@ -635,6 +635,85 @@ Framework build order is in that doc §4. These supersede the flat list below.*
 
 ---
 
+## 🌐 Genre & pathway expansion plan — research scope + the Width Doctrine (2026-06-01)
+
+*The plan for going wide on pathways/exercises without becoming a song/solo generator. Process
+doc: `docs/genre-research-spec.md` (the repeatable per-genre intake form + the Primitive Test +
+a filled Blues worked example). Read it before authoring any genre pack.*
+
+**The reframed question.** "How much research per genre" → "*which transferable primitives is
+this genre built from, and which already have a generator?*" That is a **bounded intake**, not an
+open study. One filled `genre-research-spec` per genre = a `STYLE_PALETTES` entry + a pathway
+slate + flagged primitive dependencies.
+
+**The Width Doctrine (the wiggle room is real — width is welcome).**
+- A genre's grammar is large; **go as wide as the genre has distinct transferable devices** —
+  one pathway (or small cluster) per primitive. Blues credibly earns ~10 pathways (shuffle, bend-
+  to-pitch, quick-change form, turnaround, double-stops, call-and-response, BB-box pivot, rake…)
+  with **zero solos**.
+- The cap is **not a quota** — it's the **Primitive Test** (names a transferable skill ·
+  recombinable not a sentence · idiomatic · north-star-justifiable). Pass all four or cut.
+- **Variety is already free** (key cycling · `vary[]` shapes · tempo tiers · Next Variation) —
+  never add a pathway for variety, only to name a *new skill*. That's what stops width becoming
+  padding, and makes the ceiling self-enforcing (enumerate the real devices → you're done).
+- **The line = "generated solos":** any pathway whose deliverable is a fixed composed phrase
+  memorised *as content*, that strings primitives into a finished statement *for* the player, or
+  that pursues length/completeness over skill-isolation. Reframe down to the primitive or cut.
+
+**Research-effort tiers (effort is uneven — theory base already carries the harmony).**
+- **Tier 1 — ~1–2 days, mostly a vetting pass.** Jazz, Blues, Metal, Fusion — primitives already
+  in `theory-*` + `genre-framework-guitar.md`; research = idiom + harmony sign-off on existing
+  palette/pathway DNA.
+- **Tier 2 — ~3–5 days.** Rock, Country, Prog, Gospel, Funk — ~65–75% groundwork; gap is
+  signature rhythm/articulation primitives + 1–2 generators.
+- **Tier 3 — ~1–2 weeks AND engine-gated.** Reggae, Afrobeat, Disco, Latin, Hiphop-fusion, NOLA,
+  Tango, Norteño — groove-defined; the research is a day, but credible shipping waits on the
+  **drum/feel engine** (Phase D D5–D6) and per-style groove cells. Don't ship as guitar-only.
+
+**Per-genre backlog (owner = idiom agent; deps = shared primitives that unlock it):**
+
+| Genre | Tier | Owner (idiom agent) | Est. pathway slate | Key primitive deps (shared) |
+|-------|------|---------------------|--------------------|------------------------------|
+| Blues | 1 | blues | ~10 (3 shipped) | `bend_microtonal`, `blues_turnaround`, `double_stop_bend`, `attack_rake` |
+| Jazz | 1 | jazz | ~10 (ii–V–I shipped) | `buildCompingExercise`, comping-rhythm cell |
+| Metal | 1 | metal | ~8 (5 shipped) | half-time-breakdown, composed harmonized-lead, true tremolo re-artic, herta/long-cycle |
+| Fusion | 1 | jazz/prog | ~6 | decoupled phrase clock, chromatic-enclosure (✅) |
+| Rock | 2 | rock | ~8 | dynamics/section model, open→barre bridge (✅ planned) |
+| Country | 2 | country | ~8 | banjo-roll/let-ring, hybrid-pick flag, oblique double-stop bend |
+| Prog | 2 | prog | ~6 | decoupled phrase clock, true compositional unison, odd/changing meter |
+| Gospel | 2 | gospel | ~6 | `buildCompingExercise`, extended-voicing comp, **drums** |
+| Funk / R&B | 2 | funk | ~7 | 16th-pocket groove, ghost-note model, **drums** |
+| Pop | 2 | pop | ~5 | four-on-floor backingStyle, **drums** |
+| Classical / fingerstyle | 2 | classical/flamenco | ~6 | **p-i-m-a RH-finger field**, counterpoint/voice model |
+| Latin | 3⛔ | latin/tango/norteno | ~6 | clave/montuno/tumbao groove cells, **drums (kit_latin)** |
+| Reggae | 3⛔ | reggae | ~4 | **one_drop groove**, bass-drop in backing, **drums** |
+| Afrobeat | 3⛔ | afrobeat | ~4 | highlife interlock, **drums (kit_afro)** |
+| Disco / dance | 3⛔ | disco | ~4 | four-on-floor, **kit_909** |
+| Hiphop-fusion | 3⛔ | hiphop-fusion | ~5 | half-time trap feel, 808, **drums** |
+| New Orleans | 3⛔ | new-orleans | ~4 | **second_line groove**, **drums** |
+| Soul / Motown | 3 | soul-motown | ~5 (bass-centric) | melodic-bass pathways, ghost-note pocket |
+
+*⛔ = Tier-3 engine-gated: research-cheap, blocked on the drum/groove engine, not on study.*
+
+**The real lever (not per-genre hours): the shared primitives.** Building the cross-genre
+primitives **once** collapses whole tiers from weeks to days — they each serve many genres:
+- `buildCompingExercise` (queued #7) → jazz, gospel, rock, country, pop.
+- Drum/groove engine (Phase D D5–D6) → every Tier-3 genre at once.
+- `bend_microtonal` / `double_stop_bend` / `attack_rake` → blues, country, rock.
+- decoupled phrase clock / compositional unison → prog, fusion, math-rock, metal.
+- p-i-m-a RH-finger field → classical, flamenco, folk fingerstyle.
+
+**Sequencing (waves, north-star-safe):**
+1. **Wave 1 — deepen the shipped 9 (Tier 1).** Idiom+harmony vet the existing palettes, then
+   widen blues/jazz/metal/fusion to their full primitive slates over *existing* generators. Pure
+   content; no engine risk. (Pairs with the long-pending "genre-idiom review of STYLE_PALETTES".)
+2. **Wave 2 — build the high-leverage shared primitives.** `buildCompingExercise` first (unlocks
+   5 genres + Core comping), then the blues/country articulation primitives.
+3. **Wave 3 — Tier 2 genres** over the new primitives (rock, country, prog, gospel, funk, pop).
+4. **Wave 4 — drum engine D5–D6**, then the Tier-3 groove genres collapse to cheap content waves.
+
+---
+
 ## Phase 5 — Scoring Integration + Adaptive Practice
 *Depends on Slopsmith's scorer API becoming available.*
 

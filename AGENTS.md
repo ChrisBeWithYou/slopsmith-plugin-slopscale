@@ -40,6 +40,7 @@ The planned random-style generator is an **idiom-demonstration / practice-variet
 | `docs/session-schema.md` | Session/segment data model used by `BUILT_IN_SESSIONS`. |
 | `docs/theory-caged.md` / `theory-scales.md` / `theory-arpeggios.md` / `theory-jazz-advanced.md` / `theory-progressions.md` | Distilled theory knowledge base (CAGED, scales, arpeggios, advanced jazz, cross-genre progressions). |
 | `docs/genre-framework-guitar.md` | Genre/style framework behind the progression library and random-style generator. |
+| `docs/genre-research-spec.md` | Repeatable per-genre intake form + the Width Doctrine + Primitive Test (how to author a genre pack wide without becoming a solo generator). Read before authoring any genre pack; the ROADMAP "Genre & pathway expansion plan" tracks the backlog. |
 | `docs/musicality-guardrails.md` | Spec for keeping generated output musically pleasing, not just theoretically correct (voicing engine rationale). |
 | `docs/section-looping.md` | Section/segment looping design notes. |
 | `docs/ui-session.md` | Session UI design notes. |
