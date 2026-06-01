@@ -33,19 +33,31 @@ try {
   await page.evaluate(() => window.showScreen("plugin-slopscale"));
   await page.waitForSelector("#slopscale-root", { state: "attached" });
   await page.waitForSelector(".slopscale-view-btn");
+  await page.waitForFunction(() => window.SlopScale && typeof window.SlopScale.generateExercise === "function", { timeout: 10000 });
 
   // Install in-page helpers that drive the real form + readConfig.
   await page.evaluate(() => {
     window.__t = {
       setForm(o) { for (const [k, v] of Object.entries(o)) { const el = document.querySelector(`#slopscale-controls [name="${k}"]`); if (el) el.value = String(v); } },
+      // advancedMode is a checkbox; readConfig FORCES fretboardSystem to 'caged'
+      // unless it's 'on', so any test of a non-caged system (e.g. full_neck) must
+      // enable it or it silently tests CAGED instead.
+      setAdvanced(on) { const c = document.querySelector('[name="advancedMode"]'); if (c) { c.checked = !!on; c.dispatchEvent(new Event("change", { bubbles: true })); } },
       setTuning(midis) { const h = document.querySelector("#slopscale-custom-open-midis"); if (h) h.value = midis ? midis.join(",") : ""; },
-      gen() { const ex = window.SlopScale.generateExercise(window.SlopScale.readConfig()); const ss = ex.chart.notes.map(n => n.s); return { sig: [...new Set(ex.chart.notes.map(n => `${n.s}:${n.f}`))].sort().join("|"), n: ex.chart.notes.length, min: Math.min(...ss), max: Math.max(...ss) }; },
+      gen() {
+        const ex = window.SlopScale.generateExercise(window.SlopScale.readConfig());
+        const ss = ex.chart.notes.map(n => n.s);
+        const seen = new Set(), pos = [];
+        for (const n of ex.chart.notes) { const k = `${n.s}:${n.f}`; if (!seen.has(k)) { seen.add(k); pos.push({ s: n.s, f: n.f }); } }
+        pos.sort((a, b) => a.s - b.s || a.f - b.f);
+        return { sig: [...seen].sort().join("|"), n: ex.chart.notes.length, min: Math.min(...ss), max: Math.max(...ss), pos, strings: [...new Set(ss)].sort((a, b) => a - b) };
+      },
     };
   });
 
   console.log("-- (1) GENERATOR adapts to string count (full_neck uses every string) --");
   for (const [setup, count] of [["guitar_6_standard", 6], ["guitar_7_standard", 7], ["guitar_8_standard", 8], ["bass_4_standard", 4], ["bass_5_standard", 5], ["bass_6_standard", 6]]) {
-    const r = await page.evaluate((su) => { window.__t.setTuning(null); window.__t.setForm({ stringSetup: su, practiceType: "scale", scale: "major", key: "C", fretboardSystem: "full_neck" }); return window.__t.gen(); }, setup);
+    const r = await page.evaluate((su) => { window.__t.setAdvanced(true); window.__t.setTuning(null); window.__t.setForm({ stringSetup: su, practiceType: "scale", scale: "major", key: "C", fretboardSystem: "full_neck" }); return window.__t.gen(); }, setup);
     ok(r.n > 0 && r.min === 0 && r.max === count - 1, setup, `notes=${r.n} strings=${r.min}..${r.max} (expect max ${count - 1})`);
   }
 
@@ -80,6 +92,38 @@ try {
     return { before, after: window.SlopScale.readConfig().stringSetup };
   });
   ok(uiCount.after === "guitar_7_standard" && uiCount.after !== uiCount.before, "7-chip sets stringSetup", `${uiCount.before} -> ${uiCount.after}`);
+
+  console.log("-- (5) CAGED is a 6-string system: on 7/8-string it anchors on the TOP SIX (EADGBE), not the low B/F# --");
+  // CAGED shapes encode the EADGBE interval pattern. On a standard 7/8-string the
+  // top-6 strings ARE EADGBE, so the resolved box must equal the 6-string box
+  // shifted up by `off = count-6` strings with IDENTICAL frets — never rooting the
+  // E-shape on the low B (the over-reach fixed 2026-06-01, guitar-pedagogy review).
+  const cagedBox = (su) => page.evaluate((s) => { window.__t.setAdvanced(true); window.__t.setTuning(null); window.__t.setForm({ stringSetup: s, practiceType: "scale", scale: "major", key: "C", fretboardSystem: "caged", shape: "E" }); return window.__t.gen(); }, su);
+  const c6 = await cagedBox("guitar_6_standard");
+  const c7 = await cagedBox("guitar_7_standard");
+  const c8 = await cagedBox("guitar_8_standard");
+  const shiftEq = (base, ext, off) => base.pos.length === ext.pos.length && base.pos.every((p, i) => ext.pos[i].s === p.s + off && ext.pos[i].f === p.f);
+  ok(c6.strings[0] === 0, "6-string CAGED box spans the standard 6 (baseline unchanged)", `[${c6.strings.join(",")}]`);
+  ok(!c7.strings.includes(0) && c7.strings[0] === 1, "7-string: low B (s=0) NOT in the box; anchors on s=1", `[${c7.strings.join(",")}]`);
+  ok(!c8.strings.includes(0) && !c8.strings.includes(1) && c8.strings[0] === 2, "8-string: low F#/B (s=0,1) NOT in the box; anchors on s=2", `[${c8.strings.join(",")}]`);
+  ok(shiftEq(c6, c7, 1), "7-string box === 6-string box shifted +1 string, identical frets");
+  ok(shiftEq(c6, c8, 2), "8-string box === 6-string box shifted +2 strings, identical frets");
+  // Open position is the worse over-reach (lower-string-wins dedupe can EVICT a
+  // pitch from the canonical standard string), so it gets the same EADGBE anchor.
+  const openBox = (su) => page.evaluate((s) => { window.__t.setAdvanced(true); window.__t.setTuning(null); window.__t.setForm({ stringSetup: s, practiceType: "scale", scale: "major", key: "C", fretboardSystem: "open" }); return window.__t.gen(); }, su);
+  const o7 = await openBox("guitar_7_standard");
+  const o8 = await openBox("guitar_8_standard");
+  ok(o7.n > 0 && !o7.strings.includes(0), "Open 7-string: low B (s=0) NOT used (anchors on top-6)", `[${o7.strings.join(",")}]`);
+  ok(o8.n > 0 && !o8.strings.includes(0) && !o8.strings.includes(1), "Open 8-string: low F#/B (s=0,1) NOT used", `[${o8.strings.join(",")}]`);
+
+  console.log("-- (6) Sweep arpeggios contain to the top-six on 7/8 (CAGED sweep template anchored, not an all-string low-B rake) --");
+  const sweep = (su) => page.evaluate((s) => { window.__t.setAdvanced(true); window.__t.setTuning(null); window.__t.setForm({ stringSetup: s, practiceType: "sweep_arpeggios", scale: "natural_minor", key: "A", shape: "E", fretboardSystem: "caged", chordDepth: "triad", progression: "i-VI-III-VII", bars: "4" }); return window.__t.gen(); }, su);
+  const sw6 = await sweep("guitar_6_standard");
+  const sw7 = await sweep("guitar_7_standard");
+  const sw8 = await sweep("guitar_8_standard");
+  ok(sw6.n > 0 && sw6.strings[0] === 0, "6-string sweep uses the standard 6 (baseline unchanged)", `[${sw6.strings.join(",")}]`);
+  ok(sw7.n > 0 && !sw7.strings.includes(0), "7-string sweep: low B (s=0) NOT used (top-six grip, not a low-B rake)", `[${sw7.strings.join(",")}]`);
+  ok(sw8.n > 0 && !sw8.strings.includes(0) && !sw8.strings.includes(1), "8-string sweep: low F#/B (s=0,1) NOT used", `[${sw8.strings.join(",")}]`);
 
   ok(pageErrs.length === 0, "no uncaught page errors", pageErrs.join(" | "));
   console.log(`\n${fails === 0 ? "PASS" : "FAIL"}  strings/tuning: ${fails} failure(s)`);

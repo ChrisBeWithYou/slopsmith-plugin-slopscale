@@ -980,7 +980,19 @@
   function resolveCAGEDShape(keyPc, shape, scale, openMidis) {
     const def = CAGED_SHAPES[shape];
     if (!def) return null;
-    const rootOpenPc = openPcForString(openMidis, def.rootStringIdx);
+    // CAGED is a 6-string system — its shapes encode the standard EADGBE interval
+    // pattern. On an extended-range guitar (7/8-string) the box is anchored on the
+    // TOP SIX strings (the EADGBE sub-group); the extra low string(s) are treated
+    // as added range, NOT part of the shape. Anchoring across all N strings would
+    // root e.g. the E-shape on the low B/F# — a box no method book teaches and no
+    // player has under their fingers. `off` shifts the shape's string indices up
+    // into that top-six window; off=0 for a standard 6-string, so this is a no-op
+    // there (and keeps arpeggio-CAGED, which contains to 6, and scale-CAGED
+    // consistent). Extended-range design per the guitar-pedagogy review, 2026-06-01.
+    const numStrings = openMidis.length;
+    const off = Math.max(0, numStrings - 6);
+    const rootStringIdx = def.rootStringIdx + off;
+    const rootOpenPc = openPcForString(openMidis, rootStringIdx);
     let rootFret = lowestFretWithPc(rootOpenPc, keyPc);
     const spanDef = (def.pentFretSpanFromRoot && (scale === 'minor_pentatonic' || scale === 'major_pentatonic' || scale === 'blues'))
       ? def.pentFretSpanFromRoot : def.scaleFretSpanFromRoot;
@@ -993,7 +1005,6 @@
     const fretMin = rootFret + spanDef[0];
     const fretMax = rootFret + spanDef[1];
     const firstFret = Math.max(0, fretMin);
-    const numStrings = openMidis.length;
     // Degree-driven, no-unison selection. A naive fret-window block repeats the
     // SAME pitch wherever two adjacent strings overlap (e.g. A-major A-shape:
     // B on the G string f4 and the B string f0). Per the no-unison rule, each
@@ -1002,7 +1013,7 @@
     // in different octaves are distinct pitches and are all kept.
     const notes = [];
     const usedMidi = new Set();
-    for (let s = 0; s < numStrings; s++) {
+    for (let s = off; s < numStrings; s++) {
       const openPc = openPcForString(openMidis, s);
       const openMidi = openMidis[s];
       for (let f = firstFret; f <= fretMax; f++) {
@@ -1012,14 +1023,18 @@
         const midi = openMidi + f;
         if (usedMidi.has(midi)) continue; // unison already placed on a lower string
         usedMidi.add(midi);
-        notes.push({ s, f, d: degree, isRoot: degree === 1, fg: scaleFingerFor(s, f, firstFret, true) });
+        // Fingering is computed against the 6-string-equivalent index (s - off):
+        // scaleFingerFor's G→B nudge keys off the B-string index (4 on a 6-string),
+        // so on the top-6 of a 7/8-string the same EADGBE box must reuse the
+        // 6-string indices or the nudge would fire on the wrong (G) string.
+        notes.push({ s, f, d: degree, isRoot: degree === 1, fg: scaleFingerFor(s - off, f, firstFret, true) });
       }
     }
     return {
       fretMin: Math.max(0, fretMin),
       fretMax,
       rootFret,
-      rootStringIdx: def.rootStringIdx,
+      rootStringIdx,
       notes,
       displayName: def.displayName
     };
@@ -1082,10 +1097,17 @@
     const fretMax = 3;
     const notes = [];
     const numStrings = openMidis.length;
+    // Open position is built from the EADGBE open-string vocabulary — like CAGED it
+    // anchors on the TOP SIX strings on a 7/8-string (off = N-6). Without this, the
+    // low B/F# open string can claim a pitch first and, because dedupe is
+    // lower-string-wins, EVICT it from the canonical standard string the player
+    // expects — pulling notes OFF the standard strings, not just adding junk on an
+    // unused one. (Extended-range fix, guitar-pedagogy review 2026-06-01.)
+    const off = Math.max(0, numStrings - 6);
     // No-unison selection (see resolveCAGEDShape): drop a pitch already placed
     // on a lower string so open position never doubles a note across strings.
     const usedMidi = new Set();
-    for (let s = 0; s < numStrings; s++) {
+    for (let s = off; s < numStrings; s++) {
       const openPc = openPcForString(openMidis, s);
       const openMidi = openMidis[s];
       for (let f = fretMin; f <= fretMax; f++) {
@@ -2004,21 +2026,25 @@
   }
 
   function cagedShapeNotesForChord(cfg, shape, quality, rootFret) {
-    // Shape templates are designed for 6-string guitar; skip for other string counts
-    if (cfg.stringCount !== 6) return null;
+    // CAGED chord-tone templates are a 6-string (EADGBE) system. Need ≥6 strings;
+    // bass 4/5 (<6) → return null so the caller falls back. On a 7/8-string the
+    // template anchors on the TOP SIX strings (off = N-6), mirroring resolveCAGEDShape.
+    if (cfg.stringCount < 6) return null;
     const def = CAGED_SHAPES[shape];
     if (!def) return null;
     const tmpl = def.chordTemplates[cagedShapeQualityKey(quality)];
     if (!tmpl) return null;
     const opens = openMidisForConfig(cfg);
+    const off = Math.max(0, cfg.stringCount - 6);
     const out = [];
     for (const note of tmpl) {
-      // note.s is already in low-E=0 indexing per CAGED_SHAPES convention.
-      if (note.s < 0 || note.s >= cfg.stringCount) continue;
+      // note.s is in low-E=0 6-string indexing; shift onto the top-six window.
+      const s = note.s + off;
+      if (s < 0 || s >= cfg.stringCount) continue;
       const f = rootFret + note.fOff;
       if (f < 0 || f > 24) continue;
-      const midi = opens[note.s] + f;
-      out.push({ s:note.s, f, midi, pc:midi % 12, interval:note.iv });
+      const midi = opens[s] + f;
+      out.push({ s, f, midi, pc:midi % 12, interval:note.iv });
     }
     out.sort((a, b) => a.midi - b.midi || a.s - b.s);
     return out;
@@ -2027,10 +2053,15 @@
   function pickShapeRootFret(cfg, shape, rootPc, prevRootFret, mode) {
     const def = CAGED_SHAPES[shape];
     if (!def) return null;
-    // def.rootStringIdx is already in low-E=0 indexing.
-    if (def.rootStringIdx < 0 || def.rootStringIdx >= cfg.stringCount) return null;
+    // def.rootStringIdx is low-E=0 6-string indexing; on a 7/8-string the shape is
+    // anchored on the top-six (off = N-6), so the anchor string shifts up too —
+    // otherwise the root fret would be computed off the low B/F#, not the EADGBE
+    // 'low E'. Mirrors resolveCAGEDShape / cagedShapeNotesForChord.
+    const off = Math.max(0, cfg.stringCount - 6);
+    const rootStringIdx = def.rootStringIdx + off;
+    if (rootStringIdx < 0 || rootStringIdx >= cfg.stringCount) return null;
     const opens = openMidisForConfig(cfg);
-    const anchorPc = ((opens[def.rootStringIdx] % 12) + 12) % 12;
+    const anchorPc = ((opens[rootStringIdx] % 12) + 12) % 12;
     const baseFret = (((rootPc - anchorPc) % 12) + 12) % 12;
     // Generate candidate frets across the neck (baseFret + 0/12, plus -12/+24 for headroom)
     const options = [];
@@ -2465,19 +2496,23 @@
   // chord voicing (all strings the shape covers, not just the strings the
   // generator happened to play) with sensible fingerings.
   function templateFromShape(name, shape, quality, rootFret, cfg, arp) {
-    if (cfg.stringCount !== 6) return null;
+    // 6-string (EADGBE) template; need ≥6 strings. On 7/8 it sits on the top-six
+    // (off = N-6) so the chord box matches the anchored CAGED shape.
+    if (cfg.stringCount < 6) return null;
     const def = CAGED_SHAPES[shape];
     if (!def) return null;
     const tmpl = def.chordTemplates[cagedShapeQualityKey(quality)];
     if (!tmpl) return null;
+    const off = Math.max(0, cfg.stringCount - 6);
     const frets = new Array(cfg.stringCount).fill(-1);
     const fingers = new Array(cfg.stringCount).fill(-1);
     for (const ent of tmpl) {
-      if (ent.s < 0 || ent.s >= cfg.stringCount) continue;
+      const s = ent.s + off;
+      if (s < 0 || s >= cfg.stringCount) continue;
       const f = rootFret + ent.fOff;
       if (f < 0 || f > 24) return null;
-      frets[ent.s] = f;
-      fingers[ent.s] = f === 0 ? 0 : (ent.fg ?? 1);
+      frets[s] = f;
+      fingers[s] = f === 0 ? 0 : (ent.fg ?? 1);
     }
     return { name, displayName:`${name} (${def.displayName})`, arp:!!arp, fingers, frets };
   }
@@ -2895,13 +2930,18 @@
     const intervalPcSet = new Set(formula.intervals.map(iv => (rootPc + iv) % 12));
     const opens = openMidisForConfig(cfg), out = [];
     const fLo = Math.max(0, cfg.fretMin), fHi = Math.min(24, cfg.fretMax);
-    const bassStr = 0; // SlopScale: s=0 is the LOWEST string (low E) — the sweep's bass anchor
+    // Contain the sweep window to the top-six on a 7/8-string (off = N-6), so the
+    // default extended-range sweep is the canonical top-six grip rather than an
+    // all-strings rake rooted on the low B/F# (the extra low string(s) are opt-in
+    // range). off=0 on ≤6-string, so bass/6-string sweep every string as before.
+    const off = Math.max(0, cfg.stringCount - 6);
+    const bassStr = off; // lowest string of the sweep window — the bass anchor
     // Greedy-adjacent selection: the bass string anchors near anchorFret (root
     // preferred); each higher string then picks the chord tone CLOSEST to the
     // previous string's fret. This keeps the shape contiguous (a real sweepable
     // grip) instead of the zig-zags an independent per-string search can produce.
     let prevFret = anchorFret;
-    for (let s = 0; s < cfg.stringCount; s++) {
+    for (let s = off; s < cfg.stringCount; s++) {
       let best = null, bestScore = Infinity;
       const ref = (s === bassStr) ? anchorFret : prevFret;
       for (let f = fLo; f <= fHi; f++) {
@@ -2963,7 +3003,11 @@
     // carries fingering by construction (the standard CAGED arpeggio shapes).
     // pickShapeRootFret walks the chosen shape up/down the neck per chord.
     const shape = cfg.shape || cfg.cagedShape;
-    const useShape = cfg.stringCount === 6 && !!CAGED_SHAPES[shape];
+    // ≥6 strings: a 7/8-string can host the 6-string CAGED sweep template on its
+    // top-six (anchored via `off` in pickShapeRootFret/cagedShapeNotesForChord),
+    // so the extended-range sweep keeps by-construction fingering instead of the
+    // greedy all-string rake. <6 (bass) → falls to sweepArpeggioPositions.
+    const useShape = cfg.stringCount >= 6 && !!CAGED_SHAPES[shape];
     let prevRootFret = null;
     const notes = [], chordTemplates = [], chords = [], handShapes = [], sections = [];
     for (let bar = 0; bar < totalBars; bar++) {
