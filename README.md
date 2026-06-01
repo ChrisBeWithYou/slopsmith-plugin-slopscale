@@ -1,105 +1,78 @@
 # SlopScale
 
-A Slopsmith plugin that generates scale, arpeggio, and sweep-arpeggio practice routines and renders them on a 3D note highway, 2D highway, paper-style tab, or staff notation. Pick a pathway, hit Play, drill.
+A Slopsmith plugin for **practising and learning an instrument genre-fluently**. SlopScale builds scale, arpeggio, technique, and groove routines and plays them back inside its own DAW-style player — pick a pathway, set a tempo, hit Play, and drill. The goal isn't to hand you songs; it's to build transferable skills you take *off the screen* into your own playing.
+
+> SlopScale is a **practice & learning tool, not a song/riff generator.** Every generated routine is a means to teach a skill — the grammar of an idiom (the gallop, the ii–V–I, the one-drop) — not a deliverable to memorise.
+
+## What it is
+
+One **DAW-style shell with four modes**, all sharing the same player, ruler/transport, mixer, and render stage — no second window, nothing to relearn between modes:
+
+- **Pathways** — curated, sequenced routines that build a skill from the ground up (the picker groups them into bands from beginner foundations to advanced/idiom packs).
+- **Custom** — full manual control: pick the exact scale, shape, position, meter, progression, and feel you want to drill. Any Custom setup can be saved as a preset or dropped into a Workout.
+- **Workout** — a timed, multi-block practice session ("woodshed N minutes"): warm up, target a weak skill, then apply it — built from the same pathway/Custom units, run back-to-back on a wall clock.
+- **Jam** — pick a style, hit one button, and play along immediately over a looping backing band. **Jam is a mirror, not a judge** — no score, no rank; instead the live fretboard strip lights up the current chord's tones / guide tones so the jam *teaches* you what to reach for.
 
 ## Highlights
 
-- **Four render modes** — 3D Note Highway, 2D Highway, paper-style Tab, and staff Notation — all driven by the same chart data
-- **Light & Dark themes** for Tab and Notation, with a toggle in the view switcher
-- **Bass / Guitar / Piano** instrument selector at the top of the form (piano coming soon)
-- **Strings & tuning** controls right under the instrument family — 4/5/6 strings for bass, 6/7/8 for guitar, plus standard / drop / open tunings and a custom per-string editor
-- **Save custom tunings** to the Slopsmith database; they show up under "Saved" in the tuning dropdown on every restart
-- **Count-in** — optional 1, 2, or 4-bar metronome before playback starts
-- **Share links** — every form state is encoded in the URL; copy the link and a friend lands on the exact same exercise
-- **Pathway selector** — twelve curated routines (Pentatonic Foundation, Chord-Tone Targeting, Modal Awareness, Diatonic Triad Drill, Seventh Vocabulary, ii–V–I Workout, Harmonic Minor Exotic, Sweep Arpeggio Primer, and more) plus full Custom mode
-- **DB-backed presets** — Save preset persists routines to the host DB (no more JSON file)
+- **Four render surfaces** — 3D Note Highway, 2D Highway, paper-style Tab, and staff Notation — all driven by the same chart data, with Light/Dark themes for Tab and Notation
+- **27 curated pathways** across foundations, technique, jazz/blues vocabulary, modal work, sweep arpeggios, and a **metal/djent pack** (pedal-chug, gallop, twin leads, polymeter, chromatic riffing)
+- **A real backing band** — sampled (WebAudioFont) comp, bass, and **drums**, with a safety-limited master so nothing clips or jumps in level
+- **Drum kits that change by feel & genre** — procedural **808 / 909** synth kits for electronic feels and **sampled acoustic kits** for everything else, on grooves (straight, four-on-the-floor, half-time, shuffle) that follow the meter — including **odd meters** (7/8, 5/4, …) via a grouping-aware generic groove
+- **A Mixer (`M`)** — per-bus faders, mute/solo, a "backing dim," and **per-channel instrument & kit selection** (swap the comp to organ, the drums to a 909, etc.) live while you play
+- **Progress, the calm way** — streak calendar, per-pathway tempo-tier progress, and a "last session" summary card; progress is a readout, never a gate or a dark pattern
+- **Extended-range & drop tunings** — 6/7/8-string guitar and 4/5/6-string bass, standard / drop / open / fully custom per-string
+- **Count-in, A/B looping, share links, DB-backed presets & tunings**
+- **Hotkeys with on-screen buttons** — `M` mixer · `P` progress · `[` collapse the inspector · `?` cheat-sheet · `i`/`o` loop in/out (Escape always belongs to the host)
 
 ## Renderers
 
 | Renderer | What it looks like |
 |---|---|
-| **3D Note Highway** | Slopsmith's bundled 3D fretboard view, loaded on demand |
-| **2D Highway** | Built-in horizontal scrolling highway with string-coloured note tiles, sustain bars, accent halos, HOPO / palm-mute / harmonic / bend glyphs, beat lines, measure numbers, chord tiles, and section markers |
-| **Tab** | Paper-style guitar tab — parchment background, six black string lines, fret numbers sitting on the strings with the line broken behind each digit, italic chord names, plain bar lines, red playhead. Dark mode swaps to a navy ground |
-| **Notation** | Standard staff notation with treble or bass clef (8va transposing), key signature, note heads, stems, beams, ledger lines, accidentals — same parchment-and-ink design language as Tab. Dark mode available |
+| **3D Note Highway** | Slopsmith's bundled 3D fretboard view (the default for guitar **and** bass), loaded on demand and inheriting the host's highway look settings |
+| **2D Highway** | Borrowed "Jumping Tab" view — string-coloured note tiles, sustain bars, accent halos, technique glyphs, beat lines, measure numbers, chord tiles, section markers |
+| **Tab** | Paper-style guitar tab — parchment ground, fret numbers on the strings, italic chord names, red playhead; dark mode swaps to a navy ground |
+| **Notation** | Standard staff notation (treble / 8va / bass clef), key signature, beams, accidentals — same parchment-and-ink design language; dark mode available |
 
-The Light/Dark toggle appears on the right side of the view switcher when Tab or Notation is active. Choice persists across reloads. If the 3D Highway script isn't available at runtime, the plugin falls back to the 2D Highway automatically. Switching to bass also auto-falls back to 2D since the host's 3D Highway plugin doesn't render non-6-string instruments.
+A docked **live fretboard strip** sits under the Tab and Notation views (toggleable), drawing the exercise's whole shape and glowing the notes as they sound. The Light/Dark toggle appears when Tab or Notation is active and persists across reloads.
 
-## Practice modes
+## Audio
 
-### Single exercise
+Playback is fully contained in the plugin (its own clock, Web Audio graph, and pitch tracker). The signal path is **per-track buses → a master safety limiter → output**, so stacked notes stay clean and normalised — no clipping, no surprise full-volume hits.
 
-- **Pathway** — pick one of twelve curated routines, or "Custom — full control"
-- **Speed tier** — Slow / Med / Fast / Push per pathway (tempo curves are pathway-specific)
-- **Key, scale, shape, BPM, count-in** — exposed in the form
-- **Custom mode** unlocks the advanced controls (meter, division, sequence, progression, chord depth, chord-scale strategy, chord override, key cycling)
-
-### Session
-
-A multi-segment program. Each segment is its own exercise config; the whole session plays back-to-back. Four built-in sessions:
-
-- **ii–V–I Workshop** — structured jazz pedagogy sequence (guide tones, chord-scales, arpeggios)
-- **Daily 30-min Intermediate**
-- **Blues Fundamentals**
-- **Bebop Fundamentals**
+- **Practice voice** — sampled, at the actual string/fret pitches; the oscillator voice is the fallback so you're never left silent on a cold load
+- **Backing band** — sampled comp + bass voiced per progression step (key-aware voicing engine), plus the new drum voice
+- **Drums** — a `drums` bus with its own compressor (before the master); kits are chosen per style/feel and pieces are humanised so it doesn't read as a drum machine. Drums stay silent through the count-in and enter on the downbeat
+- **Metronome** — accent on beat 1, group accents that follow the meter's grouping (3+2+2 vs 2+2+3 for 7/8, etc.)
+- **Per-style sound** — an audio-profile system maps a genre to a tone/brightness, overridable from the Mixer
 
 ## Configuration
 
 ### Key & scale
-- 12 keys
-- 25+ scale families: major, natural/harmonic/melodic minor, the seven modes of major, melodic-minor modes (Dorian ♭2, Lydian augmented, Lydian dominant, Mixolydian ♭6, Locrian ♮2, altered), minor and major pentatonic, blues, bebop major and dominant, whole-tone, diminished (whole-half), Phrygian dominant
+12 keys; 25+ scale families: major, natural / harmonic / melodic minor, the seven modes of major, the melodic-minor modes (Dorian ♭2, Lydian augmented, Lydian dominant, Mixolydian ♭6, Locrian ♮2, altered), minor & major pentatonic, blues, bebop major & dominant, whole-tone, diminished, Phrygian dominant, plus exotic colours (double harmonic, Hungarian minor, Neapolitan minor) for the metal/idiom work.
 
 ### Instruments & tuning
-- **Bass** — 4 / 5 / 6 strings, with Standard, Drop D, Eb Standard, BEAD (4), high-C tenor (5), Drop A (5)
-- **Guitar** — 6 / 7 / 8 strings, with Standard, Drop D, Eb Standard, D Standard, DADGAD, Open G, Open D (6), Drop A (7), Drop E (8)
-- **Custom tuning** — per-string note inputs (`E2`, `F#3`, `Bb4` style). Click **+ Save tuning…** to persist it under a name; it reappears under "Saved" in the dropdown every session
-- **Piano** — UI scaffolded, generators not yet emitting keyboard data
+- **Guitar** — 6 / 7 / 8 strings: Standard, Drop D, Eb / D Standard, DADGAD, Open G/D, Drop A (7), Drop E (8)
+- **Bass** — 4 / 5 / 6 strings: Standard, Drop D, Eb, BEAD, high-C tenor, Drop A. Bass uses a single movable position box (CAGED/3NPS are guitar artifacts and are hidden on bass — by design)
+- **Custom tuning** — per-string note inputs (`E2`, `F#3`, `Bb4`…); **+ Save tuning…** persists it under a name in the host DB
+- **Piano** — UI scaffolded; keyboard generators are a future phase
 
-### Tempo & meter
-- 30–260 BPM
-- 4/4, 3/4, 6/8, 7/8 (2+2+3 or 3+2+2), 5/4
-- Quarter, eighth, sixteenth, triplet, eighth-triplet, sixteenth-triplet
-- **Count-in:** None / 1 bar / 2 bars / 4 bars before playback starts
+### Tempo, meter & feel
+30–260 BPM · 4/4, 3/4, 6/8, 7/8 (2+2+3 or 3+2+2), 5/4 · quarter / eighth / sixteenth / triplet subdivisions · straight / swing / shuffle feel · count-in None / 1 / 2 / 4 bars.
 
 ### Practice types
-- **Scale pattern** — run the selected scale across the fretboard system
-- **Chord scales** — mode-of-the-moment OR chord-tone-emphasis through the progression
-- **Diatonic arpeggios** — triad or seventh arpeggio of every diatonic chord
-- **Progression arpeggios** — chord-tone arpeggios over the chosen progression
-- **Sweep arpeggios** — one chord tone per string, swept low → high with HOPO turnaround, then back down
-- **Chromatic warmup** — 1234, 4321, 1324, spider, and advanced patterns
-- **Guide tones** — 3rds / 7ths / alternating, voice-led through any progression
+Scale patterns · chord-scales (mode-of-the-moment or chord-tone emphasis) · diatonic arpeggios · progression arpeggios · sweep arpeggios (HOPO turnaround) · chromatic warmups · guide tones · and a deep **technique/vocabulary** library (legato, bends, vibrato, scale in 3rds/6ths, call-and-response, tremolo, tapping, pedal point, string skipping, position shifts, rhythmic displacement, chromatic enclosures, bebop scale, arpeggio inversions, walking bass, hybrid picking, triadic pairs, pentatonic superimposition, shell voicings, octave displacement, and the metal pedal-riff / gallop / twin-lead primitives).
 
-## Fretboard systems
+### Fretboard systems
+CAGED position (auto fret-window per key + shape) · CAGED single-shape (strict-ascend or closest-position) · 3-notes-per-string (seven modal positions) · open position · manual position box · single-string run · full-neck map. Shapes are **degree-driven** with a no-unison guarantee — a run never sounds the same pitch twice across strings.
 
-- **CAGED position** — auto-computes the fret window for the selected key + CAGED shape (C/A/G/E/D), with proper open-position fingerings on E/A/G shapes
-- **CAGED single shape — strict ascend** — literal CAGED fingering geometry transposed per chord, marching up the neck
-- **CAGED single shape — closest position** — same shape, but each chord picks the nearest fret so the hand moves both up and down
-- **3-notes-per-string** — seven positions, modally named (Position 1 Ionian, Position 2 Dorian, …)
-- **Open position** — uses open strings where the key supports them
-- **Position box** — manual First/Last fret pair
-- **Single-string run** — pick a string and walk the scale along it
-- **Full-neck map** — every scale note from fret 0–24
-
-Selecting a CAGED mode or changing the key/shape automatically updates the fret window so the exercise lands where the shape actually lives on the neck. Scale runs in CAGED systems start on the root note.
-
-## Progressions
-
-Diatonic I–ii–iii–IV–V–vi–vii°, I–IV–V, I–V–vi–IV, I–vi–IV–V, I–vi–ii–V, ii–V–I, vi–ii–V–I, I–iii–IV–V, I–IV–vi–V, I–ii–IV–V, vi–IV–I–V, Pachelbel, diatonic circle, 12-bar blues, quick-change blues, minor i–VI–III–VII, minor i–VII–VI–VII, minor ii–V–i.
-
-Chord depth: triads or seventh chords. Optional global override to force every chord to maj / min / dim / maj7 / min7 / dom7 / m7b5 / sus4 / add9.
-
-## Generated audio
-
-- **Notes** — synthesised plucked-string preview at the actual fret + string positions
-- **Metronome** — accent on beat 1; group accents follow the meter grouping (3+2+2 vs 2+2+3 for 7/8, etc.)
-- **Harmony backing** — voiced backing chord per progression step, key-aware
+### Harmony engine
+Diatonic progressions, the common pop/jazz/blues sets, minor ii–V–i, 12-bar & quick-change blues, and a **jazz harmony engine**: chord depth (power / triad / seventh / 9·11·13 / 6 / m6 / 6-9 / sus / m(maj7)), auto-diatonic stacking with correct altered tensions, **tritone substitution**, and a voicing engine that turns a full interval stack into a *playable, musical* voicing rather than stacking every formula note.
 
 ## Persistence
-
-- **Save preset** — full routine config stored in the Slopsmith SQLite database (`slopscale_presets` table)
-- **Save tuning** — custom tunings stored in `slopscale_tunings`. Appear in the tuning dropdown under "Saved" on every restart
-- **Share link** — `Copy share link` writes the entire form state to a URL hash. Paste a link into the "Paste a share link here…" field below to restore the exact exercise
+- **Save preset** — full config to the host SQLite DB (`slopscale_presets`)
+- **Save tuning** — custom tunings to `slopscale_tunings`, shown under "Saved" every session
+- **Share link** — the whole form state encodes into a URL hash; paste a link to land on the exact same exercise
 
 ## Quick start
 
@@ -117,73 +90,27 @@ docker compose restart
 ### Install (Slopsmith Desktop)
 Clone into the Desktop app's configured plugins directory (visible in **Settings → Plugins**).
 
-> **Note:** Do not clone directly under `C:\Program Files\Slopsmith`. Windows protects that path; clone into the user-writable plugins directory the Desktop app reports in Settings.
+> **Note:** Don't clone directly under `C:\Program Files\Slopsmith` — Windows protects that path. Use the user-writable plugins directory the Desktop app reports in Settings.
 
 After restart, **SlopScale** appears in the plugin navigation.
-
-## Test routines
-
-### Simplest scale chart
-```text
-Pathway:       Custom
-Practice type: Scale pattern
-Key: C   Scale: Major
-Instrument: 6-string guitar standard
-BPM: 100   Meter: 4/4   Division: Eighth
-First fret: 0   Last fret: 5   Bars: 4
-```
-Expected: a C major run from fret 0 to fret 5 scrolling on the highway.
-
-### Sweep Arpeggio Primer
-```text
-Pathway: Sweep Arpeggio Primer
-```
-Expected: the pathway auto-fills A natural minor (or one of the variants), 70 BPM 4/4 sixteenths, I–IV–V progression. Each bar plays a triad swept low E → high e, hammers to the next chord tone on the high string, pulls back, then sweeps high e → low E.
-
-### CAGED single-shape run
-```text
-Pathway:          Custom
-Practice type:    Diatonic arpeggios
-Fretboard system: CAGED single shape — strict ascend
-CAGED shape:      C
-Key:              C   Scale: Major
-```
-Expected: diatonic triads (I–ii–iii–IV–V–vi–vii°–I) arpeggiated in the C shape up the A string — C at fret 3, Dm at fret 5, Em at fret 7, F at fret 8, G at fret 10, Am at fret 12, Bdim at fret 14, C at fret 15. The highway anchor scrolls with each chord.
-
-### Custom tuning (DADGAD with count-in)
-```text
-Instrument:  Guitar
-Strings:     6
-Tuning:      DADGAD
-Count-in:    2 bars
-Practice type: Scale pattern
-Key: D   Scale: Major
-```
-Expected: 2 bars of metronome click, then a D major scale run in DADGAD tuning across the open position.
 
 ## File layout
 
 | File | Purpose |
 |------|---------|
 | `plugin.json` | Slopsmith plugin manifest |
-| `screen.html` | Plugin UI (markup + inline styles + bootstrap scripts) |
-| `screen.js` | Practice generator + built-in renderers + theme + tuning + share-link logic |
-| `routes.py` | DB-backed preset + tuning persistence, temporary chart-export backend |
+| `screen.html` | Plugin UI (markup + inline styles + bootstrap) |
+| `screen.js` | Generators, pathways, renderers, audio engine, mixer, and host integration |
+| `routes.py` | DB-backed preset + tuning persistence; self-hosted audio asset routes |
 | `settings.html` | Plugin settings / info panel |
-| `static/` | Self-hosted audio assets (`wafonts/` sampler, `irs/` cab IRs, `nam/` amp captures) served by `routes.py` |
-| `docs/architecture.md` | Integration design notes |
-| `docs/section-looping.md` | A-B loop framework + Slopsmith looping recon |
-| `docs/exercise-schema.md` | Internal generated exercise schema |
-| `docs/practice-pedagogy.md` | Background notes on the curated pathways |
-| `docs/theory-*.md` | Distilled theory knowledge base (CAGED, scales, arpeggios, advanced jazz) |
+| `static/` | Self-hosted audio assets (`wafonts/` sampler + drum kits) served by `routes.py` |
+| `docs/` | Architecture, exercise schema, pedagogy, theory knowledge base, and design notes |
 
 ## Roadmap
 
-- A-B segment looping UI (transport framework is already in place — see `docs/section-looping.md`)
-- Practice tracking (tempo ceiling, streak, "next session" recommendation)
-- Live fretboard panel showing currently-active notes
-- Picking metadata (alternate / economy / sweep) attached to generated note groups
-- More sequence patterns (groups of 3s, diatonic-thirds variations, custom melodic cells)
-- Inversions and shell voicings
-- Nearest-note voice leading between progression steps
+- Deeper drum realism (per-genre grooves + humanisation) and a brush/percussion kit set
+- A unified progress store (XP-as-readout, Off / Casual / Hardcore — soft, never gating)
+- A comping generator (CAGED triads / 7ths on a strum grid) for the open-chord Core nodes
+- Per-instrument Development Pathways (guitar Core shipped; bass & piano to follow)
+- Live amp-modelled distorted backing (host NAM-engine borrow, in progress)
 - Piano / keyboard exercise generation
