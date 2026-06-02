@@ -24,6 +24,19 @@
   //   §14 Transport, HUD, playback clock + audio engine
   //   §15 DOM wiring (bind) + public surface (window.SlopScale)
   // ===========================================================================
+  //
+  // CORE / SHELL BOUNDARY (host-independence — see CLAUDE.md "Key constraints"):
+  // §1–§10 are the host- AND DOM-independent GENERATOR/THEORY ENGINE — SlopScale's
+  // durable IP and the basis for a future standalone app / embeddable library.
+  // The generation path takes a plain `cfg` and returns a plain
+  // `{ version, session, chart }`; it must NEVER reference window, document,
+  // localStorage, fetch, or any `slopsmith*` global. §11–§15 (renderers, host-viz
+  // borrows, audio engine, scorer, DOM wiring) + routes.py are the THIN, DISPOSABLE
+  // SHELL — Slopsmith is one implementation behind the boundary, not a dependency
+  // woven through the core. `readConfig()` (§15) is the single DOM→cfg funnel.
+  // (Known cleanup for when the enforcement guard lands: the shape-dropdown UI
+  // helpers co-located near §1 are shell-class and should move below the boundary.)
+  // ===========================================================================
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
