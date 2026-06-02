@@ -8,6 +8,11 @@ A Slopsmith plugin that turns scales, arpeggios, technique, and grooves into **p
 
 Install drops it into Slopsmith and it shows up in the nav as **SlopScale**: pick a pathway, hit Play, and you're drilling in under a minute.
 
+<p align="center">
+  <img src="docs/images/highway.png" width="860" alt="SlopScale's DAW-style shell: a pathway goal card and tempo tiers on the left, the 3D Note Highway mid-playback on the right with a generated exercise scrolling toward the player.">
+  <br><sub><i>The DAW-style shell — pick a pathway, set a tempo, and drill on the 3D Note Highway (or Tab / Notation).</i></sub>
+</p>
+
 ## Why SlopScale
 
 - **No song to unlock — drill the exact thing you're stuck on.** It generates the scale, arpeggio, or lick at any position, key, and tempo. No library, no waiting for the right tab.
@@ -43,6 +48,13 @@ One **DAW-style shell with four modes**, all sharing the same player, ruler/tran
 | **2D Highway** | Borrowed "Jumping Tab" view — string-coloured note tiles, sustain bars, accent halos, technique glyphs, beat lines, measure numbers, chord tiles, section markers |
 | **Tab** | Paper-style guitar tab — parchment ground, fret numbers on the strings, italic chord names, red playhead; dark mode swaps to a navy ground |
 | **Notation** | Standard staff notation (treble / 8va / bass clef), key signature, beams, accidentals — same parchment-and-ink design language; dark mode available |
+
+<p align="center">
+  <img src="docs/images/tab.png" width="420" alt="SlopScale Tab view — fret numbers on the strings with a red playhead, the progress panel open on the right.">
+  &nbsp;
+  <img src="docs/images/notation.png" width="420" alt="SlopScale Notation view — standard staff with beams and accidentals, same chart as the tab.">
+  <br><sub><i>One chart, your choice of surface: paper-style Tab and standard Notation (3D Highway shown above).</i></sub>
+</p>
 
 A docked **live fretboard strip** sits under the Tab and Notation views (toggleable), drawing the exercise's whole shape and glowing the notes as they sound. The Light/Dark toggle appears when Tab or Notation is active and persists across reloads.
 
