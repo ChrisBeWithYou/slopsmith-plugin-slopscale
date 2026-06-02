@@ -2295,6 +2295,165 @@
       base:{ scale:'major', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', sequence:'none', fretboardSystem:'caged' },
       vary:[ { key:'C', shape:'E' }, { key:'G', shape:'E' }, { key:'A', shape:'E' }, { key:'E', shape:'E' } ],
     },
+
+    // ═══ Phase 6 — BASS segment-template library ═══════════════════════════════
+    // Bass is GROOVE + RIGHT-HAND first (the arc inverts the guitar shred instinct:
+    // right_hand → root_fifth_octave → octave_groove → dead_note → scales/arps →
+    // walking/guide_tones → slap). Movable `position` box (NO CAGED/shape). The 5
+    // groove primitives are bass-native (offerable()). vary[] holds duration constant
+    // (key / fretMin-Max / progression-in-band — never meter/bpm/bars). FEEL of the
+    // groove templates (octave/dead-note/slap) → funk/R&B + Motown/soul idiom agents
+    // validate at this stage per the bass-pedagogy consult.
+    // Warm-up
+    b_warm_chromatic: {
+      role:'warmup', label:'Chromatic warm-up', competency:'finger independence',
+      band:'beginner', instrument:'bass', style:null, kind:'chromatic',
+      base:{ chromaticPattern:'1234', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', fretboardSystem:'position', fretMin:1, fretMax:4 },
+      vary:[ { chromaticPattern:'1234', fretMin:1, fretMax:4 }, { chromaticPattern:'4321', fretMin:1, fretMax:4 }, { chromaticPattern:'1234', fretMin:5, fretMax:8 }, { chromaticPattern:'1324', fretMin:1, fretMax:4 } ],
+    },
+    b_warm_scale: {
+      role:'warmup', label:'Scale warm-up', competency:'gentle position box',
+      band:'beginner', instrument:'bass', style:null, kind:'scale',
+      base:{ scale:'major', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', sequence:'none', fretboardSystem:'position', fretMin:0, fretMax:5 },
+      vary:[ { key:'C' }, { key:'G' }, { key:'A' }, { key:'E' } ],
+    },
+    // Technique (groove + right-hand first)
+    b_tech_right_hand: {
+      role:'technique', label:'Right-hand technique', competency:'alternating i-m stamina',
+      band:'beginner', instrument:'bass', style:null, kind:'right_hand_technique',
+      base:{ scale:'natural_minor', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', fretboardSystem:'position', progression:'static_i', fretMin:0, fretMax:5 },
+      vary:[ { key:'E' }, { key:'A' }, { key:'G', subdivision:'sixteenth' }, { key:'C' } ],
+    },
+    b_tech_root_fifth_octave: {
+      role:'technique', label:'Root–5th–octave box', competency:'the foundational bass box',
+      band:'beginner', instrument:'bass', style:null, kind:'root_fifth_octave',
+      base:{ scale:'major', meter:'4/4', subdivision:'quarter', bars:8, direction:'up_down', fretboardSystem:'position', progression:'I-IV-V', fretMin:0, fretMax:7 },
+      vary:[ { key:'C', progression:'I-IV-V' }, { key:'G', progression:'I-V-vi-IV' }, { key:'A', progression:'i-VII-VI-VII' }, { key:'E', progression:'I-IV-V' } ],
+    },
+    b_tech_octave_groove: {
+      role:'technique', label:'Octave groove', competency:'disco/Motown octave bounce',
+      band:'intermediate', instrument:'bass', style:null, kind:'octave_groove',
+      base:{ scale:'major', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', fretboardSystem:'position', progression:'I-V-vi-IV', fretMin:0, fretMax:7 },
+      vary:[ { key:'C', progression:'I-V-vi-IV' }, { key:'A', progression:'i-VII-VI-VII' }, { key:'G', progression:'I-IV-V' }, { key:'D', progression:'vi-IV-I-V' } ],
+    },
+    b_tech_dead_note: {
+      role:'technique', label:'Dead-note pocket', competency:'16th pocket + muting',
+      band:'intermediate', instrument:'bass', style:'funk', kind:'dead_note_groove',
+      base:{ scale:'dorian', meter:'4/4', subdivision:'sixteenth', bars:8, direction:'up_down', fretboardSystem:'position', fretMin:0, fretMax:7 },
+      vary:[ { key:'A', progression:'i-VII-VI-VII' }, { key:'E', progression:'static_i' }, { key:'D', progression:'i-VII-VI-VII' }, { key:'G', progression:'static_i' } ],
+    },
+    b_tech_slap: {
+      role:'technique', label:'Slap & pop', competency:'slapped octave + ghosts',
+      band:'advanced', instrument:'bass', style:'funk', kind:'slap_pop',
+      base:{ scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', fretboardSystem:'position', fretMin:0, fretMax:7 },
+      vary:[ { key:'E', progression:'static_i' }, { key:'A', progression:'i-VII-VI-VII' }, { key:'G', progression:'static_i' }, { key:'D', progression:'i-VII-VI-VII' } ],
+    },
+    b_tech_legato: {
+      role:'technique', label:'Legato (HO/PO)', competency:'hammer/pull on bass',
+      band:'intermediate', instrument:'bass', style:null, kind:'legato',
+      base:{ scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', fretboardSystem:'position', fretMin:0, fretMax:5 },
+      vary:[ { key:'A' }, { key:'E' }, { key:'G' }, { key:'D' } ],
+    },
+    b_tech_position_shift: {
+      role:'technique', label:'Position shifts', competency:'move cleanly up the neck',
+      band:'intermediate', instrument:'bass', style:null, kind:'position_shift',
+      base:{ scale:'natural_minor', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', fretboardSystem:'position', fretMin:0, fretMax:7 },
+      vary:[ { key:'A' }, { key:'E' }, { key:'G' }, { key:'C' } ],
+    },
+    // Scale / Arp (the position box)
+    b_scale_major: {
+      role:'scale_arp', label:'Major scale box', competency:'the movable major box',
+      band:'beginner', instrument:'bass', style:null, kind:'scale',
+      base:{ scale:'major', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', sequence:'none', fretboardSystem:'position', fretMin:0, fretMax:5 },
+      vary:[ { key:'C', fretMin:0, fretMax:5 }, { key:'G', fretMin:2, fretMax:7 }, { key:'A', fretMin:4, fretMax:9 }, { key:'E', fretMin:0, fretMax:5 } ],
+    },
+    b_scale_minor: {
+      role:'scale_arp', label:'Minor scale box', competency:'natural-minor box',
+      band:'beginner', instrument:'bass', style:null, kind:'scale',
+      base:{ scale:'natural_minor', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', sequence:'none', fretboardSystem:'position', fretMin:0, fretMax:5 },
+      vary:[ { key:'A' }, { key:'E' }, { key:'D' }, { key:'G', fretMin:2, fretMax:7 } ],
+    },
+    b_scale_pentatonic: {
+      role:'scale_arp', label:'Pentatonic box', competency:'minor-pentatonic box',
+      band:'beginner', instrument:'bass', style:null, kind:'scale',
+      base:{ scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', sequence:'none', fretboardSystem:'position', fretMin:0, fretMax:5 },
+      vary:[ { key:'A' }, { key:'E' }, { key:'G' }, { key:'D' } ],
+    },
+    b_arp_triads: {
+      role:'scale_arp', label:'Triad arpeggios', competency:'chord-tone targeting',
+      band:'beginner', instrument:'bass', style:null, kind:'diatonic_arpeggios',
+      base:{ scale:'major', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', fretboardSystem:'position', chordDepth:'triad', chordOverride:'auto', fretMin:0, fretMax:7 },
+      vary:[ { key:'C' }, { key:'G' }, { key:'A' }, { key:'E' } ],
+    },
+    b_arp_sevenths: {
+      role:'scale_arp', label:'Seventh arpeggios', competency:'7th chord tones',
+      band:'intermediate', instrument:'bass', style:null, kind:'diatonic_arpeggios',
+      base:{ scale:'natural_minor', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', fretboardSystem:'position', chordDepth:'seventh', chordOverride:'auto', fretMin:0, fretMax:7 },
+      vary:[ { key:'A' }, { key:'E' }, { key:'D' }, { key:'C' } ],
+    },
+    // Application (over the changes)
+    b_app_walking: {
+      role:'application', label:'Walking bass — ii–V–I', competency:'walk the changes',
+      band:'intermediate', instrument:'bass', style:'jazz', kind:'walking_bass',
+      base:{ scale:'major', meter:'4/4', subdivision:'quarter', bars:8, direction:'up_down', fretboardSystem:'position', chordDepth:'seventh', chordOverride:'auto', fretMin:0, fretMax:7 },
+      vary:[ { key:'C', progression:'ii-V-I' }, { key:'F', progression:'ii-V-I' }, { key:'C', progression:'vi-ii-V-I' }, { key:'G', progression:'ii-V-I' } ],
+    },
+    b_app_walking_blues: {
+      role:'application', label:'Walking blues', competency:'walk a 12-bar',
+      band:'intermediate', instrument:'bass', style:'blues', kind:'walking_bass',
+      base:{ scale:'blues', meter:'4/4', subdivision:'quarter', bars:12, direction:'up_down', fretboardSystem:'position', fretMin:0, fretMax:7 },
+      vary:[ { key:'A' }, { key:'E' }, { key:'G' }, { key:'C' } ],
+    },
+    b_app_guide_tones: {
+      role:'application', label:'Guide tones', competency:'3rds & 7ths on bass',
+      band:'intermediate', instrument:'bass', style:'jazz', kind:'guide_tones',
+      base:{ scale:'major', chordDepth:'seventh', voices:'both_alternating', meter:'4/4', subdivision:'quarter', bars:8, direction:'up_down', fretboardSystem:'position', fretMin:0, fretMax:9 },
+      vary:[ { key:'C', voices:'both_alternating' }, { key:'F', voices:'thirds_only' }, { key:'G', voices:'sevenths_only' }, { key:'Bb', voices:'both_alternating' } ],
+    },
+    b_app_root_motion: {
+      role:'application', label:'Root motion through changes', competency:'arpeggiate the progression',
+      band:'intermediate', instrument:'bass', style:null, kind:'progression_arpeggios',
+      base:{ scale:'major', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', fretboardSystem:'position', chordDepth:'seventh', chordOverride:'auto', progression:'ii-V-I', fretMin:0, fretMax:9 },
+      vary:[ { key:'C', progression:'ii-V-I' }, { key:'G', progression:'I-V-vi-IV' }, { key:'A', progression:'i-VII-VI-VII' }, { key:'F', progression:'ii-V-I' } ],
+    },
+    b_app_octave_disco: {
+      role:'application', label:'Disco octave line', competency:'octave bounce over changes',
+      band:'intermediate', instrument:'bass', style:'pop', kind:'octave_groove',
+      base:{ scale:'major', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', fretboardSystem:'position', fretMin:0, fretMax:9 },
+      vary:[ { key:'C', progression:'I-V-vi-IV' }, { key:'G', progression:'vi-IV-I-V' }, { key:'D', progression:'I-vi-IV-V' }, { key:'A', progression:'I-V-vi-IV' } ],
+    },
+    // Jam (the player IS the bass)
+    b_jam_funk: {
+      role:'jam', label:'Funk groove jam', competency:'hold a funk pocket',
+      band:'intermediate', instrument:'bass', style:'funk', kind:'dead_note_groove',
+      base:{ scale:'dorian', meter:'4/4', subdivision:'sixteenth', bars:8, direction:'up_down', fretboardSystem:'position', fretMin:0, fretMax:7 },
+      vary:[ { key:'A', progression:'static_i' }, { key:'E', progression:'i-VII-VI-VII' }, { key:'D', progression:'static_i' }, { key:'G', progression:'i-VII-VI-VII' } ],
+    },
+    b_jam_blues: {
+      role:'jam', label:'Blues bass jam', competency:'groove a 12-bar',
+      band:'beginner', instrument:'bass', style:'blues', kind:'walking_bass',
+      base:{ scale:'blues', meter:'4/4', subdivision:'quarter', bars:12, direction:'up_down', fretboardSystem:'position', fretMin:0, fretMax:7 },
+      vary:[ { key:'A' }, { key:'E' }, { key:'G' }, { key:'C' } ],
+    },
+    // Review + cool-down
+    b_review_box: {
+      role:'review', label:'Root–5th–octave review', competency:'recall the box',
+      band:'beginner', instrument:'bass', style:null, kind:'root_fifth_octave',
+      base:{ scale:'major', meter:'4/4', subdivision:'quarter', bars:8, direction:'up_down', fretboardSystem:'position', progression:'I-IV-V', fretMin:0, fretMax:7 },
+      vary:[ { key:'C' }, { key:'G' }, { key:'A' }, { key:'E' } ],
+    },
+    b_cool_scale: {
+      role:'cooldown', label:'Cool-down scale', competency:'relaxed box',
+      band:'beginner', instrument:'bass', style:null, kind:'scale',
+      base:{ scale:'major', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', sequence:'none', fretboardSystem:'position', fretMin:0, fretMax:5 },
+      vary:[ { key:'C' }, { key:'G' }, { key:'A' }, { key:'E' } ],
+    },
+    b_cool_arpeggio: {
+      role:'cooldown', label:'Cool-down arpeggios', competency:'relaxed triad arps',
+      band:'beginner', instrument:'bass', style:null, kind:'diatonic_arpeggios',
+      base:{ scale:'major', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', fretboardSystem:'position', chordDepth:'triad', chordOverride:'auto', fretMin:0, fretMax:7 },
+      vary:[ { key:'C' }, { key:'G' }, { key:'A' }, { key:'E' } ],
+    },
   };
 
   // Materialise a template into a concrete session segment at a given variant.
@@ -4822,12 +4981,15 @@
     return { notes, chords:[], chordTemplates:[], handShapes:[], sections, duration:totalTime };
   }
 
-  // octave_groove — disco/Motown octave bounce. Staccato R-8-R-8 at the subdivision.
+  // octave_groove — the disco octave bounce. Relentless even R-8 IS the idiom
+  // (soul-motown feel review: don't syncopate it, don't add a Motown toggle — Motown
+  // melodic-bass is a separate future primitive). Two feel fixes: the weight lands on
+  // the HIGH octave (the pop up), not the root; tight root launch + singing octave
+  // landing (sus 0.45 vs 0.70).
   function buildOctaveGrooveExercise(cfg) {
     const step = secondsPerDivision(cfg), mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
     const degrees = progressionDegreesForConfig(cfg);
     const notes = [], sections = [{ name:`Octave groove — ${cfg.key}`, number:1, time:0 }];
-    const sus = Math.max(0.04, step * 0.5);
     let prevMidi = 33, t = 0, bar = 0;
     while (t < totalTime - 0.001) {
       const grip = bassRootGrip(cfg, chordRootForDegree(cfg, degrees[bar % degrees.length]), prevMidi);
@@ -4835,8 +4997,9 @@
       if (grip) {
         let i = 0;
         for (let tt = t; tt < barEnd - 0.001; tt += step, i++) {
-          const p = (i % 2 === 0) ? grip.root : grip.octave;
-          notes.push(noteDefaults({ t:Number(tt.toFixed(6)), s:p.s, f:p.f, sus, ac:(i % 2 === 0) }));
+          const isRoot = (i % 2 === 0);
+          const p = isRoot ? grip.root : grip.octave;
+          notes.push(noteDefaults({ t:Number(tt.toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * (isRoot ? 0.45 : 0.70)), ac:!isRoot, noSwing:true }));
         }
         prevMidi = grip.root.midi;
       }
@@ -4846,29 +5009,37 @@
     return { notes, chords:[], chordTemplates:[], handShapes:[], sections, duration:totalTime };
   }
 
-  // dead_note_groove — the 16th-note pocket: chord tones on the downbeats, muted
-  // ghost notes (mt) filling the grid. Teaches pocket + left-hand muting.
+  // dead_note_groove — the 16th-note funk pocket. Funk-idiom feel review: uniformity
+  // kills the pocket — the REAL notes must SYNCOPATE (the one, then the & of 2, the &
+  // of 3, the a of 4 — the push that pulls the loop around), a few genuine RESTS make
+  // it breathe, and only ~2 accents/bar. Muted ghosts (mt) fill the rest. noSwing so
+  // the 8th-pair swing post-process can't smear the 16ths. Authored for a 4/4 16-step
+  // bar; other meters degrade to a tone-on-downbeats / ghost-between feel.
   function buildDeadNoteGrooveExercise(cfg) {
     const mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
     const beatsPerBar = Math.max(1, cfg.meter.numerator), sixteenth = mLen / (beatsPerBar * 4);
+    const stepsPerBar = beatsPerBar * 4, map16 = stepsPerBar === 16;
     const degrees = progressionDegreesForConfig(cfg);
     const notes = [], sections = [{ name:`Dead-note pocket — ${cfg.key}`, number:1, time:0 }];
-    const sus = Math.max(0.03, sixteenth * 0.7);
+    const realSus = Math.max(0.03, sixteenth * 0.6), ghostSus = Math.max(0.02, sixteenth * 0.4);
+    const REAL = new Set([0, 6, 10, 14]), REST = new Set([2, 5, 13]), ACCENT = new Set([0, 6]);
     let prevMidi = 33, t = 0, bar = 0;
     while (t < totalTime - 0.001) {
       const grip = bassRootGrip(cfg, chordRootForDegree(cfg, degrees[bar % degrees.length]), prevMidi);
       const barEnd = Math.min(totalTime, t + mLen);
       if (grip) {
+        const realPitch = [grip.root, grip.octave, grip.fifth, grip.octave];   // root on the one, colour on the pushes
         const tones = [grip.root, grip.octave, grip.fifth];
-        let i = 0;
+        let i = 0, realIdx = 0;
         for (let tt = t; tt < barEnd - 0.001; tt += sixteenth, i++) {
-          const within = i % 4, beatIdx = Math.floor(i / 4) % beatsPerBar;
-          if (within === 0) {                          // downbeat → a chord tone (real)
-            const p = tones[beatIdx % tones.length];
-            notes.push(noteDefaults({ t:Number(tt.toFixed(6)), s:p.s, f:p.f, sus, ac:(beatIdx === 0) }));
+          if (map16 && REST.has(i)) continue;
+          const isReal = map16 ? REAL.has(i) : (i % 4 === 0);
+          if (isReal) {
+            const p = map16 ? realPitch[realIdx++ % realPitch.length] : tones[Math.floor(i / 4) % tones.length];
+            notes.push(noteDefaults({ t:Number(tt.toFixed(6)), s:p.s, f:p.f, sus:realSus, ac:(map16 ? ACCENT.has(i) : i === 0), noSwing:true }));
             prevMidi = p.midi;
-          } else {                                     // e / & / a → muted ghost
-            notes.push(noteDefaults({ t:Number(tt.toFixed(6)), s:grip.root.s, f:grip.root.f, sus:Math.max(0.02, sixteenth * 0.5), mt:true }));
+          } else {
+            notes.push(noteDefaults({ t:Number(tt.toFixed(6)), s:grip.root.s, f:grip.root.f, sus:ghostSus, mt:true, noSwing:true }));
           }
         }
       }
@@ -4878,23 +5049,37 @@
     return { notes, chords:[], chordTemplates:[], handShapes:[], sections, duration:totalTime };
   }
 
-  // slap_pop — slapped octave: thumb-slap the root (low string, ac) on the beat,
-  // pop the octave (high string, ac) on the &. Advanced; gate after fingerstyle.
+  // slap_pop — the slap pocket. Funk-idiom feel review: real slap is mostly GHOSTS +
+  // SPACE with a few hits that snap, not a clockwork T-P. On a 16-grid: thumb (root,
+  // low) on the one and the "and-area" of 3; pop (octave, high) on the backbeat + the
+  // a-of-3 / &-of-4 pushes; dead-thumb ghosts (mt) between; the rest rests. Two accents
+  // (the one + the backbeat). noSwing keeps the 16ths straight (v1). Other meters
+  // degrade to an 8th-feel T-P. Advanced; gate after fingerstyle.
   function buildSlapPopExercise(cfg) {
     const mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
-    const beatsPerBar = Math.max(1, cfg.meter.numerator), eighth = mLen / (beatsPerBar * 2);
+    const beatsPerBar = Math.max(1, cfg.meter.numerator), sixteenth = mLen / (beatsPerBar * 4);
+    const stepsPerBar = beatsPerBar * 4, map16 = stepsPerBar === 16;
     const degrees = progressionDegreesForConfig(cfg);
     const notes = [], sections = [{ name:`Slap & pop — ${cfg.key}`, number:1, time:0 }];
-    const sus = Math.max(0.04, eighth * 0.6);
+    const realSus = Math.max(0.03, sixteenth * 0.55), ghostSus = Math.max(0.02, sixteenth * 0.4);
+    const THUMB = new Set([0, 8]), POP = new Set([4, 11, 14]), GHOST = new Set([2, 6, 13]), ACCENT = new Set([0, 4]);
     let prevMidi = 33, t = 0, bar = 0;
     while (t < totalTime - 0.001) {
       const grip = bassRootGrip(cfg, chordRootForDegree(cfg, degrees[bar % degrees.length]), prevMidi);
       const barEnd = Math.min(totalTime, t + mLen);
       if (grip) {
         let i = 0;
-        for (let tt = t; tt < barEnd - 0.001; tt += eighth, i++) {
-          const p = (i % 2 === 0) ? grip.root : grip.octave;   // T (root, low) on the beat; P (octave, high) on the &
-          notes.push(noteDefaults({ t:Number(tt.toFixed(6)), s:p.s, f:p.f, sus, ac:true }));
+        for (let tt = t; tt < barEnd - 0.001; tt += sixteenth, i++) {
+          const T = Number(tt.toFixed(6));
+          if (map16) {
+            if (THUMB.has(i))      notes.push(noteDefaults({ t:T, s:grip.root.s,   f:grip.root.f,   sus:realSus,  ac:ACCENT.has(i), noSwing:true }));
+            else if (POP.has(i))   notes.push(noteDefaults({ t:T, s:grip.octave.s, f:grip.octave.f, sus:realSus,  ac:ACCENT.has(i), noSwing:true }));
+            else if (GHOST.has(i)) notes.push(noteDefaults({ t:T, s:grip.root.s,   f:grip.root.f,   sus:ghostSus, mt:true,          noSwing:true }));
+            // else rest
+          } else if (i % 2 === 0) {
+            const p = (i % 4 === 0) ? grip.root : grip.octave;
+            notes.push(noteDefaults({ t:T, s:p.s, f:p.f, sus:realSus, ac:(i % 4 === 0), noSwing:true }));
+          }
         }
         prevMidi = grip.root.midi;
       }
