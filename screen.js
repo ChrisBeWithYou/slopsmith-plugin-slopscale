@@ -854,6 +854,118 @@
         { id:'ii_v_i_arps',     name:'ii–V–I arpeggios',          kind:'progression_arpeggios',
           config:{ key:'C', scale:'major', progression:'ii-V-I', chordDepth:'seventh', chordOverride:'auto', bpm:90, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', fretboardSystem:'caged', shape:'E', keyCycle:'none' } }
       ]
+    },
+    // ── Added 2026-06-02 to reach a credible starter library (≥10). Spread
+    // across goal × level × time × genre × instrument, and DELIBERATELY shallow
+    // on the primitive palette (each uses 3–4 of the 29 types, a handful of
+    // scales/progressions) so a user's own workout has plenty of room to differ.
+    quick_warmup: {
+      version:1,
+      name:'Warm-up — 10 minutes',
+      description:'A fast loosen-up before you really practise: chromatic finger independence, a clean scale run, then flowing legato. Any level, any day.',
+      stringSetup:'guitar_6_standard',
+      tags:['warm-up','short','any level'],
+      bpmLadder:{ enabled:false },
+      keyCycle:{ enabled:false },
+      segments:[
+        { id:'chromatic', name:'Chromatic 1-2-3-4',      kind:'chromatic',
+          config:{ chromaticPattern:'1234', bpm:80, bars:8, direction:'up_down', fretboardSystem:'position', fretMin:1, fretMax:4, meter:'4/4', subdivision:'sixteenth', keyCycle:'none' } },
+        { id:'scale',     name:'C major — E-shape',       kind:'scale',
+          config:{ key:'C', scale:'major', bpm:100, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', sequence:'none', fretboardSystem:'caged', shape:'E', keyCycle:'none' } },
+        { id:'legato',    name:'Legato — A minor pent',   kind:'legato',
+          config:{ key:'A', scale:'minor_pentatonic', bpm:90, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', fretboardSystem:'caged', shape:'E', keyCycle:'none' } }
+      ]
+    },
+    beginner_foundations: {
+      version:1,
+      name:'Beginner Foundations',
+      description:'The first-year guitar bedrock: the minor-pentatonic box, the major scale in a second shape, then turning the scale into chord tones with triad arpeggios.',
+      stringSetup:'guitar_6_standard',
+      tags:['beginner','foundational'],
+      bpmLadder:{ enabled:false },
+      keyCycle:{ enabled:false },
+      segments:[
+        { id:'pent',   name:'A minor pentatonic — E-shape', kind:'scale',
+          config:{ key:'A', scale:'minor_pentatonic', bpm:75, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', sequence:'none', fretboardSystem:'caged', shape:'E', keyCycle:'none' } },
+        { id:'major',  name:'C major — C-shape',            kind:'scale',
+          config:{ key:'C', scale:'major', bpm:80, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', sequence:'none', fretboardSystem:'caged', shape:'C', keyCycle:'none' } },
+        { id:'triads', name:'Diatonic triads',              kind:'diatonic_arpeggios',
+          config:{ key:'C', scale:'major', chordDepth:'triad', chordOverride:'auto', bpm:80, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', fretboardSystem:'caged', shape:'E', keyCycle:'none' } }
+      ]
+    },
+    rock_essentials: {
+      version:1,
+      name:'Rock Essentials',
+      description:'Power-chord pedal riffing, the minor-pentatonic lead box, and expressive whole-step bends — the core rock rhythm-and-lead vocabulary in E minor.',
+      stringSetup:'guitar_6_standard',
+      tags:['rock','beginner'],
+      bpmLadder:{ enabled:false },
+      keyCycle:{ enabled:false },
+      segments:[
+        { id:'riff',    name:'Power-chord pedal riff',    kind:'pedal_riff',
+          config:{ harmonize:false, scale:'natural_minor', key:'E', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', fretboardSystem:'position', progression:'i-VII-VI-VII', chordOverride:'5', swing:'straight', fretMin:0, fretMax:7, keyCycle:'none' } },
+        { id:'pent',    name:'E minor pentatonic — E-shape', kind:'scale',
+          config:{ key:'E', scale:'minor_pentatonic', bpm:100, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', sequence:'none', fretboardSystem:'caged', shape:'E', keyCycle:'none' } },
+        { id:'bends',   name:'Whole-step bends',          kind:'bending',
+          config:{ bendTarget:'whole', scale:'minor_pentatonic', key:'E', meter:'4/4', subdivision:'quarter', bpm:70, bars:8, direction:'up_down', fretboardSystem:'caged', shape:'E', keyCycle:'none' } }
+      ]
+    },
+    funk_pocket: {
+      version:1,
+      name:'Funk Pocket & Vocabulary',
+      description:'Sit in a 16th-note Dorian pocket, displace the rhythm, comp two-note shell voicings, then snap octaves — the building blocks of funk phrasing in A Dorian.',
+      stringSetup:'guitar_6_standard',
+      tags:['funk','intermediate'],
+      bpmLadder:{ enabled:false },
+      keyCycle:{ enabled:false },
+      segments:[
+        { id:'pocket',  name:'A Dorian — 16th pocket',    kind:'scale',
+          config:{ key:'A', scale:'dorian', bpm:95, bars:8, meter:'4/4', subdivision:'sixteenth', direction:'up_down', sequence:'none', fretboardSystem:'caged', shape:'E', keyCycle:'none' } },
+        { id:'displace',name:'Rhythmic displacement',     kind:'rhythmic_displacement',
+          config:{ key:'A', scale:'dorian', bpm:95, bars:8, meter:'4/4', subdivision:'sixteenth', direction:'up_down', fretboardSystem:'caged', shape:'E', keyCycle:'none' } },
+        { id:'shells',  name:'Shell voicings',            kind:'shell_voicings',
+          config:{ key:'A', scale:'dorian', progression:'i-VII-VI-VII', chordDepth:'seventh', chordOverride:'min7', bpm:90, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', fretboardSystem:'caged', shape:'E', keyCycle:'none' } },
+        { id:'octaves', name:'Octave displacement',       kind:'octave_displacement',
+          config:{ key:'A', scale:'dorian', bpm:95, bars:8, meter:'4/4', subdivision:'sixteenth', direction:'up_down', fretboardSystem:'caged', shape:'E', keyCycle:'none' } }
+      ]
+    },
+    metal_technique: {
+      version:1,
+      name:'Metal Technique',
+      description:'Chromatic warm-up into a chromatic-pedal chug, the Phrygian-dominant exotic run, then minor-triad sweeps — the heavy rhythm-and-shred toolkit in E.',
+      stringSetup:'guitar_6_standard',
+      tags:['metal','advanced'],
+      bpmLadder:{ enabled:false },
+      keyCycle:{ enabled:false },
+      segments:[
+        { id:'warmup',  name:'Chromatic warm-up',         kind:'chromatic',
+          config:{ chromaticPattern:'1234', bpm:90, bars:8, direction:'up_down', fretboardSystem:'position', fretMin:1, fretMax:4, meter:'4/4', subdivision:'sixteenth', keyCycle:'none' } },
+        { id:'chug',    name:'Chromatic pedal chug',      kind:'pedal_riff',
+          config:{ harmonize:false, scale:'phrygian', key:'E', meter:'4/4', subdivision:'sixteenth', bpm:120, bars:8, direction:'up_down', fretboardSystem:'position', progression:'metal_pedal_chromatic', chordOverride:'5', swing:'straight', fretMin:0, fretMax:7, keyCycle:'none' } },
+        { id:'exotic',  name:'Phrygian dominant — fours',  kind:'scale',
+          config:{ key:'E', scale:'phrygian_dominant', bpm:100, bars:8, meter:'4/4', subdivision:'sixteenth', direction:'up_down', sequence:'fours', fretboardSystem:'caged', shape:'E', keyCycle:'none' } },
+        { id:'sweeps',  name:'Minor-triad sweeps',        kind:'sweep_arpeggios',
+          config:{ key:'E', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:80, bars:8, direction:'up_down', fretboardSystem:'caged', shape:'E', keyCycle:'none' } }
+      ]
+    },
+    bass_foundations: {
+      version:1,
+      name:'Bass Foundations',
+      description:'A first bass routine: chromatic finger drills, the minor-pentatonic box, chord-tone (arpeggio) targeting, then a walking line over ii–V–I.',
+      stringSetup:'bass_4_standard',
+      tags:['bass','beginner'],
+      bpmLadder:{ enabled:false },
+      keyCycle:{ enabled:false },
+      segments:[
+        { id:'chromatic', name:'Chromatic 1-2-3-4',       kind:'chromatic',
+          config:{ chromaticPattern:'1234', bpm:70, bars:8, direction:'up_down', fretboardSystem:'position', fretMin:1, fretMax:4, meter:'4/4', subdivision:'eighth', stringSetup:'bass_4_standard', keyCycle:'none' } },
+        { id:'pent',      name:'A minor pentatonic',       kind:'scale',
+          config:{ key:'A', scale:'minor_pentatonic', bpm:80, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', sequence:'none', fretboardSystem:'position', fretMin:0, fretMax:5, stringSetup:'bass_4_standard', keyCycle:'none' } },
+        { id:'arps',      name:'Chord-tone targeting',     kind:'diatonic_arpeggios',
+          config:{ key:'C', scale:'major', chordDepth:'triad', chordOverride:'auto', bpm:80, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', fretboardSystem:'position', stringSetup:'bass_4_standard', keyCycle:'none' } },
+        { id:'walk',      name:'Walking bass — ii–V–I',    kind:'walking_bass',
+          config:{ key:'C', scale:'major', progression:'ii-V-I', chordDepth:'seventh', chordOverride:'auto', bpm:80, bars:8, meter:'4/4', subdivision:'quarter', direction:'up_down', fretboardSystem:'position', stringSetup:'bass_4_standard', keyCycle:'none' } }
+      ]
     }
   };
 
@@ -8906,13 +9018,20 @@
     // causing notes scheduled with the frozen currentTime to fire in the past.
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
-    // Read current string setup from the form so sessions respect the user's
-    // string-count selection (built-in sessions default to guitar_6_standard
-    // but should use whatever the form has active).
+    // Sessions follow the user's form string-setup ONLY within the same
+    // instrument family: a 7-string player gets a guitar session in 7-string,
+    // but a bassist launching a guitar session (or a guitarist launching a bass
+    // session) keeps the session's OWN setup. This preserves "respect my string
+    // count" while protecting instrument-specific presets — Bass Foundations
+    // stays bass, and a guitar-only technique (e.g. bending in Rock Essentials)
+    // never lands on a bass setup (which would throw).
     const formStringSetup = document.querySelector('[name="stringSetup"]')?.value || null;
-    // Clone session; patch audio + string setup into each segment config
+    const sessionSetup = STRING_SETUPS[baseSession.stringSetup] || STRING_SETUPS.guitar_6_standard;
+    const formSetup = formStringSetup ? STRING_SETUPS[formStringSetup] : null;
+    const inheritForm = !!formSetup && formSetup.instrument === sessionSetup.instrument;
+    // Clone session; patch audio + (family-compatible) string setup into each segment config
     const session = Object.assign({}, baseSession, {
-      ...(formStringSetup ? { stringSetup: formStringSetup } : {}),
+      ...(inheritForm ? { stringSetup: formStringSetup } : {}),
       segments: baseSession.segments.map(seg =>
         Object.assign({}, seg, { config: Object.assign({}, seg.config, { audio }) })
       )
