@@ -966,6 +966,97 @@
         { id:'walk',      name:'Walking bass — ii–V–I',    kind:'walking_bass',
           config:{ key:'C', scale:'major', progression:'ii-V-I', chordDepth:'seventh', chordOverride:'auto', bpm:80, bars:8, meter:'4/4', subdivision:'quarter', direction:'up_down', fretboardSystem:'position', stringSetup:'bass_4_standard', keyCycle:'none' } }
       ]
+    },
+
+    // ═══ Phase 7 — starter sessions as ROLE-SKELETONS of template-refs ═════════
+    // Each segment is a { id, templateId } ref into SEGMENT_TEMPLATES (materialized
+    // at the top of buildSessionChart via rollSegment); inline-config sessions above
+    // still work. Composition rules: warm-up first · ≥1 isolation before application
+    // · ≤2 same-primitive in a row · ~3–5 blocks. The session's stringSetup must
+    // match the templates' instrument (guitar refs in guitar sessions, bass in bass).
+    core_beginner_guitar: {
+      version:1, name:'Core — Beginner (guitar)',
+      description:'The first-year bedrock as one routine: chromatic warm-up → the minor-pentatonic box → the major scale in CAGED shapes → diatonic triads → a relaxed cool-down.',
+      stringSetup:'guitar_6_standard', tags:['beginner','foundational','guitar'],
+      bpmLadder:{ enabled:false }, keyCycle:{ enabled:false },
+      segments:[ { id:'warmup', templateId:'g_warm_chromatic' }, { id:'box', templateId:'g_tech_pentatonic_box' }, { id:'scale', templateId:'g_scale_major_caged' }, { id:'arps', templateId:'g_arp_triads' }, { id:'cool', templateId:'g_cool_scale' } ],
+    },
+    rock_rhythm_lead: {
+      version:1, name:'Rock — Rhythm & Lead',
+      description:'Warm up, lock power-chord changes, drive an eighth-note power-chord strum, then improvise over a rock vamp.',
+      stringSetup:'guitar_6_standard', tags:['rock','beginner','guitar'],
+      bpmLadder:{ enabled:false }, keyCycle:{ enabled:false },
+      segments:[ { id:'warmup', templateId:'g_warm_chromatic' }, { id:'power', templateId:'g_tech_power_chords' }, { id:'strum', templateId:'g_comp_rock' }, { id:'jam', templateId:'g_jam_rock' } ],
+    },
+    blues_workout: {
+      version:1, name:'Blues — Lead Workout',
+      description:'Warm up, work whole-step bend intonation, learn the blues scale, phrase it over a 12-bar shuffle, then jam.',
+      stringSetup:'guitar_6_standard', tags:['blues','intermediate','guitar'],
+      bpmLadder:{ enabled:false }, keyCycle:{ enabled:false },
+      segments:[ { id:'warmup', templateId:'g_warm_chromatic' }, { id:'bends', templateId:'g_tech_bending' }, { id:'scale', templateId:'g_blues_scale' }, { id:'shuffle', templateId:'g_app_blues_shuffle' }, { id:'jam', templateId:'g_jam_blues' } ],
+    },
+    jazz_changes: {
+      version:1, name:'Jazz — Playing the Changes',
+      description:'Warm up, build seventh-arpeggio vocabulary, voice-lead guide tones, run scales over a ii–V–I, then explore a modal vamp.',
+      stringSetup:'guitar_6_standard', tags:['jazz','intermediate','guitar'],
+      bpmLadder:{ enabled:false }, keyCycle:{ enabled:false },
+      segments:[ { id:'warmup', templateId:'g_warm_scale' }, { id:'arps', templateId:'g_arp_diatonic_7th' }, { id:'guide', templateId:'g_app_guide_tones' }, { id:'changes', templateId:'g_app_ii_v_i' }, { id:'vamp', templateId:'g_jam_modal' } ],
+    },
+    metal_shred: {
+      version:1, name:'Metal — Technique',
+      description:'Chromatic warm-up → metalcore pedal chug → melodic gallop → the Phrygian-dominant exotic run → minor-triad sweeps.',
+      stringSetup:'guitar_6_standard', tags:['metal','advanced','guitar'],
+      bpmLadder:{ enabled:false }, keyCycle:{ enabled:false },
+      segments:[ { id:'warmup', templateId:'g_warm_chromatic' }, { id:'chug', templateId:'g_metal_metalcore' }, { id:'gallop', templateId:'g_metal_gallop' }, { id:'exotic', templateId:'g_metal_phrygian' }, { id:'sweeps', templateId:'g_tech_sweep' } ],
+    },
+    funk_rhythm_guitar: {
+      version:1, name:'Funk — Rhythm Guitar',
+      description:'Warm up, sit in a 16th-note pocket, lock a muted 16th funk-scratch comp, then jam over a modal vamp.',
+      stringSetup:'guitar_6_standard', tags:['funk','intermediate','guitar'],
+      bpmLadder:{ enabled:false }, keyCycle:{ enabled:false },
+      segments:[ { id:'warmup', templateId:'g_warm_chromatic' }, { id:'pocket', templateId:'g_tech_16th_pocket' }, { id:'scratch', templateId:'g_comp_funk' }, { id:'jam', templateId:'g_jam_modal' } ],
+    },
+    lead_technique: {
+      version:1, name:'Lead Technique Builder',
+      description:'Warm up, then drill the lead toolkit: legato fluency, clean sweep picking, and a pentatonic recall.',
+      stringSetup:'guitar_6_standard', tags:['technique','intermediate','guitar'],
+      bpmLadder:{ enabled:false }, keyCycle:{ enabled:false },
+      segments:[ { id:'warmup', templateId:'g_warm_chromatic' }, { id:'legato', templateId:'g_tech_legato' }, { id:'sweep', templateId:'g_tech_sweep' }, { id:'review', templateId:'g_review_pentatonic' } ],
+    },
+    daily_balanced_guitar: {
+      version:1, name:'Daily — Balanced (guitar)',
+      description:'A rounded daily session: chromatic warm-up → the pentatonic box → a Dorian scale focus → a mode-per-chord application → a cool-down.',
+      stringSetup:'guitar_6_standard', tags:['daily','intermediate','guitar'],
+      bpmLadder:{ enabled:false }, keyCycle:{ enabled:false },
+      segments:[ { id:'warmup', templateId:'g_warm_chromatic' }, { id:'box', templateId:'g_tech_pentatonic_box' }, { id:'dorian', templateId:'g_scale_dorian' }, { id:'modal', templateId:'g_app_modal' }, { id:'cool', templateId:'g_cool_arpeggio' } ],
+    },
+    bass_foundations_groove: {
+      version:1, name:'Bass — Foundations & Groove',
+      description:'The bass bedrock in the right order: chromatic warm-up → right-hand alternation → the root–5th–octave box → the major scale box → a walking line.',
+      stringSetup:'bass_4_standard', tags:['bass','beginner','foundational'],
+      bpmLadder:{ enabled:false }, keyCycle:{ enabled:false },
+      segments:[ { id:'warmup', templateId:'b_warm_chromatic' }, { id:'rh', templateId:'b_tech_right_hand' }, { id:'box', templateId:'b_tech_root_fifth_octave' }, { id:'scale', templateId:'b_scale_major' }, { id:'walk', templateId:'b_app_walking' } ],
+    },
+    bass_pocket: {
+      version:1, name:'Bass — The Pocket',
+      description:'Right-hand stamina → the octave bounce → the 16th-note dead-note pocket → a funk groove jam. Groove first, the bass way.',
+      stringSetup:'bass_4_standard', tags:['bass','funk','intermediate'],
+      bpmLadder:{ enabled:false }, keyCycle:{ enabled:false },
+      segments:[ { id:'warmup', templateId:'b_warm_chromatic' }, { id:'rh', templateId:'b_tech_right_hand' }, { id:'octave', templateId:'b_tech_octave_groove' }, { id:'dead', templateId:'b_tech_dead_note' }, { id:'jam', templateId:'b_jam_funk' } ],
+    },
+    bass_walking: {
+      version:1, name:'Bass — Walking Lines',
+      description:'Warm up, build seventh-arpeggio chord tones, voice-lead guide tones, then walk a ii–V–I and a 12-bar blues.',
+      stringSetup:'bass_4_standard', tags:['bass','jazz','intermediate'],
+      bpmLadder:{ enabled:false }, keyCycle:{ enabled:false },
+      segments:[ { id:'warmup', templateId:'b_warm_scale' }, { id:'arps', templateId:'b_arp_sevenths' }, { id:'guide', templateId:'b_app_guide_tones' }, { id:'walk', templateId:'b_app_walking' }, { id:'blues', templateId:'b_app_walking_blues' } ],
+    },
+    bass_slap_workout: {
+      version:1, name:'Bass — Slap & Pop',
+      description:'Build the right hand and the dead-note pocket first, THEN add slap & pop (gated after fingerstyle), and jam it.',
+      stringSetup:'bass_4_standard', tags:['bass','funk','advanced'],
+      bpmLadder:{ enabled:false }, keyCycle:{ enabled:false },
+      segments:[ { id:'warmup', templateId:'b_warm_chromatic' }, { id:'rh', templateId:'b_tech_right_hand' }, { id:'dead', templateId:'b_tech_dead_note' }, { id:'slap', templateId:'b_tech_slap' }, { id:'jam', templateId:'b_jam_funk' } ],
     }
   };
 
@@ -2512,6 +2603,23 @@
       return Object.assign({}, seg, { variantIdx: (((seg.variantIdx | 0) + 1) % n) });
     });
     return Object.assign({}, session, { segments: segs });
+  }
+
+  // Materialise a session segment: a TEMPLATE-REF ({ templateId, variantIdx, locks })
+  // becomes a concrete { kind, config } segment via rollSegment; an inline segment
+  // passes through unchanged. Returns null for an unknown templateId (caller skips).
+  // Shared by buildSessionChart AND generateSession's metadata path so both see the
+  // same materialised first segment (else session metadata reads a config-less ref).
+  function materializeSegment(rawSeg) {
+    if (!(rawSeg && rawSeg.templateId && !rawSeg.kind)) return rawSeg;
+    const tmpl = SEGMENT_TEMPLATES[rawSeg.templateId];
+    if (!tmpl) return null;
+    const seg = rollSegment(tmpl, { variantIdx: rawSeg.variantIdx, locks: rawSeg.locks });
+    if (rawSeg.name) seg.name = rawSeg.name;
+    if (rawSeg.bpmLadder) seg.bpmLadder = rawSeg.bpmLadder;
+    if (rawSeg.keyCycle) seg.keyCycle = rawSeg.keyCycle;
+    if (rawSeg.targetSec != null) seg.targetSec = rawSeg.targetSec;
+    return seg;
   }
 
   // Startup integrity guard (mirrors validateStylePalettes + the no-unison guard):
@@ -5188,6 +5296,7 @@
     const raw = Object.assign({
       // Structural defaults
       key:'C', scale:'major', bpm:80, bars:4, direction:'up_down', sequence:'none',
+      meter:'4/4',   // safety-net default so a meter-less config never yields meter.denominator undefined
       subdivision:'eighth', fretboardSystem:'caged', shape:'E', fretMin:0, fretMax:5,
       chordDepth:'seventh', progression:'ii-V-I', chordOverride:'auto',
       chordScaleStrategy:'mode_of_moment', chromaticPattern:'1234', keyCycle:'none',
@@ -5386,16 +5495,8 @@
       // Template-ref slots ({ templateId, variantIdx, locks }) materialise through
       // the variation engine; inline segments ({ kind, config }) pass through. An
       // unknown templateId is skipped (validateSegmentTemplates catches authored ones).
-      let segment = rawSeg;
-      if (rawSeg && rawSeg.templateId && !rawSeg.kind) {
-        const tmpl = SEGMENT_TEMPLATES[rawSeg.templateId];
-        if (!tmpl) continue;
-        segment = rollSegment(tmpl, { variantIdx: rawSeg.variantIdx, locks: rawSeg.locks });
-        if (rawSeg.name) segment.name = rawSeg.name;          // a session may rename a slot
-        if (rawSeg.bpmLadder) segment.bpmLadder = rawSeg.bpmLadder;
-        if (rawSeg.keyCycle)  segment.keyCycle = rawSeg.keyCycle;
-        if (rawSeg.targetSec != null) segment.targetSec = rawSeg.targetSec;
-      }
+      const segment = materializeSegment(rawSeg);
+      if (!segment) continue;                                 // unknown templateId — skip
       const segCfg = buildSegmentConfig(segment, session);
       // Determine which builder to use for this segment
       const ladder = segment.bpmLadder
@@ -5454,8 +5555,9 @@
   function generateSession(session) {
     const chart = buildSessionChart(session);
     const duration = chart.duration || 0;
-    // Use first segment's config for metadata
-    const firstSeg = (session.segments || [])[0];
+    // Use first segment's config for metadata — materialise a template-ref first so
+    // the metadata cfg has a real meter/key/scale (not a config-less ref → undefined).
+    const firstSeg = materializeSegment((session.segments || [])[0]);
     const firstCfg = firstSeg ? buildSegmentConfig(firstSeg, session) : {};
     const anchors = chart.anchors?.length ? chart.anchors : buildAnchors(firstCfg, duration);
     const sessionMeta = Object.assign({}, firstCfg, {
