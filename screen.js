@@ -7512,6 +7512,7 @@
   function toggleMixer(force) {
     const root = $('slopscale-root'); if (!root) return;
     const open = force != null ? force : !root.classList.contains('ss-mixer-open');
+    if (open) { root.classList.remove('ss-library-open'); root.classList.remove('ss-starters-open'); }   // mutually exclusive bottom drawers
     root.classList.toggle('ss-mixer-open', open);
     $('slopscale-mixer')?.setAttribute('aria-hidden', open ? 'false' : 'true');
     $('slopscale-mixer-btn')?.classList.toggle('active', open);
@@ -7531,6 +7532,185 @@
     root.classList.toggle('ss-cheat-open', open);
     $('slopscale-cheatsheet')?.setAttribute('aria-hidden', open ? 'false' : 'true');
     $('slopscale-help-btn')?.classList.toggle('active', open);
+  }
+
+  // ── Library browse drawer (Phase 9 Slice 3) ─────────────────────────────────
+  // Slides UP over the stage (mirrors the Mixer M idiom). Browse the segment
+  // TEMPLATE library grouped by ROLE; Genre × Skill × Instrument chips narrow
+  // within; [+ Add] appends a fresh template-ref block to the editable Workout
+  // draft (addSegmentToDraft) and stays open for multi-add. Overlay, not relayout;
+  // Esc stays unbound (the host owns it). UX: project_workout_browse_design_refresh.
+  let _libFilters = { genre: 'all', skill: 'all', instrument: 'all' };
+  const LIB_GENRE_LABELS = { blues:'Blues', rock:'Rock', metal:'Metal', djent:'Djent', jazz:'Jazz', funk:'Funk', pop:'Pop', country:'Country', gospel:'Gospel' };
+  function _libGenres() {
+    const set = new Set();
+    for (const id of Object.keys(SEGMENT_TEMPLATES)) { const st = SEGMENT_TEMPLATES[id].style; if (st) set.add(st); }
+    return [...set].sort();
+  }
+  function toggleLibrary(force) {
+    const root = $('slopscale-root'); if (!root) return;
+    const open = force != null ? force : !root.classList.contains('ss-library-open');
+    if (open) { root.classList.remove('ss-mixer-open'); root.classList.remove('ss-starters-open'); }   // both slide up from the bottom — mutually exclusive
+    root.classList.toggle('ss-library-open', open);
+    $('slopscale-library')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    $('slopscale-library-open')?.classList.toggle('active', open);
+    if (open) renderLibrary();
+  }
+  function _libChipRow(dim, label, values) {
+    const cur = _libFilters[dim];
+    const chip = (val, txt) => `<button type="button" class="slopscale-lib-chip${cur === val ? ' active' : ''}" data-filter="${dim}" data-value="${val}">${txt}</button>`;
+    return `<div class="slopscale-lib-chiprow"><span class="slopscale-lib-chiplbl">${label}</span>${chip('all', 'All')}${values.map(v => chip(v[0], v[1])).join('')}</div>`;
+  }
+  function renderLibraryFilters() {
+    const el = $('slopscale-library-filters'); if (!el) return;
+    const genres = _libGenres().map(g => [g, LIB_GENRE_LABELS[g] || g]);
+    const skills = [['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced']];
+    const insts  = [['guitar', 'Guitar'], ['bass', 'Bass']];
+    el.innerHTML = _libChipRow('genre', 'Genre', genres) + _libChipRow('skill', 'Skill', skills) + _libChipRow('instrument', 'Instrument', insts);
+  }
+  function _libCardHtml(id) {
+    const t = SEGMENT_TEMPLATES[id];
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const color = KIND_COLORS[t.kind] || '#94a3b8';
+    const klabel = KIND_LABELS[t.kind] || t.kind;
+    let dose = '';
+    try { const seg = rollSegment(t, { variantIdx: 0 }); const d = segmentEstDuration(seg); dose = d < 60 ? `~${Math.round(d)}s` : `~${Math.floor(d / 60)}m${Math.round(d % 60)}s`; } catch (_) {}
+    const meta = [t.competency, t.style ? (LIB_GENRE_LABELS[t.style] || t.style) : 'all-purpose', t.instrument, dose].filter(Boolean).join(' · ');
+    return `<div class="slopscale-lib-card">
+      <div class="slopscale-segment-header">
+        <span class="slopscale-segment-badge" style="color:${color}">${esc(klabel)}</span>
+        <span class="slopscale-segment-name">${esc(t.label || id)}</span>
+        <button type="button" class="slopscale-lib-add" data-template-id="${esc(id)}" title="Add this block to your workout">+ Add</button>
+      </div>
+      <div class="slopscale-segment-meta">${esc(meta)}</div>
+    </div>`;
+  }
+  function renderLibrary() {
+    renderLibraryFilters();
+    const body = $('slopscale-library-body'), cnt = $('slopscale-library-count'); if (!body) return;
+    const f = _libFilters;
+    const ids = Object.keys(SEGMENT_TEMPLATES);
+    const match = id => { const t = SEGMENT_TEMPLATES[id];
+      return (f.genre === 'all' || t.style === f.genre)
+          && (f.skill === 'all' || t.band === f.skill)
+          && (f.instrument === 'all' || t.instrument === f.instrument); };
+    const shown = ids.filter(match);
+    if (cnt) cnt.textContent = `${shown.length} of ${ids.length}`;
+    const roleOrder = Object.keys(SEGMENT_ROLES).sort((a, b) => SEGMENT_ROLES[a].order - SEGMENT_ROLES[b].order);
+    let html = '';
+    for (const role of roleOrder) {
+      const inRole = shown.filter(id => SEGMENT_TEMPLATES[id].role === role);
+      if (!inRole.length) continue;
+      html += `<div class="slopscale-lib-rolehead">${SEGMENT_ROLES[role].label} <span class="slopscale-lib-rolecount">${inRole.length}</span></div>`;
+      html += `<div class="slopscale-lib-grid">${inRole.map(_libCardHtml).join('')}</div>`;
+    }
+    body.innerHTML = html || `<div class="slopscale-lib-empty">No blocks match these filters — clear one to see more.</div>`;
+  }
+
+  // ── Starter-workout browse drawer (Phase 9 Slice 4) ─────────────────────────
+  // The SAME drawer pattern one altitude up: browse the BUILT_IN_SESSIONS by
+  // Genre × Level × Instrument (derived from tags + stringSetup — the sessions
+  // carry no explicit facet fields), with role-mix preview dots. [Load] forks the
+  // starter into the editable timeline (replace-guard when the draft is edited).
+  // This is the ONLY starter picker — the old <select> dropdown was dropped;
+  // BUILT_IN_SESSIONS is the option source and _selectedStarterId the selection state.
+  const ROLE_COLORS = { warmup:'#f97316', technique:'#a855f7', scale_arp:'#22c55e', application:'#3b82f6', jam:'#eab308', review:'#06b6d4', cooldown:'#64748b' };
+  const STARTER_GENRE_WORDS = { blues:'blues', rock:'rock', metal:'metal', jazz:'jazz', bebop:'jazz', funk:'funk', pop:'pop', country:'country', gospel:'gospel' };
+  let _starterFilters = { genre: 'all', level: 'all', instrument: 'all' };
+  let _pendingStarter = null;
+  function _sessionFacets(id) {
+    const sess = BUILT_IN_SESSIONS[id]; if (!sess) return { genre:'general', level:'any', instrument:'guitar' };
+    const tags = (sess.tags || []).map(t => String(t).toLowerCase());
+    let genre = 'general';
+    for (const t of tags) if (STARTER_GENRE_WORDS[t]) { genre = STARTER_GENRE_WORDS[t]; break; }
+    let level = 'any';
+    for (const t of tags) if (t === 'beginner' || t === 'intermediate' || t === 'advanced') { level = t; break; }
+    const setup = STRING_SETUPS[sess.stringSetup] || STRING_SETUPS.guitar_6_standard;
+    return { genre, level, instrument: setup.instrument };
+  }
+  function toggleStarters(force) {
+    const root = $('slopscale-root'); if (!root) return;
+    const open = force != null ? force : !root.classList.contains('ss-starters-open');
+    if (open) { root.classList.remove('ss-mixer-open'); root.classList.remove('ss-library-open'); }   // mutually exclusive bottom drawers
+    root.classList.toggle('ss-starters-open', open);
+    $('slopscale-starters')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    $('slopscale-starters-open')?.classList.toggle('active', open);
+    if (open) { _pendingStarter = null; renderStarters(); }
+  }
+  function _starterChipRow(dim, label, values) {
+    const cur = _starterFilters[dim];
+    const chip = (val, txt) => `<button type="button" class="slopscale-lib-chip${cur === val ? ' active' : ''}" data-sfilter="${dim}" data-value="${val}">${txt}</button>`;
+    return `<div class="slopscale-lib-chiprow"><span class="slopscale-lib-chiplbl">${label}</span>${chip('all', 'All')}${values.map(v => chip(v[0], v[1])).join('')}</div>`;
+  }
+  function renderStarterFilters() {
+    const el = $('slopscale-starters-filters'); if (!el) return;
+    const present = new Set(Object.keys(BUILT_IN_SESSIONS).map(id => _sessionFacets(id).genre));
+    const genres = ['blues','rock','metal','jazz','funk','pop','country','gospel','general'].filter(g => present.has(g))
+      .map(g => [g, g === 'general' ? 'General' : (LIB_GENRE_LABELS[g] || g)]);
+    const levels = [['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced']];
+    const insts  = [['guitar', 'Guitar'], ['bass', 'Bass']];
+    el.innerHTML = _starterChipRow('genre', 'Genre', genres) + _starterChipRow('level', 'Level', levels) + _starterChipRow('instrument', 'Instrument', insts);
+  }
+  function _starterDotsHtml(id) {
+    const segs = (BUILT_IN_SESSIONS[id].segments || []).map(materializeSegment).filter(Boolean);
+    return `<span class="slopscale-starter-dots">` + segs.map(s => {
+      const c = ROLE_COLORS[s.role] || KIND_COLORS[s.kind] || '#64748b';
+      const lbl = (SEGMENT_ROLES[s.role] || {}).label || KIND_LABELS[s.kind] || s.kind;
+      return `<span class="slopscale-starter-dot" style="background:${c}" title="${lbl}"></span>`;
+    }).join('') + `</span>`;
+  }
+  function _starterCardHtml(id) {
+    const sess = BUILT_IN_SESSIONS[id];
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const f = _sessionFacets(id);
+    const segs = (sess.segments || []).map(materializeSegment).filter(Boolean);
+    const dur = segs.reduce((a, s) => a + segmentEstDuration(s), 0);
+    const durStr = dur < 60 ? `~${Math.round(dur)}s` : `~${Math.floor(dur / 60)}m`;
+    const meta = [`${segs.length} blocks`, f.genre === 'general' ? null : (LIB_GENRE_LABELS[f.genre] || f.genre), f.level === 'any' ? null : f.level, f.instrument, durStr].filter(Boolean).join(' · ');
+    return `<div class="slopscale-lib-card slopscale-starter-card">
+      <div class="slopscale-segment-header">
+        <span class="slopscale-segment-name">${esc(sess.name || id)}</span>
+        <button type="button" class="slopscale-lib-add slopscale-starter-load" data-starter-id="${esc(id)}" title="Load this starter into the timeline">Load</button>
+      </div>
+      ${_starterDotsHtml(id)}
+      <div class="slopscale-segment-meta">${esc(meta)}</div>
+    </div>`;
+  }
+  function renderStarters() {
+    renderStarterFilters();
+    const body = $('slopscale-starters-body'), cnt = $('slopscale-starters-count'), confirm = $('slopscale-starters-confirm');
+    if (!body) return;
+    // Replace-guard strip (only when the draft has unsaved edits): inline, not a modal.
+    if (confirm) {
+      if (_pendingStarter && BUILT_IN_SESSIONS[_pendingStarter]) {
+        const n = ((_workoutDraft && _workoutDraft.segments) || []).length;
+        confirm.innerHTML = `<span>Replace your ${n} edited block${n === 1 ? '' : 's'} with “${BUILT_IN_SESSIONS[_pendingStarter].name}”?</span>`
+          + `<button type="button" class="slopscale-starter-confirm-yes" data-starter-id="${_pendingStarter}">Load</button>`
+          + `<button type="button" class="slopscale-starter-confirm-no">Cancel</button>`;
+        confirm.hidden = false;
+      } else { confirm.hidden = true; confirm.innerHTML = ''; }
+    }
+    const f = _starterFilters;
+    const ids = Object.keys(BUILT_IN_SESSIONS);
+    const match = id => { const x = _sessionFacets(id);
+      return (f.genre === 'all' || x.genre === f.genre)
+          && (f.level === 'all' || x.level === f.level)
+          && (f.instrument === 'all' || x.instrument === f.instrument); };
+    const shown = ids.filter(match);
+    if (cnt) cnt.textContent = `${shown.length} of ${ids.length}`;
+    body.innerHTML = shown.length
+      ? `<div class="slopscale-lib-grid">${shown.map(_starterCardHtml).join('')}</div>`
+      : `<div class="slopscale-lib-empty">No starters match these filters — clear one to see more.</div>`;
+  }
+  // Fork a starter into the editable timeline. Replace-guard: if the current draft
+  // has edits, stage a confirm strip instead of clobbering (force=true confirms).
+  function loadStarter(id, force) {
+    if (!BUILT_IN_SESSIONS[id]) return;
+    if (_workoutDirty && _workoutDraft && !force) { _pendingStarter = id; renderStarters(); return; }
+    _selectedStarterId = id;   // selection state (replaces the old dropdown value)
+    _workoutDraft = workoutDraftFor(id); _workoutDraftId = id; _workoutDirty = false; _pendingStarter = null;
+    clearRefreshSummary(); renderWorkoutDraft();
+    toggleStarters(false);
   }
 
   // ── Pack manager (the band-bar "+") ─────────────────────────────────────────
@@ -7687,13 +7867,22 @@
     const streakLine = s.streak > 0
       ? `<div class="slopscale-ss-line">${s.streak === 1 ? 'Streak started — day 1' : `Day ${s.streak} streak`}</div>`
       : '';
+    // Depth-ladder credit (Phase 9 Slice 5) — gained-only, surfaced from
+    // _lastEndedSession.depth = { xpGained, travelKey, travelRung } | null. The
+    // Travel-rung flip is a genuine clear (meter-green); a first clean run in a new
+    // key is neutral progress; XP is a calm readout. Null in Off mode → nothing.
+    const d = s.depth;
+    let depthLine = '';
+    if (d && d.travelRung) depthLine = `<div class="slopscale-ss-cleared">▲ Travel rung cleared — it travels now</div>`;
+    else if (d && d.travelKey) depthLine = `<div class="slopscale-ss-line">New ground — first clean run in ${d.travelKey}</div>`;
+    const xpLine = (d && d.xpGained > 0) ? `<div class="slopscale-ss-line">+${d.xpGained} XP</div>` : '';
     return `<div class="slopscale-progress-sheet-section slopscale-ss-card">` +
       `<div class="slopscale-ss-head"><h4>Last session</h4>` +
       `<button type="button" class="slopscale-ss-dismiss" data-act="dismiss-summary" title="Dismiss" aria-label="Dismiss last-session card">✕</button></div>` +
       `<div class="slopscale-ss-what">${s.displayName}</div>` +
       (sk ? `<div class="slopscale-ss-sub">${sk}</div>` : '') +
       `<div class="slopscale-ss-line">Practiced ${dur}</div>` +
-      tierLine + streakLine +
+      tierLine + depthLine + xpLine + streakLine +
       `</div>`;
   }
   // Auto-present the card on a notable end (a tier cleared, or a real ≥20s run) by
@@ -9140,6 +9329,7 @@
     // Matches onViewSwitch and the session-launch path. No-op before first play.
     if (playing) stopPlayback();
     try { localStorage.setItem(MODE_STORAGE_KEY, mode); } catch (_) {}   // resume-last-mode
+    toggleLibrary(false); toggleStarters(false);   // the browse drawers are Workout-only — never linger over another mode
     const root = $('slopscale-root');
     if (root) root.classList.remove('slopscale-jam-mode');   // default: not jam (jam re-adds below)
     if (mode === 'jam') {
@@ -9153,8 +9343,7 @@
     }
     if (mode === 'session') {
       syncSessionMode('session');
-      const s = $('slopscale-session-select');
-      if (s) syncSessionSummary(s.value);
+      syncSessionSummary(_selectedStarterId);
       syncModeBar();
       return;
     }
@@ -9613,8 +9802,24 @@
       const crossBandPrereq = st.prereq && pathwayBandId(st.prereq) !== activeBand.id;
       const sub = (st.prereqUnmet && crossBandPrereq && PATHWAYS[st.prereq])
         ? `<div class="slopscale-pw-sub">Builds on ${PATHWAYS[st.prereq].label} — suggested first</div>` : '';
+      // Depth-ladder pip (Phase 9 Slice 5): a 5-rung mastery overview from the
+      // progress store — Speed → Travel → Clean → Ears-off → Master. Off mode →
+      // no pip (st.depth is null; the whole layer collapses). A filled rung means
+      // it was EARNED (a clear), so the accent fill is legitimate, not decorative.
+      const depthPip = st.depth ? (() => {
+        const rungs = [
+          ['Speed',    st.cleared,         'every tempo rung cleared'],
+          ['Travel',   st.depth.travel,    'portable across keys & positions'],
+          ['Clean',    st.depth.clean,     'clean & in time, support off'],
+          ['Ears off', st.depth.eyesOff,   'no metronome / eyes off'],
+          ['Master',   st.depth.mastered,  'owned'],
+        ];
+        const pips = rungs.map(([name, done, hint]) =>
+          `<span class="slopscale-pw-pip${done ? ' done' : ''}" title="${name} — ${done ? 'cleared' : 'not yet'} (${hint})" aria-label="${name}, ${done ? 'cleared' : 'not cleared'}"></span>`).join('');
+        return `<div class="slopscale-pw-depth"><span class="slopscale-pw-depth-lbl">Depth</span>${pips}</div>`;
+      })() : '';
       row.innerHTML = `<div class="slopscale-pw-rowtop"><span class="slopscale-pw-label">${pw.label}</span>${marker}</div>`
-        + `<div class="slopscale-pw-dots">${dots}</div>${sub}`;
+        + `<div class="slopscale-pw-dots">${dots}</div>${depthPip}${sub}`;
       row.addEventListener('click', () => {
         const sel = $('slopscale-pathway');
         if (sel) { sel.value = id; sel.dispatchEvent(new Event('change')); }
@@ -9995,7 +10200,7 @@
 
     if (isSessionMode) {
       mode = 'session';
-      pathway_id = $('slopscale-session-select')?.value || null;
+      pathway_id = _selectedStarterId || null;
       bpm = null; bpm_tier = null;
       const firstSeg = activeBundle?.session?.segments?.[0]?.config;
       scale = firstSeg?.scale || null;
@@ -10047,7 +10252,7 @@
     // no score/accuracy (mirror not judge; see docs/design-system.md §13).
     let displayName;
     if (_activeSession.mode === 'pathway' && PATHWAYS[_activeSession.pathway_id]) displayName = PATHWAYS[_activeSession.pathway_id].label;
-    else if (_activeSession.mode === 'session') displayName = ($('slopscale-session-select')?.selectedOptions?.[0]?.textContent || 'Session practice').trim();
+    else if (_activeSession.mode === 'session') displayName = (BUILT_IN_SESSIONS[_selectedStarterId]?.name || 'Session practice');
     else displayName = 'Custom practice';
     _lastEndedSession = {
       mode: _activeSession.mode, scale: _activeSession.scale, key: _activeSession.key,
@@ -10134,6 +10339,7 @@
     const cfg = seg.config || {};
     const parts = [];
     if (seg.kind === 'chromatic') {
+      if (cfg.chromaticPattern) parts.push(`Pattern ${cfg.chromaticPattern}`);
       parts.push(`Frets ${cfg.fretMin ?? 1}–${cfg.fretMax ?? 4}`);
     } else if (cfg.key) {
       parts.push(`${cfg.key} ${(cfg.scale || 'major').replace(/_/g, ' ')}`);
@@ -10153,12 +10359,26 @@
     if (cfg.bpm) parts.push(`${cfg.bpm} BPM`);
     if (cfg.bars) parts.push(`${cfg.bars} bars`);
     parts.push(durStr);
-    return `<div class="slopscale-segment-card" data-kind="${esc(seg.kind)}" data-seg-index="${index}" title="Jump to this segment">
+    // Editing affordances (Phase 9 Slice 2). Re-roll only advances a template-ref
+    // that actually has >1 variant; Remove needs >1 block to keep the workout
+    // non-empty. The whole card is draggable (grip is the visual cue — mirrors the
+    // Pack-Manager idiom); the inline action row is the `⋯` menu, toggled open.
+    const tmpl = seg.templateId ? SEGMENT_TEMPLATES[seg.templateId] : null;
+    const canReroll = !!(tmpl && tmpl.vary && tmpl.vary.length > 1);
+    const canRemove = ((_workoutDraft && _workoutDraft.segments) || []).length > 1;
+    return `<div class="slopscale-segment-card" data-kind="${esc(seg.kind)}" data-seg-index="${index}" draggable="true" title="Drag to reorder · click to preview from here">
       <div class="slopscale-segment-header">
+        <span class="slopscale-segment-grip" data-act="grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
         <span class="slopscale-segment-badge" style="color:${color}">${esc(label)}</span>
         <span class="slopscale-segment-name">${esc(seg.name || '')}</span>
+        <button type="button" class="slopscale-segment-menu-btn" data-act="menu" aria-label="Block actions" title="Block actions">⋯</button>
       </div>
       <div class="slopscale-segment-meta">${esc(parts.join(' · '))}</div>
+      <div class="slopscale-segment-actions" hidden>
+        <button type="button" data-act="dup" title="Add a copy of this block below">Duplicate</button>
+        <button type="button" data-act="reroll"${canReroll ? '' : ' disabled'} title="${canReroll ? 'Re-roll just this block into a fresh variation' : 'This block has no variations to re-roll'}">↻ Re-roll</button>
+        <button type="button" data-act="remove"${canRemove ? '' : ' disabled'} title="${canRemove ? 'Remove this block' : 'A workout needs at least one block'}">Remove</button>
+      </div>
     </div>`;
   }
 
@@ -10169,7 +10389,14 @@
   // (cards show the rolled key/scale/shape) while the draft keeps the refs so Refresh
   // can re-roll their vary[] cursor. UX spec: slopscale-ux-designer
   // project_workout_browse_design_refresh.
+  // The selected starter id — the single source of truth for which Workout is
+  // loaded (replaces the old #slopscale-session-select value; the dropdown was
+  // dropped in Phase 9 Slice 4, BUILT_IN_SESSIONS is the option source).
+  let _selectedStarterId = Object.keys(BUILT_IN_SESSIONS)[0];
   let _workoutDraft = null, _workoutDraftId = null;
+  // True once the user edits the loaded draft (reorder/dup/remove/re-roll/add/refresh)
+  // — gates the starter-browse replace-guard so we only warn when edits would be lost.
+  let _workoutDirty = false;
   function workoutDraftFor(sessionId) {
     const base = BUILT_IN_SESSIONS[sessionId];
     return base ? JSON.parse(JSON.stringify(base)) : null;   // deep clone — never mutate the shipped session
@@ -10182,7 +10409,12 @@
     const info = $('slopscale-session-info'), list = $('slopscale-segment-list');
     if (!info || !list) return;
     if (!session) { info.innerHTML = ''; list.innerHTML = ''; return; }
-    const displaySegs = (session.segments || []).map(materializeSegment).filter(Boolean);
+    // Materialise per RAW index (template-ref → concrete), keeping nulls in place so
+    // a card's data-seg-index always maps back to _workoutDraft.segments[i] — the
+    // editing ops (reorder/duplicate/remove/re-roll) index into the raw array.
+    const rawSegs = session.segments || [];
+    const materialized = rawSegs.map(materializeSegment);
+    const displaySegs = materialized.filter(Boolean);
     const totalDur = displaySegs.reduce((s, seg) => s + segmentEstDuration(seg), 0);
     const bpms = displaySegs.map(s => s.config?.bpm).filter(Boolean);
     // Template-ref blocks don't pin a BPM (it's tier/default-driven) — omit the stat
@@ -10199,7 +10431,7 @@
         ${bpmStr ? `<span class="slopscale-session-info-stat">${bpmStr}</span>` : ''}
         ${tags ? `<span class="slopscale-session-info-stat">${tags}</span>` : ''}
       </div>`;
-    list.innerHTML = displaySegs.map((s, i) => buildSegmentCard(s, i)).join('');
+    list.innerHTML = materialized.map((m, i) => m ? buildSegmentCard(m, i) : '').join('');
     const btn = $('slopscale-workout-refresh');
     if (btn) {
       const can = workoutHasRefs(session);
@@ -10209,7 +10441,8 @@
     }
   }
   function syncSessionSummary(sessionId) {
-    if (sessionId !== _workoutDraftId) { _workoutDraft = workoutDraftFor(sessionId); _workoutDraftId = sessionId; clearRefreshSummary(); }
+    _selectedStarterId = sessionId;   // keep the selection state in sync (single write path with loadStarter)
+    if (sessionId !== _workoutDraftId) { _workoutDraft = workoutDraftFor(sessionId); _workoutDraftId = sessionId; _workoutDirty = false; clearRefreshSummary(); }
     renderWorkoutDraft();
   }
   // Plain-language "what changed" between two draft states (the changed surface only).
@@ -10227,6 +10460,17 @@
       if (cb.shape && ca.shape !== cb.shape) parts.push(`${ca.shape || '?'}-shape→${cb.shape}-shape`);
       if (cb.progression && cb.progression !== 'none' && ca.progression !== cb.progression) parts.push(`${pretty(ca.progression || '?')}→${pretty(cb.progression)}`);
       if (cb.scale && ca.scale !== cb.scale) parts.push(`${pretty(ca.scale || '?')}→${pretty(cb.scale)}`);
+      // Remaining authored vary axes (so a re-roll never reads "nothing changed"
+      // when it genuinely advanced a chromatic pattern / fret window / voice set).
+      if (cb.chromaticPattern && ca.chromaticPattern !== cb.chromaticPattern) parts.push(`pattern ${ca.chromaticPattern || '?'}→${cb.chromaticPattern}`);
+      const fA = (ca.fretMin != null || ca.fretMax != null) ? `${ca.fretMin ?? '?'}–${ca.fretMax ?? '?'}` : null;
+      const fB = (cb.fretMin != null || cb.fretMax != null) ? `${cb.fretMin ?? '?'}–${cb.fretMax ?? '?'}` : null;
+      if (fB && fA !== fB) parts.push(`frets ${fA || '?'}→${fB}`);
+      const vc = v => ({ thirds_only:'3rds', sevenths_only:'7ths', both_alternating:'3rds+7ths' }[v] || v);
+      if (cb.voices && ca.voices !== cb.voices) parts.push(`${vc(ca.voices)}→${vc(cb.voices)}`);
+      if (cb.subdivision && ca.subdivision !== cb.subdivision) parts.push(`${pretty(ca.subdivision)}→${pretty(cb.subdivision)}`);
+      if (cb.bendTarget != null && ca.bendTarget !== cb.bendTarget) parts.push(`bend ${ca.bendTarget ?? '?'}→${cb.bendTarget}`);
+      if (cb.swing != null && ca.swing !== cb.swing) parts.push(`swing ${ca.swing ? 'on' : 'off'}→${cb.swing ? 'on' : 'off'}`);
       if (parts.length) lines.push(`<b>${label}</b> ${parts.join(' · ')}`);
     }
     return lines;
@@ -10248,6 +10492,7 @@
     if (!_workoutDraft || !workoutHasRefs(_workoutDraft)) return;
     const before = JSON.parse(JSON.stringify(_workoutDraft));
     _workoutDraft = refreshWorkout(_workoutDraft, { scope: 'all' });
+    _workoutDirty = true;
     showRefreshSummary(describeRefreshDiff(before, _workoutDraft));
     renderWorkoutDraft();
     const btn = $('slopscale-workout-refresh');
@@ -10258,6 +10503,77 @@
     // playhead). No audio cue (§13).
   }
 
+  // ── Design-your-own timeline edits (Phase 9 Slice 2) ───────────────────────
+  // Structural edits on the working DRAFT only (never BUILT_IN_SESSIONS). Each
+  // mutates _workoutDraft.segments in place then re-renders. Reorder/duplicate/
+  // remove work on both template-ref and inline segments; re-roll only advances a
+  // template-ref's variant. Indices are RAW (into _workoutDraft.segments) — the
+  // cards carry the raw index (see renderWorkoutDraft). NO audio, no second player.
+  function _draftSegs() { return (_workoutDraft && _workoutDraft.segments) || null; }
+  // The card a drag at clientY should drop BEFORE (its raw index), or null = append.
+  function _segCardUnder(container, clientY) {
+    const cards = [...container.querySelectorAll('.slopscale-segment-card')];
+    for (const c of cards) {
+      const box = c.getBoundingClientRect();
+      if (clientY < box.top + box.height / 2) return parseInt(c.dataset.segIndex, 10);
+    }
+    return null;
+  }
+  function moveDraftSegment(from, beforeIndex) {
+    const segs = _draftSegs(); if (!segs || from < 0 || from >= segs.length) return;
+    const [moved] = segs.splice(from, 1);
+    let to = (beforeIndex == null || beforeIndex < 0) ? segs.length
+           : (beforeIndex > from ? beforeIndex - 1 : beforeIndex);   // adjust for the removal
+    to = Math.max(0, Math.min(to, segs.length));
+    if (to === from && beforeIndex != null) { segs.splice(from, 0, moved); return; }  // no-op restore
+    segs.splice(to, 0, moved);
+    _workoutDirty = true; clearRefreshSummary(); renderWorkoutDraft();
+  }
+  function duplicateDraftSegment(index) {
+    const segs = _draftSegs(); if (!segs || index < 0 || index >= segs.length) return;
+    const clone = JSON.parse(JSON.stringify(segs[index]));
+    if (clone.id) clone.id = clone.id + '__copy' + Date.now().toString(36).slice(-3);  // keep ids unique for scope-by-id
+    segs.splice(index + 1, 0, clone);
+    _workoutDirty = true; clearRefreshSummary(); renderWorkoutDraft();
+  }
+  function removeDraftSegment(index) {
+    const segs = _draftSegs(); if (!segs || segs.length <= 1 || index < 0 || index >= segs.length) return;
+    segs.splice(index, 1);
+    _workoutDirty = true; clearRefreshSummary(); renderWorkoutDraft();
+  }
+  function rerollDraftSegment(index) {
+    const segs = _draftSegs(); if (!segs) return;
+    const seg = segs[index];
+    if (!(seg && seg.templateId && !seg.kind)) return;                 // inline = nothing to re-roll
+    const tmpl = SEGMENT_TEMPLATES[seg.templateId];
+    if (!tmpl || !tmpl.vary || tmpl.vary.length <= 1) return;          // single-variant = no-op
+    const before = JSON.parse(JSON.stringify(_workoutDraft));
+    _workoutDraft = refreshWorkout(_workoutDraft, { scope: index });
+    _workoutDirty = true;
+    showRefreshSummary(describeRefreshDiff(before, _workoutDraft));
+    renderWorkoutDraft();
+  }
+  // Append a library template (or insert after a given raw index) as a fresh
+  // template-ref slot — the drawer's [+ Add] entry point (Phase 9 Slice 3).
+  function addSegmentToDraft(templateId, atIndex) {
+    const tmpl = SEGMENT_TEMPLATES[templateId]; if (!tmpl || !_workoutDraft) return;
+    const ref = { id: templateId + '__add' + Date.now().toString(36).slice(-3), templateId, variantIdx: 0 };
+    const segs = _workoutDraft.segments || (_workoutDraft.segments = []);
+    if (atIndex == null || atIndex < 0 || atIndex >= segs.length) segs.push(ref);
+    else segs.splice(atIndex + 1, 0, ref);
+    _workoutDirty = true; clearRefreshSummary(); renderWorkoutDraft();
+  }
+  // Toggle a card's inline action row (the `⋯` menu), closing any other open one.
+  function toggleSegMenu(card) {
+    const list = $('slopscale-segment-list'); if (!list) return;
+    const menu = card.querySelector('.slopscale-segment-actions'); if (!menu) return;
+    const willOpen = menu.hidden;
+    list.querySelectorAll('.slopscale-segment-actions').forEach(m => { if (m !== menu) m.hidden = true; });
+    list.querySelectorAll('.slopscale-segment-card.menu-open').forEach(c => { if (c !== card) c.classList.remove('menu-open'); });
+    menu.hidden = !willOpen;
+    card.classList.toggle('menu-open', willOpen);
+  }
+
   function syncSessionMode(mode) {
     const root = $('slopscale-root'); if (!root) return;
     root.classList.toggle('slopscale-session-mode', mode === 'session');
@@ -10265,8 +10581,7 @@
   }
 
   async function onLaunchSession() {
-    const sel = $('slopscale-session-select');
-    const sessionId = sel?.value || Object.keys(BUILT_IN_SESSIONS)[0];
+    const sessionId = _selectedStarterId || Object.keys(BUILT_IN_SESSIONS)[0];
     const baseSession = BUILT_IN_SESSIONS[sessionId];
     if (!baseSession) return;
     const btn = $('slopscale-launch-session');
@@ -10675,13 +10990,53 @@
       const seg = e.target.closest('.slopscale-progress-seg');
       if (seg) jumpToSegment(parseInt(seg.dataset.segIndex, 10));
     });
-    $('slopscale-segment-list')?.addEventListener('click', async (e) => {
+    const _segList = $('slopscale-segment-list');
+    _segList?.addEventListener('click', async (e) => {
       const card = e.target.closest('.slopscale-segment-card');
       if (!card) return;
       const i = parseInt(card.dataset.segIndex, 10);
+      const ctl = e.target.closest('[data-act]');
+      if (ctl) {
+        const act = ctl.dataset.act;
+        if (act === 'grip') return;                              // drag handle — ignore the click
+        if (act === 'menu')   { toggleSegMenu(card); return; }
+        if (act === 'dup')    { duplicateDraftSegment(i); return; }
+        if (act === 'reroll') { if (!ctl.disabled) rerollDraftSegment(i); return; }
+        if (act === 'remove') { if (!ctl.disabled) removeDraftSegment(i); return; }
+        return;
+      }
+      // Card body → preview from here (launch the editable draft, jump to the block).
       if (!activeBundle || activeBundle.config?.mode !== 'session') await onLaunchSession();
       jumpToSegment(i);
     });
+    // Drag-reorder the timeline (HTML5 DnD; mirrors the Pack-Manager grip idiom).
+    if (_segList) {
+      let _segDragFrom = -1;
+      _segList.addEventListener('dragstart', (e) => {
+        const card = e.target.closest('.slopscale-segment-card'); if (!card) return;
+        _segDragFrom = parseInt(card.dataset.segIndex, 10);
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', String(_segDragFrom)); } catch (_) {}
+        card.classList.add('dragging');
+      });
+      _segList.addEventListener('dragend', () => {
+        _segDragFrom = -1;
+        _segList.querySelectorAll('.dragging, .drop-target').forEach(el => el.classList.remove('dragging', 'drop-target'));
+      });
+      _segList.addEventListener('dragover', (e) => {
+        if (_segDragFrom < 0) return;
+        e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+        const under = _segCardUnder(_segList, e.clientY);
+        _segList.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+        if (under != null) { const t = _segList.querySelector(`.slopscale-segment-card[data-seg-index="${under}"]`); if (t) t.classList.add('drop-target'); }
+      });
+      _segList.addEventListener('drop', (e) => {
+        if (_segDragFrom < 0) return;
+        e.preventDefault();
+        moveDraftSegment(_segDragFrom, _segCardUnder(_segList, e.clientY));
+        _segDragFrom = -1;
+      });
+    }
     // #slopscale-regenerate is now a HIDDEN refresh bridge (no longer a visible
     // UI button) — the bootstrap settings-watcher .click()s it to silently
     // re-render on host look-setting changes. The handler stays.
@@ -10856,6 +11211,39 @@
     $('slopscale-help-btn')?.addEventListener('click', () => toggleCheatSheet());
     $('slopscale-mixer-close')?.addEventListener('click', () => toggleMixer(false));
     $('slopscale-progress-close')?.addEventListener('click', () => toggleProgressSheet(false));
+    // Library browse drawer (Phase 9 Slice 3): open from the timeline "+ Browse",
+    // close via ▾, chip-filter, and [+ Add] a template-ref to the draft (multi-add).
+    $('slopscale-library-open')?.addEventListener('click', () => toggleLibrary());
+    $('slopscale-library-close')?.addEventListener('click', () => toggleLibrary(false));
+    $('slopscale-library-filters')?.addEventListener('click', (e) => {
+      const chip = e.target.closest('[data-filter]'); if (!chip) return;
+      _libFilters[chip.dataset.filter] = chip.dataset.value;
+      renderLibrary();
+    });
+    $('slopscale-library-body')?.addEventListener('click', (e) => {
+      const add = e.target.closest('.slopscale-lib-add'); if (!add) return;
+      addSegmentToDraft(add.dataset.templateId);
+      const orig = add.textContent;                          // "Added ✓" flash — visual only (§5/§13), drawer stays open
+      add.classList.add('added'); add.textContent = 'Added ✓';
+      setTimeout(() => { add.classList.remove('added'); add.textContent = orig; }, 900);
+    });
+    // Starter browse drawer (Phase 9 Slice 4): the primary starter picker (the
+    // dropdown is hidden). Open / close / chip-filter / Load (with replace-guard).
+    $('slopscale-starters-open')?.addEventListener('click', () => toggleStarters());
+    $('slopscale-starters-close')?.addEventListener('click', () => toggleStarters(false));
+    $('slopscale-starters-filters')?.addEventListener('click', (e) => {
+      const chip = e.target.closest('[data-sfilter]'); if (!chip) return;
+      _starterFilters[chip.dataset.sfilter] = chip.dataset.value;
+      renderStarters();
+    });
+    $('slopscale-starters-body')?.addEventListener('click', (e) => {
+      const load = e.target.closest('.slopscale-starter-load'); if (!load) return;
+      loadStarter(load.dataset.starterId);
+    });
+    $('slopscale-starters-confirm')?.addEventListener('click', (e) => {
+      if (e.target.closest('.slopscale-starter-confirm-yes')) loadStarter(e.target.closest('.slopscale-starter-confirm-yes').dataset.starterId, true);
+      else if (e.target.closest('.slopscale-starter-confirm-no')) { _pendingStarter = null; renderStarters(); }
+    });
     // "Last session" card dismiss (delegated — the sheet body is re-rendered each open).
     $('slopscale-progress-sheet-body')?.addEventListener('click', (e) => {
       if (e.target.closest('[data-act="dismiss-summary"]')) { _lastEndedSession = null; renderProgressSheet(); }
@@ -10975,7 +11363,6 @@
       const preset = window.__slopscaleFavorites && window.__slopscaleFavorites[key];
       if (preset && preset.config) { applyPathwayConfig(preset.config); if (activeBundle) onGenerate(); }
     });
-    $('slopscale-session-select')?.addEventListener('change', ev => syncSessionSummary(ev.target.value));
     $('slopscale-launch-session')?.addEventListener('click', onLaunchSession);
     $('slopscale-workout-refresh')?.addEventListener('click', onRefreshWorkout);   // Phase 9: re-roll blocks
     $('slopscale-refresh-summary')?.addEventListener('click', e => { if (e.target.closest('.slopscale-refresh-summary-close')) clearRefreshSummary(); });

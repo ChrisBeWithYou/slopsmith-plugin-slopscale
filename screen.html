@@ -549,6 +549,37 @@
   /* Mixer — slides UP over the stage (overlay, not relayout). */
   .slopscale-mixer { position: absolute; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--ss-surface-bar, rgba(9,15,30,0.97)); border-top: 1px solid var(--ss-border, #334155); box-shadow: 0 -8px 24px rgba(0,0,0,0.4); transform: translateY(105%); transition: transform 0.22s ease; padding: 10px 14px 14px; max-height: 72%; overflow-y: auto; }
   .slopscale-root.ss-mixer-open .slopscale-mixer { transform: translateY(0); }
+  /* Library browse drawer (Phase 9 Slice 3) — slide-up over the stage, Mixer-M idiom */
+  .slopscale-library { position: absolute; left: 0; right: 0; bottom: 0; z-index: 21; background: var(--ss-surface-bar, rgba(9,15,30,0.97)); border-top: 1px solid var(--ss-border, #334155); box-shadow: 0 -8px 24px rgba(0,0,0,0.4); transform: translateY(105%); transition: transform 0.22s ease; padding: 10px 14px 14px; max-height: 80%; overflow-y: auto; }
+  /* ID-targeted reveal: both drawers share .slopscale-library, so each opens on its own class */
+  .slopscale-root.ss-library-open #slopscale-library { transform: translateY(0); }
+  .slopscale-root.ss-starters-open #slopscale-starters { transform: translateY(0); }
+  @media (prefers-reduced-motion: reduce) { .slopscale-library { transition: none; } }
+  .slopscale-starter-dots { display: flex; gap: 3px; margin-top: 1px; }
+  .slopscale-starter-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .slopscale-starter-confirm { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px; padding: 8px 11px; border-radius: 8px; border: 1px solid var(--ss-accent-edge, #60a5fa); background: rgba(37, 99, 235, 0.12); font-size: 12px; color: var(--ss-text, #e2e8f0); }
+  .slopscale-starter-confirm[hidden] { display: none; }   /* author display:flex would otherwise beat the UA [hidden] rule */
+  .slopscale-starter-confirm button { padding: 4px 13px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer; border: 1px solid var(--ss-border, #334155); }
+  .slopscale-starter-confirm-yes { margin-left: auto; background: var(--ss-accent-edge, #60a5fa); color: #06121f; border-color: var(--ss-accent-edge, #60a5fa); }
+  .slopscale-starter-confirm-no { background: transparent; color: var(--ss-text-dim, #94a3b8); }
+  .slopscale-lib-count { font-size: 11px; color: var(--ss-text-muted, #64748b); margin-left: auto; }
+  .slopscale-library .slopscale-sheet-close { margin-left: 8px; }
+  .slopscale-lib-filters { display: flex; flex-direction: column; gap: 5px; margin: 12px 0 4px; }
+  .slopscale-lib-chiprow { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+  .slopscale-lib-chiplbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ss-text-muted, #64748b); width: 70px; flex-shrink: 0; }
+  .slopscale-lib-chip { padding: 3px 11px; font-size: 11px; font-weight: 600; border-radius: 999px; border: 1px solid var(--ss-border, #334155); background: var(--ss-inset, #0b1220); color: var(--ss-text-dim, #94a3b8); cursor: pointer; transition: color 0.12s, border-color 0.12s, background 0.12s; }
+  .slopscale-lib-chip:hover { color: var(--ss-text, #e2e8f0); border-color: var(--ss-accent-edge, #60a5fa); }
+  .slopscale-lib-chip.active { color: #fff; border-color: var(--ss-accent-edge, #60a5fa); background: rgba(37, 99, 235, 0.35); }
+  .slopscale-lib-rolehead { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ss-text-dim, #94a3b8); margin: 13px 0 6px; display: flex; align-items: center; gap: 7px; }
+  .slopscale-lib-rolecount { font-size: 10px; font-weight: 600; color: var(--ss-text-muted, #64748b); background: var(--ss-inset, #0b1220); border-radius: 999px; padding: 1px 7px; }
+  .slopscale-lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+  .slopscale-lib-card { border: 1px solid rgba(75, 85, 99, 0.5); border-radius: 9px; padding: 8px 10px; background: rgba(2, 6, 23, 0.4); display: flex; flex-direction: column; gap: 3px; }
+  .slopscale-lib-add { margin-left: auto; flex-shrink: 0; padding: 3px 10px; font-size: 10.5px; font-weight: 700; border-radius: 6px; border: 1px solid var(--ss-accent-edge, #60a5fa); background: var(--ss-inset, #0b1220); color: var(--ss-accent-edge, #60a5fa); cursor: pointer; transition: background 0.12s, color 0.12s; }
+  .slopscale-lib-add:hover { background: rgba(37, 99, 235, 0.3); color: #fff; }
+  .slopscale-lib-add.added { border-color: #22c55e; color: #22c55e; }
+  .slopscale-lib-empty { font-size: 12px; color: var(--ss-text-muted, #64748b); padding: 22px; text-align: center; }
+  .slopscale-lib-browse-btn { width: 100%; margin-top: 7px; padding: 8px; font-size: 12px; font-weight: 600; border-radius: 8px; border: 1px dashed var(--ss-border, #334155); background: transparent; color: var(--ss-text-dim, #94a3b8); cursor: pointer; transition: color 0.12s, border-color 0.12s; }
+  .slopscale-lib-browse-btn:hover, .slopscale-lib-browse-btn.active { color: var(--ss-text, #e2e8f0); border-color: var(--ss-accent-edge, #60a5fa); }
   .slopscale-mixer-head { display: flex; align-items: center; gap: 12px; }
   .slopscale-mixer-title { font-size: 13px; font-weight: 700; color: #e2e8f0; }
   .slopscale-mixer-dim { font-size: 11.5px; color: #94a3b8; display: flex; align-items: center; gap: 5px; margin-left: auto; cursor: pointer; }
@@ -793,6 +824,18 @@
   .slopscale-segment-badge { font-size: 9px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; flex-shrink: 0; }
   .slopscale-segment-name { font-size: 12.5px; font-weight: 650; color: #e2e8f0; }
   .slopscale-segment-meta { font-size: 11px; color: #6b7280; }
+  /* Editable-timeline affordances (Phase 9 Slice 2) — grip, ⋯ menu, action row */
+  .slopscale-segment-card.dragging { opacity: 0.5; }
+  .slopscale-segment-card.drop-target { border-top-color: var(--ss-accent-edge, #60a5fa); box-shadow: inset 0 2px 0 var(--ss-accent-edge, #60a5fa); }
+  .slopscale-segment-grip { color: #64748b; font-size: 11px; cursor: grab; letter-spacing: -1px; flex-shrink: 0; }
+  .slopscale-segment-card:active .slopscale-segment-grip { cursor: grabbing; }
+  .slopscale-segment-menu-btn { margin-left: auto; flex-shrink: 0; background: none; border: none; color: var(--ss-text-muted, #64748b); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 3px; border-radius: 5px; }
+  .slopscale-segment-menu-btn:hover, .slopscale-segment-card.menu-open .slopscale-segment-menu-btn { color: var(--ss-text, #e2e8f0); }
+  .slopscale-segment-actions { display: flex; gap: 6px; margin-top: 7px; padding-top: 7px; border-top: 1px solid rgba(75, 85, 99, 0.35); }
+  .slopscale-segment-actions[hidden] { display: none; }   /* author display:flex would otherwise beat the UA [hidden] rule */
+  .slopscale-segment-actions button { flex: 1; padding: 4px 6px; font-size: 10.5px; font-weight: 600; border-radius: 6px; border: 1px solid var(--ss-border, #334155); background: var(--ss-inset, #0b1220); color: var(--ss-text-dim, #94a3b8); cursor: pointer; transition: color 0.12s, border-color 0.12s; }
+  .slopscale-segment-actions button:hover:not(:disabled) { color: var(--ss-text, #e2e8f0); border-color: var(--ss-accent-edge, #60a5fa); }
+  .slopscale-segment-actions button:disabled { opacity: 0.4; cursor: default; }
 
   /* Progress strip — streak + 7-day calendar, always visible in both modes */
   .slopscale-progress-strip { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: rgba(15,23,42,0.6); border: 1px solid #1f2937; border-radius: 10px; }
@@ -872,6 +915,11 @@
   .slopscale-pw-next { font-size: 10px; color: #94a3b8; font-weight: 700; white-space: nowrap; }
   .slopscale-pw-dots { display: flex; gap: 3px; }
   .slopscale-pw-sub { font-size: 10.5px; color: #94a3b8; }
+  /* Depth-ladder pip (Phase 9 Slice 5) — diamonds + accent fill, distinct from the round green tier dots */
+  .slopscale-pw-depth { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+  .slopscale-pw-depth-lbl { font-size: 8.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; margin-right: 2px; }
+  .slopscale-pw-pip { width: 6px; height: 6px; transform: rotate(45deg); background: transparent; border: 1px solid #334155; }
+  .slopscale-pw-pip.done { background: var(--ss-accent-edge, #60a5fa); border-color: var(--ss-accent-edge, #60a5fa); }
   /* First-run primed START CTA — the one lit primary action in Pathways mode. */
   /* A primary action is sized to its label, never to its container — cap the
      width so it stays a button, not a banner (esp. on the ultrawide 2-col rail
@@ -1677,44 +1725,13 @@
 
         <div class="slopscale-mode-intro">Stack your pathways and drills into timed blocks — warm-up, technique, application — then run the whole set.</div>
         <div class="slopscale-group-title">Program</div>
-        <label>Session
-          <select id="slopscale-session-select">
-            <optgroup label="Start here">
-              <option value="starter_arc">Starter — warm-up · technique · application</option>
-            </optgroup>
-            <optgroup label="Foundations">
-              <option value="beginner_foundations">Beginner Foundations</option>
-              <option value="core_beginner_guitar">Core — Beginner (guitar)</option>
-              <option value="blues_fundamentals">Blues Fundamentals</option>
-              <option value="bass_foundations">Bass Foundations</option>
-              <option value="bass_foundations_groove">Bass — Foundations &amp; Groove</option>
-            </optgroup>
-            <optgroup label="Daily &amp; technique">
-              <option value="quick_warmup">Warm-up — 10 minutes</option>
-              <option value="daily_intermediate">Daily 30-min Intermediate</option>
-              <option value="daily_balanced_guitar">Daily — Balanced (guitar)</option>
-              <option value="lead_technique">Lead Technique Builder</option>
-            </optgroup>
-            <optgroup label="Styles">
-              <option value="rock_essentials">Rock Essentials</option>
-              <option value="rock_rhythm_lead">Rock — Rhythm &amp; Lead</option>
-              <option value="blues_workout">Blues — Lead Workout</option>
-              <option value="funk_pocket">Funk Pocket &amp; Vocabulary</option>
-              <option value="funk_rhythm_guitar">Funk — Rhythm Guitar</option>
-              <option value="metal_technique">Metal Technique</option>
-              <option value="metal_shred">Metal — Technique (shred)</option>
-              <option value="bass_pocket">Bass — The Pocket</option>
-              <option value="bass_slap_workout">Bass — Slap &amp; Pop</option>
-            </optgroup>
-            <optgroup label="Jazz">
-              <option value="ii_v_i_workshop">ii–V–I Workshop</option>
-              <option value="jazz_changes">Jazz — Playing the Changes</option>
-              <option value="bebop_fundamentals">Bebop Fundamentals</option>
-              <option value="bass_walking">Bass — Walking Lines</option>
-            </optgroup>
-            <optgroup label="Saved" id="slopscale-session-saved-group" hidden></optgroup>
-          </select>
-        </label>
+        <!-- Starter picker: the <select> dropdown was DROPPED (Phase 9 Slice 4).
+             BUILT_IN_SESSIONS is the option source and _selectedStarterId the
+             selection state; this button opens the card-grid browse drawer, which
+             is the only picker. (A dropdown is ~5 lines to regenerate from
+             BUILT_IN_SESSIONS if ever wanted — no hardcoded option list to keep
+             in sync.) Saved-sessions, if added later, get a section in the grid. -->
+        <button type="button" id="slopscale-starters-open" class="slopscale-lib-browse-btn slopscale-starters-browse">⇊ Browse starter workouts…</button>
 
         <div id="slopscale-session-info" class="slopscale-session-info">
           <!-- populated by syncSessionSummary() -->
@@ -1728,6 +1745,7 @@
         <div id="slopscale-segment-list" class="slopscale-segment-list">
           <!-- populated by syncSessionSummary() -->
         </div>
+        <button type="button" id="slopscale-library-open" class="slopscale-lib-browse-btn">+ Browse library…</button>
 
         <div class="slopscale-group-title">Preview audio</div>
         <div class="slopscale-audio-options" aria-label="Session audio options">
@@ -1890,6 +1908,34 @@
             <button type="button" id="slopscale-mixer-close" class="slopscale-sheet-close" title="Close mixer (M)" aria-label="Close mixer">▾</button>
           </div>
           <div class="slopscale-mixer-channels" id="slopscale-mixer-channels"><!-- renderMixer() --></div>
+        </div>
+
+        <!-- Library (Browse): slides UP over the stage (mirrors the Mixer M idiom).
+             Browse the segment-template library grouped by ROLE; Genre × Skill ×
+             Instrument chips narrow within; [+ Add] appends a block to the editable
+             Workout draft. Overlay, not relayout; opened from the timeline "+ Browse". -->
+        <div id="slopscale-library" class="slopscale-library" aria-hidden="true">
+          <div class="slopscale-mixer-head">
+            <span class="slopscale-mixer-title">Add a block</span>
+            <span id="slopscale-library-count" class="slopscale-lib-count"></span>
+            <button type="button" id="slopscale-library-close" class="slopscale-sheet-close" title="Close library" aria-label="Close library">▾</button>
+          </div>
+          <div id="slopscale-library-filters" class="slopscale-lib-filters"><!-- renderLibraryFilters() --></div>
+          <div id="slopscale-library-body" class="slopscale-lib-body"><!-- renderLibrary() --></div>
+        </div>
+
+        <!-- Starter-workout browse (Slice 4): the SAME drawer one altitude up — the
+             primary starter picker (the dropdown is hidden). Genre × Level ×
+             Instrument chips; [Load] forks a starter into the editable timeline. -->
+        <div id="slopscale-starters" class="slopscale-library slopscale-starters" aria-hidden="true">
+          <div class="slopscale-mixer-head">
+            <span class="slopscale-mixer-title">Browse starter workouts</span>
+            <span id="slopscale-starters-count" class="slopscale-lib-count"></span>
+            <button type="button" id="slopscale-starters-close" class="slopscale-sheet-close" title="Close" aria-label="Close starters">▾</button>
+          </div>
+          <div id="slopscale-starters-filters" class="slopscale-lib-filters"><!-- renderStarterFilters() --></div>
+          <div id="slopscale-starters-confirm" class="slopscale-starter-confirm" hidden><!-- replace-guard --></div>
+          <div id="slopscale-starters-body" class="slopscale-lib-body"><!-- renderStarters() --></div>
         </div>
 
         <!-- Progress (P): slides in from the right edge. UX renders the frame +

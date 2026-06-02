@@ -149,16 +149,29 @@ async function run() {
     }
 
     // ── Phase 4: built-in sessions via the UI launch path ──────────────────
+    // The starter <select> was DROPPED (Phase 9 Slice 4) — sessions are picked in
+    // the Browse-starters drawer. Enumerate the starter ids from its Load buttons,
+    // then Load + Launch each (the real user path), reopening the drawer per pick
+    // since Load closes it.
     await page.click("#slopscale-mode-session").catch(() => {});
     await page.waitForTimeout(300);
-    const sessionVals = await page.$$eval("#slopscale-session-select option", (os) =>
-      os.filter((o) => o.value && !o.disabled).map((o) => ({ v: o.value, t: o.textContent.trim() }))
+    await page.click("#slopscale-starters-open").catch(() => {});
+    await page.waitForTimeout(300);
+    const sessionVals = await page.$$eval(".slopscale-starter-load", (els) =>
+      els.map((e) => ({ v: e.dataset.starterId, t: (e.closest(".slopscale-starter-card")?.querySelector(".slopscale-segment-name")?.textContent || e.dataset.starterId).trim() }))
     ).catch(() => []);
+    await page.click("#slopscale-starters-close").catch(() => {});
+    await page.waitForTimeout(120);
     const sessionRows = [];
     for (const s of sessionVals) {
       const errBase = pageErrors.length, conBase = consoleErrors.length;
       try {
-        await page.selectOption("#slopscale-session-select", s.v);
+        await page.click("#slopscale-starters-open");
+        await page.waitForTimeout(150);
+        await page.click(`.slopscale-starter-load[data-starter-id="${s.v}"]`);
+        // A prior edited draft would stage the replace-guard — confirm it through.
+        const guard = await page.$(".slopscale-starter-confirm-yes");
+        if (guard) { await guard.click().catch(() => {}); await page.waitForTimeout(120); }
         await page.waitForTimeout(150);
         await page.click("#slopscale-launch-session");
         await page.waitForTimeout(700);
