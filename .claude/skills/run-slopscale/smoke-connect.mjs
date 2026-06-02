@@ -122,6 +122,17 @@ try {
   ok(encApplied >= 3, "the bebop enclosure fires on most changes ([target+1, target-1] on the target's string)", `${encApplied} applied`);
   ok(encCrossUni === 0, "no applied enclosure feeds a cross-string unison (guard works)", `${encCrossUni} found`);
   ok(maxConsecutive(enc.notes) <= 13, "enclosure run has no teleport leap", `max consecutive ${maxConsecutive(enc.notes)}st`);
+  // chordScalePositions dedupe: no two consecutive notes WITHIN a bar re-sound the
+  // same pitch on different strings (the no-unison rule, applied to chord-scale
+  // runs). Seams are skipped — a common-tone pivot across the bar line is allowed.
+  const barOf = (t) => { let b = 0; for (let k = 0; k < enc.chords.length; k++) if (t >= enc.chords[k].t - 1e-4) b = k; return b; };
+  let inBarCrossUni = 0;
+  for (let i = 1; i < encSorted.length; i++) {
+    const a = encSorted[i - 1], b = encSorted[i];
+    if (barOf(a.t) !== barOf(b.t)) continue;
+    if (a.s !== b.s && (OPENS_6[a.s] + a.f) === (OPENS_6[b.s] + b.f)) inBarCrossUni++;
+  }
+  ok(inBarCrossUni === 0, "no within-bar cross-string unison (chord-scale run is one-per-pitch)", `${inBarCrossUni} found`);
 
   ok(pageErrs.length === 0, "no uncaught page errors", pageErrs.join(" | "));
   console.log(`\n${fails === 0 ? "PASS" : "FAIL"}  connect keystone: ${fails} failure(s)`);

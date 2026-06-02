@@ -2863,12 +2863,19 @@
     const scaleName = (CHORD_FORMULAS[quality] && CHORD_FORMULAS[quality].mode) || MODE_FOR_QUALITY[quality] || 'major';
     const intervals = SCALE_INTERVALS[scaleName] || SCALE_INTERVALS.major;
     const pcs = new Set(intervals.map(i => (rootPc + i) % 12));
-    const opens = openMidisForConfig(cfg), out = [];
+    const opens = openMidisForConfig(cfg);
+    // One position per pitch (prefer the lower fret) so a chord-scale RUN never
+    // re-sounds the same pitch on two strings — the no-unison rule, matching the
+    // CAGED/Open resolvers. (This previously kept every duplicate, which let
+    // Connect lines re-finger an identical pitch across adjacent strings.)
+    const byMidi = new Map();
     for (let s = 0; s < cfg.stringCount; s++) for (let f = cfg.fretMin; f <= cfg.fretMax; f++) {
       const midi = opens[s] + f, pc = midi % 12;
-      if (pcs.has(pc)) out.push({ s, f, midi, pc });
+      if (!pcs.has(pc)) continue;
+      const e = byMidi.get(midi);
+      if (!e || f < e.f) byMidi.set(midi, { s, f, midi, pc });
     }
-    return out.sort((a,b) => a.midi - b.midi || a.s - b.s || a.f - b.f);
+    return [...byMidi.values()].sort((a,b) => a.midi - b.midi || a.s - b.s || a.f - b.f);
   }
 
   // ===========================================================================
