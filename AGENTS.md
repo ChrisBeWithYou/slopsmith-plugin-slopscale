@@ -60,15 +60,16 @@ No build. No dev server. The workflow is:
 
 To run, screenshot, or smoke-test the plugin without doing the clone/restart dance by hand, use the **`run-slopscale` skill** (`.claude/skills/run-slopscale/`). `launch.ps1` junctions this repo into the Slopsmith plugins dir, starts the bundled-Python host on port 8765, and waits for `/status` to return `ok`; `driver.mjs` drives the SlopScale screen via Playwright and screenshots any of the four renderers. Server logs land in `%TEMP%\slopscale\server.log`.
 
-There is **no unit-test or lint suite**. Verification is behavioural, via six Playwright smoke suites in the `run-slopscale` skill, run against a live host (start it with `launch.ps1` first):
+There is **no unit-test or lint suite**. Verification is behavioural, via seven Playwright smoke suites in the `run-slopscale` skill, run against a live host (start it with `launch.ps1` first):
 
-- `npm test` (from `.claude/skills/run-slopscale/`) runs **all six** suites — renderers, then generators, then highway-settings, then strings/tuning, then audiocontext-sharing, then chord-scale connect.
+- `npm test` (from `.claude/skills/run-slopscale/`) runs **all seven** suites — renderers, then generators, then highway-settings, then strings/tuning, then audiocontext-sharing, then chord-scale connect, then core-purity.
 - `smoke-renderers.mjs` (`npm run smoke`) — walks all four renderers; asserts each attaches, draws, advances the playback clock, and throws no errors.
 - `smoke-generators.mjs` (`npm run smoke:gen`) — drives `generateExercise()` across every practice type + scale, a bass pass, and all built-in sessions; validates chart structure.
 - `smoke-highway-settings.mjs` (`npm run smoke:hwy-settings`) — guards that the borrowed 3D Highway inherits the host's `h3d_bg_*` look settings (and never writes them); see the "3D Highway inherits host settings" memory.
 - `smoke-strings.mjs` (`npm run smoke:strings`) — drives the real form → `readConfig` path to guard that generated charts adjust for **string count** (4–8) and **tuning** (the displayed pattern + notes change), so the 2026-06-01 string/tuning plumbing bugs can't silently return; see the "stringed-instrument tuning/count framework" memory.
 - `smoke-audioctx.mjs` (`npm run smoke:audioctx`) — guards that SlopScale's `window.AudioContext` patch (the highway-click stub) stays scoped to its **own active screen**: stub while SlopScale is visible, but a **real** `AudioContext` (with `decodeAudioData`) when backgrounded, so other plugins' stem loaders aren't poisoned. Regression guard for the v0.5.0 cross-plugin bug; see the "AudioContext patch must be screen-scoped" memory.
 - `smoke-connect.mjs` (`npm run smoke:connect`) — guards the v0.6.0 "play the changes" voice-leading in `buildChordScaleExercise`: a ii–V–I in Connect mode must land each new chord's run on the nearest guide tone (3rd/7th), with **0 root-restarts** and bounded chord-seam leaps; see the "Playing-the-changes initiative" memory.
+- `smoke-core-purity.mjs` (`npm run smoke:core`) — guards the core/shell host-independence boundary (see "Core/shell boundary" under Key constraints): traps `window`/`document`/`localStorage`/`fetch`/`slopsmith*` and runs every exercise/session builder to assert the generation path never touches the host surface.
 
 These plus the startup regression guards baked into `screen.js` (e.g. the no-unison check, which throws on load if a resolved shape doubles a pitch) are the safety net before/after any `screen.js` change.
 
@@ -109,7 +110,7 @@ Shell furniture: a **header top-bar** (title · Setup popover `Guitar · Standar
 
 ### screen.js structure
 
-`screen.js` is one IIFE, ~9,400 lines. It loads as a classic `<script>` (the host injects it without `type="module"`), so it cannot use `import`/`export` — keep it one file. Major sections are marked with `§N` banner comments and indexed in a table-of-contents header at the top; **grep `§` to jump between sections, or use targeted search to locate one before reading.** Key sections (in order):
+`screen.js` is one IIFE, ~9,700 lines. It loads as a classic `<script>` (the host injects it without `type="module"`), so it cannot use `import`/`export` — keep it one file. Major sections are marked with `§N` banner comments and indexed in a table-of-contents header at the top; **grep `§` to jump between sections, or use targeted search to locate one before reading.** Key sections (in order):
 
 - **Constants** — `NOTE_NAMES`, `STRING_SETUPS`, `SCALE_INTERVALS`, `CHORD_FORMULAS`, `DIATONIC_QUALITIES`, `COMMON_PROGRESSIONS`, `SEQUENCE_PATTERNS`, `CHROMATIC_PATTERNS`, etc. `CHORD_FORMULAS` carries the **full interval stack** for each quality (including extensions past the octave for 9/11/13 chords); it is intentionally complete so the voicing engine decides what to actually play.
 - **`CAGED_SHAPES`** — unified source of truth for CAGED shape data. Contains `rootStringIdx`, `scaleFretSpanFromRoot`, and `chordTemplates` per quality. **Do not split this into separate tables.** (Historical note: a previous version had two diverged tables; they were unified on 2026-05-26.) Scale/arpeggio shapes are resolved by degree-driven, no-unison selection (`resolveCAGEDShape` and the run-seam dedupe), not naive fret-window blocks — see the no-unison constraint below.
