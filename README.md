@@ -48,6 +48,15 @@ For chord-scale practice, the line now **moves through the changes musically** i
   <img src="docs/images/connect.png" width="430" alt="The Chord-scale strategy control set to Connect, with help text explaining Park, Connect, and Connect + approach tones.">
 </p>
 
+### Deeper Workouts, strumming & bass <sub><i>(new in v0.7.0)</i></sub>
+
+The Workout pillar got a much bigger library and two new corners of practice:
+
+- **23 starter Workouts** spanning goal × level × genre × instrument — guitar **and** bass — each a warm-up → technique → application arc you can run as-is or make your own.
+- **Strumming / comping** — a new practice type: hold a real chord grip and drill the strum hand across folk / pop / funk / rock feels.
+- **Bass groove vocabulary** — the root–5th–octave box, octave groove, the 16th-note dead-note pocket, slap & pop, and right-hand technique — sequenced groove-first, the way bass is actually learned.
+- **A Depth Ladder** above the tempo climb — prove a skill in a *new key* (the Travel axis) — with an XP readout that's **gained-only and never gates** (Off / Casual / Hardcore).
+
 ## Highlights
 
 - **Jam is a mirror, not a judge** — play along over a live backing band while the fretboard strip lights up the chord/guide tones to reach for. No score, no rank — a sandbox to *apply* what you drilled, not a track to mimic
@@ -109,7 +118,7 @@ Dial in anything — 12 keys, 25+ scales, any tuning, any meter, any feel — or
 30–260 BPM · 4/4, 3/4, 6/8, 7/8 (2+2+3 or 3+2+2), 5/4 · quarter / eighth / sixteenth / triplet subdivisions · straight / swing / shuffle feel · count-in None / 1 / 2 / 4 bars.
 
 ### Practice types
-Scale patterns · chord-scales (mode-of-the-moment or chord-tone emphasis) · diatonic arpeggios · progression arpeggios · sweep arpeggios (HOPO turnaround) · chromatic warmups · guide tones · and a deep **technique/vocabulary** library (legato, bends, vibrato, scale in 3rds/6ths, call-and-response, tremolo, tapping, pedal point, string skipping, position shifts, rhythmic displacement, chromatic enclosures, bebop scale, arpeggio inversions, walking bass, hybrid picking, triadic pairs, pentatonic superimposition, shell voicings, octave displacement, and the metal pedal-riff / gallop / twin-lead primitives).
+Scale patterns · chord-scales (mode-of-the-moment or chord-tone emphasis) · diatonic arpeggios · progression arpeggios · sweep arpeggios (HOPO turnaround) · chromatic warmups · guide tones · and a deep **technique/vocabulary** library (legato, bends, vibrato, scale in 3rds/6ths, call-and-response, tremolo, tapping, pedal point, string skipping, position shifts, rhythmic displacement, chromatic enclosures, bebop scale, arpeggio inversions, walking bass, hybrid picking, triadic pairs, pentatonic superimposition, shell voicings, octave displacement, the metal pedal-riff / gallop / twin-lead primitives, **strumming / comping**, and the **bass groove set** — root–5th–octave, octave groove, dead-note pocket, slap & pop, right-hand technique).
 
 ### Fretboard systems
 CAGED position (auto fret-window per key + shape) · CAGED single-shape (strict-ascend or closest-position) · 3-notes-per-string (seven modal positions) · open position · manual position box · single-string run · full-neck map. Shapes are **degree-driven** with a no-unison guarantee — a run never sounds the same pitch twice across strings.
@@ -159,9 +168,8 @@ Open **SlopScale → Pathways**, pick a beginner node (e.g. *Pentatonic Foundati
 
 ## Roadmap
 
+- **A browsable segment library + design-your-own Workouts + one-tap Refresh** — re-roll a saved routine into fresh keys/positions while it holds the same skill (the v0.7.0 variation engine surfaced as UI; next up)
 - Deeper drum realism (per-genre grooves + humanisation) and a brush/percussion kit set
-- A unified progress store (XP-as-readout, Off / Casual / Hardcore — soft, never gating)
-- A comping generator (CAGED triads / 7ths on a strum grid) for the open-chord Core nodes
-- Per-instrument Development Pathways (guitar Core shipped; bass & piano to follow)
+- Per-instrument Development Pathways (guitar Core shipped; **bass shipped**; piano to follow)
 - Live amp-modelled distorted backing (host NAM-engine borrow, in progress)
 - Piano / keyboard exercise generation
