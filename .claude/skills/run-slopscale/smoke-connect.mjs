@@ -101,6 +101,28 @@ try {
   const parkMx = maxConsecutive(park.notes);
   ok(parkMx <= 13, "Park strategy also has no teleport leap", `max consecutive ${parkMx}st`);
 
+  console.log("-- Connect + enclosure (bebop): the two notes before each change are the target's chromatic neighbours --");
+  // Key A (E-shape box sits ~fret 5-9, mid-neck) so most targets are off the nut and the enclosure is eligible.
+  const enc = await run({ stringSetup: "guitar_6_standard", practiceType: "chord_scales", chordScaleStrategy: "mode_of_moment_enclose", progression: "ii-V-I", key: "A", scale: "major", chordDepth: "seventh", chordOverride: "auto", fretboardSystem: "caged", shape: "E", subdivision: "eighth", bars: "8", direction: "up_down", sequence: "none" });
+  const encSorted = enc.notes.slice().sort((a, b) => a.t - b.t);
+  let encApplied = 0, encCrossUni = 0;
+  for (let i = 1; i < enc.chords.length; i++) {
+    const j = encSorted.findIndex(n => Math.abs(n.t - enc.chords[i].t) < 1e-3);
+    if (j < 2) continue;
+    const target = encSorted[j], above = encSorted[j - 2], below = encSorted[j - 1];
+    // Was the enclosure actually applied here? (skipped at nut/edge or by the
+    // cross-string-feed guard — both legitimate, so don't demand every change.)
+    const isEnc = above.s === target.s && above.f === target.f + 1 && below.s === target.s && below.f === target.f - 1;
+    if (!isEnc) continue;
+    encApplied++;
+    // Among APPLIED enclosures, the note feeding the upper neighbour must not be
+    // the same pitch on a different string (the artifact the guard prevents).
+    if (j >= 3) { const feed = encSorted[j - 3]; if (feed.s !== above.s && (OPENS_6[feed.s] + feed.f) === (OPENS_6[above.s] + above.f)) encCrossUni++; }
+  }
+  ok(encApplied >= 3, "the bebop enclosure fires on most changes ([target+1, target-1] on the target's string)", `${encApplied} applied`);
+  ok(encCrossUni === 0, "no applied enclosure feeds a cross-string unison (guard works)", `${encCrossUni} found`);
+  ok(maxConsecutive(enc.notes) <= 13, "enclosure run has no teleport leap", `max consecutive ${maxConsecutive(enc.notes)}st`);
+
   ok(pageErrs.length === 0, "no uncaught page errors", pageErrs.join(" | "));
   console.log(`\n${fails === 0 ? "PASS" : "FAIL"}  connect keystone: ${fails} failure(s)`);
   process.exit(fails ? 1 : 0);

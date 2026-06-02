@@ -2881,8 +2881,11 @@
     const totalBars = Math.max(1, cfg.bars), duration = totalBars * mLen;
     const notesPerBar = Math.max(1, Math.round(mLen / step));
     const strategy = cfg.chordScaleStrategy || 'mode_of_moment';
-    const keyParent = strategy === 'chord_tone_emphasis' ? scalePositionsForSystem(cfg) : null;
+    const isPark = strategy === 'chord_tone_emphasis';            // one parent scale, accent chord tones
+    const useEnclosure = strategy === 'mode_of_moment_enclose';   // Connect + a bebop enclosure into each change
+    const keyParent = isPark ? scalePositionsForSystem(cfg) : null;
     const notes = [], chordTemplates = [], chords = [], handShapes = [], sections = [];
+    const barStarts = []; // notes[] index of each emitted bar's first (downbeat) note — used by the enclosure post-pass
     let cursor = 0;
     let prevMidi = null; // last note's pitch — threads voice-leading across the changes (Connect)
     // Connect: choose where the new chord's run STARTS so the line resolves INTO
@@ -2908,11 +2911,36 @@
       if (k < 0) k = nearest(() => true);
       return k < 0 ? 0 : k;
     }
+    // Bebop enclosure: lead INTO each change by rewriting the two notes before the
+    // downbeat target as its chromatic upper + lower neighbours (above, below,
+    // target) on the target's own string — the canonical bebop approach, and
+    // maximally playable (one finger steps around the target). Needs ≥3 notes/bar
+    // and the target off the nut/top fret; skipped otherwise. The neighbours are
+    // intentionally chromatic (out-of-scale) — that's the device.
+    function addEnclosures() {
+      if (notesPerBar < 3) return;
+      const opens = openMidisForConfig(cfg);
+      const midiOf = (n) => opens[n.s] + n.f;
+      for (let b = 1; b < barStarts.length; b++) {
+        const tIdx = barStarts[b], target = notes[tIdx];
+        if (!target || target.f < 1 || target.f > 23) continue;
+        const above = tIdx - 2, below = tIdx - 1;
+        if (above < barStarts[b - 1]) continue; // both neighbours must belong to the previous bar
+        // Avoid a cross-string unison: if the chromatic upper neighbour would just
+        // re-sound the note feeding into it (same pitch, different string, back to
+        // back — a pointless re-fingering), skip the enclosure here and leave the
+        // bar as plain Connect. (guitar-pedagogy spot-check, 2026-06-01.)
+        const feed = notes[above - 1];
+        if (feed && above - 1 >= barStarts[b - 1] && feed.s !== target.s && midiOf(feed) === opens[target.s] + target.f + 1) continue;
+        notes[below].s = target.s; notes[below].f = target.f - 1; // chromatic lower neighbour
+        notes[above].s = target.s; notes[above].f = target.f + 1; // chromatic upper neighbour
+      }
+    }
     for (let bar = 0; bar < totalBars; bar++) {
       const degree = degrees[bar % degrees.length];
       const rootPc = chordRootForDegree(cfg, degree);
       const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride, cfg.progression);
-      const positions = strategy === 'chord_tone_emphasis' ? keyParent : chordScalePositions(cfg, rootPc, quality);
+      const positions = isPark ? keyParent : chordScalePositions(cfg, rootPc, quality);
       if (!positions || !positions.length) continue;
       const sequenced = applySequencePattern(positions, cfg.sequence);
       const path = directedPath(sequenced, cfg.direction, cfg.repeatCount);
@@ -2937,23 +2965,25 @@
       // CONNECT (scale-follows-chord) voice-leads: start the new chord's run on the
       // guide tone nearest the previous note, then continue — no more root-restart.
       let startIdx;
-      if (strategy === 'chord_tone_emphasis') startIdx = cursor;
+      if (isPark) startIdx = cursor;
       else startIdx = connectStartIdx(path, prevMidi, guidePcs, chordPcs, rootPc);
       let lastMidi = prevMidi;
+      barStarts.push(notes.length); // index of this bar's downbeat note (for the enclosure post-pass)
       for (let i = 0; i < notesPerBar; i++) {
         // Reflect (bounce at the box edges) rather than wrap (teleport top→bottom)
         // — keeps the run stepwise when notesPerBar exceeds the box or the entry
         // point is mid-box. Pre-existing leap fixed for both Park and Connect.
         const p = path[reflectIdx(startIdx + i, path.length)];
         const onBeat = i % Math.max(1, cfg.meter.numerator) === 0;
-        const isTarget = strategy !== 'chord_tone_emphasis' && i === 0 && guidePcs.has(p.pc); // the resolved guide tone on the change
-        const isChordTone = strategy === 'chord_tone_emphasis' && chordPcs.has(p.pc);
+        const isTarget = !isPark && i === 0 && guidePcs.has(p.pc); // the resolved guide tone on the change
+        const isChordTone = isPark && chordPcs.has(p.pc);
         notes.push(noteDefaults({ t:Number((barStart + i * step).toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * 0.78), ac:onBeat || isChordTone || isTarget }));
         if (p.midi != null) lastMidi = p.midi;
       }
-      if (strategy === 'chord_tone_emphasis') cursor += notesPerBar;
+      if (isPark) cursor += notesPerBar;
       else prevMidi = lastMidi;
     }
+    if (useEnclosure) addEnclosures();
     return { notes, chords, chordTemplates, handShapes, sections:sections.length ? sections : [{ name:'chord-scales', number:1, time:0 }], duration };
   }
 
@@ -8546,7 +8576,8 @@
       parts.push({ thirds_only:'3rds', sevenths_only:'7ths', both_alternating:'3rds+7ths' }[cfg.voices] || cfg.voices);
     }
     if (seg.kind === 'chord_scales' && cfg.chordScaleStrategy) {
-      parts.push(cfg.chordScaleStrategy === 'chord_tone_emphasis' ? 'park' : 'connect');
+      parts.push(cfg.chordScaleStrategy === 'chord_tone_emphasis' ? 'park'
+        : (cfg.chordScaleStrategy === 'mode_of_moment_enclose' ? 'connect+enclose' : 'connect'));
     }
     if (cfg.bpm) parts.push(`${cfg.bpm} BPM`);
     if (cfg.bars) parts.push(`${cfg.bars} bars`);
