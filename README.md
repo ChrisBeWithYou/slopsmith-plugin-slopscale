@@ -29,6 +29,25 @@ One **DAW-style shell with four modes**, all sharing the same player, ruler/tran
 - **Workout** — a timed, multi-block practice session ("woodshed N minutes"): warm up, target a weak skill, then apply it — built from the same pathway/Custom units, run back-to-back on a wall clock.
 - **Jam** — pick a style, hit one button, and play along immediately over a looping backing band. **Jam is a mirror, not a judge** — no score, no rank; instead the live fretboard strip lights up the current chord's tones / guide tones so the jam *teaches* you what to reach for.
 
+<p align="center">
+  <img src="docs/images/workout.png" width="420" alt="Workout mode — a timed multi-block session in the inspector (warm-up, guide tones, modal work) run back-to-back on a wall clock.">
+  &nbsp;
+  <img src="docs/images/jam.png" width="420" alt="Jam mode — style picker, key/tempo/feel, and the live fretboard strip lit up with the current chord's tones to reach for.">
+  <br><sub><i>The two newest pillars — <b>Workout</b> (timed woodshedding) and <b>Jam</b> (play along while the fretboard strip lights up the tones to reach for — a mirror, not a judge).</i></sub>
+</p>
+
+### Play the changes <sub><i>(new in v0.6.0)</i></sub>
+
+For chord-scale practice, the line now **moves through the changes musically** instead of restarting on each chord — pick how much harmony you're navigating, beginner to bebop, on one dial:
+
+- **Park** — stay in one scale, accent the chord tones as they pass.
+- **Connect** — the scale follows the chord and your line **voice-leads into each change's nearest guide tone (3rd/7th)** rather than resetting to the root; common-tone pivots and half-step resolutions fall out naturally.
+- **Connect + approach tones** — adds the classic **bebop chromatic enclosure** (a note above + a note below) leading into every change.
+
+<p align="center">
+  <img src="docs/images/connect.png" width="430" alt="The Chord-scale strategy control set to Connect, with help text explaining Park, Connect, and Connect + approach tones.">
+</p>
+
 ## Highlights
 
 - **Jam is a mirror, not a judge** — play along over a live backing band while the fretboard strip lights up the chord/guide tones to reach for. No score, no rank — a sandbox to *apply* what you drilled, not a track to mimic
@@ -61,6 +80,11 @@ A docked **live fretboard strip** sits under the Tab and Notation views (togglea
 ## Audio
 
 Playback is fully contained in the plugin (its own clock, Web Audio graph, and pitch tracker). The signal path is **per-track buses → a master safety limiter → output**, so stacked notes stay clean and normalised — no clipping, no surprise full-volume hits.
+
+<p align="center">
+  <img src="docs/images/mixer.png" width="820" alt="The live Mixer slid up over the 3D Highway — per-bus faders with mute/solo, instrument pickers, and a Backing dim.">
+  <br><sub><i>The live Mixer (<code>M</code>) — balance or mute the practice voice, bass, comp, drums and click, swap instruments, or dim the backing, all while you play.</i></sub>
+</p>
 
 - **Practice voice** — sampled, at the actual string/fret pitches; the oscillator voice is the fallback so you're never left silent on a cold load
 - **Backing band** — sampled comp + bass voiced per progression step (key-aware voicing engine), plus the new drum voice
