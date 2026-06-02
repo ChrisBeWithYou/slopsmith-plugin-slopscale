@@ -26,16 +26,22 @@
   // ===========================================================================
   //
   // CORE / SHELL BOUNDARY (host-independence — see CLAUDE.md "Key constraints"):
-  // §1–§10 are the host- AND DOM-independent GENERATOR/THEORY ENGINE — SlopScale's
-  // durable IP and the basis for a future standalone app / embeddable library.
-  // The generation path takes a plain `cfg` and returns a plain
-  // `{ version, session, chart }`; it must NEVER reference window, document,
-  // localStorage, fetch, or any `slopsmith*` global. §11–§15 (renderers, host-viz
-  // borrows, audio engine, scorer, DOM wiring) + routes.py are the THIN, DISPOSABLE
-  // SHELL — Slopsmith is one implementation behind the boundary, not a dependency
-  // woven through the core. `readConfig()` (§15) is the single DOM→cfg funnel.
-  // (Known cleanup for when the enforcement guard lands: the shape-dropdown UI
-  // helpers co-located near §1 are shell-class and should move below the boundary.)
+  // The GENERATION PATH — generateExercise/generateSession (§8–§9) and everything
+  // they call (data tables §1–§3, shape/voicing/theory engines §4–§6, exercise
+  // builders §7, the pure chart helpers in §10) — is the host- AND DOM-independent
+  // engine: SlopScale's durable IP and the basis for a future standalone app /
+  // embeddable library. It takes a plain `cfg` and returns a plain
+  // `{ version, session, chart }` (the CHART is the portable artifact) and must
+  // NEVER reference window, document, localStorage, fetch, or any `slopsmith*`
+  // global. Verified by smoke-core-purity.mjs (traps the host surface, runs every
+  // builder). `makeBundle()` (§10) is the chart→renderer-bundle BOUNDARY — it reads
+  // display prefs (highway inverted/lefty/render-scale/look), so it's the FIRST
+  // SHELL step, not core. §11–§15 + routes.py are the THIN, DISPOSABLE SHELL;
+  // Slopsmith is one implementation behind it. `readConfig()` (§15) is the single
+  // DOM→cfg funnel. (Other shell helpers — the AudioContext patch, goScreen, $(),
+  // the WAF loader — are physically interleaved in the §1–§10 line span but are
+  // shell-class; the guard is behavioural precisely because the file isn't
+  // physically partitioned yet — a future Step-1 module split relocates them.)
   // ===========================================================================
 
   // ===========================================================================
