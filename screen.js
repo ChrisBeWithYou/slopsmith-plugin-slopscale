@@ -6425,8 +6425,13 @@
     try { ci = localStorage.getItem('slopscale.countInDefault'); } catch (_) {}
     applyTheme(theme);
     applyXpModeDefault(xp);
+    // First-run default = a 1-bar count-in, so a new player gets a gentle lead-in
+    // on their first Play instead of starting cold on beat 1. A stored value wins
+    // thereafter (including an explicit "Off" = '0', which is non-null).
+    if (ci == null) ci = '1';
+    applyCountInDefault(ci);
     const sel = $('slopscale-countin-default');
-    if (sel && ci != null) { sel.value = ci; applyCountInDefault(ci); }
+    if (sel) sel.value = ci;
   }
 
   function schedulePluckedString(ctx, when, freq, dur, instrument, gainScale, bendSemis) {
