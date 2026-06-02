@@ -33,6 +33,15 @@
     --ss-playhead: #f43f5e;                    /* reserved: means "now", nowhere else */
     --ss-danger: #b91c1c;
     --ss-meter: #22c55e;                       /* progress / cleared fill */
+    --ss-meter-soft: rgba(34, 197, 94, 0.12);  /* cleared-rung fill wash (the only green) */
+    --ss-meter-edge: rgba(34, 197, 94, 0.45);  /* cleared-rung border */
+    /* Semantic surface/control tokens (design-system §2/§10) — the recurring
+       literals for the same roles, named so the accent themes can reach them. */
+    --ss-track: #141d33;                       /* segmented-control / fader track bg */
+    --ss-btn: #172033;                         /* secondary button bg */
+    --ss-btn-hover: #24324a;                   /* button / segment hover bg */
+    --ss-hover-soft: #1e293b;                  /* chip / menu-item hover */
+    --ss-stop: var(--ss-danger);               /* transport-stop / is-playing red */
     /* spacing — 4px scale */
     --ss-sp-1: 4px; --ss-sp-2: 8px; --ss-sp-3: 12px; --ss-sp-4: 16px; --ss-sp-5: 24px;
     /* radius */
@@ -188,6 +197,8 @@
   /* One calm Logic-style section label everywhere: muted, tracked, with a
      hairline separator above so the Inspector reads as discrete sections. */
   .slopscale-group-title { color: var(--ss-text-muted); font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin: 10px 0 4px; padding-top: 10px; border-top: 1px solid var(--ss-hairline); }
+  /* Session (Workout) audio options grid — the single-mode Preview Audio panel
+     was retired (§14); this still styles the Workout panel's audio toggles. */
   .slopscale-audio-options {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -197,17 +208,20 @@
     border-radius: 12px;
     background: rgba(15, 23, 42, 0.86);
   }
-  /* 1×4 horizontal preview-audio row: 3 toggles + a shrunk tone dropdown. */
-  .slopscale-audio-row { grid-template-columns: repeat(4, 1fr); align-items: center; }
-  .slopscale-audio-row .slopscale-toggle { font-size: 11px; }
-  .slopscale-audio-tone { font-size: 10px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: #94a3b8; display: flex; flex-direction: column; gap: 3px; }
-  .slopscale-audio-tone select { width: 100%; min-height: 30px; font-size: 12px; }
-  /* Shape stepper — ◄ / ► walk through CAGED/3NPS shapes. */
+  /* Position / variation stepper — ◄ / ► walk the pathway's variation axis
+     (CAGED/3NPS shapes, or the curated vary[] list for non-shape pathways). */
   .slopscale-shape-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
-  .slopscale-shape-row-label { font-size: 12px; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; color: #94a3b8; }
+  .slopscale-shape-row-label { font-size: 12px; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ss-text-muted); white-space: nowrap; }
   .slopscale-shape-select { flex: 1; min-height: 34px; }
-  .slopscale-shape-step { min-height: 34px; min-width: 36px; border: 1px solid #475569; border-radius: 8px; background: #172033; color: #cbd5e1; font-weight: 700; font-size: 13px; cursor: pointer; }
-  .slopscale-shape-step:hover { background: #24324a; border-color: #64748b; }
+  /* Read-only variation readout (shown when the shape select is empty — vary[]
+     stepping). Looks like the disabled select so the row reads consistently. */
+  .slopscale-position-readout { flex: 1; min-height: 34px; display: flex; align-items: center; padding: 0 10px; border: 1px solid var(--ss-border); border-radius: var(--ss-r-control); background: var(--ss-inset); color: var(--ss-text-dim); font-size: 13px; font-weight: 600; }
+  .slopscale-position-readout[hidden] { display: none; }
+  .slopscale-shape-step { min-height: 34px; min-width: 36px; border: 1px solid #475569; border-radius: 8px; background: var(--ss-btn); color: var(--ss-text-dim); font-weight: 700; font-size: 13px; cursor: pointer; }
+  .slopscale-shape-step:hover { background: var(--ss-btn-hover); border-color: #64748b; }
+  /* The stepper hides when there's nothing to step (a single-variation, non-shape
+     pathway). Set by updatePositionStepper() via the .no-variations class. */
+  #slopscale-position-row.no-variations { display: none; }
   .slopscale-advanced-card {
     border: 1px solid rgba(148, 163, 184, 0.28);
     border-radius: 12px;
@@ -299,9 +313,6 @@
   .slopscale-actions button.primary:hover { background: linear-gradient(180deg, #1d4ed8, #1e40af); }
   .slopscale-actions button.primary.is-playing { background: linear-gradient(180deg, #b91c1c, #991b1b); border-color: #f87171; }
   .slopscale-actions button.primary.is-playing:hover { background: linear-gradient(180deg, #991b1b, #7f1d1d); }
-  /* Match Next variation to Play's height so the row reads as a single
-     action band rather than primary-button-plus-tiny-sidekick. */
-  #slopscale-next-variation { font-size: 13px; }
   /* Paste-share-link input: low-key, parchment-on-night, with a green flash
      on a successful restore + a red flash on a malformed link. */
   .slopscale-paste-share { margin-top: 4px; }
@@ -478,8 +489,28 @@
   /* Suppress Jumping Tab's own big vertical chord-box canvas — SlopScale draws
      its own small, consistent chord box (see #slopscale-chordbox) instead. */
   .slopscale-render-host .jumpingtab-chord-canvas { display: none !important; }
-  /* ── Shell hotkey buttons + the M/P/[ panels ─────────────────────────────── */
-  .slopscale-hotkey-bar { display: flex; gap: 4px; margin-left: auto; }
+  /* ── Practice mutes + shell hotkey buttons ───────────────────────────────── */
+  /* The right cluster of the view bar: practice mutes, then Mixer / ?. The
+     practice-toggles group carries the margin-left:auto so the whole cluster
+     floats right together. */
+  .slopscale-practice-toggles { display: flex; gap: 4px; margin-left: auto; align-items: center; }
+  /* Practice mute pill: a checkbox styled as a small on/off chip. ON (checked)
+     = the bus is heard (accent); OFF (unchecked) = muted (muted/inset). The
+     visible label is the bus name; the practice purpose is in the title. */
+  .slopscale-practice-pill { position: relative; display: inline-flex; align-items: center; cursor: pointer; user-select: none; }
+  .slopscale-practice-pill input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+  .slopscale-practice-pill span {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 9px; font-size: 11.5px; font-weight: 600; border-radius: 7px;
+    border: 1px solid var(--ss-border); background: var(--ss-inset); color: var(--ss-text-faint);
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .slopscale-practice-pill span::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--ss-text-faint); transition: background 0.12s; }
+  .slopscale-practice-pill:hover span { color: var(--ss-text-dim); border-color: #64748b; }
+  .slopscale-practice-pill input:checked + span { background: var(--ss-accent-soft); border-color: var(--ss-accent); color: #dbeafe; }
+  .slopscale-practice-pill input:checked + span::before { background: var(--ss-accent); }
+  .slopscale-practice-pill input:focus-visible + span { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+  .slopscale-hotkey-bar { display: flex; gap: 4px; }
   .slopscale-hk-btn { padding: 4px 10px; font-size: 11.5px; font-weight: 600; border-radius: 7px; border: 1px solid var(--ss-border, #334155); background: var(--ss-inset, #0b1220); color: var(--ss-text-dim, #94a3b8); cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
   .slopscale-hk-btn:hover { background: #1e293b; color: #e2e8f0; }
   .slopscale-hk-btn.active { background: var(--ss-accent-soft, rgba(64,128,224,0.2)); border-color: var(--ss-accent, #4080e0); color: #dbeafe; }
@@ -500,6 +531,12 @@
   .slopscale-mixer-tog.solo.active { background: #1e40af; border-color: var(--ss-accent-edge); color: #dbeafe; }
   .slopscale-mixer-fader { width: 100%; accent-color: var(--ss-accent, #4080e0); }
   .slopscale-mixer-val { font-size: 10px; color: #64748b; font-family: var(--ss-mono, monospace); text-align: right; }
+  /* Per-channel Tone sub-row (the relocated "Backing tone"). Indented under its
+     channel; a quiet darker↔brighter knob, visually subordinate to the fader. */
+  .slopscale-mixer-tone { display: grid; grid-template-columns: 50px 1fr auto; align-items: center; gap: 7px; margin: -3px 0 1px; padding-left: 0; }
+  .slopscale-mixer-tone-lbl { font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ss-text-faint); }
+  .slopscale-mixer-toneknob { width: 100%; accent-color: var(--ss-accent, #4080e0); }
+  .slopscale-mixer-tone-end { font-size: 9px; color: var(--ss-text-faint); }
   /* Progress sheet — slides in from the right. */
   .slopscale-progress-sheet { position: absolute; top: 0; right: 0; bottom: 0; width: min(320px, 82%); z-index: 21; background: var(--ss-surface, #0d1424); border-left: 1px solid var(--ss-border, #334155); box-shadow: -8px 0 24px rgba(0,0,0,0.4); transform: translateX(105%); transition: transform 0.22s ease; display: flex; flex-direction: column; }
   .slopscale-root.ss-progress-open .slopscale-progress-sheet { transform: translateX(0); }
@@ -557,6 +594,8 @@
   .slopscale-ss-cleared { font-size: 12px; font-weight: 700; color: var(--ss-meter, #22c55e); padding: 3px 0; }
   @media (prefers-reduced-motion: reduce) {
     .slopscale-mixer, .slopscale-progress-sheet { transition: none; }
+    .slopscale-tier-btn { transition: none; }
+    .slopscale-tier-btn.tier-glow { animation: none; }
   }
   /* SlopScale's small vertical chord box, top-left over the render (matched to
      the 3D Highway's diagram corner so the position is consistent across views).
@@ -578,29 +617,60 @@
   #slopscale-cents-needle { position: absolute; width: 4px; height: 100%; top: 0; left: 50%; transform: translateX(-50%); background: #475569; border-radius: 2px; transition: left 0.08s, background 0.08s; }
   #slopscale-pitch-cents { min-width: 42px; text-align: right; }
   #slopscale-pitch-accuracy { margin-left: auto; }
+  /* ── The Climb — the SPEED tier ladder, the hero of the pathway pane ───────
+     A framed, slightly-elevated card so the one motivational element no longer
+     reads as a flat button row with the same weight as the settings below it.
+     The rungs ascend left→right (Slow→Push); the rising baseline accent makes
+     the climb legible at a glance. Rendered by syncTempoTierButtons(). */
+  .slopscale-climb {
+    border: 1px solid var(--ss-border);
+    border-radius: var(--ss-r-panel);
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.42), rgba(13, 18, 32, 0.42));
+    padding: 10px 12px 11px;
+    margin: 8px 0 4px;
+  }
+  .slopscale-climb-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .slopscale-climb-title { font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--ss-text); }
+  .slopscale-climb-sub { font-size: 10.5px; color: var(--ss-text-faint); letter-spacing: 0.01em; }
   /* Tempo tier buttons — rendered dynamically by syncTempoTierButtons() */
-  .slopscale-tier-buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .slopscale-tier-buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; align-items: stretch; }
   .slopscale-tier-btn {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1px;
-    min-height: 42px;
-    border: 1px solid #475569;
-    border-radius: 8px;
-    background: #111827;
-    color: #94a3b8;
+    gap: 2px;
+    border: 1px solid var(--ss-border);
+    border-radius: var(--ss-r-control);
+    background: var(--ss-inset);
+    color: var(--ss-text-muted);
     font-weight: 700;
     cursor: pointer;
-    padding: 4px 6px;
+    padding: 6px 4px;
     line-height: 1.1;
-    transition: background 0.1s, color 0.1s, border-color 0.1s;
+    transition: background 0.12s, color 0.12s, border-color 0.12s, transform 0.12s;
   }
+  /* Ascending rungs: each step a little taller than the last so the row reads
+     as a climb, not four equal boxes. (Heights, not margins — keeps them aligned
+     to a common baseline at the bottom via align-items:stretch on the grid.) */
+  .slopscale-tier-btn:nth-child(1) { min-height: 44px; }
+  .slopscale-tier-btn:nth-child(2) { min-height: 50px; }
+  .slopscale-tier-btn:nth-child(3) { min-height: 56px; }
+  .slopscale-tier-btn:nth-child(4) { min-height: 62px; }
+  .slopscale-tier-btn .tier-step { font-size: 8.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ss-text-faint); }
   .slopscale-tier-btn .tier-name { font-size: 12px; }
   .slopscale-tier-btn .tier-bpm { font-size: 10px; font-weight: 600; opacity: 0.75; }
-  .slopscale-tier-btn:hover { background: #1e293b; color: #e2e8f0; }
-  .slopscale-tier-btn.active { background: var(--ss-accent-grad); border-color: var(--ss-accent-edge); color: #f8fafc; }
+  .slopscale-tier-btn:hover { background: var(--ss-hover-soft); color: var(--ss-text); }
+  .slopscale-tier-btn.active { background: var(--ss-accent-grad); border-color: var(--ss-accent-edge); color: var(--ss-text); }
+  .slopscale-tier-btn.active .tier-step { color: var(--ss-text); opacity: 0.8; }
+  /* Calm signpost: names the next rung to clear, or the summit when all are done.
+     A quiet readout (a map, not a nag) — no urgency styling, no audio. */
+  .slopscale-climb-next { margin-top: 9px; font-size: 11px; color: var(--ss-text-muted); line-height: 1.35; min-height: 1em; }
+  .slopscale-climb-next:empty { display: none; }
+  .slopscale-climb-next .climb-arrow { color: var(--ss-text-faint); margin-right: 5px; }
+  .slopscale-climb-next .climb-target { color: var(--ss-text-dim); font-weight: 700; }
+  .slopscale-climb-next.summit { color: var(--ss-meter); }
+  .slopscale-climb-next.summit .climb-arrow { color: var(--ss-meter); }
 
   /* Single ↔ Session mode toggle pill */
   /* Instrument family selector — three-way segmented control above the
@@ -707,9 +777,10 @@
   .slopscale-cal-day.today .slopscale-cal-dot.practiced { background: #2563eb; border-color: var(--ss-accent-edge); box-shadow: 0 0 5px rgba(96,165,250,0.4); }
   .slopscale-cal-lbl { font-size: 9px; color: #334155; font-weight: 600; }
   .slopscale-cal-day.today .slopscale-cal-lbl { color: #64748b; }
-  /* Pathway tier cleared state + unlock glow animation */
-  .slopscale-tier-btn.cleared { border-color: rgba(34, 197, 94, 0.45); background: rgba(20, 83, 45, 0.12); }
-  .slopscale-tier-btn.cleared .tier-name::after { content: ' ✓'; color: #4ade80; font-size: 9px; font-weight: 900; }
+  /* Pathway tier cleared state + unlock glow animation. Cleared = the only
+     green in the climb (meter token); the ✓ is the cleared mark. */
+  .slopscale-tier-btn.cleared { border-color: var(--ss-meter-edge); background: var(--ss-meter-soft); }
+  .slopscale-tier-btn.cleared .tier-name::after { content: ' ✓'; color: var(--ss-meter); font-size: 9px; font-weight: 900; }
   @keyframes slopscale-tier-glow {
     0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
     25%  { box-shadow: 0 0 14px 4px rgba(34, 197, 94, 0.7); }
@@ -871,7 +942,7 @@
     .slopscale-single-only > .slopscale-pathway-goal-card,
     .slopscale-single-only > .slopscale-help,
     .slopscale-single-only > .slopscale-skill-tree,
-    .slopscale-single-only > .slopscale-tier-buttons,
+    .slopscale-single-only > .slopscale-climb,
     .slopscale-single-only > .slopscale-shape-row,
     .slopscale-single-only > .slopscale-advanced-card { grid-column: 1 / -1; }
   }
@@ -1113,8 +1184,20 @@
       </div>
       <div id="slopscale-skill-tree" class="slopscale-skill-tree slopscale-pathway-only slopscale-tree-shelved"></div>
 
-      <div class="slopscale-group-title slopscale-pathway-only">Speed</div>
-      <div class="slopscale-tier-buttons slopscale-pathway-only" id="slopscale-tier-buttons"></div>
+      <!-- THE CLIMB — the SPEED tiers reframed as an ascending ladder: the visual
+           hero of the pathway pane. Each rung is a tempo step (Slow→Push); clearing
+           a rung fills it meter-green with a ✓, the active rung lights accent, and a
+           calm signpost below names the next rung (or "summit"). syncTempoTierButtons()
+           still owns #slopscale-tier-buttons + .slopscale-tier-btn — this is chrome
+           around that. The signpost is populated by syncTempoTierButtons too. -->
+      <div class="slopscale-climb slopscale-pathway-only" id="slopscale-climb">
+        <div class="slopscale-climb-head">
+          <span class="slopscale-climb-title">The Climb</span>
+          <span class="slopscale-climb-sub">Clear each speed to advance</span>
+        </div>
+        <div class="slopscale-tier-buttons" id="slopscale-tier-buttons"></div>
+        <div class="slopscale-climb-next" id="slopscale-climb-next" aria-live="polite"></div>
+      </div>
 
       <div class="slopscale-help slopscale-custom-only">Custom mode — every control below is yours to set. Load a saved preset to recall a routine, or build one from scratch.</div>
 
@@ -1259,13 +1342,20 @@
         <div class="slopscale-help">Fretboard system, CAGED shape, and sequence pattern are passed into the generated exercise config. Full CAGED/3NPS pattern logic is built up in subsequent passes.</div>
       </details>
 
-      <!-- Shape stepper — click ◄ / ► to walk through the CAGED/3NPS shapes.
-           Hidden #slopscale-shape select still holds the value for the form. -->
-      <div class="slopscale-shape-row slopscale-pathway-only slopscale-guitar-only">
-        <span class="slopscale-shape-row-label">Shape</span>
-        <button type="button" id="slopscale-shape-prev" class="slopscale-shape-step" aria-label="Previous shape">◄</button>
+      <!-- The universal variation stepper — ◄ / ► walk the pathway's variation
+           axis. For shape-aware systems (CAGED/3NPS, guitar) the axis is the
+           fretboard Position and the #slopscale-shape select shows the shapes.
+           For other pathways the select is empty and the stepper walks the
+           pathway's curated vary[] list (key / scale / progression / inversion),
+           with the read-only #slopscale-position-readout showing where you are.
+           updatePositionStepper() sets the label, readout, and row visibility.
+           This replaces the old bottom "Next variation" button (redundant ►). -->
+      <div class="slopscale-shape-row slopscale-pathway-only" id="slopscale-position-row">
+        <span class="slopscale-shape-row-label" id="slopscale-position-label">Position</span>
+        <button type="button" id="slopscale-shape-prev" class="slopscale-shape-step" aria-label="Previous position">◄</button>
         <select name="shape" id="slopscale-shape" class="slopscale-shape-select"><!-- populated by syncShapeDropdown() --></select>
-        <button type="button" id="slopscale-shape-next" class="slopscale-shape-step" aria-label="Next shape">►</button>
+        <span id="slopscale-position-readout" class="slopscale-position-readout" hidden></span>
+        <button type="button" id="slopscale-shape-next" class="slopscale-shape-step" aria-label="Next position">►</button>
       </div>
       <div class="slopscale-group-title">Key</div>
       <div class="slopscale-grid-3">
@@ -1341,7 +1431,12 @@
         </label>
       </div>
 
-      <div class="slopscale-group-title">Tempo (BPM)</div>
+      <!-- Rhythm / Groove — the playable feel of the exercise: tempo, count-in,
+           click rate, and Feel (straight/swing/shuffle). Feel STAYS here (it's a
+           practised rhythmic skill, not a playback knob — design-system §14). In
+           Pathways the BPM field is the readout/override of the active Climb rung;
+           Meter + Division reshape the chart and so are Custom-only. -->
+      <div class="slopscale-group-title">Rhythm / Groove</div>
       <div class="slopscale-grid-3">
         <label>BPM<input name="bpm" type="number" min="30" max="260" step="1" value="100"></label>
         <label>Count-in
@@ -1379,19 +1474,20 @@
         <label class="slopscale-toggle"><input name="tremolo" type="checkbox"> Tremolo-pick (mark notes)</label>
       </div>
 
-      <div class="slopscale-group-title">Preview audio</div>
-      <div class="slopscale-audio-options slopscale-audio-row" aria-label="Generated audio options">
-        <label class="slopscale-toggle"><input name="audioNotes" type="checkbox" checked> Hear generated notes</label>
-        <label class="slopscale-toggle"><input name="audioMetronome" type="checkbox" checked> Metronome click</label>
-        <label class="slopscale-toggle"><input name="audioHarmony" type="checkbox" checked> Harmony backing</label>
-        <label class="slopscale-audio-tone">Backing tone
-          <input type="range" name="brightness" id="slopscale-brightness" min="0" max="1" step="0.05" value="0.5" title="Backing tone — darker ↔ brighter. Auto-set per style; nudge to taste.">
-        </label>
-      </div>
+      <!-- Preview Audio panel RETIRED (design-system §14, 2026-06-01). The three
+           per-bus mutes are now practice-framed pill toggles in the stage view-bar
+           (Notes / Backing / Click) next to the Mixer button — they are REAL
+           form controls placed there via form="slopscale-controls" (the same trick
+           #slopscale-custom-open-midis uses), so readConfig's data.get('audio*')
+           path is unchanged; they just live elsewhere in the DOM.
+           "Backing tone" (brightness) became a per-channel Tone knob on the Comp
+           channel in the Mixer; the form value is kept here as a hidden input the
+           Mixer knob reads/writes (UI relocation only — the audio path is the same
+           data.get('brightness')). -->
+      <input type="hidden" name="brightness" id="slopscale-brightness" value="0.5">
       <!-- Backing-voice selection moved to the Mixer (M): a per-channel instrument
            dropdown on Player/Comp/Bass (Phase C). The voice defaults from the style. -->
       <input type="hidden" name="audioProfile" id="slopscale-audio-profile" value="">
-      <div class="slopscale-help slopscale-custom-only">Backing tone is chosen automatically from the style; the slider nudges it brighter/darker. Harmony notes come from the key, scale, and progression.</div>
 
       <div class="slopscale-grid-3 slopscale-custom-only">
         <label>First fret <input name="fretMin" type="number" min="0" max="20" step="1" value="0"></label>
@@ -1521,7 +1617,6 @@
       </details>
 
       <div class="slopscale-actions-secondary">
-        <button type="button" id="slopscale-next-variation" class="secondary slopscale-pathway-only">Next variation</button>
         <button type="button" id="slopscale-regenerate" class="slopscale-custom-only secondary">Regenerate</button>
         <button type="button" id="slopscale-share" class="secondary" title="Copy a link that restores this exact exercise">Copy share link</button>
         <button type="button" id="slopscale-save" class="secondary">Save preset</button>
@@ -1589,9 +1684,9 @@
              already state — Key · Tempo · Meter · Bars · Length · Notes (or
              Session · Segments · Length · Notes). Populated by summarize(). -->
         <div id="slopscale-summary" class="slopscale-summary"></div>
-        <!-- Fretboard strip toggle — "Fretboard view" + pill switch. Only shown
-             (via CSS) for the views where the strip earns its keep: Jumping Tab
-             and Notation. Hidden for 3D Highway (already a neck) and Tab. -->
+        <!-- Fretboard strip toggle — "Fretboard view" + pill switch. Shown
+             (via CSS) for every stringed-instrument view: 3D Highway, Jumping
+             Tab, Tab, and Notation. Hidden only for the Piano instrument. -->
         <span id="slopscale-fretboard-toggle-wrap" class="slopscale-fb-toggle-wrap">
           <span class="slopscale-fb-toggle-label">Fretboard view</span>
           <button type="button" id="slopscale-fretboard-toggle" class="slopscale-pill-toggle" role="switch" aria-checked="true" aria-label="Toggle fretboard view"><span class="slopscale-pill-knob"></span></button>
@@ -1601,6 +1696,27 @@
         <div id="slopscale-theme-toggle" class="slopscale-theme-toggle" role="group" aria-label="Renderer theme">
           <button type="button" class="slopscale-theme-btn active" data-theme="light" title="Parchment + ink">Light</button>
           <button type="button" class="slopscale-theme-btn" data-theme="dark" title="Navy + ink">Dark</button>
+        </div>
+        <!-- Practice toggles — the retired Preview-Audio mutes, reframed as
+             per-bus practice scaffolds next to the Mixer (design-system §14).
+             Muting Backing = self-test; muting Notes = play-by-ear / minus-one;
+             muting Click = the hold-tempo test. REAL form controls (checked =
+             heard, default on) bound to #slopscale-controls via form=, so
+             readConfig's data.get('audio*') path is unchanged. Count-in always
+             clicks even with Click muted (carve-out in the scheduler). -->
+        <div class="slopscale-practice-toggles" role="group" aria-label="Practice mutes">
+          <label class="slopscale-practice-pill" title="Mute the notes to play by ear (minus-one)">
+            <input type="checkbox" form="slopscale-controls" name="audioNotes" id="slopscale-audio-notes" checked>
+            <span>Notes</span>
+          </label>
+          <label class="slopscale-practice-pill" title="Mute the backing to self-test what you've learned">
+            <input type="checkbox" form="slopscale-controls" name="audioHarmony" id="slopscale-audio-harmony" checked>
+            <span>Backing</span>
+          </label>
+          <label class="slopscale-practice-pill" title="Mute the click to hold tempo on your own (the count-in still clicks)">
+            <input type="checkbox" form="slopscale-controls" name="audioMetronome" id="slopscale-audio-metronome" checked>
+            <span>Click</span>
+          </label>
         </div>
         <!-- Shell hotkey buttons (each hotkey has a visible button + the ? cheat-sheet;
              no keyboard-only affordances). M = mixer, P = progress, [ = collapse. -->

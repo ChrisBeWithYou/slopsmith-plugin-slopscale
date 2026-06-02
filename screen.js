@@ -6042,7 +6042,7 @@
   // is unity (level 1, no mute/solo, no dim) → identical to pre-mixer behaviour.
   const MIXER_CHANNELS = [
     { key:'notes',   label:'Player',  backing:false, instr:'melodic' },
-    { key:'harmony', label:'Comp',    backing:true,  instr:'melodic' },
+    { key:'harmony', label:'Comp',    backing:true,  instr:'melodic', tone:true },
     { key:'bass',    label:'Bass',    backing:true,  instr:'bass' },
     { key:'drums',   label:'Drums',   backing:true,  kit:true },
     { key:'click',   label:'Click',   backing:false },
@@ -6121,6 +6121,22 @@
         `<input type="range" class="slopscale-mixer-fader" min="0" max="1.2" step="0.01" value="${st.level}" data-k="${c.key}" aria-label="${c.label} level">` +
         `<span class="slopscale-mixer-val" data-k="${c.key}">${Math.round(st.level * 100)}</span>`;
       host.appendChild(row);
+      // Per-channel Tone knob (the relocated "Backing tone" / brightness — §14).
+      // UI relocation only: it reads/writes the form's #slopscale-brightness value
+      // (name="brightness"), so the existing audio path (data.get('brightness'))
+      // is unchanged. A second row under the Comp channel so the fader stays the
+      // dominant gesture.
+      if (c.tone) {
+        const bEl = $('slopscale-brightness');
+        const bright = bEl ? Math.max(0, Math.min(1, parseFloat(bEl.value) || 0)) : 0.5;
+        const tone = document.createElement('div');
+        tone.className = 'slopscale-mixer-tone';
+        tone.innerHTML =
+          `<span class="slopscale-mixer-tone-lbl">Tone</span>` +
+          `<input type="range" class="slopscale-mixer-toneknob" min="0" max="1" step="0.05" value="${bright}" aria-label="${c.label} tone (darker ↔ brighter)" title="Backing tone — darker ↔ brighter. Auto-set per style; nudge to taste.">` +
+          `<span class="slopscale-mixer-tone-end" aria-hidden="true">brighter</span>`;
+        host.appendChild(tone);
+      }
     });
     const dim = $('slopscale-mixer-dim'); if (dim) dim.checked = mixerBackingDim;
   }
@@ -7232,11 +7248,11 @@
       }
       stashedGuitarSystem = null;
     }
-    // Re-label the next-variation button so it stops claiming "E-shape" on
-    // bass (it cycles through pathway variations, which on bass aren't
-    // shape-defined). updateShapeButton() picks the right label based on the
-    // active fretboard system (forced to 'position' above for bass).
-    updateShapeButton();
+    // Re-sync the Position/variation stepper: on bass it falls back to vary[]
+    // stepping (CAGED shapes aren't shown), so its label + control must update
+    // when the instrument changes. updatePositionStepper() picks the right
+    // mode + axis label.
+    updatePositionStepper();
     // Mirror the underlying instrument value into the top-level family
     // selector so all three controls (family chip, instrument select,
     // string-setup select) stay in sync regardless of which one drove the
@@ -7869,7 +7885,7 @@
       }
       syncTempoTierButtons();
       syncScaleDropdown(id);
-      updateShapeButton();
+      updatePositionStepper();
       renderSkillTree();
       return;
     }
@@ -7882,68 +7898,114 @@
     renderSkillTree();
   }
 
-  // Updates the "Next shape" button text to show the active shape and its
-  // position in the current key's cycle, e.g. "E-shape (4/5) →".
-  function updateShapeButton() {
-    const btn = $('slopscale-next-variation');
-    if (!btn) return;
+  // ── The universal Position / variation stepper ─────────────────────────────
+  // The ◄ [select/readout] ► row walks the active pathway's variation axis. For a
+  // shape-aware guitar pathway the axis is the fretboard Position (CAGED/3NPS) and
+  // the #slopscale-shape select drives it. For everything else the axis is the
+  // pathway's curated vary[] list, stepped through applyPathwayById(). This
+  // replaces the old bottom "Next variation" button (its ► was redundant with
+  // this row's ►), so non-shape pathways must be steppable HERE.
+
+  // Is the active row stepping shapes (true) or vary[] entries (false)?
+  function positionStepperIsShapeMode() {
     const sysEl = $('slopscale-fretboard-system');
     const shapeEl = $('slopscale-shape');
-    const keyEl = $('slopscale-controls')?.querySelector('[name="key"]');
-    const scaleEl = $('slopscale-controls')?.querySelector('[name="scale"]');
+    const root = $('slopscale-root');
+    const isBass = root && root.classList.contains('slopscale-bass-instrument');
     const system = sysEl ? sysEl.value : 'caged';
-    if (!isShapeAwareSystem(system) || !shapeEl || !keyEl) {
-      btn.textContent = 'Next variation';
-      return;
-    }
-    const keyPc = NOTE_ALIASES[keyEl.value] ?? 0;
-    const scale = scaleEl ? scaleEl.value : 'major';
-    const openMidis = STRING_SETUPS.guitar_6_standard.openMidis;
-    const current = system === '3nps' ? parseInt(shapeEl.value, 10) : shapeEl.value;
-    const order = shapeOrderForKey(keyPc, system, scale, openMidis);
-    const idx = order.indexOf(current);
-    if (idx === -1) { btn.textContent = 'Next shape'; return; }
-    const pos = idx + 1;
-    const total = order.length;
-    let shapeName;
-    if (system === '3nps') {
-      const def = THREE_NPS_POSITION_DEFS[current];
-      shapeName = def ? def.mode : `Pos ${current}`;
-    } else {
-      const def = CAGED_SHAPES[current];
-      shapeName = def ? def.displayName : current;
-    }
-    btn.textContent = `${shapeName} (${pos}/${total}) →`;
+    // Shapes are a guitar concept and only render when the select has ≥2 options.
+    return !isBass && isShapeAwareSystem(system) && shapeEl && shapeEl.options.length > 1;
   }
 
-  function rotateToNextVariation() {
-    // Per design (docs/position-system-rework.md): Next Variation cycles
-    // through shapes within the current key, in the cyclic order of the
-    // current system (e.g., for CAGED in C major: C → A → G → E → D → C).
-    if (!activePathwayId || activePathwayId === 'custom') return;
-    const sysEl = $('slopscale-fretboard-system');
-    const shapeEl = $('slopscale-shape');
-    const keyEl = $('slopscale-controls')?.querySelector('[name="key"]');
-    const scaleEl = $('slopscale-controls')?.querySelector('[name="scale"]');
-    const system = sysEl ? sysEl.value : 'caged';
-    if (isShapeAwareSystem(system) && shapeEl && keyEl) {
-      const keyPc = NOTE_ALIASES[keyEl.value] ?? 0;
-      const scale = scaleEl ? scaleEl.value : 'major';
-      const openMidis = STRING_SETUPS.guitar_6_standard.openMidis;
-      const current = system === '3nps' ? parseInt(shapeEl.value, 10) : shapeEl.value;
-      const next = nextShapeInCycle(keyPc, system, current, scale, openMidis);
-      if (next != null) {
-        shapeEl.value = String(next);
-        syncShapeDropdownSelectionToHidden();
-        updateShapeButton();
-        onGenerate();
-        return;
-      }
+  // Infer the human axis name for a pathway's vary[] list by which field changes
+  // across its entries. Avoids the generic "Variation" wherever a real axis exists.
+  function variationAxisLabel(pw) {
+    const vary = (pw && pw.vary) || [];
+    if (vary.length < 2) return 'Variation';
+    const changes = (field) => new Set(vary.map(v => v[field])).size > 1;
+    // Order matters: pick the most specific musical axis that actually varies.
+    if (changes('voices')) return 'Voicing';
+    if (changes('inversion')) return 'Inversion';
+    if (changes('progression')) return 'Progression';
+    if (changes('scale')) return 'Scale';
+    if (changes('sequence') || changes('chromaticPattern')) return 'Pattern';
+    if (changes('swing')) return 'Feel';
+    if (changes('key')) return 'Key';
+    return 'Variation';
+  }
+
+  // Short label for the current vary[] entry, e.g. "A" (key), "Dorian" (scale).
+  function variationValueLabel(pw, idx, axis) {
+    const v = (pw.vary && pw.vary[idx]) || {};
+    switch (axis) {
+      case 'Voicing':     return v.voices ? v.voices.replace(/_/g, ' ') : `#${idx + 1}`;
+      case 'Inversion':   return v.inversion != null ? `Inv ${v.inversion}` : `#${idx + 1}`;
+      case 'Progression': return v.progression || `#${idx + 1}`;
+      case 'Scale':       return v.scale ? v.scale.replace(/_/g, ' ') : `#${idx + 1}`;
+      case 'Pattern':     return v.chromaticPattern || v.sequence || `#${idx + 1}`;
+      case 'Feel':        return v.swing || `#${idx + 1}`;
+      case 'Key':         return v.key || `#${idx + 1}`;
+      default:            return `Variation ${idx + 1}`;
     }
-    // Fallback for non-shape-aware systems: keep the old per-pathway variation rotation.
+  }
+
+  // Update the stepper row: label by axis, show the right control (select vs
+  // readout), and hide the whole row when there is nothing to step.
+  function updatePositionStepper() {
+    const row = $('slopscale-position-row');
+    const label = $('slopscale-position-label');
+    const select = $('slopscale-shape');
+    const readout = $('slopscale-position-readout');
+    if (!row || !label || !select || !readout) return;
+
+    const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
+    const shapeMode = positionStepperIsShapeMode();
+
+    if (shapeMode) {
+      // Fretboard Position — the shape select is the control.
+      row.classList.remove('no-variations');
+      label.textContent = 'Position';
+      select.hidden = false;
+      readout.hidden = true;
+      return;
+    }
+
+    // vary[] stepping — show the read-only value + counter; hide the empty select.
+    select.hidden = true;
+    const varyLen = pw && pw.vary ? pw.vary.length : 0;
+    if (!pw || varyLen < 2) {
+      // Nothing to step (single-variation pathway with no shapes) — hide the row.
+      row.classList.add('no-variations');
+      readout.hidden = true;
+      return;
+    }
+    row.classList.remove('no-variations');
+    const axis = variationAxisLabel(pw);
+    label.textContent = axis === 'Variation' ? 'Change' : axis;
+    readout.hidden = false;
+    const idx = ((activePathwayVariationIdx % varyLen) + varyLen) % varyLen;
+    readout.textContent = `${variationValueLabel(pw, idx, axis)} (${idx + 1}/${varyLen})`;
+  }
+
+  // Walk the active pathway's variation axis by `dir` (+1 / -1). Shape mode steps
+  // the shape select; otherwise rotates the curated vary[] list.
+  function positionStep(dir) {
+    if (positionStepperIsShapeMode()) {
+      const sel = $('slopscale-shape');
+      if (!sel || !sel.options.length) return;
+      const n = sel.options.length;
+      sel.selectedIndex = (sel.selectedIndex + dir + n) % n;
+      // The delegated #slopscale-controls change handler mirrors + regenerates.
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      updatePositionStepper();
+      return;
+    }
+    // vary[] rotation for non-shape pathways.
+    if (!activePathwayId || activePathwayId === 'custom') return;
     const pw = PATHWAYS[activePathwayId];
-    if (!pw || !pw.vary || !pw.vary.length) return;
-    const nextIdx = (activePathwayVariationIdx + 1) % pw.vary.length;
+    if (!pw || !pw.vary || pw.vary.length < 2) return;
+    const n = pw.vary.length;
+    const nextIdx = ((activePathwayVariationIdx + dir) % n + n) % n;
     applyPathwayById(activePathwayId, nextIdx);
     onGenerate();
   }
@@ -8005,6 +8067,8 @@
     const container = $('slopscale-tier-buttons');
     if (!container) return;
     container.innerHTML = '';
+    const signpost = $('slopscale-climb-next');
+    if (signpost) { signpost.textContent = ''; signpost.classList.remove('summit'); }
     const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
     const tiers = pw && pw.tempoTiers ? pw.tempoTiers : null;
     if (!tiers || !tiers.length) return;
@@ -8018,7 +8082,11 @@
       if (i <= highestCleared) cls += ' cleared';
       if (i === _newlyUnlockedTier) cls += ' tier-glow';
       btn.className = cls;
-      btn.innerHTML = `<span class="tier-name">${TIER_LABELS[i] || `T${i+1}`}</span><span class="tier-bpm">${bpm} BPM</span>`;
+      // The rung ordinal makes the ladder read as a climb (Rung 1 → 4), not four
+      // equal boxes. Label is the speed name; BPM is the readout below it.
+      btn.innerHTML = `<span class="tier-step">Rung ${i + 1}</span>` +
+        `<span class="tier-name">${TIER_LABELS[i] || `T${i+1}`}</span>` +
+        `<span class="tier-bpm">${bpm} BPM</span>`;
       btn.addEventListener('click', () => {
         activeTempoTierIdx = i;
         setFieldSilent('bpm', String(bpm));
@@ -8027,6 +8095,18 @@
       });
       container.appendChild(btn);
     });
+    // Calm next-rung / summit signpost: a map cue, never a nag. Points at the
+    // lowest un-cleared rung; when every rung is cleared, "Summit reached".
+    if (signpost) {
+      const nextIdx = highestCleared + 1;
+      if (nextIdx >= tiers.length) {
+        signpost.classList.add('summit');
+        signpost.innerHTML = `<span class="climb-arrow">✓</span>Summit reached — every speed cleared.`;
+      } else {
+        const name = TIER_LABELS[nextIdx] || `Rung ${nextIdx + 1}`;
+        signpost.innerHTML = `<span class="climb-arrow">→</span>Next rung: <span class="climb-target">${name}</span> · ${tiers[nextIdx]} BPM`;
+      }
+    }
   }
 
   // Shared node-visibility predicate (lifted out of renderSkillTree so the list and
@@ -8687,9 +8767,11 @@
     const root = $('slopscale-root');
     if (root) {
       root.classList.toggle('slopscale-theme-renderer', kind === 'tab_2d' || kind === 'notation_2d');
-      // Fretboard strip is offered only where it adds info the view lacks:
-      // Jumping Tab (builtin_2d) and Notation. Not 3D (already a neck) or Tab.
-      root.classList.toggle('slopscale-fb-capable', kind === 'builtin_2d' || kind === 'notation_2d');
+      // Fretboard strip is offered on every stringed-instrument view — 3D
+      // Highway, Jumping Tab, Tab, and Notation; the user can toggle it off.
+      // (Always hidden for the Piano instrument via CSS.)
+      root.classList.toggle('slopscale-fb-capable',
+        kind === 'highway_3d' || kind === 'builtin_2d' || kind === 'tab_2d' || kind === 'notation_2d');
       // The HUD title only shows for 3D Highway — every other renderer draws
       // the exercise name in-canvas itself, so showing it here too would double.
       root.classList.toggle('slopscale-hud-title-on', kind === 'highway_3d');
@@ -8756,18 +8838,23 @@
     for (const [k, v] of data.entries()) out[k] = v;
     // FormData omits unchecked checkboxes; restore them explicitly so the
     // round-trip is lossless (otherwise "Hear notes off" can't be shared).
-    form.querySelectorAll('input[type="checkbox"][name]').forEach(cb => {
-      if (!(cb.name in out)) out[cb.name] = cb.checked ? 'on' : '';
+    // form.elements (not a DOM descendant query) so it also reaches the
+    // form-associated audio mute pills that live in the stage view-bar.
+    Array.from(form.elements).forEach(cb => {
+      if (cb.type === 'checkbox' && cb.name && !(cb.name in out)) out[cb.name] = cb.checked ? 'on' : '';
     });
     return out;
   }
   function applyFormState(state) {
     const form = $('slopscale-controls'); if (!form || !state || typeof state !== 'object') return;
     for (const [name, value] of Object.entries(state)) {
-      // name comes from an untrusted share payload — CSS.escape keeps a crafted
-      // key (e.g. '"]') from breaking out of the attribute selector and throwing,
-      // which would abort the rest of state restoration (and page init on load).
-      const field = form.querySelector(`[name="${CSS.escape(name)}"]`);
+      // form.elements[name] reaches form-associated controls regardless of DOM
+      // position (the relocated audio mute pills), and never throws on a crafted
+      // share-payload key the way an attribute selector could.
+      let field = form.elements[name];
+      // A radio/checkbox group resolves to a RadioNodeList; we only carry single
+      // controls, so take the first element if a list comes back.
+      if (field && typeof field.length === 'number' && !('value' in field)) field = field[0];
       if (!field) continue;
       if (field.type === 'checkbox') field.checked = value === 'on' || value === true;
       else field.value = value;
@@ -8838,6 +8925,7 @@
     // restored form values (Shape dropdown, instrument-aware UI bits, etc.).
     syncShapeDropdown();
     syncShapeDropdownSelectionToHidden();
+    updatePositionStepper();
     syncInstrumentFamilyButtons();
     syncInstrumentClass();
     syncStringCountChips();
@@ -9028,7 +9116,6 @@
       jumpToSegment(i);
     });
     $('slopscale-regenerate')?.addEventListener('click', onGenerate);
-    $('slopscale-next-variation')?.addEventListener('click', rotateToNextVariation);
     $('slopscale-save').addEventListener('click', () => savePreset().catch(e => { showStatus(`Preset save failed: ${e.message || e}`); }));
     $('slopscale-share')?.addEventListener('click', onCopyShareLink);
     // Paste-share-link: fire on actual paste events AND on plain typing
@@ -9055,6 +9142,14 @@
       markPathwayModifiedIfApplicable(name);
       writeShareHash();
       if (activeBundle) onGenerate();
+    });
+    // Practice mute pills (Notes / Backing / Click) live in the stage view-bar but
+    // are form-associated (form="slopscale-controls"), so their change events do
+    // NOT bubble to the #slopscale-controls listener above — wire them directly to
+    // the same effect (audio flags are pure playback mutes, so a regenerate picks
+    // them up cleanly on the next scheduled pass). All default checked = un-muted.
+    document.querySelectorAll('.slopscale-practice-pill input').forEach(inp => {
+      inp.addEventListener('change', () => { writeShareHash(); if (activeBundle) onGenerate(); });
     });
     // View switcher buttons in the render stage — independent of exercise mode
     document.querySelectorAll('.slopscale-view-btn').forEach(btn => {
@@ -9117,20 +9212,14 @@
     syncPanelToggle();
     // Key or fretboardSystem change → repopulate the Shape dropdown for the
     // new (key, system) combination.
-    // Shape stepper: ◄ / ► walk the #slopscale-shape options. A bubbling
-    // 'change' reaches the #slopscale-controls listener (sync + regenerate).
-    const shapeStep = (dir) => {
-      const sel = $('slopscale-shape');
-      if (!sel || !sel.options.length) return;
-      const n = sel.options.length;
-      sel.selectedIndex = (sel.selectedIndex + dir + n) % n;
-      sel.dispatchEvent(new Event('change', { bubbles: true }));
-    };
-    $('slopscale-shape-prev')?.addEventListener('click', () => shapeStep(-1));
-    $('slopscale-shape-next')?.addEventListener('click', () => shapeStep(1));
-    $('slopscale-fretboard-system')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); });
-    $('slopscale-controls')?.querySelector('[name="key"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); });
-    $('slopscale-controls')?.querySelector('[name="scale"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); });
+    // Position / variation stepper: ◄ / ► walk the pathway's variation axis
+    // (shapes when shape-aware; otherwise the curated vary[] list). See
+    // positionStep() / updatePositionStepper().
+    $('slopscale-shape-prev')?.addEventListener('click', () => positionStep(-1));
+    $('slopscale-shape-next')?.addEventListener('click', () => positionStep(1));
+    $('slopscale-fretboard-system')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
+    $('slopscale-controls')?.querySelector('[name="key"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
+    $('slopscale-controls')?.querySelector('[name="scale"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
     const pathwaySelect = $('slopscale-pathway');
     pathwaySelect?.addEventListener('change', () => {
       applyPathwayById(pathwaySelect.value);
@@ -9222,6 +9311,22 @@
     });
     const mixCh = $('slopscale-mixer-channels');
     mixCh?.addEventListener('input', (ev) => {
+      // Tone knob (relocated "Backing tone" / brightness) — writes the form's
+      // hidden #slopscale-brightness value; the audio path reads it unchanged.
+      const tk = ev.target.closest && ev.target.closest('.slopscale-mixer-toneknob');
+      if (tk) {
+        const bEl = $('slopscale-brightness');
+        if (bEl) { bEl.value = tk.value; writeShareHash(); }
+        // Re-schedule from the playhead so the new tone takes effect cleanly
+        // (mirrors the per-channel instrument change below; no full regen needed).
+        if (playing) {
+          playAnchorChartTime = currentPracticeTime;
+          playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
+          stopAudio();
+          scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
+        }
+        return;
+      }
       const f = ev.target.closest && ev.target.closest('.slopscale-mixer-fader'); if (!f) return;
       const k = f.dataset.k; mixerState[k].level = parseFloat(f.value);
       const val = mixCh.querySelector(`.slopscale-mixer-val[data-k="${k}"]`); if (val) val.textContent = Math.round(mixerState[k].level * 100);
@@ -9309,6 +9414,7 @@
       applyFormState(sharedState);
       syncShapeDropdown();
       syncShapeDropdownSelectionToHidden();
+      updatePositionStepper();
       syncInstrumentClass();
       syncAdvancedMode();
       syncChromaticVisibility();
