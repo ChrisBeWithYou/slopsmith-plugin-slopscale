@@ -3,6 +3,15 @@
 > Read this at the start of every session. Update it before closing.
 > Current date: 2026-06-02.
 
+### ⏸️ STOPPED HERE (end of 2026-06-02 session) — all pushed through `d009772`; NEXT = build BASS per the cross-instrument spec
+Everything below is pushed to `origin/main`. This session shipped + locked:
+- **GUI:** Click-subdivision no-wrap fix; share/preset removed from Pathways; **Custom action tidy DONE** — Regenerate cut (kept as a hidden settings-refresh bridge), Save-preset cut (share-link covers it; "Save as Workout block" is the future bridge), Copy-link prominent + Paste demoted. *(The "OVERNIGHT … AWAITING sign-off" block below is RESOLVED — these were its items; the planner/grade-and-advance fork folds into the Depth Ladder.)*
+- **Workout pillar:** **11 starter Workouts** (was 4) spanning goal×level×genre×instrument, in browsable select groups; a **Starter arc** session is the soft default. Smoke-verified **71/71** generators (all 11 sessions). Fixed a real bug: `onLaunchSession` now inherits the form's `stringSetup` only within the same **instrument family** (a bass user launching a guitar workout no longer trips the bending guard; a guitar user no longer runs a bass workout as guitar).
+- **Cross-instrument structure LOCKED** (see the dedicated section below): 3-layer model + ternary `native`/`adapted`/`n-a` tag. Memory: `project_cross_instrument_workout_structure`, `project_workout_charette_approved`.
+- **NEXT (clear next step, unblocked, no schema change): build BASS** — formalize the ternary tags + an `offerable(primitive, instrument)` guard (retiring the ad-hoc bending-throw + the family-guard), add the **5 right-hand/groove primitives** (`root_fifth_octave`, `slap_pop`, `dead_note_groove`, `right_hand_technique`, `octave_groove`), ship ~6–8 bass workouts (right-hand/groove BEFORE scale velocity). Validate new primitives with `bass-pedagogy-expert` + idiom agents per the agent-workflow rule.
+- Still-deferred from the charette (medium): the Workout **authoring** flow (#4 — editable typed-block timeline; the Starter arc currently seeds the arc but isn't reorderable yet), shareable-Workout `#s=` link, session-end readout. And the Depth-Ladder slice 2 (clean-run gate + `slopscale.progress` store).
+- A bundled Slopsmith **host is still running** on :8765 from this session (`launch.ps1`) — harmless; relaunch via the `run-slopscale` skill next session.
+
 ## 🌙 OVERNIGHT 2026-06-02 — Pathways/Custom action cleanup + 2 design forks AWAITING Christian's batch sign-off
 
 Christian queued an overnight GUI task list (he's asleep; wants all decisions saved for ONE morning batch). **BUILT + committed (NOT pushed — holding for his review): commits `3833e7c` (screen.html) + `4e1c947` (ROADMAP audio note).**
