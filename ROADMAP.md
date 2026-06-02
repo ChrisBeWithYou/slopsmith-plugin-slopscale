@@ -1,7 +1,23 @@
 # SlopScale Roadmap
 
 > Read this at the start of every session. Update it before closing.
-> Current date: 2026-06-01.
+> Current date: 2026-06-02.
+
+## 🌙 OVERNIGHT 2026-06-02 — Pathways/Custom action cleanup + 2 design forks AWAITING Christian's batch sign-off
+
+Christian queued an overnight GUI task list (he's asleep; wants all decisions saved for ONE morning batch). **BUILT + committed (NOT pushed — holding for his review): commits `3833e7c` (screen.html) + `4e1c947` (ROADMAP audio note).**
+
+**DONE (safe, clearly-intended, code-verified — needs a 10-sec morning eyeball, not yet screenshotted):**
+- **Click subdivision no longer word-wraps** in Pathways. The whole Rhythm/Groove row got a scoped `slopscale-rhythm-grid` (auto-fit `minmax(136px,1fr)` + `nowrap` labels) — 3-up when the rail is wide, 2-up when tight, never cramming+wrapping. (Root cause: selects are `width:100%`, so the wrapping thing was the label *text* in a cramped fixed 3-col grid.)
+- **Copy share link / Paste share link / Save preset removed from Pathways** — scoped `slopscale-custom-only` (NOT deleted: `bind()` attaches to `#slopscale-save` without optional chaining, so the elements must stay in the DOM; they're hidden in pathway-mode). Custom unchanged so far.
+
+**Audio note logged (his request, from a parallel Claude session):** genre template = pattern + voicing + **optional-per-instrument-DSP-chain**, not "instrument=sample"; metal fills the guitar-bus chain slot (gate→dist→IR→EQ→double-track), funk leaves it empty → config not re-architecture. In ROADMAP audio section + agent-memory `audio-engine-architect/project_genre_audio_profile_system.md` (it CORROBORATES the existing `AUDIO_PROFILES` design — "stay the course" guardrail).
+
+**AWAITING BATCH SIGN-OFF (3-agent panel run sequentially; full synthesis in my chat handoff). Nothing below is built:**
+1. **Custom 1×3 action row** (ux-designer): `[Copy link] [Paste link] [Save routine]`, even Secondary buttons. **Paste becomes a button** (clipboard read on click) that *degrades to today's inline input* on permission/failure (no permanent input footprint).
+2. **Regenerate → CUT** (ux-designer + Christian agree): it just re-calls `onGenerate()`; Custom auto-regens on change; not share-related; near-zero perceptible value. Keep the `onGenerate` fn; remove the button+listener (`#slopscale-regenerate` ~screen.js L9277). Revisit "Re-roll" only if/when a generator gains visible randomness.
+3. **Save preset → KEEP on Custom** (do NOT move to Workout — preset=single config, Workout=timed multi-block session; different scope). **Relabel "Save routine."** **Add a name modal NOW** (reuse the cheat-sheet/Pack-Manager overlay idiom, prefilled with the auto-name, Enter-to-accept; don't bind Esc) → saves to DB as today. Co-locate the hidden "Load" picker next to the row (deferrable sub-item). **Native OS "Save As" is NOT achievable from the webview plugin** (host-expert: no host file bridge; `showSaveFilePicker` breaks non-Windows) — reframed his file-explorer ask to the name-modal→DB, which matches how presets actually persist. Optional later: `<a download>` `.json` export/import for portable preset files (separate feature; Copy-link already covers self-contained sharing).
+4. **Pathways grade-and-advance idea** (gamification, vs the LOCKED Depth Ladder): ~90% already = the Speed-axis clean-and-in-time advance + settling-tax verdict. **Genuinely additive = the explicit in-tempo 1–4 bar musical BREAK as the verdict-delivery beat** (metronome continues, notes drop → verdict card on the next downbeat; in-flow, not a modal stop). Reconcile his "auto-increase speed" with the locked "invite, never auto-pressure": **default = one-tap INVITE after the break; his literal auto-jump survives as Hardcore-only opt-in.** Pre-scoring fallback (scoring absent in some host builds): break is score-independent so it always happens; with scoring→grade timing+notes, without→timing-only-from-onsets or honest self-confirm ("Got it / Again") — never fake a pitch grade. Anti-dark-pattern: non-clean run gets the SAME break + neutral "not yet — run it again?", no streak-loss/shaming; break length stays musical, never padded. **Handoff: the break is a tempo-locked meter-aware rest/verdict window → `rhythm-meter-architect` modeling item.** This sharpens Depth-Ladder slice 2.
 
 ## 🎚️ Depth Ladder & run-length — SPEC LOCKED (2026-06-01), foundation building
 Two converged group-design rounds (gamification chaired retention, L&D chaired length; + market + guitar-pedagogy; main thread synthesized). Christian: "lock it in." **Full spec + numbers + the staged build queue live in project memory `project_depth_ladder_and_run_length`** (the canonical record); per-lane detail in the four agents' `.claude/agent-memory/`. Headlines:
