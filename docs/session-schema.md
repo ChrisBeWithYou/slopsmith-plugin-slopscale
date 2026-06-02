@@ -151,6 +151,9 @@ A sub-section marker labels each key.
 | `chromatic` | `buildChromaticExercise` | Chromatic warmup patterns (1234, spider, etc.) |
 | `guide_tones` | `buildGuideTonesExercise` | 3rds and/or 7ths voice-led through a progression |
 | `modal_vamp` | `buildScaleExercise` | Single chord/scale area, no progression changes |
+| `strum_comp` | `buildStrumCompExercise` | Held voiced chord (CAGED grip) struck on a strum pattern — rhythm-hand/comping drill (guitar only). Config: `strumPattern` (a `STRUM_PATTERNS` key), `voicingPosition` (`open`/`movable`). |
+
+> The valid `kind` list above is illustrative, not exhaustive — a segment `kind` may be **any** registered practice type (the same set the `practiceType` select offers). See `screen.js` `buildSingleChart` for the full dispatch.
 
 ---
 

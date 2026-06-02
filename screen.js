@@ -4316,6 +4316,162 @@
     return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Octave displacement — ${cfg.key} ${cfg.scale}` });
   }
 
+  // ── strum_comp: held voiced chord + strum rhythm/feel ───────────────────────
+  // The one new generator from the Workout charette. Pre-build consult (2026-06-02):
+  // rhythm-meter (the STRUM_PATTERNS cell model + the down/up micro-stagger),
+  // harmony (voice from CAGED grips, NOT the voiceChord pad), guitar-pedagogy
+  // (playability + muted-string encoding + bass = n-a). Per-lane specs in
+  // .claude/agent-memory/{rhythm-meter-architect,harmony-theory-architect,
+  // guitar-pedagogy-expert}/*strum*. It's a RHYTHM-HAND-INDEPENDENCE drill: hold a
+  // real fretting-hand GRIP and strike it on a strum pattern; the strum hand never
+  // stops (rests = no event, hand keeps the clock).
+  //
+  // STRUM_PATTERNS — rhythm cells (sibling to SEQUENCE_PATTERNS), authored in 4/4.
+  //   div    steps per beat (1 quarter · 2 eighth · 3 triplet · 4 sixteenth)
+  //   grid   one token per step: D down(low→high) · U up(high→low, top strings) ·
+  //          '.' rest/ring · X muted chuck (mt) · '-' tie. A '!' suffix accents that step.
+  //   accent which steps auto-accent: downbeat | backbeat | offbeat | even
+  //   preSwing  the cell is already swung → its notes carry noSwing so the global
+  //             swing post-process doesn't double-swing it.
+  const STRUM_PATTERNS = {
+    held_pad:                 { div:1, bars:1, grid:['D','.','.','.'], accent:'downbeat' },
+    quarter_down:             { div:1, bars:1, grid:['D','D','D','D'], accent:'downbeat' },
+    eighth_down:              { div:2, bars:1, grid:['D','D','D','D','D','D','D','D'], accent:'backbeat' },
+    folk_pop_ddu_udu:         { div:2, bars:1, grid:['D','.','D','U','.','U','D','U'], accent:'backbeat' },
+    sixteenth_funk_scratch:   { div:4, bars:1, grid:['D','X','U','X','D','X','U','X','D','X','U','X','D','X','U','X'], accent:'offbeat' },
+    reggae_skank:             { div:2, bars:1, grid:['.','U','.','U','.','U','.','U'], accent:'offbeat' },
+    ballad_arpeggiated_strum: { div:3, bars:1, grid:['D','.','U','.','U','.','D','.','U','.','U','.'], accent:'downbeat', preSwing:true },
+    charleston:               { div:2, bars:1, grid:['D','.','.','D','.','.','.','.'], accent:'downbeat' },
+  };
+  // Startup integrity guard (mirrors the no-unison / style-palette guards): every
+  // cell's grid must fill exactly bars × 4 beats × div (authored in 4/4).
+  (function validateStrumPatterns() {
+    for (const id of Object.keys(STRUM_PATTERNS)) {
+      const p = STRUM_PATTERNS[id];
+      const expect = (p.bars || 1) * 4 * p.div;
+      if (p.grid.length !== expect) throw new Error(`[SlopScale strum-pattern] ${id} grid has ${p.grid.length} steps, expected ${expect} (bars×4×div)`);
+    }
+  })();
+  function defaultStrumPattern(cfg) {
+    if (cfg.style === 'funk')   return 'sixteenth_funk_scratch';
+    if (cfg.style === 'reggae') return 'reggae_skank';
+    if (cfg.chordOverride === '5' || cfg.chordOverride === '5oct') return 'eighth_down';
+    if (cfg.subdivision === 'quarter') return 'quarter_down';
+    return 'folk_pop_ddu_udu';
+  }
+  function strumStepAccented(mode, k, div, beatsPerBar) {
+    const beatIdx = Math.floor(k / div), within = k % div;
+    switch (mode) {
+      case 'even':     return true;
+      case 'offbeat':  return div >= 2 && within === Math.floor(div / 2);
+      case 'backbeat': return within === 0 && (beatIdx % 2 === 1);                              // 2 & 4 in 4/4
+      case 'downbeat':
+      default:         return within === 0 && (beatIdx === 0 || beatIdx === Math.floor(beatsPerBar / 2)); // 1 (& 3)
+    }
+  }
+  // A movable power-chord grip (root + 5th [+ octave]) on the low string-set —
+  // built directly from the interval geometry (CAGED has no power-chord template).
+  // Standard 4ths between the low strings: 5th = next string +2 frets, oct = +2 up two strings.
+  function powerChordGrip(cfg, rootPc, quality, prevRootFret) {
+    const opens = openMidisForConfig(cfg);
+    if (opens.length < 3) return null;
+    const open0 = ((opens[0] % 12) + 12) % 12;
+    let f = (((rootPc - open0) % 12) + 12) % 12;                 // 0..11 on the lowest string
+    if (prevRootFret != null && prevRootFret >= 0 && f + 12 <= 12 &&
+        Math.abs((f + 12) - prevRootFret) < Math.abs(f - prevRootFret)) f += 12;
+    const gripNotes = [{ s:0, f, midi:opens[0] + f }, { s:1, f:f + 2, midi:opens[1] + f + 2 }];
+    if (quality === '5oct') gripNotes.push({ s:2, f:f + 2, midi:opens[2] + f + 2 });
+    const name = chordName(rootPc, quality);
+    return { shape:'power', rootFret:f, gripNotes, template:templateFromPositions(name, gripNotes, cfg, false) };
+  }
+  // Pick one grabbable grip for a chord. Power chords build directly; everything
+  // else voices from a CAGED triad grip (7ths reduce to the triad in v1 — the
+  // STRUM_GRIPS dom7/9/sus table is Phase 3). voicingPosition: 'open' (default,
+  // prefer the most open cowboy grip) | 'movable' (a fixed CAGED shape walked up
+  // the neck nearest the previous chord).
+  const STRUM_SHAPE_ORDER = ['C','A','G','E','D'];
+  function pickStrumGrip(cfg, rootPc, quality, prevRootFret, opts) {
+    if (quality === '5' || quality === '5oct') return powerChordGrip(cfg, rootPc, quality, prevRootFret);
+    const name = chordName(rootPc, quality);
+    const shapes = opts.fixedShape ? [opts.fixedShape] : STRUM_SHAPE_ORDER;
+    let best = null;
+    for (const shape of shapes) {
+      const anchorPrev = opts.fixedShape ? prevRootFret : -1;   // open mode: each chord finds its lowest grip
+      const rootFret = pickShapeRootFret(cfg, shape, rootPc, anchorPrev, 'nearest');
+      if (rootFret == null) continue;
+      const gripNotes = cagedShapeNotesForChord(cfg, shape, quality, rootFret);
+      if (!gripNotes || gripNotes.length < 3) continue;
+      const template = templateFromShape(name, shape, quality, rootFret, cfg, false) || templateFromPositions(name, gripNotes, cfg, false);
+      const cand = { shape, rootFret, gripNotes, template };
+      if (opts.fixedShape) { best = cand; break; }
+      // open mode: prefer the most open grip (most fret-0 strings, then lowest top fret)
+      const score = c => c.gripNotes.filter(p => p.f === 0).length * 100 - Math.max.apply(null, c.gripNotes.map(p => p.f));
+      if (!best || score(cand) > score(best)) best = cand;
+    }
+    return best;
+  }
+  // Emit one strum as per-string time-staggered events (a rake, not a block chord).
+  // Down = low→high (ascending s); up = top ≤4 strings high→low. Stagger tightens
+  // with tempo so two strums never smear; de-stacking onsets is limiter-friendly.
+  function emitStrum(notes, gripNotes, tok, stepT, stepSec, accent, preSwing) {
+    const sorted = gripNotes.slice().sort((a, b) => a.s - b.s);
+    const mute = (tok === 'X');
+    let struck, order;
+    if (tok === 'U') { struck = sorted.slice(-4); order = struck.slice().reverse(); }  // up: top ≤4, high→low
+    else             { struck = sorted; order = struck; }                              // down / chuck: all, low→high
+    const span = Math.max(1, order.length);
+    const stagger = Math.max(0.006, Math.min(0.018, (stepSec * 0.40) / span));
+    const sus = mute ? Math.max(0.04, stepSec * 0.35) : Math.max(0.05, stepSec * 0.92);
+    order.forEach((p, k) => {
+      notes.push(noteDefaults({
+        t: Number((stepT + k * stagger).toFixed(6)), s: p.s, f: p.f, sus: Number(sus.toFixed(6)),
+        mt: mute, ac: !!accent, noSwing: !!preSwing,
+      }));
+    });
+  }
+  function buildStrumCompExercise(cfg) {
+    const mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
+    const beatsPerBar = Math.max(1, cfg.meter.numerator);
+    const beatUnit = mLen / beatsPerBar;
+    const degrees = progressionDegreesForConfig(cfg);
+    const fixedShape = (cfg.voicingPosition === 'movable' && cfg.shape && CAGED_SHAPES[cfg.shape]) ? cfg.shape : null;
+    const pat = STRUM_PATTERNS[cfg.strumPattern] || STRUM_PATTERNS[defaultStrumPattern(cfg)] || STRUM_PATTERNS.folk_pop_ddu_udu;
+    // Odd-meter / non-4-beat degrade: if the 4/4-authored grid doesn't fit this bar,
+    // fall back to a down-strum on each beat (the chord "limps" with the meter).
+    const gridFits = pat.grid.length === beatsPerBar * pat.div;
+    const stepCount = gridFits ? pat.grid.length : beatsPerBar;
+    const stepSec   = gridFits ? (beatUnit / pat.div) : beatUnit;
+
+    const notes = [], chords = [], chordTemplates = [], handShapes = [];
+    const sections = [{ name:`Strum — ${cfg.key}`, number:1, time:0 }];
+    let templateId = 0, prevRootFret = -1;
+    for (let bar = 0, t = 0; t < totalTime - 0.001; bar++, t += mLen) {
+      const deg = degrees[bar % degrees.length];
+      const rootPc = chordRootForDegree(cfg, deg);
+      const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, deg, cfg.chordOverride, cfg.progression);
+      const grip = pickStrumGrip(cfg, rootPc, quality, prevRootFret, { fixedShape });
+      if (!grip || !grip.gripNotes.length) continue;
+      prevRootFret = grip.rootFret;
+      // Chord box: the full grip (so the chord-box renderers draw x/o + fingering).
+      const id = templateId++;
+      chordTemplates.push(grip.template || templateFromPositions(chordName(rootPc, quality), grip.gripNotes, cfg, false));
+      chords.push({ t:Number(t.toFixed(6)), id, hd:false, notes:grip.gripNotes.map(p => noteDefaults({ s:p.s, f:p.f, sus:0 })) });
+      handShapes.push({ chord_id:id, start_time:Number(t.toFixed(6)), end_time:Number((t + mLen).toFixed(6)), arp:false });
+      // Strikes from the pattern.
+      for (let k = 0; k < stepCount; k++) {
+        const raw = gridFits ? pat.grid[k] : 'D';
+        const tok = String(raw).replace('!', '');
+        if (tok === '.' || tok === '-') continue;
+        const stepT = t + k * stepSec;
+        if (stepT >= totalTime - 0.0005) break;
+        const accent = String(raw).includes('!') || strumStepAccented(pat.accent, k, pat.div, beatsPerBar);
+        emitStrum(notes, grip.gripNotes, tok, stepT, stepSec, accent, !!pat.preSwing);
+      }
+    }
+    if (!notes.length) throw new Error('No strum/comp notes generated (strum_comp needs ≥6 strings — guitar only).');
+    return { notes, chords, chordTemplates, handShapes, sections, duration:totalTime };
+  }
+
   // ── End additional generators ───────────────────────────────────────────────
 
   const CYCLE_KEY_ORDERS = {
@@ -4352,6 +4508,7 @@
     if (mode === 'triadic_pairs')          return buildTriadicPairsExercise(cfg);
     if (mode === 'pentatonic_super')       return buildPentatonicSuperExercise(cfg);
     if (mode === 'shell_voicings')         return buildShellVoicingsExercise(cfg);
+    if (mode === 'strum_comp')             return buildStrumCompExercise(cfg);
     if (mode === 'octave_displacement')    return buildOctaveDisplacementExercise(cfg);
     return buildArpeggioExercise(cfg, progressionDegreesForConfig(cfg));
   }
@@ -4486,7 +4643,7 @@
     diatonic_arpeggios:50, progression_arpeggios:70, arpeggio_inversions:50,
     guide_tones:60, chord_scales:75, bebop_scale:50, chromatic_enclosures:50,
     call_response:60, walking_bass:60,
-    pentatonic_super:55, triadic_pairs:55, shell_voicings:55,
+    pentatonic_super:55, triadic_pairs:55, shell_voicings:55, strum_comp:55,
   };
   // Types whose UNIT is a harmonic cycle / whole-neck traversal, not the bar — they
   // get the higher ceiling (180s) and a longer base. The `scale` type joins this
@@ -4494,7 +4651,7 @@
   const CYCLE_BOUNDED_TYPES = new Set([
     'chord_scales','guide_tones','progression_arpeggios','diatonic_arpeggios',
     'walking_bass','arpeggio_inversions','bebop_scale','chromatic_enclosures',
-    'call_response','pentatonic_super','triadic_pairs','shell_voicings',
+    'call_response','pentatonic_super','triadic_pairs','shell_voicings','strum_comp',
   ]);
   const RUN_FLOOR_SEC = 25;             // never shorter than this (settling + a couple judged passes)
   const RUN_CEIL_PASS_SEC = 90;         // pass-bounded ceiling (past it grinds sloppiness in)
@@ -4740,6 +4897,7 @@
       return +(((bi + f2) * beatSec)).toFixed(6);
     };
     bundle.notes = (bundle.notes || []).map(n => {
+      if (n.noSwing) return n;   // pre-swung cells (e.g. a triplet strum) carry their own feel
       const nt = sw(n.t), ne = sw(n.t + (n.sus || 0));
       return Object.assign({}, n, { t:nt, sus:Math.max(0.02, +(ne - nt).toFixed(6)) });
     });
