@@ -2160,6 +2160,51 @@
     }
   })();
 
+  // ── Practice-type applicability (the ternary offerable() tag) ───────────────
+  // ONE predicate for "is this practice type offered on this instrument", with a
+  // TERNARY tag (bass-pedagogy + cross-instrument lock): native (idiomatic as-is) /
+  // adapted (transfers but the generator changes behaviour) / n-a (don't offer).
+  // Drives the instrument-aware UI (syncInstrumentClass) — the single source of
+  // truth replacing the old bending-only hide. Only EXCEPTIONS are listed; anything
+  // unlisted is 'native' for every instrument. The `adapted` behaviour contract
+  // lives in the generators + the goal-cards (e.g. bass legato = HO/PO only, bass
+  // "sweep" = a raked broken arpeggio). Per-lane spec: agent-memory/
+  // bass-pedagogy-expert/project_bass_offerable_tag_table.
+  const PRACTICE_APPLICABILITY = {
+    // Guitar-native, not offered on bass.
+    bending:          { bass:'n-a' },
+    tremolo_picking:  { bass:'n-a' },
+    hybrid_picking:   { bass:'n-a' },
+    strum_comp:       { bass:'n-a' },        // bass doesn't strum held chords — its comping is the groove primitives
+    // Transfer to bass but the generator must adapt the feel/register.
+    legato:           { bass:'adapted' },    // hammer/pull only, no wide runs
+    vibrato:          { bass:'adapted' },     // slower, narrower
+    tapping:          { bass:'adapted' },     // single-line, advanced only
+    pentatonic_super: { bass:'adapted' },     // low-mid register, stretch caveat
+    sweep_arpeggios:  { bass:'adapted' },     // a raked broken arpeggio, not a metal sweep
+    shell_voicings:   { bass:'adapted' },     // 2-note low-register, no clusters below ~fret 7
+    // Bass-native groove primitives, not offered on guitar (keep the guitar arc clean).
+    root_fifth_octave:    { guitar:'n-a' },
+    octave_groove:        { guitar:'n-a' },
+    dead_note_groove:     { guitar:'n-a' },
+    right_hand_technique: { guitar:'n-a' },
+    slap_pop:             { guitar:'n-a' },
+  };
+  function offerableTag(primitive, instrument) {
+    const e = PRACTICE_APPLICABILITY[primitive];
+    return (e && e[instrument]) || 'native';
+  }
+  function offerable(primitive, instrument) { return offerableTag(primitive, instrument) !== 'n-a'; }
+  // Startup integrity guard (mirrors the no-unison / style-palette / segment guards):
+  // every applicability value must be one of the three tags.
+  (function validateApplicability() {
+    const ok = new Set(['native', 'adapted', 'n-a']);
+    for (const k of Object.keys(PRACTICE_APPLICABILITY)) {
+      const e = PRACTICE_APPLICABILITY[k];
+      for (const inst of Object.keys(e)) if (!ok.has(e[inst])) throw new Error(`[SlopScale applicability] ${k}.${inst} = "${e[inst]}" is not native/adapted/n-a`);
+    }
+  })();
+
   // Best-effort family inference for pathways that don't (yet) declare a profile,
   // so an untagged pathway gets a sensible family default — never silence or a
   // wrong-family voice.
@@ -4472,6 +4517,169 @@
     return { notes, chords, chordTemplates, handShapes, sections, duration:totalTime };
   }
 
+  // ── Bass groove primitives (Phase 4 — bass-pedagogy pre-build spec) ─────────
+  // Bass is GROOVE + RIGHT-HAND first (inverts the guitar instinct). These are
+  // fixed-interval grips on the all-4ths neck, NOT scale-window scans: from a root
+  // (s,f) the 5th is (s+1,+P5) and the octave (s+2,+8ve). Computed BY PITCH (not a
+  // hardcoded +2 frets) so they stay correct under drop/alt tunings — and on a
+  // guitar's all-4ths low strings too (so the builders never crash, even though the
+  // UI offers them only on bass via offerable()). Slap/pop/ghost use the existing
+  // schema (no new field): thumb-slap = low-string note + ac; pop = high-string note
+  // + ac; ghost/dead = mt. Per-lane spec: agent-memory/bass-pedagogy-expert/
+  // project_bass_groove_primitives_spec. Funk/soul-idiom validate the FEEL at the
+  // template stage (Phase 6). Tagged bass-native in PRACTICE_APPLICABILITY.
+
+  // Root grip low enough that the up-octave fits on a fretted string (root on
+  // s ≤ count-3), nearest the previous pitch. Returns { root, fifth, octave }
+  // as {s,f,midi}, or null. The 5th/octave are found BY PITCH on the next strings.
+  function bassRootGrip(cfg, rootPc, prevMidi) {
+    const opens = openMidisForConfig(cfg);
+    const count = opens.length;
+    const fMin = cfg.fretMin || 0, fMax = Math.min(cfg.fretMax || 12, 15);
+    let root = null, bestDist = Infinity;
+    for (let s = 0; s <= count - 3; s++) {
+      for (let f = fMin; f <= fMax; f++) {
+        if (((opens[s] + f) % 12) !== rootPc) continue;
+        const midi = opens[s] + f, d = Math.abs(midi - prevMidi);
+        if (d < bestDist) { root = { s, f, midi }; bestDist = d; }
+      }
+    }
+    if (!root) return null;
+    const onString = (s, targetMidi) => {
+      const openPc = ((opens[s] % 12) + 12) % 12, pc = ((targetMidi % 12) + 12) % 12;
+      let f = (((pc - openPc) % 12) + 12) % 12;
+      while (opens[s] + f < targetMidi - 6 && f + 12 <= 17) f += 12;
+      return { s, f, midi: opens[s] + f };
+    };
+    return { root, fifth: onString(root.s + 1, root.midi + 7), octave: onString(root.s + 2, root.midi + 12) };
+  }
+
+  // right_hand_technique — pitch-INVISIBLE plucking-hand stamina (alternating i-m /
+  // raking / 3-finger). A steady re-articulated root pulse at the subdivision; the
+  // hand pattern IS the drill, named in the goal-card.
+  function buildRightHandTechniqueExercise(cfg) {
+    const step = secondsPerDivision(cfg), mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
+    const degrees = progressionDegreesForConfig(cfg);
+    const notes = [], sections = [{ name:`Right-hand technique — ${cfg.key}`, number:1, time:0 }];
+    const sus = Math.max(0.05, step * 0.5);
+    let prevMidi = 33, t = 0, bar = 0;
+    while (t < totalTime - 0.001) {
+      const grip = bassRootGrip(cfg, chordRootForDegree(cfg, degrees[bar % degrees.length]), prevMidi);
+      const barEnd = Math.min(totalTime, t + mLen);
+      if (grip) { for (let tt = t; tt < barEnd - 0.001; tt += step) notes.push(noteDefaults({ t:Number(tt.toFixed(6)), s:grip.root.s, f:grip.root.f, sus })); prevMidi = grip.root.midi; }
+      t = barEnd; bar++;
+    }
+    if (!notes.length) throw new Error('No right-hand technique notes generated.');
+    return { notes, chords:[], chordTemplates:[], handShapes:[], sections, duration:totalTime };
+  }
+
+  // root_fifth_octave — the foundational bass box (taught BEFORE scales). R-5-8-5
+  // per bar, anchored on each chord's root.
+  function buildRootFifthOctaveExercise(cfg) {
+    const mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
+    const beatsPerBar = Math.max(1, cfg.meter.numerator), beatSec = mLen / beatsPerBar;
+    const degrees = progressionDegreesForConfig(cfg);
+    const notes = [], sections = [{ name:`Root–5th–octave — ${cfg.key}`, number:1, time:0 }];
+    const sus = Math.max(0.08, beatSec * 0.9);
+    let prevMidi = 33, t = 0, bar = 0;
+    while (t < totalTime - 0.001) {
+      const grip = bassRootGrip(cfg, chordRootForDegree(cfg, degrees[bar % degrees.length]), prevMidi);
+      if (grip) {
+        const seq = [grip.root, grip.fifth, grip.octave, grip.fifth];   // R-5-8-5
+        for (let b = 0; b < beatsPerBar; b++) {
+          const p = seq[b % seq.length], nt = t + b * beatSec;
+          if (nt < totalTime) notes.push(noteDefaults({ t:Number(nt.toFixed(6)), s:p.s, f:p.f, sus, ac:(b === 0) }));
+        }
+        prevMidi = grip.root.midi;
+      }
+      t += mLen; bar++;
+    }
+    if (!notes.length) throw new Error('No root-fifth-octave notes generated.');
+    return { notes, chords:[], chordTemplates:[], handShapes:[], sections, duration:totalTime };
+  }
+
+  // octave_groove — disco/Motown octave bounce. Staccato R-8-R-8 at the subdivision.
+  function buildOctaveGrooveExercise(cfg) {
+    const step = secondsPerDivision(cfg), mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
+    const degrees = progressionDegreesForConfig(cfg);
+    const notes = [], sections = [{ name:`Octave groove — ${cfg.key}`, number:1, time:0 }];
+    const sus = Math.max(0.04, step * 0.5);
+    let prevMidi = 33, t = 0, bar = 0;
+    while (t < totalTime - 0.001) {
+      const grip = bassRootGrip(cfg, chordRootForDegree(cfg, degrees[bar % degrees.length]), prevMidi);
+      const barEnd = Math.min(totalTime, t + mLen);
+      if (grip) {
+        let i = 0;
+        for (let tt = t; tt < barEnd - 0.001; tt += step, i++) {
+          const p = (i % 2 === 0) ? grip.root : grip.octave;
+          notes.push(noteDefaults({ t:Number(tt.toFixed(6)), s:p.s, f:p.f, sus, ac:(i % 2 === 0) }));
+        }
+        prevMidi = grip.root.midi;
+      }
+      t = barEnd; bar++;
+    }
+    if (!notes.length) throw new Error('No octave groove notes generated.');
+    return { notes, chords:[], chordTemplates:[], handShapes:[], sections, duration:totalTime };
+  }
+
+  // dead_note_groove — the 16th-note pocket: chord tones on the downbeats, muted
+  // ghost notes (mt) filling the grid. Teaches pocket + left-hand muting.
+  function buildDeadNoteGrooveExercise(cfg) {
+    const mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
+    const beatsPerBar = Math.max(1, cfg.meter.numerator), sixteenth = mLen / (beatsPerBar * 4);
+    const degrees = progressionDegreesForConfig(cfg);
+    const notes = [], sections = [{ name:`Dead-note pocket — ${cfg.key}`, number:1, time:0 }];
+    const sus = Math.max(0.03, sixteenth * 0.7);
+    let prevMidi = 33, t = 0, bar = 0;
+    while (t < totalTime - 0.001) {
+      const grip = bassRootGrip(cfg, chordRootForDegree(cfg, degrees[bar % degrees.length]), prevMidi);
+      const barEnd = Math.min(totalTime, t + mLen);
+      if (grip) {
+        const tones = [grip.root, grip.octave, grip.fifth];
+        let i = 0;
+        for (let tt = t; tt < barEnd - 0.001; tt += sixteenth, i++) {
+          const within = i % 4, beatIdx = Math.floor(i / 4) % beatsPerBar;
+          if (within === 0) {                          // downbeat → a chord tone (real)
+            const p = tones[beatIdx % tones.length];
+            notes.push(noteDefaults({ t:Number(tt.toFixed(6)), s:p.s, f:p.f, sus, ac:(beatIdx === 0) }));
+            prevMidi = p.midi;
+          } else {                                     // e / & / a → muted ghost
+            notes.push(noteDefaults({ t:Number(tt.toFixed(6)), s:grip.root.s, f:grip.root.f, sus:Math.max(0.02, sixteenth * 0.5), mt:true }));
+          }
+        }
+      }
+      t = barEnd; bar++;
+    }
+    if (!notes.length) throw new Error('No dead-note groove notes generated.');
+    return { notes, chords:[], chordTemplates:[], handShapes:[], sections, duration:totalTime };
+  }
+
+  // slap_pop — slapped octave: thumb-slap the root (low string, ac) on the beat,
+  // pop the octave (high string, ac) on the &. Advanced; gate after fingerstyle.
+  function buildSlapPopExercise(cfg) {
+    const mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
+    const beatsPerBar = Math.max(1, cfg.meter.numerator), eighth = mLen / (beatsPerBar * 2);
+    const degrees = progressionDegreesForConfig(cfg);
+    const notes = [], sections = [{ name:`Slap & pop — ${cfg.key}`, number:1, time:0 }];
+    const sus = Math.max(0.04, eighth * 0.6);
+    let prevMidi = 33, t = 0, bar = 0;
+    while (t < totalTime - 0.001) {
+      const grip = bassRootGrip(cfg, chordRootForDegree(cfg, degrees[bar % degrees.length]), prevMidi);
+      const barEnd = Math.min(totalTime, t + mLen);
+      if (grip) {
+        let i = 0;
+        for (let tt = t; tt < barEnd - 0.001; tt += eighth, i++) {
+          const p = (i % 2 === 0) ? grip.root : grip.octave;   // T (root, low) on the beat; P (octave, high) on the &
+          notes.push(noteDefaults({ t:Number(tt.toFixed(6)), s:p.s, f:p.f, sus, ac:true }));
+        }
+        prevMidi = grip.root.midi;
+      }
+      t = barEnd; bar++;
+    }
+    if (!notes.length) throw new Error('No slap/pop notes generated.');
+    return { notes, chords:[], chordTemplates:[], handShapes:[], sections, duration:totalTime };
+  }
+
   // ── End additional generators ───────────────────────────────────────────────
 
   const CYCLE_KEY_ORDERS = {
@@ -4510,6 +4718,11 @@
     if (mode === 'shell_voicings')         return buildShellVoicingsExercise(cfg);
     if (mode === 'strum_comp')             return buildStrumCompExercise(cfg);
     if (mode === 'octave_displacement')    return buildOctaveDisplacementExercise(cfg);
+    if (mode === 'root_fifth_octave')      return buildRootFifthOctaveExercise(cfg);
+    if (mode === 'octave_groove')          return buildOctaveGrooveExercise(cfg);
+    if (mode === 'dead_note_groove')       return buildDeadNoteGrooveExercise(cfg);
+    if (mode === 'right_hand_technique')   return buildRightHandTechniqueExercise(cfg);
+    if (mode === 'slap_pop')               return buildSlapPopExercise(cfg);
     return buildArpeggioExercise(cfg, progressionDegreesForConfig(cfg));
   }
 
@@ -4639,6 +4852,8 @@
     sweep_arpeggios:55,
     // Riff/comp drills — pass-bounded, use the ~50 default explicitly.
     pedal_point:50, pedal_riff:50, power_chord_comping:50,
+    // Bass groove primitives — pass-bounded (pocket/stamina), short.
+    root_fifth_octave:40, octave_groove:40, dead_note_groove:45, right_hand_technique:40, slap_pop:45,
     // Cycle-bounded (longer, legitimately >60s): the unit is the harmonic cycle.
     diatonic_arpeggios:50, progression_arpeggios:70, arpeggio_inversions:50,
     guide_tones:60, chord_scales:75, bebop_scale:50, chromatic_enclosures:50,
@@ -7862,13 +8077,21 @@
     // views. Piano can't be selected yet (chip disabled), so this is groundwork.
     const instrSel = document.querySelector('[name="instrument"]');
     root.classList.toggle('slopscale-piano-instrument', (instrSel?.value) === 'piano');
-    // Bending is a guitar-only technique (and has no bass backing) — remove it
-    // from the Custom practice-type list on bass, and switch off it if selected.
+    // Offer only the practice types applicable to this instrument (the ternary
+    // offerable() tag — the single source of truth, replacing the old bending-only
+    // hide). Hide/disable any n-a option; if the current selection becomes n-a,
+    // fall back to a safe default. This is what hides the guitar-only techniques
+    // (bending/tremolo/hybrid/strum) on bass AND the 5 bass groove primitives on guitar.
     const ptSel = document.querySelector('[name="practiceType"]');
     if (ptSel) {
-      const bendOpt = ptSel.querySelector('option[value="bending"]');
-      if (bendOpt) { bendOpt.hidden = isBass; bendOpt.disabled = isBass; }
-      if (isBass && ptSel.value === 'bending') { ptSel.value = 'scale'; ptSel.dispatchEvent(new Event('change', { bubbles: true })); }
+      const instrument = isBass ? 'bass' : ((instrSel?.value) === 'piano' ? 'piano' : 'guitar');
+      let mustSwitch = false;
+      ptSel.querySelectorAll('option').forEach(opt => {
+        const ok = offerable(opt.value, instrument);
+        opt.hidden = !ok; opt.disabled = !ok;
+        if (!ok && ptSel.value === opt.value) mustSwitch = true;
+      });
+      if (mustSwitch) { ptSel.value = 'scale'; ptSel.dispatchEvent(new Event('change', { bubbles: true })); }
     }
     // Re-render the skill tree so the Bending node hides/shows with the instrument.
     renderSkillTree();

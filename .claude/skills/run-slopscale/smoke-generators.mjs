@@ -136,7 +136,8 @@ async function run() {
     });
     if (bassVal) {
       await page.waitForTimeout(300); // let syncInstrumentClass switch shapes
-      const bassTypes = ["scale", "diatonic_arpeggios", "chromatic", "walking_bass"].filter((t) => practiceTypes.includes(t));
+      const bassTypes = ["scale", "diatonic_arpeggios", "chromatic", "walking_bass",
+        "root_fifth_octave", "octave_groove", "dead_note_groove", "right_hand_technique", "slap_pop"].filter((t) => practiceTypes.includes(t));
       const p3 = await page.evaluate(runMatrixInPage, {
         mode: "pt", stringCount: null,
         overridesList: bassTypes.map((practiceType) => ({ practiceType })),
