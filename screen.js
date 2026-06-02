@@ -1977,6 +1977,189 @@
     }
   })();
 
+  // ===========================================================================
+  // SEGMENT TEMPLATES + VARIATION ENGINE (Workout library substrate)
+  // ---------------------------------------------------------------------------
+  // A Workout segment is authored as a TEMPLATE, not a frozen preset. A template
+  // carries a pedagogical ROLE, a competency, a difficulty BAND, a fixed `base`
+  // config, and a bounded `vary[]` list of variant deltas (the same shape as a
+  // PATHWAYS[].vary entry). Three reads of the one object:
+  //   • BROWSE  → render role/label/band.
+  //   • PICK    → rollSegment(t, { variantIdx: 0 }).
+  //   • REFRESH → rollSegment(t, { variantIdx: n+1 }) — re-roll the variant.
+  // rollSegment() materialises a template into a normal session segment
+  // ({ id, name, kind, config }); it then flows through the EXISTING
+  // buildSegmentConfig → buildSingleChart path, so the no-unison rule and the
+  // voicing engine hold automatically — the engine adds NO new generators.
+  //
+  // REFRESH INVARIANTS (the anti-slot-machine spine + musical safety):
+  //   1. Same BAND      — every variant of a template shares its difficulty band;
+  //                       no easier variant exists to "spin for".
+  //   2. Length-locked  — a vary delta may NOT carry bpm or targetSec (the Climb
+  //                       axis owns difficulty/length); refresh varies CONTENT.
+  //   3. Style-locked   — when a template names a `style`, progression + scale are
+  //                       drawn from STYLE_PALETTES, so a blues slot can't re-roll
+  //                       into I-IV-V pop. A vary delta may only name in-palette
+  //                       progression/scale values.
+  //   4. No-row gate    — an exotic/symmetric scale (no DIATONIC_QUALITIES row) may
+  //                       only appear over a single-chord backing OR a forced
+  //                       chordOverride (else its non-tonic chords fall to a bare
+  //                       major triad).
+  // validateSegmentTemplates() (mirroring the no-unison + style-palette guards)
+  // enforces 1–4 over every variant of every template at load; smoke-variation.mjs
+  // does the full roll+build behavioural check. See project memory
+  // project_segment_library_and_refresh + the four agent-memory charette specs.
+  const SEGMENT_ROLES = {
+    warmup:      { label:'Warm-up',     order:0 },
+    technique:   { label:'Technique',   order:1 },
+    scale_arp:   { label:'Scale / Arp', order:2 },
+    application: { label:'Application', order:3 },
+    jam:         { label:'Jam',         order:4 },
+    review:      { label:'Review',      order:5 },
+    cooldown:    { label:'Cool-down',   order:6 },
+  };
+  const SEGMENT_BANDS = ['beginner','intermediate','advanced'];
+  // Backings over which a no-DIATONIC_QUALITIES-row scale is harmonically safe
+  // (only the tonic quality matters): a single sustained chord area.
+  const SINGLE_CHORD_BACKINGS = new Set(['static_i','none']);
+  function scaleHasQualityRow(scale){ return !!(scale && DIATONIC_QUALITIES && DIATONIC_QUALITIES[scale]); }
+  function isSingleChordBacking(kind, progression){
+    return kind === 'modal_vamp' || !progression || progression === 'none' || SINGLE_CHORD_BACKINGS.has(progression);
+  }
+
+  // Seed templates — proof of the engine, each derived from an already-vetted
+  // PATHWAYS base so the seed set is idiomatic out of the gate. Phases 5–6 expand
+  // this to the full ~40 guitar + ~25 bass library (every NEW entry validated by
+  // its genre-idiom + instrument-pedagogy agent per the agent-workflow rule).
+  // Convention: `base` carries STRUCTURAL + kind config; genre fields (progression,
+  // scale, chordDepth/Override, feel) come from the `style` palette; `vary[]`
+  // carries only the free axes (key/shape/position/sequence) — never bpm/targetSec.
+  const SEGMENT_TEMPLATES = {
+    g_warm_chromatic: {
+      role:'warmup', label:'Chromatic 1-2-3-4', competency:'finger independence',
+      band:'beginner', instrument:'guitar', style:null, kind:'chromatic',
+      base:{ chromaticPattern:'1234', meter:'4/4', subdivision:'sixteenth', bars:8, direction:'up_down', fretboardSystem:'position' },
+      vary:[ { chromaticPattern:'1234', fretMin:1, fretMax:4 }, { chromaticPattern:'4321', fretMin:1, fretMax:4 }, { chromaticPattern:'1324', fretMin:1, fretMax:4 }, { chromaticPattern:'1234', fretMin:5, fretMax:8 } ],
+    },
+    g_tech_pentatonic_box: {
+      role:'technique', label:'Minor pentatonic box', competency:'pentatonic box 1',
+      band:'beginner', instrument:'guitar', style:null, kind:'scale',
+      base:{ scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', sequence:'none', fretboardSystem:'caged' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ],
+    },
+    g_blues_scale: {
+      role:'scale_arp', label:'Blues scale', competency:'blues vocabulary',
+      band:'beginner', instrument:'guitar', style:'blues', kind:'scale',
+      base:{ scale:'blues', meter:'4/4', subdivision:'eighth', bars:12, direction:'up_down', sequence:'none', fretboardSystem:'caged' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ],
+    },
+    g_arp_diatonic_7th: {
+      role:'scale_arp', label:'Diatonic 7th arpeggios', competency:'seventh-chord vocabulary',
+      band:'intermediate', instrument:'guitar', style:null, kind:'diatonic_arpeggios',
+      base:{ scale:'natural_minor', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', fretboardSystem:'caged' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'G' }, { key:'C', shape:'A' } ],
+    },
+    g_app_ii_v_i: {
+      role:'application', label:'ii–V–I over the changes', competency:'play the changes',
+      band:'intermediate', instrument:'guitar', style:'jazz', kind:'chord_scales',
+      base:{ scale:'major', chordScaleStrategy:'mode_of_moment', chordDepth:'seventh', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', sequence:'none', fretboardSystem:'caged', fretMin:0, fretMax:7 },
+      vary:[ { key:'C' }, { key:'F' }, { key:'Bb' }, { key:'G' }, { key:'D' } ],
+    },
+    g_metal_phrygian: {
+      role:'technique', label:'Phrygian-dominant run', competency:'exotic-scale shred',
+      band:'advanced', instrument:'guitar', style:'metal', kind:'scale',
+      base:{ scale:'phrygian_dominant', meter:'4/4', subdivision:'sixteenth', bars:8, direction:'up_down', sequence:'fours', fretboardSystem:'caged' },
+      vary:[ { key:'E', shape:'E' }, { key:'A', shape:'E' }, { key:'D', shape:'E' }, { key:'B', shape:'E' } ],
+    },
+  };
+
+  // Materialise a template into a concrete session segment at a given variant.
+  // Priority: style-palette lock (floor) ← template base ← variant delta (ceiling).
+  // opts = { variantIdx, locks{axis:true} }. Per-axis lock freezes that axis at the
+  // anchor (variant 0) value so a player can pin e.g. the key and re-roll the shape.
+  function rollSegment(template, opts) {
+    if (!template) return null;
+    opts = opts || {};
+    const vary = (template.vary && template.vary.length) ? template.vary : [{}];
+    const n = vary.length;
+    const idx = (((opts.variantIdx | 0) % n) + n) % n;
+    const anchor = vary[0] || {};
+    const delta = Object.assign({}, vary[idx]);
+    const locks = opts.locks || null;
+    if (locks) for (const ax of Object.keys(locks)) {
+      if (locks[ax] && (ax in anchor)) delta[ax] = anchor[ax];
+    }
+    let styleCfg = {};
+    if (template.style) {
+      const sp = stylePaletteConfig(template.style, {
+        progression: delta.progression || (template.base && template.base.progression),
+        scale:       delta.scale       || (template.base && template.base.scale),
+        key:         delta.key         || (template.base && template.base.key),
+      });
+      if (sp) styleCfg = sp;
+    }
+    const config = Object.assign({}, styleCfg, template.base || {}, delta);
+    if (template.targetSec != null && config.targetSec == null) config.targetSec = template.targetSec;
+    return {
+      id: template.id + (idx ? '__v' + idx : ''),
+      name: template.label || template.id,
+      kind: template.kind,
+      role: template.role,
+      templateId: template.id,
+      variantIdx: idx,
+      config,
+    };
+  }
+
+  // Re-roll a workout's TEMPLATE-REF slots to their next variant. Inline segments
+  // (legacy {kind,config}) are never re-rolled. scope: 'all' | a slot id | an index.
+  // Returns a NEW session object with advanced variantIdx values (pure — no build).
+  function refreshWorkout(session, opts) {
+    if (!session) return session;
+    opts = opts || {};
+    const scope = (opts.scope == null) ? 'all' : opts.scope;
+    const segs = (session.segments || []).map((seg, i) => {
+      const isRef = !!(seg && seg.templateId && !seg.kind);
+      if (!isRef) return seg;
+      const hit = scope === 'all' || scope === seg.id || scope === i;
+      if (!hit) return seg;
+      const tmpl = SEGMENT_TEMPLATES[seg.templateId];
+      const n = (tmpl && tmpl.vary && tmpl.vary.length) || 1;
+      if (n <= 1) return seg;
+      return Object.assign({}, seg, { variantIdx: (((seg.variantIdx | 0) + 1) % n) });
+    });
+    return Object.assign({}, session, { segments: segs });
+  }
+
+  // Startup integrity guard (mirrors validateStylePalettes + the no-unison guard):
+  // injects each template's id, then enforces the four refresh invariants over every
+  // variant of every template — throws on load if an authored template violates one.
+  (function validateSegmentTemplates() {
+    for (const id of Object.keys(SEGMENT_TEMPLATES)) {
+      const t = SEGMENT_TEMPLATES[id];
+      t.id = id;
+      if (!SEGMENT_ROLES[t.role])         throw new Error(`[SlopScale segment-template] ${id} has unknown role "${t.role}"`);
+      if (!SEGMENT_BANDS.includes(t.band)) throw new Error(`[SlopScale segment-template] ${id} has unknown band "${t.band}"`);
+      if (!t.kind || typeof t.kind !== 'string') throw new Error(`[SlopScale segment-template] ${id} has no kind`);
+      if (t.style && !STYLE_PALETTES[t.style]) throw new Error(`[SlopScale segment-template] ${id} references unknown style "${t.style}"`);
+      const vary = (t.vary && t.vary.length) ? t.vary : [{}];
+      for (const d of vary) {
+        if ('bpm' in d || 'targetSec' in d) throw new Error(`[SlopScale segment-template] ${id} vary delta sets bpm/targetSec — difficulty & length must be held across variants`);
+        if (t.style) {
+          const pal = STYLE_PALETTES[t.style];
+          if (d.progression && !pal.progressions.includes(d.progression)) throw new Error(`[SlopScale segment-template] ${id} vary progression "${d.progression}" is not in the ${t.style} palette (style-lock)`);
+          if (d.scale && !pal.leadScales.includes(d.scale))               throw new Error(`[SlopScale segment-template] ${id} vary scale "${d.scale}" is not in the ${t.style} palette (style-lock)`);
+        }
+      }
+      for (let i = 0; i < vary.length; i++) {
+        const c = rollSegment(t, { variantIdx:i }).config;
+        const forcedChord = c.chordOverride && c.chordOverride !== 'auto';
+        if (c.scale && !scaleHasQualityRow(c.scale) && !isSingleChordBacking(t.kind, c.progression) && !forcedChord)
+          throw new Error(`[SlopScale segment-template] ${id} variant ${i}: exotic scale "${c.scale}" over multi-chord backing "${c.progression}" with auto chords (no-row-scale gate)`);
+      }
+    }
+  })();
+
   // Best-effort family inference for pathways that don't (yet) declare a profile,
   // so an untagged pathway gets a sensible family default — never silence or a
   // wrong-family voice.
@@ -4418,7 +4601,20 @@
     const segmentBounds = [];
     let t = 0, tplOffset = 0;
 
-    for (const segment of (session.segments || [])) {
+    for (const rawSeg of (session.segments || [])) {
+      // Template-ref slots ({ templateId, variantIdx, locks }) materialise through
+      // the variation engine; inline segments ({ kind, config }) pass through. An
+      // unknown templateId is skipped (validateSegmentTemplates catches authored ones).
+      let segment = rawSeg;
+      if (rawSeg && rawSeg.templateId && !rawSeg.kind) {
+        const tmpl = SEGMENT_TEMPLATES[rawSeg.templateId];
+        if (!tmpl) continue;
+        segment = rollSegment(tmpl, { variantIdx: rawSeg.variantIdx, locks: rawSeg.locks });
+        if (rawSeg.name) segment.name = rawSeg.name;          // a session may rename a slot
+        if (rawSeg.bpmLadder) segment.bpmLadder = rawSeg.bpmLadder;
+        if (rawSeg.keyCycle)  segment.keyCycle = rawSeg.keyCycle;
+        if (rawSeg.targetSec != null) segment.targetSec = rawSeg.targetSec;
+      }
       const segCfg = buildSegmentConfig(segment, session);
       // Determine which builder to use for this segment
       const ladder = segment.bpmLadder
@@ -9841,7 +10037,7 @@
   }
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
-  window.SlopScale = { generateExercise, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig };
+  window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, rollSegment, refreshWorkout };
   if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
