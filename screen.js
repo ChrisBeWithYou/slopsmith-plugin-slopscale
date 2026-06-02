@@ -754,6 +754,27 @@
   // segment order follows a standard guide-tone-first learning sequence.
 
   const BUILT_IN_SESSIONS = {
+    // The soft-default workout arc: warm-up → technique → application. It's the
+    // first key, so it's the default-selected session (and onLaunchSession's
+    // fallback). A starting point to make your own, NOT a locked program — block
+    // reorder/swap (authoring) arrives with the Workout-authoring flow.
+    starter_arc: {
+      version:1,
+      name:'Starter — warm-up · technique · application',
+      description:'The default practice arc to build from: a chromatic warm-up, a scale-focus technique block, then applying it over changes. Start here and make it your own.',
+      stringSetup:'guitar_6_standard',
+      tags:['starter','any level'],
+      bpmLadder:{ enabled:false },
+      keyCycle:{ enabled:false },
+      segments:[
+        { id:'warmup',      name:'Warm-up — chromatic',          kind:'chromatic',
+          config:{ chromaticPattern:'1234', bpm:70, bars:8, direction:'up_down', fretboardSystem:'position', fretMin:1, fretMax:4, meter:'4/4', subdivision:'sixteenth', keyCycle:'none' } },
+        { id:'technique',   name:'Technique — C major (E-shape)', kind:'scale',
+          config:{ key:'C', scale:'major', bpm:90, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', sequence:'none', fretboardSystem:'caged', shape:'E', keyCycle:'none' } },
+        { id:'application', name:'Application — over I–IV–V',     kind:'chord_scales',
+          config:{ key:'C', scale:'major', bpm:90, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', sequence:'none', fretboardSystem:'caged', shape:'E', chordScaleStrategy:'mode_of_moment', progression:'I-IV-V', chordDepth:'triad', chordOverride:'auto', keyCycle:'none' } }
+      ]
+    },
     ii_v_i_workshop: {
       version:1,
       name:'ii–V–I Workshop',
@@ -9274,8 +9295,13 @@
       if (!activeBundle || activeBundle.config?.mode !== 'session') await onLaunchSession();
       jumpToSegment(i);
     });
+    // #slopscale-regenerate is now a HIDDEN refresh bridge (no longer a visible
+    // UI button) — the bootstrap settings-watcher .click()s it to silently
+    // re-render on host look-setting changes. The handler stays.
     $('slopscale-regenerate')?.addEventListener('click', onGenerate);
-    $('slopscale-save').addEventListener('click', () => savePreset().catch(e => { showStatus(`Preset save failed: ${e.message || e}`); }));
+    // Save-preset was cut from Custom (the share link covers single-config
+    // portability; "Save as Workout block" will be the future save bridge).
+    // savePreset() is kept (dormant) for that future reuse.
     $('slopscale-share')?.addEventListener('click', onCopyShareLink);
     // Paste-share-link: fire on actual paste events AND on plain typing
     // (some users will type a base64 payload in directly).

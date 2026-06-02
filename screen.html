@@ -1635,17 +1635,20 @@
         </label>
       </details>
 
-      <!-- Share/preset actions are CUSTOM-only: a Pathway is a fixed curriculum
-           rung, so sharing/saving its config is noise there. (Elements stay in
-           the DOM — bind() attaches to #slopscale-save without optional chaining
-           — and are hidden in Pathways via .slopscale-pathway-mode .slopscale-custom-only.) -->
+      <!-- Custom share actions (Custom-only — sharing a fixed Pathway rung is
+           noise). Copy link is the prominent action; Paste is a quiet
+           load-a-shared-routine affordance below. Save-preset was CUT (the share
+           link already covers single-config portability — converged 2026-06-02;
+           "Save as Workout block" will be the future save bridge). Regenerate was
+           cut as a UI control but KEPT here as a HIDDEN refresh bridge: the
+           bootstrap settings-watcher in this file .click()s it to silently
+           re-render when host look-settings change (it never needs to be seen). -->
+      <button type="button" id="slopscale-regenerate" hidden aria-hidden="true" tabindex="-1"></button>
       <div class="slopscale-actions-secondary">
-        <button type="button" id="slopscale-regenerate" class="slopscale-custom-only secondary">Regenerate</button>
-        <button type="button" id="slopscale-share" class="slopscale-custom-only secondary" title="Copy a link that restores this exact exercise">Copy share link</button>
-        <button type="button" id="slopscale-save" class="slopscale-custom-only secondary">Save preset</button>
+        <button type="button" id="slopscale-share" class="slopscale-custom-only secondary" title="Copy a link that restores this exact exercise">Copy link</button>
       </div>
       <div class="slopscale-paste-share slopscale-custom-only">
-        <input type="text" id="slopscale-paste-share" placeholder="Paste a share link here to load it…" autocomplete="off" spellcheck="false">
+        <input type="text" id="slopscale-paste-share" placeholder="Paste a share link to load a routine…" autocomplete="off" spellcheck="false">
       </div>
 
       </div><!-- end .slopscale-single-only -->
@@ -1657,6 +1660,9 @@
         <div class="slopscale-group-title">Program</div>
         <label>Session
           <select id="slopscale-session-select">
+            <optgroup label="Start here">
+              <option value="starter_arc">Starter — warm-up · technique · application</option>
+            </optgroup>
             <optgroup label="Built-in">
               <option value="ii_v_i_workshop">ii–V–I Workshop</option>
               <option value="daily_intermediate">Daily 30-min Intermediate</option>
