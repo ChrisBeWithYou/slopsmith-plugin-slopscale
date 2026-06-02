@@ -9516,7 +9516,17 @@
     const inProgress = highestTier >= 0 && !cleared;
     const prereq = pathwayPrereq(id);
     const prereqUnmet = prereq ? (((ptData[prereq] || {}).highest_tier ?? -1) < 0) : false;
-    return { tierCount, highestTier, cleared, inProgress, prereq, prereqUnmet };
+    // Depth-ladder overlay (Phase 8) — the combined Speed+Depth profile from the
+    // progress store. Off mode hides it (returns null). Rungs are booleans; Clean /
+    // Eyes-off / Master are schema-present but unfilled until their slices land.
+    const prog = progressLoad();
+    const pnode = prog.mode !== 'off' ? prog.byNode[id] : null;
+    const depth = pnode ? {
+      travel: !!pnode.depth.travel, clean: !!pnode.depth.clean,
+      eyesOff: !!pnode.depth.eyesOff, mastered: !!pnode.masteredAt,
+      keysCleared: (pnode.keysCleared || []).length,
+    } : null;
+    return { tierCount, highestTier, cleared, inProgress, prereq, prereqUnmet, depth };
   }
   // The two-level pathway picker (replaces the SVG tree's display role): L1 band bar
   // + L2 bounded, ordered list for the active band. Full labels, tier-dot progress,
@@ -9887,6 +9897,98 @@
   }
   // ── End pathway tier progress ───────────────────────────────────────────────
 
+  // ── Depth Ladder + XP (slopscale.progress) — Phase 8 ───────────────────────
+  // The second mastery axis ABOVE the shipped Speed Climb (pathway_tiers). Locked
+  // design: gamification-architect project_replay_depth_ladder_xp_verdict +
+  // project_refresh_variety_loop_verdict. A reward is a gained-only false→true flip
+  // on a real artifact — NEVER a rep counter or a stored level. XP is a DERIVED
+  // time×difficulty readout, never spent, never gates. SELF-AUDIT LINES TO HOLD:
+  //   • Travel/Clean rungs are BINARY false→true per distinct context — never a
+  //     "keys 7/12" grind bar or a "% tight" number.
+  //   • Off mode collapses the whole layer (no xp/depth/emit) — the standing proof
+  //     it never gates.
+  //   • Nothing is ever shown LOST; reps stay a silent stat; no scores/ranks/combos.
+  // Speed stays in pathway_tiers (NOT duplicated); nodeProgressState reads both.
+  const PROGRESS_KEY = 'slopscale.progress';
+  function progressLoad() {
+    try {
+      const o = JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}');
+      o.byNode = o.byNode || {};
+      if (o.mode !== 'off' && o.mode !== 'hardcore') o.mode = 'casual';
+      if (typeof o.xp !== 'number') o.xp = 0;
+      return o;
+    } catch { return { mode:'casual', xp:0, byNode:{} }; }
+  }
+  function progressSave(o) {
+    try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(o)); }
+    catch (e) { console.warn('[SlopScale] progress save failed', e); }
+  }
+  function progressNode(o, id) {
+    return o.byNode[id] || (o.byNode[id] = { reps:0, depth:{ travel:null, clean:null, eyesOff:null }, masteredAt:null, keysCleared:[] });
+  }
+  function progressSetMode(mode) {
+    if (mode !== 'off' && mode !== 'casual' && mode !== 'hardcore') return;
+    const o = progressLoad(); o.mode = mode; progressSave(o);
+  }
+  // Outbound host-XP seam — mirrors the shipped slopscale:tier:unlocked emit. No-op
+  // until the host subscribes; the internal store NEVER depends on it. (The host's
+  // actual XP-intake surface is for slopsmith-host-expert to verify when the live
+  // hook lands; this only defines the outbound shape.)
+  function emitProgress(kind, nodeId, extra) {
+    if (window.slopsmith && typeof window.slopsmith.emit === 'function') {
+      try { window.slopsmith.emit('slopscale:progress', Object.assign({ source:'slopscale', kind, nodeId, at:Date.now() }, extra || {})); } catch (_) {}
+    }
+  }
+  // A run is "clean" by the same signal the Speed climb uses (≥65% of judged notes
+  // hit); when scoring is ABSENT it's lenient/self-confirm true — matching
+  // advancePathwayTier, so the rung still advances where the host has no pitch input
+  // (the player owns the gate; consistent with gained-only/never-gates).
+  function runIsClean(session) {
+    const total = (session.hit_count || 0) + (session.miss_count || 0);
+    return total === 0 || (session.hit_count || 0) / total >= 0.65;
+  }
+  // XP difficulty multiplier — gently weights the tempo tier, never penalizes easy
+  // play (floor 1.0). The time base means a maxed exercise keeps earning for PLAYING.
+  function xpDifficultyMult(session) {
+    const tier = Math.max(0, session.bpm_tier != null ? session.bpm_tier : 0);
+    return 1 + tier * 0.25;   // Slow 1.0 → Push 1.75
+  }
+  // Depth Ladder + XP advance — parallel to advancePathwayTier(), called from
+  // sessionEnd. Accrues derived XP, and credits the TRAVEL axis when a pathway whose
+  // Speed climb is already cleared gets a clean Push pass in a not-yet-credited key
+  // (this is how a refresh-into-a-new-key "makes it count" — the session records the
+  // refreshed key, we credit it here). Returns a gained-only summary, or null.
+  function advanceDepthLadder(session) {
+    const store = progressLoad();
+    if (store.mode === 'off') return null;                    // Off collapses the layer
+    const out = { xpGained:0, travelKey:null, travelRung:false };
+    const pwId = session.pathway_id;
+    // XP — derived time×difficulty, gained-only (accrues for any run, pathway or not).
+    const gained = Math.round(Math.max(0, (session.duration_ms || 0) / 1000) * xpDifficultyMult(session));
+    if (gained > 0) { store.xp += gained; out.xpGained = gained; emitProgress('xp', pwId || null, { amount: gained }); }
+    // Depth rungs apply only to a known pathway whose Speed axis is already cleared.
+    if (pwId && PATHWAYS[pwId]) {
+      const node = progressNode(store, pwId);
+      node.reps = (node.reps || 0) + 1;                       // silent stat — advances NOTHING
+      const topTier = (PATHWAYS[pwId].tempoTiers || []).length - 1;
+      const speedCleared = topTier >= 0 && (pathwayTiersLoad()[pwId] || { highest_tier:-1 }).highest_tier >= topTier;
+      if (speedCleared && session.bpm_tier === topTier && runIsClean(session) && session.key && !node.keysCleared.includes(session.key)) {
+        node.keysCleared.push(session.key);                   // binary false→true per distinct key — no double-credit, tier held
+        emitProgress('depth', pwId, { axis:'travel', key: session.key });
+        out.travelKey = session.key;
+        // The Travel RUNG fills once portability is proven (a 2nd distinct key) — a
+        // one-time flip, never a keys-N/12 grind bar.
+        if (!node.depth.travel && node.keysCleared.length >= 2) {
+          node.depth.travel = Date.now(); out.travelRung = true;
+          emitProgress('depth', pwId, { axis:'travel', rung:true });
+        }
+      }
+    }
+    progressSave(store);
+    return (out.xpGained || out.travelKey) ? out : null;
+  }
+  // ── End depth ladder ────────────────────────────────────────────────────────
+
   function sessionBegin() {
     const isSessionMode = $('slopscale-root')?.classList.contains('slopscale-session-mode');
     let mode, pathway_id, bpm, bpm_tier, scale, key, practice_type;
@@ -9940,6 +10042,7 @@
     sessions.unshift(_activeSession);
     sessionsSave(sessions);
     const unlock = advancePathwayTier(_activeSession);
+    const depthGain = advanceDepthLadder(_activeSession);   // XP + Travel axis (Phase 8)
     // Snapshot for the P-sheet "Last session" card — descriptive + gained-only,
     // no score/accuracy (mirror not judge; see docs/design-system.md §13).
     let displayName;
@@ -9951,6 +10054,7 @@
       bpm: _activeSession.bpm, bpm_tier: _activeSession.bpm_tier,
       duration_ms: _activeSession.duration_ms, displayName,
       tierCleared: !!unlock, clearedTier: unlock ? unlock.tier : null,
+      depth: depthGain,   // { xpGained, travelKey, travelRung } | null — Phase 9 card reads this
       streak: streakCount(sessions),
     };
     _activeSession = null;
@@ -10929,7 +11033,7 @@
   }
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
-  window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, rollSegment, refreshWorkout };
+  window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, rollSegment, refreshWorkout, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState };
   if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
