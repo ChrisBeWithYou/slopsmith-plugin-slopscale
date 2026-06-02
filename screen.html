@@ -203,6 +203,19 @@
   /* One calm Logic-style section label everywhere: muted, tracked, with a
      hairline separator above so the Inspector reads as discrete sections. */
   .slopscale-group-title { color: var(--ss-text-muted); font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin: 10px 0 4px; padding-top: 10px; border-top: 1px solid var(--ss-hairline); }
+  /* Workout Refresh control (Phase 9) — re-roll blocks into fresh variations. The
+     change-summary uses NEUTRAL accent (changed ≠ cleared — never meter-green); the
+     glyph ticks once, reduced-motion gated; no audio. */
+  .slopscale-segments-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .slopscale-refresh-btn { padding: 3px 9px; font-size: 11px; font-weight: 700; text-transform: none; letter-spacing: 0; border-radius: 7px; border: 1px solid var(--ss-border, #334155); background: var(--ss-inset, #0b1220); color: var(--ss-text-dim, #94a3b8); cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
+  .slopscale-refresh-btn:hover:not(:disabled) { color: var(--ss-text, #e2e8f0); border-color: var(--ss-accent-edge, #60a5fa); }
+  .slopscale-refresh-btn:disabled { opacity: 0.4; cursor: default; }
+  .slopscale-refresh-btn.ss-refresh-tick { animation: ss-refresh-tick 0.4s ease; }
+  @keyframes ss-refresh-tick { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  .slopscale-refresh-summary { margin: 4px 0 6px; padding: 7px 9px; font-size: 11.5px; line-height: 1.5; border-radius: 8px; border: 1px solid var(--ss-border, #334155); background: var(--ss-inset, #0b1220); color: var(--ss-text-dim, #94a3b8); display: flex; align-items: flex-start; gap: 8px; }
+  .slopscale-refresh-summary b { color: var(--ss-text, #e2e8f0); font-weight: 600; }
+  .slopscale-refresh-summary-close { margin-left: auto; flex: none; background: none; border: none; color: var(--ss-text-muted, #64748b); cursor: pointer; font-size: 13px; line-height: 1; padding: 0 2px; }
+  @media (prefers-reduced-motion: reduce) { .slopscale-refresh-btn.ss-refresh-tick { animation: none; } }
   /* Session (Workout) audio options grid — the single-mode Preview Audio panel
      was retired (§14); this still styles the Workout panel's audio toggles. */
   .slopscale-audio-options {
@@ -1707,7 +1720,11 @@
           <!-- populated by syncSessionSummary() -->
         </div>
 
-        <div class="slopscale-group-title">Segments</div>
+        <div class="slopscale-group-title slopscale-segments-head">
+          <span>Segments</span>
+          <button type="button" id="slopscale-workout-refresh" class="slopscale-refresh-btn" title="Re-roll every block into a fresh variation — same workout, new keys & positions">↻ Refresh</button>
+        </div>
+        <div id="slopscale-refresh-summary" class="slopscale-refresh-summary" hidden></div>
         <div id="slopscale-segment-list" class="slopscale-segment-list">
           <!-- populated by syncSessionSummary() -->
         </div>

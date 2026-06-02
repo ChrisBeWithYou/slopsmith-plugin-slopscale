@@ -10162,28 +10162,100 @@
     </div>`;
   }
 
-  function syncSessionSummary(sessionId) {
-    const session = BUILT_IN_SESSIONS[sessionId];
+  // ── Workout draft + Refresh (Phase 9) ──────────────────────────────────────
+  // The editable WORKING COPY of the selected Workout — Refresh (and future
+  // design-your-own editing) operate on this, NEVER on the shipped BUILT_IN_SESSIONS
+  // (loading a starter = a fork/copy). Template-ref slots are materialized for DISPLAY
+  // (cards show the rolled key/scale/shape) while the draft keeps the refs so Refresh
+  // can re-roll their vary[] cursor. UX spec: slopscale-ux-designer
+  // project_workout_browse_design_refresh.
+  let _workoutDraft = null, _workoutDraftId = null;
+  function workoutDraftFor(sessionId) {
+    const base = BUILT_IN_SESSIONS[sessionId];
+    return base ? JSON.parse(JSON.stringify(base)) : null;   // deep clone — never mutate the shipped session
+  }
+  function workoutHasRefs(session) {
+    return !!(session && (session.segments || []).some(s => s && s.templateId && !s.kind));
+  }
+  function renderWorkoutDraft() {
+    const session = _workoutDraft;
     const info = $('slopscale-session-info'), list = $('slopscale-segment-list');
     if (!info || !list) return;
     if (!session) { info.innerHTML = ''; list.innerHTML = ''; return; }
-    const segs = session.segments || [];
-    const totalDur = segs.reduce((s, seg) => s + segmentEstDuration(seg), 0);
-    const bpms = segs.map(s => s.config?.bpm).filter(Boolean);
-    const minBpm = Math.min(...bpms), maxBpm = Math.max(...bpms);
-    const bpmStr = minBpm === maxBpm ? `${minBpm} BPM` : `${minBpm}–${maxBpm} BPM`;
+    const displaySegs = (session.segments || []).map(materializeSegment).filter(Boolean);
+    const totalDur = displaySegs.reduce((s, seg) => s + segmentEstDuration(seg), 0);
+    const bpms = displaySegs.map(s => s.config?.bpm).filter(Boolean);
+    // Template-ref blocks don't pin a BPM (it's tier/default-driven) — omit the stat
+    // rather than show a misleading "0 BPM".
+    const bpmStr = bpms.length ? (Math.min(...bpms) === Math.max(...bpms) ? `${Math.min(...bpms)} BPM` : `${Math.min(...bpms)}–${Math.max(...bpms)} BPM`) : '';
     const durStr = totalDur < 60 ? `${Math.round(totalDur)}s` : `${Math.floor(totalDur / 60)}m ${Math.round(totalDur % 60)}s`;
     const tags = (session.tags || []).join(', ');
     info.innerHTML = `
       <div class="slopscale-session-info-name">${session.name}</div>
       <div class="slopscale-session-info-desc">${session.description || ''}</div>
       <div class="slopscale-session-info-stats">
-        <span class="slopscale-session-info-stat">${segs.length} segments</span>
+        <span class="slopscale-session-info-stat">${displaySegs.length} segments</span>
         <span class="slopscale-session-info-stat">${durStr}</span>
-        <span class="slopscale-session-info-stat">${bpmStr}</span>
+        ${bpmStr ? `<span class="slopscale-session-info-stat">${bpmStr}</span>` : ''}
         ${tags ? `<span class="slopscale-session-info-stat">${tags}</span>` : ''}
       </div>`;
-    list.innerHTML = segs.map((s, i) => buildSegmentCard(s, i)).join('');
+    list.innerHTML = displaySegs.map((s, i) => buildSegmentCard(s, i)).join('');
+    const btn = $('slopscale-workout-refresh');
+    if (btn) {
+      const can = workoutHasRefs(session);
+      btn.disabled = !can;
+      btn.title = can ? 'Re-roll every block into a fresh variation — same workout, new keys & positions'
+                      : 'This workout’s blocks are fixed (no variations to re-roll)';
+    }
+  }
+  function syncSessionSummary(sessionId) {
+    if (sessionId !== _workoutDraftId) { _workoutDraft = workoutDraftFor(sessionId); _workoutDraftId = sessionId; clearRefreshSummary(); }
+    renderWorkoutDraft();
+  }
+  // Plain-language "what changed" between two draft states (the changed surface only).
+  function describeRefreshDiff(before, after) {
+    const lines = [], a = before.segments || [], b = after.segments || [];
+    const pretty = s => String(s).replace(/_/g, ' ');
+    for (let i = 0; i < Math.min(a.length, b.length); i++) {
+      if (!a[i] || !a[i].templateId || a[i].kind) continue;
+      if ((a[i].variantIdx | 0) === (b[i].variantIdx | 0)) continue;
+      const ca = (materializeSegment(a[i]) || {}).config || {}, cb = (materializeSegment(b[i]) || {}).config || {};
+      const tmpl = SEGMENT_TEMPLATES[a[i].templateId];
+      const label = (tmpl && tmpl.label) || a[i].id || `Block ${i + 1}`;
+      const parts = [];
+      if (cb.key && ca.key !== cb.key) parts.push(`key ${ca.key || '?'}→${cb.key}`);
+      if (cb.shape && ca.shape !== cb.shape) parts.push(`${ca.shape || '?'}-shape→${cb.shape}-shape`);
+      if (cb.progression && cb.progression !== 'none' && ca.progression !== cb.progression) parts.push(`${pretty(ca.progression || '?')}→${pretty(cb.progression)}`);
+      if (cb.scale && ca.scale !== cb.scale) parts.push(`${pretty(ca.scale || '?')}→${pretty(cb.scale)}`);
+      if (parts.length) lines.push(`<b>${label}</b> ${parts.join(' · ')}`);
+    }
+    return lines;
+  }
+  function clearRefreshSummary() {
+    const el = $('slopscale-refresh-summary'); if (el) { el.hidden = true; el.innerHTML = ''; }
+  }
+  function showRefreshSummary(lines) {
+    const el = $('slopscale-refresh-summary'); if (!el) return;
+    if (!lines.length) {
+      el.innerHTML = `<span>Refreshed — nothing changed this pass.</span><button type="button" class="slopscale-refresh-summary-close" aria-label="Dismiss" title="Dismiss">✕</button>`;
+    } else {
+      const shown = lines.slice(0, 2), more = lines.length - shown.length;
+      el.innerHTML = `<span>Re-rolled — ${shown.join(' · ')}${more > 0 ? ` · +${more} more` : ''}</span><button type="button" class="slopscale-refresh-summary-close" aria-label="Dismiss" title="Dismiss">✕</button>`;
+    }
+    el.hidden = false;
+  }
+  function onRefreshWorkout() {
+    if (!_workoutDraft || !workoutHasRefs(_workoutDraft)) return;
+    const before = JSON.parse(JSON.stringify(_workoutDraft));
+    _workoutDraft = refreshWorkout(_workoutDraft, { scope: 'all' });
+    showRefreshSummary(describeRefreshDiff(before, _workoutDraft));
+    renderWorkoutDraft();
+    const btn = $('slopscale-workout-refresh');
+    if (btn && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      btn.classList.remove('ss-refresh-tick'); void btn.offsetWidth; btn.classList.add('ss-refresh-tick');
+    }
+    // Mid-playback: the refreshed variation applies on the NEXT Launch (never yanks the
+    // playhead). No audio cue (§13).
   }
 
   function syncSessionMode(mode) {
@@ -10221,10 +10293,14 @@
     const sessionSetup = STRING_SETUPS[baseSession.stringSetup] || STRING_SETUPS.guitar_6_standard;
     const formSetup = formStringSetup ? STRING_SETUPS[formStringSetup] : null;
     const inheritForm = !!formSetup && formSetup.instrument === sessionSetup.instrument;
-    // Clone session; patch audio + (family-compatible) string setup into each segment config
-    const session = Object.assign({}, baseSession, {
+    // Launch the editable working DRAFT (refreshed/edited) — materialize any template-ref
+    // slots, then patch audio + (family-compatible) string setup into each concrete config.
+    // Falls back to a fresh clone if the draft is missing/stale for the selected session.
+    if (!_workoutDraft || _workoutDraftId !== sessionId) { _workoutDraft = workoutDraftFor(sessionId); _workoutDraftId = sessionId; }
+    const draft = _workoutDraft || baseSession;
+    const session = Object.assign({}, draft, {
       ...(inheritForm ? { stringSetup: formStringSetup } : {}),
-      segments: baseSession.segments.map(seg =>
+      segments: (draft.segments || []).map(materializeSegment).filter(Boolean).map(seg =>
         Object.assign({}, seg, { config: Object.assign({}, seg.config, { audio }) })
       )
     });
@@ -10901,6 +10977,8 @@
     });
     $('slopscale-session-select')?.addEventListener('change', ev => syncSessionSummary(ev.target.value));
     $('slopscale-launch-session')?.addEventListener('click', onLaunchSession);
+    $('slopscale-workout-refresh')?.addEventListener('click', onRefreshWorkout);   // Phase 9: re-roll blocks
+    $('slopscale-refresh-summary')?.addEventListener('click', e => { if (e.target.closest('.slopscale-refresh-summary-close')) clearRefreshSummary(); });
     syncSessionSummary(Object.keys(BUILT_IN_SESSIONS)[0]);
 
     loadPathwayFavorites();
