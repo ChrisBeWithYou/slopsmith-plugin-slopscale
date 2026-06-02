@@ -468,10 +468,11 @@ backing-voice override dropdown (its selection moves into the mixer per §11). R
 | Pathway picker | `#slopscale-pathway-picker` | rail | chip group | band bar + list |
 | Primary CTA | `.slopscale-primary-cta` *(planned shared)* | rail | primary | one per mode, ≤360px |
 | Feel | `.slopscale-feel` | rail | segmented | stays in rail — skill, not transport (§14, 2026-06-01); unify with jam-feel |
-| Practice toggles | *(planned)* Click / Backing / Notes | stage view-bar, by Mixer | toggle (pill) | retires the Preview Audio panel (§14, 2026-06-01) |
+| Practice toggles | `name=audioNotes/audioMetronome/audioHarmony` pills | stage view-bar, by Mixer | toggle (pill) | **BUILT 2026-06-01** — Notes/Backing/Click mutes; retired the Preview-Audio panel (§14) |
+| Keep looping | `#slopscale-keeploop-toggle` | stage view-bar | toggle (pill) | **BUILT 2026-06-01** — off = finite right-sized run (Depth-Ladder run-length), on = infinite loop for open practice; Pathways/Custom only |
 | View switcher | `.slopscale-view-btn` | stage | segmented (tabs) | renderer pick |
 | Transport | `#slopscale-play` + cluster | stage | transport | play/nudge/loop/count-in |
 | Setup/Play | `.slopscale-modeview-btn` | stage | segmented | **sole** collapse control |
 | Focus | `#slopscale-focus-btn` | stage | icon toggle | fullscreen stage |
-| Mixer | `#slopscale-mixer` | stage overlay | panel | → resizable, master, strips; gains a per-channel Tone knob (absorbs "Backing tone") |
+| Mixer | `#slopscale-mixer` | stage overlay | panel | TONE knob on Comp BUILT (absorbs "Backing tone", 2026-06-01); still planned → resizable, master channel, vertical strips |
 | Pack `+` | *(planned)* `.slopscale-band-btn.add` | rail band bar | chip | opens pack modal |
