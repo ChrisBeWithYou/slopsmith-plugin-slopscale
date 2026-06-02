@@ -4129,6 +4129,92 @@
     return { notes, chords, chordTemplates, handShapes, sections, anchors, beats, duration:t };
   }
 
+  // ── Right-sized finite runs (Depth Ladder slice 1) ──────────────────────────
+  // A Pathways/Custom DRILL plays a RIGHT-SIZED, FINITE run, not an infinite loop:
+  // length is DERIVED from what's being practised (a short pass-bounded box vs a
+  // longer cycle-bounded over-the-changes drill), then tiled to that target via the
+  // existing fillBlockToDuration (whole reps, never cut a phrase) and ended with the
+  // existing session-summary closure. Jam stays endless (the mirror); Workout's own
+  // per-block targetSec is untouched. See project_depth_ladder_and_run_length.
+  //
+  // Base target seconds per practiceType. Default ~50 for anything unlisted.
+  const RUN_TARGET_SEC = {
+    // Pass-bounded (short): scale boxes, chromatic, single-technique drills.
+    scale:40, chromatic:40,
+    legato:45, bending:45, vibrato:45, tremolo_picking:45, tapping:45,
+    string_skipping:45, hybrid_picking:45, scale_thirds:45, scale_sixths:45,
+    octave_displacement:45, position_shift:45, rhythmic_displacement:45,
+    sweep_arpeggios:55,
+    // Riff/comp drills — pass-bounded, use the ~50 default explicitly.
+    pedal_point:50, pedal_riff:50, power_chord_comping:50,
+    // Cycle-bounded (longer, legitimately >60s): the unit is the harmonic cycle.
+    diatonic_arpeggios:50, progression_arpeggios:70, arpeggio_inversions:50,
+    guide_tones:60, chord_scales:75, bebop_scale:50, chromatic_enclosures:50,
+    call_response:60, walking_bass:60,
+    pentatonic_super:55, triadic_pairs:55, shell_voicings:55,
+  };
+  // Types whose UNIT is a harmonic cycle / whole-neck traversal, not the bar — they
+  // get the higher ceiling (180s) and a longer base. The `scale` type joins this
+  // set only in the full_neck case (handled in resolveRunTargetSec).
+  const CYCLE_BOUNDED_TYPES = new Set([
+    'chord_scales','guide_tones','progression_arpeggios','diatonic_arpeggios',
+    'walking_bass','arpeggio_inversions','bebop_scale','chromatic_enclosures',
+    'call_response','pentatonic_super','triadic_pairs','shell_voicings',
+  ]);
+  const RUN_FLOOR_SEC = 25;             // never shorter than this (settling + a couple judged passes)
+  const RUN_CEIL_PASS_SEC = 90;         // pass-bounded ceiling (past it grinds sloppiness in)
+  const RUN_CEIL_CYCLE_SEC = 180;       // cycle-bounded ceiling (long-cycle / whole-neck)
+  // Speed-tier length modifier (the only ladder axis built today): on the Pathways
+  // Climb the "groove" Slow tier gets a LONGER run (×1.5) and the "prove it" Fast/Push
+  // tiers a SHORTER one (×0.75); Med = ×1.0. The Climb tier is the module-level
+  // activeTempoTierIdx (0=Slow,1=Med,2=Fast,3=Push, mirroring TIER_LABELS). Only applies
+  // on a Pathway (Custom has no Climb) — keyed off cfg carrying the pathway's BPM tier
+  // when present, else the live index when a pathway is active. Returns 1 otherwise.
+  const RUN_TIER_MOD_BY_IDX = [1.5, 1.0, 0.75, 0.75];
+  function runTierMod(cfg) {
+    // Explicit tier on the cfg wins (forward-compat / Workout blocks that carry one).
+    const named = cfg && (cfg.bpmTier || cfg.tempoTier || cfg.tier);
+    if (named != null) {
+      const i = TIER_LABELS.findIndex(l => l.toLowerCase() === String(named).toLowerCase());
+      if (i >= 0) return RUN_TIER_MOD_BY_IDX[i] || 1;
+    }
+    // Live Pathways Climb tier — only meaningful while a pathway is the active mode.
+    const pathwayMode = !!($('slopscale-root')?.classList.contains('slopscale-pathway-mode'));
+    if (pathwayMode && activePathwayId && activePathwayId !== 'custom') {
+      return RUN_TIER_MOD_BY_IDX[activeTempoTierIdx] || 1;
+    }
+    return 1;
+  }
+  // Resolve the target run length (seconds) for a single-exercise DRILL config:
+  // base table → speed-tier modifier → clamp to [floor, ceiling] (ceiling depends on
+  // pass- vs cycle-bounded). fillBlockToDuration then tiles WHOLE reps to ≥ this and
+  // overshoots to a whole cell, so the cycle-completion guarantee (≥1 whole rep) is
+  // already covered. Returns null when no sensible target applies (then the run is
+  // bars-driven, i.e. unchanged behaviour).
+  function resolveRunTargetSec(cfg) {
+    if (!cfg) return null;
+    const type = cfg.practiceType || cfg.mode || 'scale';
+    // The scale type is pass-bounded normally, but a full-neck traversal is a
+    // cycle-style (whole-neck) unit — longer base + the higher ceiling.
+    const fullNeck = type === 'scale' && cfg.fretboardSystem === 'full_neck';
+    const cycleBounded = fullNeck || CYCLE_BOUNDED_TYPES.has(type);
+    let base = fullNeck ? 60 : (RUN_TARGET_SEC[type] != null ? RUN_TARGET_SEC[type] : 50);
+    base *= runTierMod(cfg);
+    const ceil = cycleBounded ? RUN_CEIL_CYCLE_SEC : RUN_CEIL_PASS_SEC;
+    const target = Math.max(RUN_FLOOR_SEC, Math.min(ceil, base));
+    return target > 0 ? target : null;
+  }
+  // Apply the per-type run target to a DRILL config so generateExercise tiles it to a
+  // right-sized run via fillBlockToDuration. No-op when the caller already set a
+  // targetSec (a Workout block, a saved preset, or a share link owns its own length) —
+  // we never override an explicit one. NOT called on the Jam path (jamPlay builds its
+  // own endless config) or for Workout (generateSession), so this stays drill-only.
+  function withRunTarget(cfg) {
+    if (!cfg || blockTargetSec(cfg) != null) return cfg;
+    const target = resolveRunTargetSec(cfg);
+    return target != null ? Object.assign({}, cfg, { targetSec: target }) : cfg;
+  }
+
   // ── Workout time primitive (build-queue #3) ─────────────────────────────────
   // Repeat a block's WHOLE-CELL content until it fills at least targetSec of
   // wall-clock time, overshooting to the next whole repetition — never cutting a
@@ -4345,6 +4431,12 @@
       currentTime:0,
       songInfo:{ title:exerciseTitle(cfg), artist:'SlopScale', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'slopscale-practice', fretboardSystem:cfg.fretboardSystem },
       config:cfg,
+      // Finite-run eligibility (Depth Ladder slice 1): a single-exercise DRILL
+      // (Pathways/Custom) plays its right-sized run ONCE then ends with the session
+      // summary, instead of looping forever — unless the user flips "keep looping".
+      // A Workout session (mode 'session') keeps its segment-advance/looping; Jam
+      // (mode undefined, + its own A–B loop) stays endless. So: eligible = a drill.
+      finiteRun: cfg.mode != null && cfg.mode !== 'session',
     isReady:true, notes:notesWithTail, chords:c.chords, anchors:c.anchors, beats:beatsWithTail, sections:c.sections, chordTemplates:c.chordTemplates, handShapes:c.handShapes, segmentBounds:c.segmentBounds || null,
       leadIn:lead,
       // Backing comp/bass + drums cover the music only ([lead, duration]); generate
@@ -5622,6 +5714,10 @@
     $('slopscale-root')?.classList.toggle('slopscale-fb-on', fretboardOn);
     $('slopscale-fretboard-toggle')?.setAttribute('aria-checked', String(fretboardOn));
   }
+  // Reflect the keep-looping state onto its toggle (visibility is CSS, per mode).
+  function syncKeepLoopUI() {
+    $('slopscale-keeploop-toggle')?.setAttribute('aria-checked', String(keepLooping));
+  }
   // Reflect the active swing/feel (hidden #slopscale-swing) onto the visible
   // Feel segmented control.
   function syncFeelControl() {
@@ -5926,6 +6022,34 @@
   }
 
   function drawOnce() { drawFretboardFrame(); drawRulerFrame(); drawChordBoxFrame(); if (!renderer || !activeBundle) return; const vb = rendererBundle || activeBundle; vb.currentTime = currentPracticeTime; syncHighwaySettings(vb); try { renderer.draw(vb); } catch (e) { console.warn('[SlopScale] renderer draw failed', e); } syncTransportTime(); }
+  // "Keep looping" — when on, a finite drill restores the old infinite loop (open
+  // practice). Default off (finite). Persisted; loaded in bind(). An A–B loop and Jam
+  // are unaffected (they loop via the segment-loop branch above, never this one).
+  let keepLooping = false;
+  // True when the active run is a single-exercise DRILL that should play once and END
+  // rather than loop: the bundle is finite-eligible AND the user hasn't opted into
+  // "keep looping". Workout sessions and Jam are never finite-eligible.
+  function finiteRunActive() {
+    return !!(activeBundle && activeBundle.finiteRun && !keepLooping);
+  }
+  // End a finite drill run: run the existing closure (sessionEnd → the descriptive
+  // session-summary card) and tear playback down. This slice has no clean-gate/verdict
+  // yet — the run simply ends with the existing card. Mirrors stopPlayback()'s teardown
+  // (which also wraps sessionEnd), including rewinding the playhead to where Play began,
+  // so pressing Play again cleanly replays the run from its start rather than re-ending
+  // instantly at duration.
+  function endFiniteRun() {
+    sessionEnd();                 // flush the session → presentSessionSummary (closure)
+    playing = false;
+    currentPracticeTime = playStartChartTime;
+    playAnchorChartTime = playStartChartTime;
+    stopAudio();
+    stopPitchTracker();
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    drawOnce();
+    syncPlayButton();
+    refreshStatusFromState();
+  }
   function tick(nowMs) {
     if (!renderer || !activeBundle) return;
     if (playing) {
@@ -5955,6 +6079,17 @@
         _loopWraps++;
         const lc = $('slopscale-loop-count');
         if (lc) { lc.hidden = false; lc.textContent = 'Loop ' + _loopWraps; }
+      } else if (finiteRunActive()) {
+        // Finite drill (Depth Ladder slice 1): the right-sized run plays ONCE, then
+        // ends with the existing session-summary closure instead of looping. No
+        // loop-ahead is pre-scheduled (see maybeScheduleLoopAhead) so audio stops
+        // cleanly at the seam. Let the run reach the end, then end it.
+        if (currentPracticeTime >= duration) {
+          currentPracticeTime = duration;
+          drawOnce();
+          endFiniteRun();
+          return;   // run over — no further rAF; endFiniteRun cancels playback
+        }
       } else {
         // Seamless whole-chart loop. Audio for the next pass is pre-scheduled
         // ahead of the seam (no stopAudio()/gap/clipped tail), and the visual
@@ -7187,7 +7322,7 @@
   async function onGenerate() {
     const summary = $('slopscale-summary');
     try {
-      const exercise = generateExercise(readConfig());
+      const exercise = generateExercise(withRunTarget(readConfig()));
       lastExercise = exercise;
       summary.innerHTML = summarize(exercise);
       await attachRenderer(exercise);
@@ -9174,6 +9309,15 @@
       }
       drawOnce();
     });
+    // Keep-looping toggle: off (default) = a drill plays its right-sized run once then
+    // ends; on = loop it forever for open practice. Read live by finiteRunActive() each
+    // frame, so toggling mid-run takes effect at the next loop seam (no restart needed).
+    const klToggle = $('slopscale-keeploop-toggle');
+    if (klToggle) klToggle.addEventListener('click', () => {
+      keepLooping = !keepLooping;
+      try { localStorage.setItem('slopscale.keepLooping', keepLooping ? '1' : '0'); } catch (_) {}
+      syncKeepLoopUI();
+    });
     document.querySelectorAll('.slopscale-modeview-btn').forEach(b =>
       b.addEventListener('click', () => setPanelCollapsed(b.dataset.modeview === 'play')));
     $('slopscale-focus-btn')?.addEventListener('click', toggleFocus);
@@ -9211,6 +9355,9 @@
     // Restore the fretboard-strip toggle (defaults on).
     try { const fb = localStorage.getItem('slopscale.fretboard'); if (fb != null) fretboardOn = fb === '1'; } catch (_) {}
     syncFretboardUI();
+    // Restore the keep-looping toggle (defaults OFF = finite, right-sized runs).
+    try { const kl = localStorage.getItem('slopscale.keepLooping'); if (kl != null) keepLooping = kl === '1'; } catch (_) {}
+    syncKeepLoopUI();
     // The sidebar always starts expanded on plugin startup/selection (it's a
     // transient view affordance, not a saved pref) — also reset on screen:changed.
     panelCollapsed = false;

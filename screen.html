@@ -482,6 +482,18 @@
   .slopscale-pill-toggle[aria-checked="true"] { background: var(--ss-accent); }
   .slopscale-pill-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.4); transition: transform 0.15s; }
   .slopscale-pill-toggle[aria-checked="true"] .slopscale-pill-knob { transform: translateX(16px); }
+  /* Keep-looping toggle — sits in the same right-hand view-bar zone as the
+     fretboard toggle. Shown for Pathways/Custom drills; hidden in Jam (always
+     endless) and Workout (its own segment-advance). Claims margin-left:auto so it
+     anchors right even when the fretboard toggle isn't capable; when the fretboard
+     toggle IS showing it groups beside it (that wrap already took the auto margin). */
+  .slopscale-keeploop-wrap { display: none; align-items: center; gap: 7px; margin-left: auto; }
+  .slopscale-root.slopscale-fb-capable .slopscale-keeploop-wrap { margin-left: 14px; }
+  .slopscale-root.ss-mode-pathways .slopscale-keeploop-wrap,
+  .slopscale-root.ss-mode-custom .slopscale-keeploop-wrap { display: inline-flex; }
+  .slopscale-root.ss-mode-jam .slopscale-keeploop-wrap,
+  .slopscale-root.ss-mode-workout .slopscale-keeploop-wrap { display: none !important; }
+  .slopscale-keeploop-label { font-size: 12px; font-weight: 600; color: #94a3b8; }
   /* Borrowed host visualizations (e.g. Jumping Tab) mount their own wrap as a
      sibling of #slopscale-canvas and hide the canvas. Fill the render-host so
      the wrap's internal flex layout has a definite size. */
@@ -596,6 +608,7 @@
     .slopscale-mixer, .slopscale-progress-sheet { transition: none; }
     .slopscale-tier-btn { transition: none; }
     .slopscale-tier-btn.tier-glow { animation: none; }
+    .slopscale-pill-toggle, .slopscale-pill-knob { transition: none; }
   }
   /* SlopScale's small vertical chord box, top-left over the render (matched to
      the 3D Highway's diagram corner so the position is consistent across views).
@@ -1690,6 +1703,14 @@
         <span id="slopscale-fretboard-toggle-wrap" class="slopscale-fb-toggle-wrap">
           <span class="slopscale-fb-toggle-label">Fretboard view</span>
           <button type="button" id="slopscale-fretboard-toggle" class="slopscale-pill-toggle" role="switch" aria-checked="true" aria-label="Toggle fretboard view"><span class="slopscale-pill-knob"></span></button>
+        </span>
+        <!-- Keep-looping toggle — by default a drill plays a right-sized, FINITE run
+             then ends (with the session-summary card). Flip this on to loop the drill
+             forever for open practice. Hidden in Jam (always endless) and Workout
+             (its own segment-advance); shown for Pathways/Custom drills only. -->
+        <span id="slopscale-keeploop-toggle-wrap" class="slopscale-keeploop-wrap">
+          <span class="slopscale-keeploop-label" title="Off: a drill plays a right-sized run then ends. On: loop it for open practice.">Keep looping</span>
+          <button type="button" id="slopscale-keeploop-toggle" class="slopscale-pill-toggle" role="switch" aria-checked="false" aria-label="Keep looping this drill"><span class="slopscale-pill-knob"></span></button>
         </span>
         <!-- Theme toggle for Tab + Notation only. Hidden via CSS when the
              active renderer is one of the highway views. -->
