@@ -456,13 +456,27 @@
     { id:'core_beginner',     label:'Beginner',     kind:'core', pinned:true, pathways:['chromatic_warmup','pulse_muting','pent_foundation','power_chord_comping','blues_foundation','bend_drill'] },
     { id:'core_intermediate', label:'Intermediate', kind:'core', pinned:true, pathways:['major_scale_caged','sixteenth_pocket','dorian_groove','chord_tone_targeting','modal_awareness','diatonic_triad_drill'] },
     { id:'core_advanced',     label:'Advanced',     kind:'core', pinned:true, pathways:['seventh_vocab','whole_neck_freedom','guide_tones_path','ii_V_I_workout','modal_vamp','melmin_exotic_12key','harmonic_minor_exotic','sweep_arpeggio_primer'] },
-    { id:'style_blues',       label:'Blues',        kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner — minor-pentatonic box 1, the blue note (♭5), and a steady pulse over the 12-bar form.', pathways:['blues_shuffle'] },
-    { id:'style_country',     label:'Country',      kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner→Intermediate — major pentatonic and the CAGED major scale; you target chord tones inside the shape.', pathways:['major_pent_country'] },
+    { id:'style_blues',       label:'Blues',        kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner — minor-pentatonic box 1, the blue note (♭5), and a steady pulse over the 12-bar form.', pathways:['blues_box','blues_shuffle','blues_bends','blues_call_response','blues_mix'] },
+    { id:'style_country',     label:'Country',      kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner→Intermediate — major pentatonic and the CAGED major scale; you target chord tones inside the shape, then add the country idiom (double-stops, chicken pickin\', the ♭VII train change).', pathways:['major_pent_country','country_cowboy_changes','country_double_stops','country_chicken_pickin','country_pedal_bends','country_train'] },
     { id:'style_metal',       label:'Metal',        kind:'style', family:'High-Gain & Technical', buildsOn:'Builds on Core — power chords and palm-mute pulse (Beginner), tight 16th picking (Intermediate), plus exotic/harmonic-minor scales and sweep mechanics (Advanced).', pathways:['metalcore_chug','melodic_metal_gallop','djent_polymeter','melodeath_twin_leads','death_chromatic'] },
+    { id:'style_rock',        label:'Rock',         kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core — power chords + the backbeat (Beginner), the pentatonic box (Beginner), then the blues-rock mix, pedal-tone riffs, and the ♭VII classic-rock changes.', pathways:['rock_power_backbeat','rock_pentatonic','rock_lead_vocab','rock_pedal_riff','rock_classic_changes'] },
+    // Concepts family — "concept ladders" (one skill, sequenced easy→mastery): a
+    // VERTICAL column through difficulty, vs the Core bands' horizontal staircase.
+    // Style-kind so they're opt-in via the Pack manager; family 'Concepts' heads the
+    // Available column. First of a planned set (Arpeggio, Voice-Leading, Fretboard…).
+    // See docs/triad-mastery-ladder.md + memory project_python_generator_reconciliation.
+    { id:'concept_triads', label:'Triads', kind:'style', family:'Concepts', buildsOn:'Builds on Core Intermediate — the CAGED major scale. A triad is the top three strings of the barre chords you already know; own the three inversions, then use them over the changes.', pathways:['triad_inversions','triad_five_shapes','triads_over_changes','triad_pairs'] },
+    { id:'concept_arpeggios', label:'Arpeggios', kind:'style', family:'Concepts', buildsOn:'Builds on Core Intermediate — diatonic triads and the CAGED shapes. An arpeggio is a chord one note at a time; spell the sevenths, invert them, then chase them through the changes.', pathways:['arp_seventh_shapes','arp_inversions','arp_over_changes','arp_sweeps'] },
+    { id:'concept_voiceleading', label:'Guide Tones', kind:'style', family:'Concepts', buildsOn:'Builds on Core — diatonic seventh chords and the major scale. The 3rd and 7th are a chord\'s identity; voice-lead just those through the changes, then play a line that follows them.', pathways:['vl_shells','vl_guide_tones','vl_guide_changes','vl_connect'] },
+    { id:'concept_fretboard', label:'Fretboard', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the pentatonic box and the CAGED major scale. Stop thinking in one box: connect the shapes, shift positions, learn the 3NPS system, and map the whole neck.', pathways:['fb_one_box','fb_caged_links','fb_position_shifts','fb_3nps','fb_whole_neck'] },
+    { id:'concept_expression', label:'Expression', kind:'style', family:'Concepts', buildsOn:'Builds on Core Beginner — a fretted note and a target pitch. Make the note SING: vibrato width first, then bends that land dead in tune (half → whole → mixed).', pathways:['exp_vibrato','exp_bend_half','exp_bend_whole','exp_bend_mixed'] },
+    { id:'concept_rhythm', label:'Rhythm', kind:'style', family:'Concepts', buildsOn:'Builds on Core — a steady pulse and the pentatonic box. Own TIME itself: subdivisions, the 16th pocket, swing vs straight, syncopation, and odd meters. Instrument-agnostic — works on guitar or bass.', pathways:['rhy_subdivision','rhy_sixteenth','rhy_swing','rhy_displacement','rhy_odd_meter'] },
+    { id:'concept_picking', label:'Picking', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the chromatic warmup and one-finger-per-fret sync. The pick-hand engine: tremolo, alternate across strings, string skipping, hybrid picking.', pathways:['pick_tremolo','pick_alternate','pick_string_skip','pick_hybrid'] },
+    { id:'concept_legato', label:'Legato', kind:'style', family:'Concepts', buildsOn:'Builds on Core — clean fretting and a scale shape. The fretting-hand engine: hammer-ons/pull-offs, 3NPS legato runs, then two-hand tapping.', pathways:['leg_hopo','leg_runs','leg_tapping'] },
   ];
   // Family display order for the Pack-manager Available column (Core-branch-point
   // depth → the catalog reads as a curriculum map, not a scrolling wall).
-  const PACK_FAMILY_ORDER = ['Roots & Rock', 'Groove', 'Jazz & Sophisticated Harmony', 'High-Gain & Technical', 'Acoustic & Fingerstyle'];
+  const PACK_FAMILY_ORDER = ['Concepts', 'Roots & Rock', 'Groove', 'Jazz & Sophisticated Harmony', 'High-Gain & Technical', 'Acoustic & Fingerstyle'];
   // Pack integrity guard (the pack-layer analog of the no-unison guard): a Style
   // pack with no Core foundation or family is a curricular error — fail loudly on load.
   PATHWAY_BANDS.forEach(b => {
@@ -524,10 +538,10 @@
     },
     dorian_groove: {
       label:'Dorian Groove',
-      goal:'Natural minor with a raised 6th — that one note gives it a brighter, jazzier feel than straight Aeolian. The raised 6th is the money note; resolve to it over the i chord. Dorian is the go-to scale for blues-jazz and funk grooves.',
+      goal:'Natural minor with a raised 6th — that one note gives it a brighter, jazzier feel than straight Aeolian. The raised 6th is the money note; it lives in the major IV chord (the i–IV Dorian vamp), so the backing actually sounds it against the i. Dorian is the go-to scale for blues-jazz and funk grooves.',
       scales:['dorian','natural_minor','minor_pentatonic'],
       tempoTiers:[65, 85, 105, 125],
-      base:{ practiceType:'scale', scale:'dorian', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'i-VII-VI-VII', chordDepth:'seventh', chordOverride:'min7', key:'A', fretMin:5, fretMax:9 },
+      base:{ practiceType:'scale', scale:'dorian', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'dorian_vamp', chordDepth:'seventh', chordOverride:'auto', key:'A', fretMin:5, fretMax:9 },
       vary:[ { key:'A', shape:'E' }, { key:'D', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ]
     },
     chord_tone_targeting: {
@@ -540,7 +554,7 @@
     },
     modal_awareness: {
       label:'Modal Awareness',
-      goal:'Each chord gets its own mode. Uses dom7 override so the scale audibly shifts per chord — bar 1 has Bb, bar 2 has F#, etc.',
+      goal:'Train your ear to follow the harmony: every chord is voiced as a dom7 so the chord-scale must shift dramatically from bar to bar, and you learn to HEAR the change and re-orient instantly. The skill is per-chord awareness — switching scale color the moment the chord moves, the foundation of playing the changes. (A deliberate ear-training exaggeration; for the true diatonic modes in context, use the modal vamps.)',
       scales:['major','dorian','phrygian','lydian','mixolydian','natural_minor','locrian'],
       tempoTiers:[60, 85, 105, 125],
       base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', chordDepth:'seventh', chordOverride:'dom7', progression:'diatonic', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
@@ -548,15 +562,439 @@
     },
     diatonic_triad_drill: {
       label:'Diatonic Triad Drill',
-      goal:'Triad arpeggio of every diatonic chord, in order. The 7-chord lap.',
+      goal:'Build the triad of every chord in the key, in order — the 7-chord lap. The skill is spelling each diatonic chord as an arpeggio and hearing the qualities change (minor, diminished, major…). This is how a scale becomes chord tones — the foundation of arpeggio soloing, and the entry to the Triads ladder.',
       scales:['natural_minor','major','harmonic_minor','melodic_minor'],
       tempoTiers:[70, 100, 120, 144],
       base:{ practiceType:'diatonic_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
       vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'G' }, { key:'C', shape:'A' } ]
     },
+    // ── Triad Mastery ladder (Concepts family) ──────────────────────────────────
+    // A "concept ladder": one skill sequenced easy→mastery (inversions → positions →
+    // over changes → pairs), a VERTICAL column through difficulty vs the Core bands'
+    // horizontal staircase. ~80% curation of existing arpeggio generators; the
+    // differentiating rung (upper-structure triad over a moving bass) is the queued
+    // new generator — see docs/triad-mastery-ladder.md. Reviewed: guitar-pedagogy +
+    // harmony-theory (2026-06-03). Each goal-card NAMES the transferable skill.
+    triad_inversions: {
+      label:'Triad Inversions',
+      goal:"The three inversions of a triad in one place — root position (1-3-5), first (3-5-1), second (5-1-3). The skill is hearing which chord tone is on TOP and recognizing the same triad in three shapes. This is how you find a chord anywhere on the neck and voice-lead smoothly between changes.",
+      scales:['major','natural_minor'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'arpeggio_inversions', scale:'major', chordDepth:'triad', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:7 },
+      vary:[ { key:'C', scale:'major' }, { key:'A', scale:'natural_minor' }, { key:'G', scale:'major' }, { key:'E', scale:'natural_minor' }, { key:'D', scale:'major' } ]
+    },
+    triad_five_shapes: {
+      label:'Triads Across the Neck',
+      goal:'The same triads, five positions. Walk the diatonic triads through each CAGED shape so you see a chord in every region of the neck — a triad is the top three strings of the barre chord you already know. Connect the shapes and the whole fretboard opens up.',
+      scales:['major','natural_minor','dorian'],
+      tempoTiers:[70, 95, 115, 140],
+      base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'triad', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:95, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', shape:'C' },
+      vary:[ { key:'C', shape:'C' }, { key:'C', shape:'A' }, { key:'C', shape:'G' }, { key:'C', shape:'E' }, { key:'C', shape:'D' } ]
+    },
+    triads_over_changes: {
+      label:'Triads Over Changes',
+      goal:'Now use them: outline each chord with its triad as the progression moves (I-V-vi-IV). Land on the nearest inversion instead of jumping back to the root every bar — the start of real voice-leading. Triads are the skeleton under every solo and comp.',
+      scales:['major','natural_minor'],
+      tempoTiers:[70, 95, 115, 140],
+      base:{ practiceType:'progression_arpeggios', scale:'major', chordDepth:'triad', chordOverride:'auto', progression:'I-V-vi-IV', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', shape:'C' },
+      vary:[ { key:'C', progression:'I-V-vi-IV' }, { key:'C', progression:'I-IV-V' }, { key:'G', progression:'I-V-vi-IV' }, { key:'A', progression:'vi-IV-I-V' }, { key:'D', progression:'I-vi-IV-V' } ]
+    },
+    triad_pairs: {
+      label:'Triad Pairs',
+      goal:'Two triads a step apart, superimposed over one chord — six scale tones, the modern fusion / Lydian sound (C + D triads over Cmaj = the bright ♯11 color). A triad pair is an instant, symmetrical lead vocabulary you can sequence to sound sophisticated fast.',
+      scales:['major','lydian','dorian'],
+      tempoTiers:[70, 95, 115, 140],
+      base:{ practiceType:'triadic_pairs', scale:'major', chordDepth:'triad', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:9 },
+      vary:[ { key:'C', scale:'major' }, { key:'C', scale:'lydian' }, { key:'D', scale:'dorian' }, { key:'G', scale:'major' }, { key:'F', scale:'lydian' } ]
+    },
+    // ── Guide-Tones & Voice-Leading ladder (Concepts family) ────────────────────
+    // The single highest-value harmony ladder (harmony-theory): changes are LINES,
+    // not boxes — the 3rd/7th skeleton + nearest-tone voice leading through a tune.
+    // Pure curation (shell_voicings → guide_tones → chord_scales/Connect). Reviewed
+    // by harmony-theory (2026-06-03). See docs/triad-mastery-ladder.md (concept-ladder pattern).
+    vl_shells: {
+      label:'Shell Voicings',
+      goal:'Three notes spell a chord: root, 3rd, 7th. Comp a ii–V–I with just those shells and you have the skeleton of jazz rhythm guitar — economical, voice-led, no mud. The 3rd and 7th carry the sound; the root only names it.',
+      scales:['major'],
+      tempoTiers:[55, 75, 95, 115],
+      base:{ practiceType:'shell_voicings', scale:'major', progression:'ii-V-I', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'quarter', bpm:75, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:9 },
+      vary:[ { key:'C' }, { key:'F' }, { key:'G' }, { key:'Bb' }, { key:'D' } ]
+    },
+    vl_guide_tones: {
+      label:'Guide-Tone Lines',
+      goal:'Drop the root and keep only the 3rd and 7th — the two notes that move the least and say the most. Through a ii–V–I they voice-lead by half-steps (the ♭7→3 resolution is the engine of the cadence). Two notes per chord, and you hear the changes.',
+      scales:['major','dorian','mixolydian'],
+      tempoTiers:[55, 75, 95, 115],
+      base:{ practiceType:'guide_tones', scale:'major', progression:'ii-V-I', chordDepth:'seventh', voices:'both_alternating', meter:'4/4', subdivision:'quarter', bpm:75, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', shape:'E' },
+      vary:[ { voices:'thirds_only' }, { voices:'sevenths_only' }, { voices:'both_alternating' }, { key:'F' }, { key:'Bb' } ]
+    },
+    vl_guide_changes: {
+      label:'Guide Tones Through Changes',
+      goal:'Take the guide-tone line off the single cadence and through a full progression (vi–ii–V–I, then the Rhythm-Changes A section). Same skill — nearest-tone voice leading — sustained across a tune. This is what makes a solo or comp follow the changes instead of running scales over them.',
+      scales:['major','dorian'],
+      tempoTiers:[55, 75, 95, 115],
+      base:{ practiceType:'guide_tones', scale:'major', progression:'vi-ii-V-I', chordDepth:'seventh', voices:'both_alternating', meter:'4/4', subdivision:'quarter', bpm:75, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', shape:'E' },
+      vary:[ { progression:'vi-ii-V-I' }, { progression:'rhythm_changes_a' }, { key:'F', progression:'vi-ii-V-I' }, { key:'Bb', progression:'rhythm_changes_a' }, { key:'G', progression:'vi-ii-V-I' } ]
+    },
+    vl_connect: {
+      label:'Connect the Changes',
+      goal:"Apply it as a line: run each chord's scale, but instead of restarting on the root every bar, land on the nearest guide tone (3rd or 7th) of the NEXT chord. That one habit — aim for the guide tone across the bar line — is what \"playing the changes\" means. The scale becomes a melody that follows the harmony.",
+      scales:['major','dorian','mixolydian'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', progression:'ii-V-I', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', swing:'swing', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:7 },
+      vary:[ { progression:'ii-V-I' }, { progression:'vi-ii-V-I' }, { key:'F', progression:'ii-V-I' }, { key:'G', progression:'I-V-vi-IV' }, { key:'Bb', progression:'vi-ii-V-I' } ]
+    },
+    // ── Arpeggio Mastery ladder (Concepts family) ───────────────────────────────
+    // The arpeggio-spelling spine (harmony-theory): seventh arps → inversions → over
+    // changes → swept application. Bridges Triads (below) and Guide-Tones (above).
+    // Pure curation. Reviewed by harmony-theory + guitar-pedagogy (2026-06-03).
+    arp_seventh_shapes: {
+      label:'Seventh Arpeggios',
+      goal:'Spell every diatonic seventh chord as an arpeggio — maj7, m7, dom7, m7♭5 — and find each in the CAGED shapes. A seventh arpeggio is the chord laid out one note at a time; learn the shapes and you can outline any chord anywhere on the neck.',
+      scales:['major','natural_minor','dorian'],
+      tempoTiers:[65, 90, 110, 130],
+      base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', shape:'E' },
+      vary:[ { shape:'E' }, { shape:'A' }, { shape:'G' }, { shape:'C' }, { shape:'D' } ]
+    },
+    arp_inversions: {
+      label:'Arpeggio Inversions',
+      goal:'The same seventh chord, started from each chord tone: root, 3rd, 5th, 7th. Inversions let you connect arpeggios up the neck and begin a line on any note — the difference between a stiff up-and-down arpeggio and one that flows into the next chord.',
+      scales:['major','natural_minor'],
+      tempoTiers:[60, 85, 105, 125],
+      base:{ practiceType:'arpeggio_inversions', scale:'major', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:8 },
+      vary:[ { key:'C', scale:'major' }, { key:'A', scale:'natural_minor' }, { key:'G', scale:'major' }, { key:'D', scale:'major' }, { key:'E', scale:'natural_minor' } ]
+    },
+    arp_over_changes: {
+      label:'Arpeggios Over Changes',
+      goal:"Outline a progression: play each chord's arpeggio as the changes move (ii–V–I, then vi–ii–V–I). Chasing the arpeggio of the moment is the most direct way to spell the harmony in a solo — every note is a chord tone, so you're never wrong, only more or less melodic.",
+      scales:['major','dorian'],
+      tempoTiers:[65, 90, 110, 130],
+      base:{ practiceType:'progression_arpeggios', scale:'major', chordDepth:'seventh', chordOverride:'auto', progression:'ii-V-I', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', shape:'E' },
+      vary:[ { progression:'ii-V-I' }, { progression:'vi-ii-V-I' }, { key:'F', progression:'ii-V-I' }, { key:'G', progression:'I-V-vi-IV' }, { key:'A', progression:'vi-IV-I-V' } ]
+    },
+    arp_sweeps: {
+      label:'Sweep Arpeggios',
+      goal:'The fast application: one chord tone per string, raked low-to-high with a hammer/pull turnaround at the apex, then back down. Sweep picking turns the arpeggio into a fluid cascade. Start slow — sweeps reward clean string-muting and hand-sync over speed.',
+      scales:['natural_minor','harmonic_minor','major'],
+      tempoTiers:[50, 65, 80, 100],
+      base:{ practiceType:'sweep_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:65, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'A', shape:'A' }, { key:'D', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'G' } ]
+    },
+    // ── Fretboard Freedom ladder (Concepts family) ──────────────────────────────
+    // The fretboard-mastery vertical (learning-design's "#1 player ask"): one box →
+    // CAGED links → position shifts → 3NPS → whole-neck. Pure curation (scale across
+    // fretboardSystems + position_shift). Difficulty axis = spatial coverage, not tempo.
+    fb_one_box: {
+      label:'One Box',
+      goal:'Own one box cold. The major scale in a single CAGED position — the same five-fret zone in every key. Before you connect the neck you need one shape so automatic you can solo in it without looking. The foundation the whole map is built on.',
+      scales:['major','natural_minor','minor_pentatonic'],
+      tempoTiers:[60, 85, 105, 130],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', shape:'E' },
+      vary:[ { key:'C', shape:'E' }, { key:'A', shape:'E' }, { key:'G', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' } ]
+    },
+    fb_caged_links: {
+      label:'CAGED Links',
+      goal:'Connect the boxes. The same major scale through all five CAGED shapes in one key — E, A, G, C, D — overlapping zones that cover the neck. The skill is seeing where one shape ends and the next begins, so the scale stops being a box and becomes a continuum.',
+      scales:['major','natural_minor','minor_pentatonic'],
+      tempoTiers:[60, 85, 105, 130],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', shape:'E' },
+      vary:[ { shape:'E' }, { shape:'A' }, { shape:'G' }, { shape:'C' }, { shape:'D' } ]
+    },
+    fb_position_shifts: {
+      label:'Position Shifts',
+      goal:'Move between zones smoothly. A run that deliberately shifts position mid-phrase — slide a finger to the next region instead of staying boxed in. Clean position shifts are how a solo travels the neck without a seam.',
+      scales:['major','natural_minor','minor_pentatonic'],
+      tempoTiers:[60, 85, 105, 130],
+      base:{ practiceType:'position_shift', scale:'major', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:5 },
+      vary:[ { key:'C', fretMin:0, fretMax:5 }, { key:'G', fretMin:2, fretMax:7 }, { key:'A', fretMin:4, fretMax:9 }, { key:'E', fretMin:0, fretMax:5 }, { key:'D', fretMin:2, fretMax:7 } ]
+    },
+    fb_3nps: {
+      label:'Three Notes Per String',
+      goal:'Three notes per string — the seven modal positions that make fast legato and alternate-picked runs flow. The even three-per-string layout is the shred system: each position is one mode, and they tile the whole neck.',
+      scales:['major','natural_minor','dorian'],
+      tempoTiers:[65, 90, 110, 135],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'3nps', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', shape:1 },
+      vary:[ { shape:1 }, { shape:2 }, { shape:3 }, { shape:5 }, { shape:7 } ]
+    },
+    fb_whole_neck: {
+      label:'Whole-Neck Freedom',
+      goal:'Stop thinking in boxes at all. The full-neck map shows every note in the key from the nut to the top — one connected field. The endgame: find any key by feel anywhere, connect zones without seams, and play the whole fretboard as one instrument.',
+      scales:['major','natural_minor','minor_pentatonic'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'full_neck', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C' },
+      vary:[ { key:'C' }, { key:'G' }, { key:'A' }, { key:'E' }, { key:'D' } ]
+    },
+    // ── Expression ladder (Concepts family) ─────────────────────────────────────
+    // The "make a note SING" vertical (guitar-pedagogy #1): vibrato → half-bend →
+    // whole-bend → mixed. Difficulty axis = pitch CONTROL/accuracy, not tempo (so
+    // tempo tiers stay slow). Pure curation (vibrato + bending bendTarget). The
+    // unison/oblique + microbend rungs (a 2-note bend param) are a queued follow-on.
+    exp_vibrato: {
+      label:'Vibrato',
+      goal:'Make a fretted note sing. Controlled vibrato — even width, even speed, returning to pitch — is the difference between a dead note and a vocal one. Start wide and slow; the control is the skill, and it carries every other expressive move.',
+      scales:['minor_pentatonic','blues','major_pentatonic','major'],
+      tempoTiers:[45, 60, 75, 90],
+      base:{ practiceType:'vibrato', scale:'minor_pentatonic', meter:'4/4', subdivision:'quarter', bpm:55, bars:8, direction:'up_down', sequence:'none', advancedMode:false, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'A' } ]
+    },
+    exp_bend_half: {
+      label:'Half-Step Bends',
+      goal:"The smaller bend, the harder ear. Half-step bends cover the least distance, so intonation is unforgiving — push to exactly a half step and hold it. If you can hear when you're sharp on a half-step bend, every bigger bend gets easier.",
+      scales:['minor_pentatonic','blues','major_pentatonic'],
+      tempoTiers:[50, 65, 80, 95],
+      base:{ practiceType:'bending', bendTarget:'half', scale:'minor_pentatonic', meter:'4/4', subdivision:'quarter', bpm:55, bars:8, direction:'up_down', advancedMode:false, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'A' } ]
+    },
+    exp_bend_whole: {
+      label:'Whole-Step Bends',
+      goal:'The staple of blues and rock. Whole-step bends on the top three strings — push up a full tone, land dead in tune, hold, listen. Consistent intonation is the entire point; speed and showmanship come after the pitch is reliable.',
+      scales:['minor_pentatonic','blues','major_pentatonic'],
+      tempoTiers:[50, 65, 80, 95],
+      base:{ practiceType:'bending', bendTarget:'whole', scale:'minor_pentatonic', meter:'4/4', subdivision:'quarter', bpm:55, bars:8, direction:'up_down', advancedMode:false, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'A' } ]
+    },
+    exp_bend_mixed: {
+      label:'Mixed Bends',
+      goal:"Now discriminate. Half- and whole-step bends interleaved — your hand has to know which distance it's pushing before it pushes. Mixing the two trains the muscle memory that makes bends land in tune every time, not just when you're thinking about it.",
+      scales:['minor_pentatonic','blues','major_pentatonic'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'bending', bendTarget:'mixed', scale:'minor_pentatonic', meter:'4/4', subdivision:'quarter', bpm:60, bars:8, direction:'up_down', advancedMode:false, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'A' } ]
+    },
+    // ── BLUES genre ladder (deepens the style_blues pack) ───────────────────────
+    // Genre ladder = the APPLICATION layer (vocabulary→technique→application→improv)
+    // in the blues accent. Blues is the LEAST backing-gated genre (the boogie/shuffle
+    // backing is built). Reviewed by blues-idiom-architect (2026-06-03). The turnaround
+    // rung (bars 11-12) is DEFERRED — needs a turnaround-figure token (backing-engine).
+    blues_box: {
+      label:'The Box & the Blue Note',
+      goal:'Minor-pentatonic box 1 with the ♭5 blue note added, ridden over a 12-bar shuffle. The ♭5 is a passing target, not a landing — brush it and resolve up to the 5th. Get the shape automatic over the groove before you try to say anything with it. The home base of every blues solo.',
+      scales:['blues','minor_pentatonic'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'scale', scale:'blues', meter:'4/4', subdivision:'eighth', bpm:70, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7', backingStyle:'boogie', swing:'shuffle', audioProfile:'blues', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' }, { key:'D', shape:'E' } ]
+    },
+    blues_bends: {
+      label:'Bends & Vibrato — the Cry',
+      goal:'The pitches blues lives on: the ♭3→3 curl, the whole-step cry, wide slow vibrato. Bend up to the target and HOLD it in tune; let the note shake. This is where scale tones become speech — a blues player is recognized by their bends and vibrato before their notes.',
+      scales:['blues','minor_pentatonic'],
+      tempoTiers:[50, 65, 80, 95],
+      base:{ practiceType:'bending', bendTarget:'mixed', scale:'minor_pentatonic', meter:'4/4', subdivision:'quarter', bpm:60, bars:12, direction:'up_down', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordOverride:'dom7', backingStyle:'boogie', swing:'shuffle', audioProfile:'blues', key:'A', shape:'E' },
+      vary:[ { bendTarget:'whole' }, { bendTarget:'half' }, { bendTarget:'mixed' }, { key:'E', bendTarget:'mixed' }, { key:'G', bendTarget:'whole' } ]
+    },
+    blues_call_response: {
+      label:'Call & Response',
+      goal:'The conversation at the heart of the blues: a 2-bar phrase that asks, then space, then an answer that resolves. Play the call, leave the rest — the silence is the phrasing. Learn to ask and answer with the same three notes and you are playing blues, not running a scale.',
+      scales:['blues','minor_pentatonic','major_pentatonic'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'call_response', scale:'blues', meter:'4/4', subdivision:'eighth', bpm:75, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordOverride:'dom7', backingStyle:'boogie', swing:'shuffle', audioProfile:'blues', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'A' }, { key:'D', shape:'E' } ]
+    },
+    blues_mix: {
+      label:'Major / Minor Mix',
+      goal:'The sound of the pros: slipping between minor and major pentatonic over the same blues — the gritty ♭3 over the IV, the sweet major 6th over the I. Mixing the two boxes is what gives blues-rock and Texas blues its vocal, three-dimensional sound.',
+      scales:['major_pentatonic','minor_pentatonic','blues'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'scale', scale:'major_pentatonic', meter:'4/4', subdivision:'eighth', bpm:85, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7', backingStyle:'boogie', swing:'shuffle', audioProfile:'blues', key:'A', shape:'E' },
+      vary:[ { scale:'major_pentatonic' }, { scale:'minor_pentatonic' }, { scale:'blues' }, { key:'E', scale:'major_pentatonic' }, { key:'G', scale:'minor_pentatonic' } ]
+    },
+    // ── ROCK genre ladder (new style_rock pack) ─────────────────────────────────
+    // Classic/hard/alt rock (Metal already has its own pack). The APPLICATION layer:
+    // power-chord drive → pentatonic lead → double-stops → riff-building → ♭VII changes.
+    // Fully buildable on existing generators; the FEEL ceiling is the backing rebuild
+    // (pad, not a rhythm-guitar). Reviewed by rock-idiom-architect (2026-06-03).
+    rock_power_backbeat: {
+      label:'Power Chords & the Backbeat',
+      goal:'The engine of rock: root-5th power chords strummed through a three-chord change, locked to the backbeat. The skill is changing shapes cleanly in time and driving the 2-and-4 — the rhythm guitar every rock song is built on, before a single note of lead.',
+      scales:['major','natural_minor','minor_pentatonic'],
+      tempoTiers:[70, 95, 115, 140],
+      base:{ practiceType:'strum_comp', scale:'major', chordDepth:'triad', chordOverride:'5', progression:'I-IV-V', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'E', shape:'E' },
+      vary:[ { progression:'I-IV-V' }, { progression:'I-V-vi-IV', key:'G' }, { progression:'i-VII-VI-VII', scale:'natural_minor' }, { progression:'vi-IV-I-V', key:'A' }, { progression:'I-IV-V', key:'A' } ]
+    },
+    rock_pentatonic: {
+      label:'The Pentatonic Box',
+      goal:"Home territory for rock lead — minor pentatonic box 1, then the blues scale's ♭5 color, over a I-IV-V. Every classic rock solo lives here. Own the box cold so your hands are free to phrase, not hunt for notes.",
+      scales:['minor_pentatonic','blues','major_pentatonic'],
+      tempoTiers:[70, 95, 115, 140],
+      base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:95, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'I-IV-V', chordDepth:'triad', chordOverride:'auto', key:'E', shape:'E' },
+      vary:[ { scale:'minor_pentatonic' }, { scale:'blues' }, { key:'A', scale:'minor_pentatonic' }, { key:'G', scale:'blues' }, { key:'D', scale:'minor_pentatonic' } ]
+    },
+    rock_lead_vocab: {
+      label:'Double-Stops & Twin Leads',
+      goal:'The harmony move that defines rock lead: double-stops in 3rds and 6ths, and harmonized twin-guitar lines. Two notes at once turn a single-line solo into a part. (For bends and vibrato, drill the Expression ladder — they pair directly with this.)',
+      scales:['major','mixolydian','natural_minor'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'scale_thirds', scale:'major', harmonize:true, meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'I-IV-V', chordDepth:'triad', chordOverride:'auto', key:'A', shape:'E' },
+      vary:[ { key:'A' }, { key:'G' }, { key:'E', scale:'mixolydian' }, { key:'D' }, { key:'A', scale:'mixolydian' } ]
+    },
+    rock_pedal_riff: {
+      label:'Riff-Building with Pedal Tones',
+      goal:'Where rock becomes architecture: a low pedal tone alternating with power-chord stabs, looser than a metal gallop, locked to the backbeat. The skill is building a RIFF — a repeating rhythmic-harmonic hook — not running a scale. The DNA of the rock song.',
+      scales:['natural_minor','minor_pentatonic'],
+      tempoTiers:[70, 90, 110, 130],
+      base:{ practiceType:'pedal_riff', harmonize:false, scale:'natural_minor', key:'E', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'i-VII-VI-VII', chordOverride:'5', swing:'straight', fretMin:0, fretMax:7 },
+      vary:[ { progression:'i-VII-VI-VII' }, { progression:'mixolydian_rock', scale:'mixolydian' }, { progression:'i-VI-III-VII' }, { progression:'I-IV-V', scale:'major', key:'A' }, { progression:'i-VII-VI-VII', key:'A' } ]
+    },
+    rock_classic_changes: {
+      label:'Classic-Rock Changes',
+      goal:'The harmonic fingerprint of classic rock — the I-♭VII-IV "train" cadence and the i-♭VII-♭VI minor loop — and soloing over them. Run the pentatonic/Mixolydian over the changes, landing chord tones as the progression moves. The ♭VII is the sound that separates rock from pop.',
+      scales:['mixolydian','minor_pentatonic','natural_minor'],
+      tempoTiers:[70, 95, 115, 140],
+      base:{ practiceType:'chord_scales', chordScaleStrategy:'chord_tone_emphasis', scale:'mixolydian', chordDepth:'triad', chordOverride:'auto', progression:'mixolydian_rock', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'E', fretMin:0, fretMax:9 },
+      vary:[ { progression:'mixolydian_rock', scale:'mixolydian' }, { progression:'i-VII-VI-VII', scale:'natural_minor' }, { progression:'I-V-vi-IV', scale:'major', key:'G' }, { progression:'mixolydian_rock', key:'A' }, { progression:'i-VI-III-VII', scale:'natural_minor' } ]
+    },
+    // ── COUNTRY genre ladder (deepens the style_country pack) ────────────────────
+    // Reviewed by country-idiom-architect (2026-06-03). major_pent_country is reused
+    // as rung 1. The chicken-pickin' "cluck" (an mt ghost) + true oblique double-stop
+    // bends are flagged as deferred technique/backing-engine enhancements.
+    country_cowboy_changes: {
+      label:'Cowboy Changes',
+      goal:'Open-position G, C, and D changes strummed in time — the rhythm-guitar bedrock of country. The skill is changing the open "cowboy" chords cleanly on the beat and hearing the I-IV-V root motion. Every country song lives on these three chords.',
+      scales:['major'],
+      tempoTiers:[70, 95, 115, 140],
+      base:{ practiceType:'strum_comp', scale:'major', chordDepth:'triad', chordOverride:'auto', progression:'I-IV-V', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E' },
+      vary:[ { progression:'I-IV-V' }, { progression:'I-V-vi-IV' }, { key:'A', progression:'I-IV-V' }, { key:'D', progression:'I-IV-V' }, { key:'C', progression:'I-V-vi-IV' } ]
+    },
+    country_double_stops: {
+      label:'Double-Stops in 3rds & 6ths',
+      goal:'The two-note country lead: diatonic double-stops in 6ths (and 3rds) sliding along the string pairs — the pedal-steel and Telecaster sound. Two notes at once turn a single line into a country part. This is the move that makes it sound country, not just major pentatonic.',
+      scales:['major','major_pentatonic'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'scale_sixths', scale:'major', harmonize:true, progression:'I-IV-V', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E' },
+      vary:[ { key:'G' }, { key:'A' }, { key:'D' }, { key:'C' }, { key:'E' } ]
+    },
+    country_chicken_pickin: {
+      label:"Chicken Pickin'",
+      goal:'The percussive country attack: flatpick the low note, snap the high note with your middle finger (hybrid picking). The skill is the pop-and-snap that drives a country lead. (The signature muted "cluck" ghost note is a backing-engine/technique enhancement still to come — for now, drill the pick-and-pluck coordination.)',
+      scales:['major_pentatonic','major','mixolydian'],
+      tempoTiers:[75, 95, 115, 135],
+      base:{ practiceType:'hybrid_picking', scale:'major_pentatonic', progression:'I-IV-V', meter:'4/4', subdivision:'eighth', bpm:95, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E' },
+      vary:[ { key:'G', shape:'E' }, { key:'A', shape:'E' }, { key:'D', shape:'E' }, { scale:'mixolydian', key:'G' }, { key:'C', shape:'E' } ]
+    },
+    country_pedal_bends: {
+      label:'Pedal-Steel Bends',
+      goal:'Mimic the pedal steel: slow, controlled bends that ease up into pitch. Country bends are about smooth, vocal intonation, not the aggressive blues-rock push — land the note dead in tune and let it sit. (True oblique double-stop bends, one voice bending while another holds, are a technique enhancement still to come.)',
+      scales:['major_pentatonic','major'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'bending', bendTarget:'mixed', scale:'major_pentatonic', meter:'4/4', subdivision:'quarter', bpm:65, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E' },
+      vary:[ { bendTarget:'whole' }, { bendTarget:'half' }, { bendTarget:'mixed' }, { key:'A' }, { key:'D' } ]
+    },
+    country_train: {
+      label:'The Train & Soloing',
+      goal:'The ♭VII "train" change — the I-♭VII-IV move that gives country-rock its drive — and soloing over it. Run major pentatonic and Mixolydian over the changes, landing chord tones as the ♭VII passes. The ♭VII is the chord that turns country into Southern rock.',
+      scales:['mixolydian','major_pentatonic','major'],
+      tempoTiers:[80, 100, 120, 145],
+      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'mixolydian', chordDepth:'triad', chordOverride:'auto', progression:'mixolydian_rock', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', fretMin:0, fretMax:9 },
+      vary:[ { progression:'mixolydian_rock' }, { progression:'I-IV-V', scale:'major_pentatonic' }, { key:'A', progression:'mixolydian_rock' }, { key:'D', progression:'I-V-vi-IV', scale:'major' }, { progression:'mixolydian_rock', key:'E' } ]
+    },
+    // ── RHYTHM / TIME concept ladder (new concept_rhythm pack) ───────────────────
+    // The time/pocket spine — learning-design's #2 underserved gap. Instrument-AGNOSTIC
+    // generators (scale + rhythmic_displacement work on guitar AND bass — set the string
+    // setup). Difficulty axis = subdivision/feel control, not pitch. Pure curation.
+    rhy_subdivision: {
+      label:'Subdivisions',
+      goal:'The grid under everything: play one scale at each subdivision — quarters, eighths, triplets, sixteenths — staying dead even as they get faster. The skill is internalizing the divisions of the beat so your time is a grid you trust, not a guess. The foundation of every groove.',
+      scales:['minor_pentatonic','major','dorian'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { subdivision:'quarter' }, { subdivision:'eighth' }, { subdivision:'triplet' }, { subdivision:'sixteenth' }, { subdivision:'eighth', sequence:'fours' } ]
+    },
+    rhy_sixteenth: {
+      label:'The 16th Pocket',
+      goal:'Four even sixteenths per beat — the resolution where funk, R&B, and modern rhythm live. Accent the downbeat of each four, keep the rest even and relaxed. The skill is a sixteenth-note pulse you can sit in without rushing or dragging.',
+      scales:['minor_pentatonic','dorian','blues'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'sixteenth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { sequence:'none' }, { sequence:'fours' }, { key:'G', scale:'major' }, { key:'E' }, { key:'D', scale:'dorian' } ]
+    },
+    rhy_swing: {
+      label:'Swing & Shuffle',
+      goal:'Same notes, different feel: play a line straight, then swing the eighths, then push to a hard triplet shuffle. Hearing and switching between straight and swung time is a feel skill that unlocks jazz, blues, and half of pop. The pocket is in the ratio.',
+      scales:['minor_pentatonic','major','dorian'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', swing:'straight', key:'A', shape:'E' },
+      vary:[ { swing:'straight' }, { swing:'swing' }, { swing:'shuffle' }, { swing:'swing', key:'E' }, { swing:'shuffle', scale:'blues' } ]
+    },
+    rhy_displacement: {
+      label:'Displacement & Syncopation',
+      goal:'Break the grid on purpose: start the pattern off the downbeat and let the accents land between the beats. Rhythmic displacement and syncopation are what make a part feel like a groove instead of an exercise — the push and pull that pulls a listener in.',
+      scales:['minor_pentatonic','dorian','major'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'rhythmic_displacement', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { subdivision:'sixteenth' }, { key:'D', scale:'dorian' }, { key:'G', scale:'major' } ]
+    },
+    rhy_odd_meter: {
+      label:'Odd Meters',
+      goal:"Feel a bar that isn't four: 7/8 grouped 2+2+3, then 5/8 and other odd meters. Count the groups, lock to the uneven pulse, and a meter that felt impossible becomes a groove. Odd time is the gateway to prog, math rock, and a deeper command of the beat. (Added per the rhythm-meter audit — reuses the existing odd/grouping-meter engine.)",
+      scales:['minor_pentatonic','dorian','phrygian'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'7/8:2+2+3', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { meter:'7/8:2+2+3' }, { meter:'5/8:3+2' }, { meter:'7/8:3+2+2' }, { meter:'5/8:2+3' }, { meter:'6/8:3+3' } ]
+    },
+    // ── PICKING concept ladder (new concept_picking pack) ───────────────────────
+    // The pick-hand engine (guitar-pedagogy #2). Difficulty axis = coordination/crossing,
+    // tempo last. Pure curation (tremolo_picking, scale, string_skipping, hybrid_picking).
+    pick_tremolo: {
+      label:'Tremolo Picking',
+      goal:'The pick-hand engine: rapid alternate picking on a single note, kept even and relaxed. Tremolo builds the speed, endurance, and wrist motion every fast passage rides on. Start slow — evenness first, speed second; tension is the enemy.',
+      scales:['minor_pentatonic','natural_minor','harmonic_minor'],
+      tempoTiers:[70, 95, 120, 150],
+      base:{ practiceType:'tremolo_picking', scale:'minor_pentatonic', meter:'4/4', subdivision:'sixteenth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { scale:'natural_minor' }, { key:'D', shape:'E' }, { scale:'harmonic_minor', key:'A' } ]
+    },
+    pick_alternate: {
+      label:'Alternate Across Strings',
+      goal:'Strict alternate picking through a scale — down-up-down-up across string changes. The hard part is the crossing: keeping the pattern unbroken as the pick moves to a new string. This is the picking discipline that makes scale runs clean at speed.',
+      scales:['major','natural_minor','minor_pentatonic'],
+      tempoTiers:[65, 90, 115, 140],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'sixteenth', bpm:85, bars:8, direction:'up_down', sequence:'fours', advancedMode:true, fretboardSystem:'3nps', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', shape:1 },
+      vary:[ { sequence:'fours' }, { sequence:'none' }, { shape:2 }, { sequence:'triplets', subdivision:'triplet' }, { shape:3 } ]
+    },
+    pick_string_skip: {
+      label:'String Skipping',
+      goal:'Skip a string mid-run — the pick has to clear the string between, and the fretting hand has to leap. String skipping builds picking accuracy and the wide-interval vocabulary that makes a line sound less scalar and more angular.',
+      scales:['major','minor_pentatonic','natural_minor'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'string_skipping', scale:'major', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', shape:'E' },
+      vary:[ { key:'C', shape:'E' }, { key:'A', scale:'minor_pentatonic' }, { key:'G', shape:'E' }, { key:'E', scale:'natural_minor' }, { key:'D', shape:'E' } ]
+    },
+    pick_hybrid: {
+      label:'Hybrid Picking',
+      goal:"Pick and fingers together: the flatpick plays the low note, the middle and ring fingers pluck the higher strings. Hybrid picking unlocks wide string-spanning licks, snappy double-stops, and the country/fusion vocabulary you can't get with a pick alone.",
+      scales:['major','major_pentatonic','mixolydian'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'hybrid_picking', scale:'major', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E' },
+      vary:[ { key:'G', shape:'E' }, { key:'C', shape:'E' }, { scale:'major_pentatonic' }, { key:'A', scale:'mixolydian' }, { key:'D', shape:'E' } ]
+    },
+    // ── LEGATO concept ladder (new concept_legato pack) ─────────────────────────
+    // The fretting-hand engine (guitar-pedagogy #3). Pure curation (legato, tapping).
+    leg_hopo: {
+      label:'Hammer-Ons & Pull-Offs',
+      goal:'The fretting hand making the sound: hammer onto a higher fret, pull off to a lower one, pick only the first note of each string. Clean, even slurs are the foundation of legato — the strength and independence that let a line flow instead of being picked note-for-note.',
+      scales:['natural_minor','minor_pentatonic','major'],
+      tempoTiers:[55, 75, 95, 115],
+      base:{ practiceType:'legato', scale:'natural_minor', meter:'4/4', subdivision:'eighth', bpm:75, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { scale:'minor_pentatonic' }, { key:'D', shape:'E' }, { key:'G', shape:'E' } ]
+    },
+    leg_runs: {
+      label:'Legato Runs (3NPS)',
+      goal:'Slurred runs across the neck — three-notes-per-string legato where you pick once per string and hammer/pull the rest. The 3NPS layout is built for this. The skill is endurance and evenness: a flowing, vocal line with no pick attack on every note.',
+      scales:['natural_minor','major','dorian'],
+      tempoTiers:[65, 90, 115, 140],
+      base:{ practiceType:'legato', scale:'natural_minor', meter:'4/4', subdivision:'sixteenth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'3nps', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:1 },
+      vary:[ { shape:1 }, { shape:2 }, { shape:3 }, { scale:'major', key:'C' }, { shape:5 } ]
+    },
+    leg_tapping: {
+      label:'Tapping',
+      goal:'The picking hand joins the fretting hand on the fingerboard — tap a high note, pull off to fretted notes below. Two-hand tapping extends legato past the stretch of one hand and opens the wide arpeggio cascades that define the technique.',
+      scales:['natural_minor','harmonic_minor','minor_pentatonic'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'tapping', scale:'natural_minor', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { scale:'harmonic_minor' }, { key:'D', shape:'E' }, { scale:'minor_pentatonic', key:'A' } ]
+    },
     seventh_vocab: {
       label:'Seventh Chord Vocabulary',
-      goal:'Diatonic seventh arpeggios in natural minor. One arpeggio per chord: m7, m7b5, maj7, m7, m7, maj7, dom7. Every diatonic seventh quality across the minor field.',
+      goal:'Every diatonic seventh chord as an arpeggio, in order: m7, m7♭5, maj7, m7, m7, maj7, dom7. The skill is hearing and fingering each seventh QUALITY in context — the four chord colors that make jazz, soul, and sophisticated harmony sound like themselves. The seventh is the chord\'s character; learn to spell it everywhere.',
       scales:['natural_minor','major','dorian','harmonic_minor'],
       tempoTiers:[65, 90, 110, 130],
       base:{ practiceType:'diatonic_arpeggios', scale:'natural_minor', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
@@ -564,15 +1002,15 @@
     },
     ii_V_I_workout: {
       label:'ii–V–I Workout',
-      goal:'The most common jazz cadence, run as scales over the changes. Mode-of-the-moment so Dorian / Mixolydian / Ionian land audibly.',
+      goal:'The most common cadence in jazz — ii–V–I — run by playing each chord\'s mode over the changes (Dorian → Mixolydian → Ionian). The skill is hearing the harmony move and switching scale color per chord — the first real step toward playing the changes instead of one scale over everything.',
       scales:['major','dorian','mixolydian','melodic_minor','bebop_major','bebop_dominant'],
       tempoTiers:[70, 100, 120, 144],
-      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', chordDepth:'seventh', chordOverride:'auto', progression:'ii-V-I', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
+      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', chordDepth:'seventh', chordOverride:'auto', progression:'ii-V-I', meter:'4/4', subdivision:'eighth', swing:'swing', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
       vary:[ { key:'C' }, { key:'F' }, { key:'Bb' }, { key:'G' }, { key:'D' }, { key:'A' } ]
     },
     harmonic_minor_exotic: {
       label:'Harmonic Minor Exotic',
-      goal:'Yngwie / flamenco flavor. Harmonic-minor scale, mode-of-the-moment, every chord is dom7 so each bar lands the raised 7th outside the key.',
+      goal:'The Yngwie / flamenco sound: harmonic minor over a minor progression, mode-of-the-moment with a dom7 on every chord so each bar lands the raised 7th — the leading tone that pulls outside the key. The skill is the exotic color and the V7→i resolution that defines neoclassical and Spanish playing.',
       scales:['harmonic_minor','phrygian_dominant','natural_minor'],
       tempoTiers:[70, 95, 115, 140],
       base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'harmonic_minor', chordDepth:'seventh', chordOverride:'dom7', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:110, bars:8, direction:'up_down', sequence:'fours', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
