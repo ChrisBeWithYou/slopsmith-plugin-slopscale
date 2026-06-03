@@ -1088,11 +1088,11 @@
       </div>
     </div>
     <!-- Four-mode shell switcher, now top-level nav in the header (Layout A).
-         Internal data-mode tokens stay stable (guided→Pathways, session→Workout)
-         so the existing selectMode/syncModeBar wiring is untouched. -->
+         Internal data-mode tokens stay stable (guided→Ladder [was Pathways],
+         session→Workout) so the existing selectMode/syncModeBar wiring is untouched. -->
     <div class="slopscale-header-modes">
       <div class="slopscale-mode-toggle slopscale-mode-bar" role="tablist" aria-label="Practice mode">
-        <button type="button" id="slopscale-mode-guided"  class="slopscale-mode-btn active" data-mode="guided"  role="tab" aria-selected="true"  title="Follow a guided curriculum">Pathways</button>
+        <button type="button" id="slopscale-mode-guided"  class="slopscale-mode-btn active" data-mode="guided"  role="tab" aria-selected="true"  title="Follow a guided curriculum">Ladder</button>
         <button type="button" id="slopscale-mode-custom"  class="slopscale-mode-btn" data-mode="custom"  role="tab" aria-selected="false" title="Drill the exact thing you're stuck on">Custom</button>
         <button type="button" id="slopscale-mode-session" class="slopscale-mode-btn" data-mode="session" role="tab" aria-selected="false" title="Build a timed routine — and actually run it">Workout</button>
         <button type="button" id="slopscale-mode-jam"     class="slopscale-mode-btn" data-mode="jam"     role="tab" aria-selected="false" title="Pick a style and play along on your instrument">Jam</button>
@@ -1101,7 +1101,7 @@
            (last in the degrade order — primary nav is protected longest). Synced by
            syncModeBar; switches via selectMode. Hidden until the edge breakpoint. -->
       <select id="slopscale-mode-select" class="slopscale-mode-select" aria-label="Practice mode">
-        <option value="guided">Pathways</option>
+        <option value="guided">Ladder</option>
         <option value="custom">Custom</option>
         <option value="session">Workout</option>
         <option value="jam">Jam</option>
@@ -1207,7 +1207,7 @@
       <!-- Single exercise mode — pathway + custom controls -->
       <div class="slopscale-single-only">
 
-      <div class="slopscale-group-title slopscale-pathway-only">Development Pathways</div>
+      <div class="slopscale-group-title slopscale-pathway-only">Skill Ladder</div>
       <!-- First-run primed primary action: ONE lit "▶ START" CTA naming the exercise
            + a short skill hook (market activation guardrail = exactly one lit primary,
            visible on first paint — so it sits above the picker). Starts the pathway
@@ -1259,8 +1259,8 @@
            below is shelved-but-kept for the future RPG view). Populated by
            renderPathwayList(): L1 band bar + L2 ordered, bounded list. -->
       <div id="slopscale-pathway-picker" class="slopscale-pathway-picker slopscale-pathway-only">
-        <div id="slopscale-band-bar" class="slopscale-band-bar" role="tablist" aria-label="Pathway band"></div>
-        <div id="slopscale-pathway-list" class="slopscale-pathway-list" role="listbox" aria-label="Pathways"></div>
+        <div id="slopscale-band-bar" class="slopscale-band-bar" role="tablist" aria-label="Ladder band"></div>
+        <div id="slopscale-pathway-list" class="slopscale-pathway-list" role="listbox" aria-label="Skill Ladder"></div>
         <!-- Goal caption — folded into the picker (was a separate bordered card below).
              The active row already names the pathway, so this shows the GOAL detail. -->
         <div class="slopscale-pathway-goal-card" id="slopscale-pathway-goal-card">

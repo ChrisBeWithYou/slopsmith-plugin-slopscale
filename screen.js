@@ -9618,7 +9618,7 @@
   // Four-mode shell metadata: data-mode token → { label, the forward-compat ss-mode-*
   // class suffix, and the "what is this mode" JTBD line under the switcher }.
   const MODE_META = {
-    guided:  { label:'Pathways', ss:'pathways', desc:'Follow a guided curriculum — we suggest what to work on next.' },
+    guided:  { label:'Ladder', ss:'pathways', desc:'Follow a guided curriculum — we suggest what to work on next.' },
     custom:  { label:'Custom',   ss:'custom',   desc:'Drill the exact thing you’re stuck on — every control is yours.' },
     session: { label:'Workout',  ss:'workout',  desc:'Build a timed practice routine — and actually run it.' },
     jam:     { label:'Jam',      ss:'jam',      desc:'Pick a style and play along on your instrument.' },
