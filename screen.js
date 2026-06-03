@@ -5293,22 +5293,28 @@
     const startIdx = Math.max(0, order.indexOf(cfg.key));
     const count = Math.max(2, Math.min(12, cfg.keyCycleLength || 4));
     const keys = Array.from({ length: count }, (_, i) => order[(startIdx + i) % order.length]);
-    const notes = [], chords = [], chordTemplates = [], handShapes = [], sections = [], anchors = [];
+    const notes = [], chords = [], chordTemplates = [], handShapes = [], sections = [], anchors = [], backingEvents = [];
     let t = 0, tplOffset = 0;
     for (const key of keys) {
       const kCfg = Object.assign({}, cfg, { key, keyCycle: 'none' });
       const chart = buildSingleChart(kCfg);
       const dur = Math.max(chart.duration || 0, cfg.bars * measureSeconds(kCfg));
+      // Per-KEY backing on THIS key — the cycle changes key, so a single-cfg backing
+      // would play the START key under every key. Build + swing in key-local time, then
+      // offset by t (the chart carries it; consumers don't re-build/re-swing).
+      const rawBack = buildBackingEvents(kCfg, dur).concat(buildDrumEvents(kCfg, dur, resolveGroove(kCfg)));
+      const sw = swingNotesBacking(chart.notes, rawBack, kCfg);
       sections.push({ name: key, number: sections.length + 1, time: Number(t.toFixed(6)) });
-      chart.notes.forEach(n => notes.push(Object.assign({}, n, { t: Number((n.t + t).toFixed(6)) })));
+      sw.notes.forEach(n => notes.push(Object.assign({}, n, { t: Number((n.t + t).toFixed(6)) })));
       chart.chords.forEach(c => chords.push(Object.assign({}, c, { t: Number((c.t + t).toFixed(6)), id: c.id + tplOffset })));
       chart.chordTemplates.forEach(ct => chordTemplates.push(ct));
       chart.handShapes.forEach(hs => handShapes.push(Object.assign({}, hs, { chord_id: hs.chord_id + tplOffset, start_time: Number((hs.start_time + t).toFixed(6)), end_time: Number((hs.end_time + t).toFixed(6)) })));
       (chart.anchors || []).forEach(a => anchors.push(Object.assign({}, a, { time: Number((a.time + t).toFixed(6)) })));
+      sw.backing.forEach(ev => backingEvents.push(Object.assign({}, ev, { t: Number((ev.t + t).toFixed(6)), end: Number((ev.end + t).toFixed(6)) })));
       tplOffset += chart.chordTemplates.length;
       t += dur;
     }
-    return { notes, chords, chordTemplates, handShapes, sections, anchors, duration: t };
+    return { notes, chords, chordTemplates, handShapes, sections, anchors, backingEvents, duration: t };
   }
 
   // ===========================================================================
@@ -5375,25 +5381,31 @@
   // concatenates the same exercise at stepping tempos with correct beat timing.
   function buildBpmLadderChart(segCfg, ladder) {
     const { bpmStart, bpmTarget, bpmStep, repsPerStep = 1 } = ladder;
-    const notes = [], chords = [], chordTemplates = [], handShapes = [], sections = [], anchors = [], beats = [];
+    const notes = [], chords = [], chordTemplates = [], handShapes = [], sections = [], anchors = [], beats = [], backingEvents = [];
     let t = 0, tplOffset = 0;
     for (let bpm = bpmStart; bpm <= bpmTarget + 0.001; bpm += bpmStep) {
       for (let r = 0; r < repsPerStep; r++) {
         const stepCfg = Object.assign({}, segCfg, { bpm, keyCycle:'none' });
         const chart = buildSingleChart(stepCfg);
         const dur = Math.max(chart.duration || 0, segCfg.bars * measureSeconds(stepCfg));
+        // Per-RUNG backing + swing on THIS rung's tempo — the ladder climbs tempo, so
+        // a single-cfg backing would drift off the accelerating notes. Build + swing in
+        // rung-local time, then offset by t (the chart carries it; consumers don't re-swing).
+        const rawBack = buildBackingEvents(stepCfg, dur).concat(buildDrumEvents(stepCfg, dur, resolveGroove(stepCfg)));
+        const sw = swingNotesBacking(chart.notes, rawBack, stepCfg);
         if (r === 0) sections.push({ name:`${Math.round(bpm)} BPM`, number:sections.length + 1, time:Number(t.toFixed(6)) });
-        chart.notes.forEach(n => notes.push(Object.assign({}, n, { t:Number((n.t + t).toFixed(6)) })));
+        sw.notes.forEach(n => notes.push(Object.assign({}, n, { t:Number((n.t + t).toFixed(6)) })));
         chart.chords.forEach(c => chords.push(Object.assign({}, c, { t:Number((c.t + t).toFixed(6)), id:c.id + tplOffset })));
         chart.chordTemplates.forEach(ct => chordTemplates.push(ct));
         chart.handShapes.forEach(hs => handShapes.push(Object.assign({}, hs, { chord_id:hs.chord_id + tplOffset, start_time:Number((hs.start_time + t).toFixed(6)), end_time:Number((hs.end_time + t).toFixed(6)) })));
         (chart.anchors || []).forEach(a => anchors.push(Object.assign({}, a, { time:Number((a.time + t).toFixed(6)) })));
         buildBeats(stepCfg, dur).forEach(b => beats.push(Object.assign({}, b, { time:Number((b.time + t).toFixed(6)) })));
+        sw.backing.forEach(ev => backingEvents.push(Object.assign({}, ev, { t:Number((ev.t + t).toFixed(6)), end:Number((ev.end + t).toFixed(6)) })));
         tplOffset += (chart.chordTemplates || []).length;
         t += dur;
       }
     }
-    return { notes, chords, chordTemplates, handShapes, sections, anchors, beats, duration:t };
+    return { notes, chords, chordTemplates, handShapes, sections, anchors, beats, backingEvents, duration:t };
   }
 
   // ── Right-sized finite runs (Depth Ladder slice 1) ──────────────────────────
@@ -5501,7 +5513,7 @@
     // targetSec is an exact multiple of cellDur (floating-point safe).
     const reps = Math.max(1, Math.ceil((targetSec - 1e-6) / cellDur));
     if (reps === 1) return chart;
-    const notes = [], chords = [], handShapes = [], anchors = [], sections = [], beats = [];
+    const notes = [], chords = [], handShapes = [], anchors = [], sections = [], beats = [], backingEvents = [];
     for (let r = 0; r < reps; r++) {
       const off = r * cellDur;
       (chart.notes || []).forEach(n => notes.push(Object.assign({}, n, { t: Number((n.t + off).toFixed(6)) })));
@@ -5510,10 +5522,12 @@
       (chart.anchors || []).forEach(a => anchors.push(Object.assign({}, a, { time: Number((a.time + off).toFixed(6)) })));
       if (chart.sections) (chart.sections || []).forEach(s => sections.push(Object.assign({}, s, { number: sections.length + 1, time: Number((s.time + off).toFixed(6)) })));
       if (chart.beats)    (chart.beats || []).forEach(b => beats.push(Object.assign({}, b, { time: Number((b.time + off).toFixed(6)) })));
+      if (chart.backingEvents) (chart.backingEvents || []).forEach(ev => backingEvents.push(Object.assign({}, ev, { t: Number((ev.t + off).toFixed(6)), end: Number((ev.end + off).toFixed(6)) })));
     }
     const out = Object.assign({}, chart, { notes, chords, handShapes, anchors, duration: Number((reps * cellDur).toFixed(6)) });
     if (chart.sections) out.sections = sections;
     if (chart.beats) out.beats = beats;
+    if (chart.backingEvents) out.backingEvents = backingEvents;
     return out;
   }
   // A block's target duration in seconds (Workout). Reads it off the segment, or its
@@ -5585,7 +5599,7 @@
   // Each segment's times are offset by the cumulative duration of prior segments.
   // BPM ladder and key cycle are applied per-segment as configured.
   function buildSessionChart(session) {
-    const notes = [], chords = [], chordTemplates = [], handShapes = [], sections = [], anchors = [], beats = [];
+    const notes = [], chords = [], chordTemplates = [], handShapes = [], sections = [], anchors = [], beats = [], backingEvents = [];
     // Per-segment time bounds — drives the session transport (progress bar,
     // segment jump, active-segment highlight, per-segment loop).
     const segmentBounds = [];
@@ -5637,6 +5651,21 @@
 
       const dur = chart.duration || (segCfg.bars * measureSeconds(segCfg));
 
+      // Per-block backing (comp + bass + drums) on THIS block's OWN config — the
+      // multi-block desync fix. Backing was previously synthesized ONCE from the
+      // first block's cfg in makeBundle, so block 2+ drifted off the per-block
+      // notes/beats (wrong tempo/meter/key) and played through the inter-block
+      // breaks. Build it here on the SAME timeline as the notes, and swing it (with
+      // the notes) on this block's grid in LOCAL time, before the +t offset — a
+      // global swing post-pass warps later blocks against the first block's grid.
+      // The break gap is backing-silent for free: t already advanced past the break,
+      // so this block's backing starts on its own downbeat. A bpm-ladder / key-cycle
+      // block already carries its OWN per-rung backing (built + swung at each rung's
+      // tempo/key) — use that as-is and don't re-swing the (already-swung) notes.
+      const swung = chart.backingEvents
+        ? { notes: chart.notes, backing: chart.backingEvents }
+        : swingNotesBacking(chart.notes, buildBackingEvents(segCfg, dur).concat(buildDrumEvents(segCfg, dur, resolveGroove(segCfg))), segCfg);
+
       // Segment-level section marker at the top of each segment
       sections.push({ name:segment.name, number:sections.length + 1, time:Number(t.toFixed(6)) });
       // Sub-sections from the chart (BPM ladder steps, key cycle keys) — skip index 0
@@ -5646,7 +5675,7 @@
         sections.push(Object.assign({}, s, { number:sections.length + 1, time:Number((s.time + t).toFixed(6)) }));
       });
 
-      chart.notes.forEach(n => notes.push(Object.assign({}, n, { t:Number((n.t + t).toFixed(6)) })));
+      swung.notes.forEach(n => notes.push(Object.assign({}, n, { t:Number((n.t + t).toFixed(6)) })));
       chart.chords.forEach(c => chords.push(Object.assign({}, c, { t:Number((c.t + t).toFixed(6)), id:c.id + tplOffset })));
       chart.chordTemplates.forEach(ct => chordTemplates.push(ct));
       chart.handShapes.forEach(hs => handShapes.push(Object.assign({}, hs, { chord_id:hs.chord_id + tplOffset, start_time:Number((hs.start_time + t).toFixed(6)), end_time:Number((hs.end_time + t).toFixed(6)) })));
@@ -5654,12 +5683,13 @@
       // Use pre-computed beats if the chart has them (BPM ladder), else generate
       const segBeats = chart.beats || buildBeats(segCfg, dur);
       segBeats.forEach(b => beats.push(Object.assign({}, b, { time:Number((b.time + t).toFixed(6)) })));
+      swung.backing.forEach(ev => backingEvents.push(Object.assign({}, ev, { t:Number((ev.t + t).toFixed(6)), end:Number((ev.end + t).toFixed(6)) })));
       tplOffset += (chart.chordTemplates || []).length;
       segmentBounds.push({ name:segment.name, kind:segment.kind, role:segment.role, start:Number(t.toFixed(6)), end:Number((t + dur).toFixed(6)) });
       t += dur;
       prevCfg = segCfg;
     }
-    return { notes, chords, chordTemplates, handShapes, sections, anchors, beats, segmentBounds, duration:t };
+    return { notes, chords, chordTemplates, handShapes, sections, anchors, beats, backingEvents, segmentBounds, duration:t };
   }
 
   // Top-level session generator — parallel to generateExercise() for single exercises.
@@ -5725,26 +5755,47 @@
   // triplet shuffle), so downbeats stay put and off-beats fall late. Count-in and
   // loop-tail offsets are whole bars, so phase stays aligned across the timeline.
   const SWING_RATIOS = { straight:0.5, swing:0.6, shuffle:0.667 };
-  function applySwingToBundle(bundle, cfg) {
+  // Warp one onset's phase WITHIN its beat on cfg's grid: the eighth boundary
+  // 0.5 → r (0.667 = a triplet shuffle); downbeats map to themselves. Returns t
+  // unchanged for a straight feel. The SINGLE definition shared by the per-block
+  // session assembly (swingNotesBacking, block-local time) and the single-exercise
+  // post-pass (applySwingToBundle) — so multi-tempo sessions swing each block on
+  // its OWN grid instead of one global block-1 grid.
+  function swungTime(t, cfg) {
     const r = SWING_RATIOS[cfg.swing] || 0.5;
-    if (r === 0.5) return;
+    if (r === 0.5) return t;
     const beatSec = (60 / cfg.bpm) * (4 / cfg.meter.denominator);
-    const sw = t => {
-      const bi = Math.floor(t / beatSec + 1e-9);
-      const frac = t / beatSec - bi;
-      const f2 = frac < 0.5 ? frac * (2 * r) : r + (frac - 0.5) * 2 * (1 - r);
-      return +(((bi + f2) * beatSec)).toFixed(6);
-    };
-    bundle.notes = (bundle.notes || []).map(n => {
-      if (n.noSwing) return n;   // pre-swung cells (e.g. a triplet strum) carry their own feel
-      const nt = sw(n.t), ne = sw(n.t + (n.sus || 0));
+    const bi = Math.floor(t / beatSec + 1e-9);
+    const frac = t / beatSec - bi;
+    const f2 = frac < 0.5 ? frac * (2 * r) : r + (frac - 0.5) * 2 * (1 - r);
+    return +(((bi + f2) * beatSec)).toFixed(6);
+  }
+  // Swing a notes[] + backingEvents[] pair on cfg's grid (returns new arrays).
+  // Used per-block at session assembly in BLOCK-LOCAL time (before the +t offset)
+  // so phase is measured from the block origin; respects noSwing (pre-swung) cells.
+  function swingNotesBacking(notes, backing, cfg) {
+    if ((SWING_RATIOS[cfg.swing] || 0.5) === 0.5) return { notes:notes || [], backing:backing || [] };
+    const sn = (notes || []).map(n => {
+      if (n.noSwing) return n;
+      const nt = swungTime(n.t, cfg), ne = swungTime(n.t + (n.sus || 0), cfg);
       return Object.assign({}, n, { t:nt, sus:Math.max(0.02, +(ne - nt).toFixed(6)) });
     });
-    bundle.backingEvents = (bundle.backingEvents || []).map(ev => {
-      if (ev.noSwing) return ev;   // pre-swung triplet drum cells carry their own feel
-      const et = sw(ev.t), ee = sw(ev.end);
+    const sb = (backing || []).map(ev => {
+      if (ev.noSwing) return ev;
+      const et = swungTime(ev.t, cfg), ee = swungTime(ev.end, cfg);
       return Object.assign({}, ev, { t:et, end:Math.max(+(et + 0.02).toFixed(6), ee) });
     });
+    return { notes:sn, backing:sb };
+  }
+  // Swing/shuffle as a post-process over a SINGLE-exercise bundle (one cfg → one
+  // grid). Sessions are swung per-block at assembly instead, so makeBundle skips
+  // this when the chart carries pre-assembled backingEvents. Clicks stay on the
+  // grid — they're the steady reference you shuffle against.
+  function applySwingToBundle(bundle, cfg) {
+    if ((SWING_RATIOS[cfg.swing] || 0.5) === 0.5) return;
+    const r = swingNotesBacking(bundle.notes, bundle.backingEvents, cfg);
+    bundle.notes = r.notes;
+    bundle.backingEvents = r.backing;
   }
 
   function makeBundle(exercise) {
@@ -5788,9 +5839,15 @@
       // both for the content length, concat, then shift past the count-in (so drums
       // are silent through the count-in and swung with the band — Phase D).
       backingEvents:(function(){
+        // Sessions: backing is pre-assembled PER-BLOCK on the chart timeline by
+        // buildSessionChart (correct tempo/meter/key per block, silent in the breaks,
+        // already swung). Single exercises (Pathways/Custom/Jam): one cfg, synthesize
+        // here as before. Either way, shift past the count-in lead.
         const cl = Math.max(0, c.duration - lead);
-        const evs = buildBackingEvents(cfg, cl).concat(buildDrumEvents(cfg, cl, resolveGroove(cfg)));
-        return lead ? evs.map(ev => Object.assign({}, ev, { t:+(ev.t + lead).toFixed(6), end:+(ev.end + lead).toFixed(6) })) : evs;
+        const src = c.backingEvents
+          ? c.backingEvents
+          : buildBackingEvents(cfg, cl).concat(buildDrumEvents(cfg, cl, resolveGroove(cfg)));
+        return lead ? src.map(ev => Object.assign({}, ev, { t:+(ev.t + lead).toFixed(6), end:+(ev.end + lead).toFixed(6) })) : src;
       })(),
       stringCount:cfg.stringCount, tuning:tuningOffsetsForConfig(cfg), openMidis:openMidisForConfig(cfg), capo:0,
       lyrics:[], toneChanges:[], toneBase:'', drumTab:null, mastery:1, hasPhraseData:false,
@@ -5798,7 +5855,7 @@
       getNoteState:function(){return null;}, getNoteStateProvider:function(){return null;}
     };
     syncHighwaySettings(bundle);
-    applySwingToBundle(bundle, cfg);
+    if (!c.backingEvents) applySwingToBundle(bundle, cfg);   // sessions are swung per-block at assembly; single exercises swing here
     // Don't project arpeggio/chord shapes onto the note highway — handShapes
     // drive the highway_3d overlay box. Chord names still appear via `chords`
     // events and the chord-preview thumbnail still renders from chordTemplates.
