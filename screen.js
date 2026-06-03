@@ -7192,6 +7192,35 @@
     const dur = activeBundle?.songInfo?.duration || 0;
     return { rect, padX, usableW, dur };
   }
+  // The SAME scroll window the note renderers use (chartBeatSeconds + AHEAD/BEHIND),
+  // so the ruler's bars stay pixel-aligned with the falling notes. Two-lane DAW
+  // transport redesign — memory project_transport_two_lane_redesign.
+  function rulerWindow() {
+    const winBeat = chartBeatSeconds(activeBundle);
+    const AHEAD = Math.max(2.5, Math.min(6, winBeat * 5));
+    const BEHIND = Math.max(0.9, Math.min(2.2, winBeat * 1.8));
+    return { AHEAD, BEHIND, span: AHEAD + BEHIND };
+  }
+  // One mapping used by both the draw and the pointer handlers so they never
+  // diverge. Default = fixed-scale SCROLLING (playhead fixed ~22% left, timeline
+  // scrolls under it). prefers-reduced-motion → fall back to the static fit-to-width
+  // model (playhead moves; no scroll) so motion-sensitive users aren't scrolled.
+  function rulerMap() {
+    const g = rulerGeom(); if (!g) return null;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const now = Math.max(0, Math.min(g.dur || 0, currentPracticeTime));
+    if (reduce || g.dur <= 0) {
+      return { g, scroll: false, now,
+        xAt: t => g.padX + (g.dur ? (t / g.dur) : 0) * g.usableW,
+        tAt: cx => Math.max(0, Math.min(g.dur, (cx - g.rect.left - g.padX) / g.usableW * g.dur)),
+        inView: () => true };
+    }
+    const win = rulerWindow();
+    return { g, scroll: true, now,
+      xAt: t => g.padX + ((t - now + win.BEHIND) / win.span) * g.usableW,
+      tAt: cx => Math.max(0, Math.min(g.dur, now + ((cx - g.rect.left - g.padX) / g.usableW) * win.span - win.BEHIND)),
+      inView: t => t >= now - win.BEHIND - 0.06 && t <= now + win.AHEAD + 0.06 };
+  }
   function drawRulerFrame() {
     const canvas = $('slopscale-ruler-canvas');
     if (!canvas || canvas.offsetParent === null) return;  // hidden view
@@ -7206,22 +7235,25 @@
     const dur = activeBundle?.songInfo?.duration || 0;
     if (!activeBundle || dur <= 0) return;
     const padX = 2, usableW = W - padX * 2, lz = Math.min(RULER_LOOP_ZONE, H * 0.4);
-    const xAt = t => padX + (t / dur) * usableW;
+    const map = rulerMap(); if (!map) return;
+    const xAt = map.xAt;
 
     // Loop-zone backing + base track
     ctx.fillStyle = 'rgba(148,163,184,0.06)'; ctx.fillRect(0, 0, W, lz);
     ctx.strokeStyle = 'rgba(148,163,184,0.18)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, lz + 0.5); ctx.lineTo(W, lz + 0.5); ctx.stroke();
 
-    // Bar lines + numbers, then beat/group ticks
+    // Bar lines + numbers + beat/group ticks — only those in the visible window.
+    // Scrolling → ~7 bars on screen, always legible (no picket fence, no decimation).
     const beats = activeBundle.beats || [];
     ctx.textBaseline = 'top'; ctx.font = '10px ui-monospace, monospace';
     for (const b of beats) {
+      if (!map.inView(b.time)) continue;
       const x = xAt(b.time), isBar = (b.measure ?? -1) >= 0;
       if (isBar) {
         ctx.strokeStyle = 'rgba(96,165,250,0.45)'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(x, lz); ctx.lineTo(x, H); ctx.stroke();
-        ctx.fillStyle = '#8aa0bd'; ctx.fillText(String(b.measure), x + 3, 3);
+        ctx.fillStyle = '#8aa0bd'; ctx.fillText(String(b.measure), x + 3, lz + 2);
       } else {
         const grp = b.accent === 'group';
         ctx.strokeStyle = grp ? 'rgba(148,163,184,0.3)' : 'rgba(148,163,184,0.15)';
@@ -7230,21 +7262,28 @@
       }
     }
 
-    // A–B loop band (full height) + solid cap in the loop zone + edge grips
+    // A–B loop band (clipped to the visible window) + off-screen edge chevrons so
+    // you always know which way an off-screen loop boundary lies.
     if (tpA != null && tpB != null && Math.abs(tpA - tpB) > 0.02) {
       const ax = xAt(Math.min(tpA, tpB)), bx = xAt(Math.max(tpA, tpB));
-      ctx.fillStyle = 'rgba(64,128,224,0.20)'; ctx.fillRect(ax, lz, bx - ax, H - lz);
-      ctx.fillStyle = 'rgba(64,128,224,0.85)'; ctx.fillRect(ax, 0, bx - ax, lz);
+      const cax = Math.max(0, Math.min(W, ax)), cbx = Math.max(0, Math.min(W, bx));
+      if (cbx > cax) {
+        ctx.fillStyle = 'rgba(64,128,224,0.20)'; ctx.fillRect(cax, lz, cbx - cax, H - lz);
+        ctx.fillStyle = 'rgba(64,128,224,0.85)'; ctx.fillRect(cax, 0, cbx - cax, lz);
+      }
       ctx.fillStyle = '#9ec1ff';
-      ctx.fillRect(ax - 1, 0, 2, H); ctx.fillRect(bx - 1, 0, 2, H);
+      if (ax >= 0 && ax <= W) ctx.fillRect(ax - 1, 0, 2, H);
+      else { ctx.beginPath(); ctx.moveTo(2, lz / 2 - 4); ctx.lineTo(9, lz / 2); ctx.lineTo(2, lz / 2 + 4); ctx.closePath(); ctx.fill(); }
+      if (bx >= 0 && bx <= W) ctx.fillRect(bx - 1, 0, 2, H);
+      else { ctx.beginPath(); ctx.moveTo(W - 2, lz / 2 - 4); ctx.lineTo(W - 9, lz / 2); ctx.lineTo(W - 2, lz / 2 + 4); ctx.closePath(); ctx.fill(); }
     } else {
-      // Empty-loop hint in the loop zone.
       ctx.fillStyle = 'rgba(100,116,139,0.65)'; ctx.font = '8px sans-serif'; ctx.textBaseline = 'middle';
       ctx.fillText('LOOP · drag here', padX + 3, lz / 2 + 0.5);
     }
 
-    // Playhead: line + a small flag at the bottom.
-    const px = xAt(Math.max(0, Math.min(dur, currentPracticeTime)));
+    // Playhead: scrolling → FIXED at ~22% (xAt(now)) with the timeline moving under
+    // it; reduced-motion fit → the playhead moves instead. Line + bottom flag.
+    const px = xAt(map.now);
     ctx.strokeStyle = '#f43f5e'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
     ctx.fillStyle = '#f43f5e';
@@ -10974,18 +11013,19 @@
     if (rulerCanvas) {
       let mode = null, anchorT = 0, startTpA = 0, startTpB = 0, prevA = null, prevB = null;
       const dur = () => activeBundle?.songInfo?.duration || 0;
-      const timeAt = (clientX) => {
-        const g = rulerGeom(); if (!g) return 0;
-        return Math.max(0, Math.min(dur(), (clientX - g.rect.left - g.padX) / g.usableW * dur()));
-      };
-      // Which loop edge (if any) the pointer is within ~6px of, in screen px.
+      // Map clientX↔time through the SAME scrolling window the ruler draws with, so
+      // seek + loop-drag track the visible bars (not the whole-session fit).
+      const timeAt = (clientX) => { const m = rulerMap(); return m ? m.tAt(clientX) : 0; };
+      // Which loop edge (if any) the pointer is within ~6px of, in screen px. An
+      // off-screen edge returns null (can't grab it on a scrolling ruler — that's
+      // what the overview strip is for).
       const edgeNear = (clientX) => {
         if (tpA == null || tpB == null || dur() <= 0) return null;
-        const g = rulerGeom(); if (!g) return null;
-        const xa = g.rect.left + g.padX + Math.min(tpA, tpB) / dur() * g.usableW;
-        const xb = g.rect.left + g.padX + Math.max(tpA, tpB) / dur() * g.usableW;
-        if (Math.abs(clientX - xa) <= 6) return 'resizeA';
-        if (Math.abs(clientX - xb) <= 6) return 'resizeB';
+        const m = rulerMap(); if (!m) return null;
+        const xa = m.g.rect.left + m.xAt(Math.min(tpA, tpB));
+        const xb = m.g.rect.left + m.xAt(Math.max(tpA, tpB));
+        if (xa >= m.g.rect.left && Math.abs(clientX - xa) <= 6) return 'resizeA';
+        if (xb <= m.g.rect.left + m.g.rect.width && Math.abs(clientX - xb) <= 6) return 'resizeB';
         return null;
       };
       rulerCanvas.addEventListener('pointerdown', (e) => {
