@@ -5611,7 +5611,7 @@
       const segBeats = chart.beats || buildBeats(segCfg, dur);
       segBeats.forEach(b => beats.push(Object.assign({}, b, { time:Number((b.time + t).toFixed(6)) })));
       tplOffset += (chart.chordTemplates || []).length;
-      segmentBounds.push({ name:segment.name, kind:segment.kind, start:Number(t.toFixed(6)), end:Number((t + dur).toFixed(6)) });
+      segmentBounds.push({ name:segment.name, kind:segment.kind, role:segment.role, start:Number(t.toFixed(6)), end:Number((t + dur).toFixed(6)) });
       t += dur;
       prevCfg = segCfg;
     }
@@ -7290,6 +7290,78 @@
     ctx.beginPath(); ctx.moveTo(px - 4, H); ctx.lineTo(px + 4, H); ctx.lineTo(px, H - 5); ctx.closePath(); ctx.fill();
   }
 
+  // ── Overview / marker strip (two-lane transport, lane 2) ─────────────────────
+  // The whole-session MAP: fit-to-width, role-tinted NAMED segment bands (the DAW
+  // arrangement track — mirrors the host's Section Map). The A–B loop is authored
+  // here (you can't grab an off-screen loop on the scrolling working ruler), and
+  // click = seek anywhere in the session. Degrades to one band for a single drill
+  // (the progressive-disclosure "simplest transport"). Never meter-green (bands are
+  // categorical role tints; green = cleared-only). Memory: project_transport_two_lane_redesign.
+  function hexA(hex, a) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+    if (!m) return hex || 'rgba(100,116,139,0.3)';
+    const n = parseInt(m[1], 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+  function overviewBands() {
+    const b = activeBundle; if (!b) return [];
+    const dur = b.songInfo?.duration || 0; if (dur <= 0) return [];
+    const sb = Array.isArray(b.segmentBounds) ? b.segmentBounds : null;
+    if (sb && sb.length) {
+      return sb.map(s => ({ name: s.name || s.kind || '', start: s.start, end: s.end,
+        color: ROLE_COLORS[s.role] || KIND_COLORS[s.kind] || '#64748b' }));
+    }
+    const secs = Array.isArray(b.sections) ? b.sections : null;
+    if (secs && secs.length > 1) {
+      return secs.map((s, i) => ({ name: s.name || '', start: s.time || 0,
+        end: (i + 1 < secs.length ? secs[i + 1].time : dur), color: '#3b82f6' }));
+    }
+    return [{ name: b.songInfo?.title || '', start: 0, end: dur, color: '#3b82f6' }];   // single drill
+  }
+  let overviewCtx = null;
+  function drawOverviewFrame() {
+    const canvas = $('slopscale-overview-canvas');
+    if (!canvas || canvas.offsetParent === null) return;
+    if (!overviewCtx || overviewCtx.canvas !== canvas) overviewCtx = canvas.getContext('2d');
+    const ctx = overviewCtx; if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1, rect = canvas.getBoundingClientRect();
+    const pxW = Math.max(1, Math.floor(rect.width * dpr)), pxH = Math.max(1, Math.floor(rect.height * dpr));
+    if (canvas.width !== pxW || canvas.height !== pxH) { canvas.width = pxW; canvas.height = pxH; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const W = rect.width, H = rect.height; ctx.clearRect(0, 0, W, H);
+    const dur = activeBundle?.songInfo?.duration || 0;
+    if (!activeBundle || dur <= 0) return;
+    const padX = 2, usableW = W - padX * 2;
+    const xAt = t => padX + (t / dur) * usableW;
+    // Role-tinted named bands.
+    ctx.textBaseline = 'middle'; ctx.font = '8px ui-sans-serif, sans-serif';
+    for (const bnd of overviewBands()) {
+      const ax = xAt(bnd.start), w = Math.max(1, xAt(bnd.end) - ax);
+      ctx.fillStyle = hexA(bnd.color, 0.32); ctx.fillRect(ax, 1, w, H - 2);
+      ctx.fillStyle = hexA(bnd.color, 0.9); ctx.fillRect(ax, 1, 1.5, H - 2);
+      if (w > 24 && bnd.name) {
+        ctx.save(); ctx.beginPath(); ctx.rect(ax + 3, 0, w - 5, H); ctx.clip();
+        ctx.fillStyle = 'rgba(226,232,240,0.88)'; ctx.fillText(bnd.name, ax + 4, H / 2 + 0.5); ctx.restore();
+      }
+    }
+    // A–B loop overlay (full-session, the authoring view).
+    if (tpA != null && tpB != null && Math.abs(tpA - tpB) > 0.02) {
+      const ax = xAt(Math.min(tpA, tpB)), bx = xAt(Math.max(tpA, tpB));
+      ctx.fillStyle = 'rgba(64,128,224,0.28)'; ctx.fillRect(ax, 0, Math.max(1, bx - ax), H);
+      ctx.fillStyle = '#9ec1ff'; ctx.fillRect(ax - 1, 0, 2, H); ctx.fillRect(bx - 1, 0, 2, H);
+    }
+    // Viewport box: the slice the scrolling working ruler is showing right now.
+    const win = rulerWindow();
+    const now = Math.max(0, Math.min(dur, currentPracticeTime));
+    const vx0 = xAt(Math.max(0, now - win.BEHIND)), vx1 = xAt(Math.min(dur, now + win.AHEAD));
+    ctx.strokeStyle = 'rgba(226,232,240,0.5)'; ctx.lineWidth = 1;
+    ctx.strokeRect(vx0 + 0.5, 0.5, Math.max(2, vx1 - vx0) - 1, H - 1);
+    // Playhead.
+    const px = xAt(now);
+    ctx.strokeStyle = '#f43f5e'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+  }
+
   // ── Chord-shape box (small VERTICAL chord chart) ─────────────────────────
   // A standard vertical chord diagram for the currently-sounding chord, drawn
   // as a small overlay in the render's top-left. Vertical (strings vertical,
@@ -7361,7 +7433,7 @@
     }
   }
 
-  function drawOnce() { drawFretboardFrame(); drawRulerFrame(); drawChordBoxFrame(); if (!renderer || !activeBundle) return; const vb = rendererBundle || activeBundle; vb.currentTime = currentPracticeTime; syncHighwaySettings(vb); try { renderer.draw(vb); } catch (e) { console.warn('[SlopScale] renderer draw failed', e); } syncTransportTime(); }
+  function drawOnce() { drawFretboardFrame(); drawRulerFrame(); drawOverviewFrame(); drawChordBoxFrame(); if (!renderer || !activeBundle) return; const vb = rendererBundle || activeBundle; vb.currentTime = currentPracticeTime; syncHighwaySettings(vb); try { renderer.draw(vb); } catch (e) { console.warn('[SlopScale] renderer draw failed', e); } syncTransportTime(); }
   // "Keep looping" — when on, a finite drill restores the old infinite loop (open
   // practice). Default off (finite). Persisted; loaded in bind(). An A–B loop and Jam
   // are unaffected (they loop via the segment-loop branch above, never this one).
@@ -8622,7 +8694,7 @@
 
   // The loop region is now drawn directly on the unified ruler canvas; this
   // just triggers a redraw (kept as a named function since callers reference it).
-  function paintLoopRegion() { drawRulerFrame(); }
+  function paintLoopRegion() { drawRulerFrame(); drawOverviewFrame(); }
 
   // Measure downbeats (bar lines) of the active chart, ascending.
   function chartDownbeats() {
@@ -8761,7 +8833,7 @@
     let next = dir > 0 ? dn.find(x => x > hi + 0.05) : [...dn].reverse().find(x => x < hi - 0.05);
     if (next == null) next = dir > 0 ? dur : hi;
     if (next <= lo + 0.02) return true;  // refuse to collapse past the start
-    tpA = lo; tpB = next; commitLoop(); drawRulerFrame();
+    tpA = lo; tpB = next; commitLoop(); paintLoopRegion();
     return true;
   }
 
@@ -11042,7 +11114,7 @@
           // Loop zone: move an existing band if clicked inside it, else start new.
           const inBand = tpA != null && tpB != null && t >= Math.min(tpA, tpB) && t <= Math.max(tpA, tpB);
           if (inBand) { mode = 'move'; anchorT = t; startTpA = Math.min(tpA, tpB); startTpB = Math.max(tpA, tpB); }
-          else { mode = 'new'; anchorT = snapToDownbeat(t, e.altKey); tpA = anchorT; tpB = anchorT; drawRulerFrame(); }
+          else { mode = 'new'; anchorT = snapToDownbeat(t, e.altKey); tpA = anchorT; tpB = anchorT; paintLoopRegion(); }
         } else {
           mode = 'seek'; seekTo(t);
         }
@@ -11067,7 +11139,7 @@
           na = Math.max(0, Math.min(Math.max(0, dur() - width), na));
           tpA = na; tpB = na + width;
         }
-        drawRulerFrame();
+        paintLoopRegion();
       });
       const endRuler = (e) => {
         if (!mode) return;
@@ -11081,6 +11153,41 @@
       };
       rulerCanvas.addEventListener('pointerup', endRuler);
       rulerCanvas.addEventListener('pointercancel', endRuler);
+    }
+    // Overview/marker strip (lane 2): fit-to-width — click = seek anywhere, drag =
+    // author the A–B loop (the off-screen-safe authoring surface), edge-drag = resize.
+    const ovCanvas = $('slopscale-overview-canvas');
+    if (ovCanvas) {
+      const ovGeom = () => { const c = $('slopscale-overview-canvas'); if (!c) return null; const rect = c.getBoundingClientRect(); const padX = 2, usableW = Math.max(1, rect.width - padX * 2); const d = activeBundle?.songInfo?.duration || 0; return { rect, padX, usableW, dur: d }; };
+      const ovT = (cx) => { const g = ovGeom(); if (!g || g.dur <= 0) return 0; return Math.max(0, Math.min(g.dur, (cx - g.rect.left - g.padX) / g.usableW * g.dur)); };
+      const ovEdge = (cx) => { if (tpA == null || tpB == null) return null; const g = ovGeom(); if (!g || g.dur <= 0) return null; const xa = g.rect.left + g.padX + Math.min(tpA, tpB) / g.dur * g.usableW; const xb = g.rect.left + g.padX + Math.max(tpA, tpB) / g.dur * g.usableW; if (Math.abs(cx - xa) <= 6) return 'resizeA'; if (Math.abs(cx - xb) <= 6) return 'resizeB'; return null; };
+      let ovMode = null, ovAnchor = 0, ovDownX = 0, ovPrevA = null, ovPrevB = null, ovMoved = false;
+      ovCanvas.addEventListener('pointerdown', (e) => {
+        const g = ovGeom(); if (!activeBundle || !g || g.dur <= 0) return; e.preventDefault();
+        try { ovCanvas.setPointerCapture(e.pointerId); } catch (_) {}
+        ovPrevA = tpA; ovPrevB = tpB; ovDownX = e.clientX; ovMoved = false;
+        const edge = ovEdge(e.clientX);
+        if (edge) ovMode = edge;
+        else { ovMode = 'pending'; ovAnchor = snapToDownbeat(ovT(e.clientX), e.altKey); }   // drag→loop, click→seek (decided on up)
+      });
+      ovCanvas.addEventListener('pointermove', (e) => {
+        if (!ovMode) { ovCanvas.style.cursor = ovEdge(e.clientX) ? 'ew-resize' : 'pointer'; return; }
+        const t = snapToDownbeat(ovT(e.clientX), e.altKey);
+        if (Math.abs(e.clientX - ovDownX) > 3) ovMoved = true;
+        if (ovMode === 'pending' && ovMoved) { ovMode = 'new'; tpA = ovAnchor; tpB = ovAnchor; }
+        if (ovMode === 'new') { tpA = Math.min(ovAnchor, t); tpB = Math.max(ovAnchor, t); paintLoopRegion(); }
+        else if (ovMode === 'resizeA') { tpA = t; paintLoopRegion(); }
+        else if (ovMode === 'resizeB') { tpB = t; paintLoopRegion(); }
+      });
+      const ovEnd = (e) => {
+        if (!ovMode) return; const m = ovMode; ovMode = null;
+        try { ovCanvas.releasePointerCapture(e.pointerId); } catch (_) {}
+        if (m === 'pending' && !ovMoved) { seekTo(ovT(e.clientX)); return; }   // a click = seek
+        if (m === 'new' && Math.abs((tpA ?? 0) - (tpB ?? 0)) < 0.02) { tpA = ovPrevA; tpB = ovPrevB; }
+        commitLoop();
+      };
+      ovCanvas.addEventListener('pointerup', ovEnd);
+      ovCanvas.addEventListener('pointercancel', ovEnd);
     }
     $('slopscale-to-start')?.addEventListener('click', () => seekTo(0));
     $('slopscale-nudge-back')?.addEventListener('click', () => nudgeBar(-1));

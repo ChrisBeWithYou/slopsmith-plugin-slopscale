@@ -360,7 +360,10 @@
   /* Unified DAW ruler — one canvas drawing bars/beats + playhead + A–B loop.
      50px + container padding (6+4) = 60px total, matching the HUD's top:60px offset.
      touch-action:none so drags don't scroll. */
-  .slopscale-transport-ruler #slopscale-ruler-canvas { display: block; width: 100%; height: 50px; touch-action: none; }
+  /* Two-lane transport: overview/marker strip (whole-session map) above the
+     scrolling working ruler. 14 + 2 gap + 34 = 50, so the HUD top:60px holds. */
+  .slopscale-transport-ruler #slopscale-overview-canvas { display: block; width: 100%; height: 14px; touch-action: none; margin-bottom: 2px; cursor: pointer; }
+  .slopscale-transport-ruler #slopscale-ruler-canvas { display: block; width: 100%; height: 34px; touch-action: none; }
   /* Flatter pill aesthetic, in parity with the host player control bar:
      borderless dark pills, lighter weight, flat accent fills (host accent
      #4080e0), `|` group separators. Multi-row layout + drag-loop preserved. */
@@ -1896,7 +1899,8 @@
              loop (Alt = no snap); drag the loop edges to resize. Drawn by
              drawRulerFrame(); pointer-handled in bind(). -->
         <div id="slopscale-transport-ruler" class="slopscale-transport-ruler"
-             title="Drag the lower track to scrub · drag the top strip to set an A–B loop (Alt = no snap) · drag the loop edges to resize">
+             title="Overview strip (top): whole-session map — click to jump, drag to set an A–B loop. Working ruler (below): bars|beats scrolling with the notes; drag the lower track to scrub.">
+          <canvas id="slopscale-overview-canvas"></canvas>
           <canvas id="slopscale-ruler-canvas"></canvas>
         </div>
         <!-- Player HUD overlay: exercise title only (for 3D Highway, which draws
