@@ -5481,6 +5481,62 @@
     return null;
   }
 
+  // ── Workout length presets (pacing charette) ────────────────────────────────
+  // OPT-IN session length — never the default (the natural "As built" length is
+  // preserved when no preset is set). A preset distributes a total wall-clock
+  // target across the blocks PROPORTIONAL to each block's natural cell duration
+  // (so the warm-up stays relatively short and the arc's shape is preserved), via
+  // each block's targetSec → fillBlockToDuration tiles whole reps. Duration is a
+  // setup PLAN shown as a sum, never a graded countdown. See memory
+  // project_workout_pacing_charette.
+  const LENGTH_PRESETS = { quick: 10, standard: 20, woodshed: 30 };   // minutes
+  function lengthPresetSec(preset) { return LENGTH_PRESETS[preset] ? LENGTH_PRESETS[preset] * 60 : null; }
+  function applyLengthPreset(session, preset) {
+    const totalSec = lengthPresetSec(preset);
+    if (!totalSec || !session) return session;
+    const segs = session.segments || [];
+    if (!segs.length) return session;
+    const nat = segs.map(s => { const m = materializeSegment(s); return m ? segmentEstDuration(m) : 0; });
+    const sum = nat.reduce((a, b) => a + b, 0) || 1;
+    const scaled = segs.map((s, i) => Object.assign({}, s, { targetSec: Math.max(20, (nat[i] / sum) * totalSec) }));   // ≥20s/block
+    return Object.assign({}, session, { segments: scaled });
+  }
+
+  // ── Inter-block transition break (Workout pacing charette, 2026-06-02) ───────
+  // The gap between blocks IS a count-in for the INCOMING block: ~2s of felt time
+  // quantized UP to whole incoming bars (clamp 1–4), so the new 'one' lands on a
+  // real downbeat and the ear locks to the next pulse before the notes arrive.
+  // Sized adaptively — a technique-class change (the hand's whole operating mode
+  // rebuilds: legato↔bend↔sweep↔comp↔slap↔groove) or a big neck leap mandates
+  // ≥2 bars (the fretting / right hand physically relocates + re-grips; bass needs
+  // this more than guitar). mode: 'auto' (no break when adjacent blocks truly flow)
+  // | 'always' | 'off'. See memory project_workout_pacing_charette.
+  const TECH_CLASS = {
+    bending:'bend', vibrato:'bend',
+    legato:'legato', tapping:'legato', string_skipping:'legato', hybrid_picking:'legato',
+    sweep_arpeggios:'sweep',
+    strum_comp:'comp', shell_voicings:'comp', chord_scales:'comp',
+    slap_pop:'slap',
+    walking_bass:'groove', root_fifth_octave:'groove', octave_groove:'groove',
+    dead_note_groove:'groove', right_hand_technique:'groove',
+  };
+  function techniqueClass(kind) { return TECH_CLASS[kind] || 'pick'; }
+  function segFretCenter(cfg) { return (((cfg.fretMin || 0) + (cfg.fretMax || 0)) / 2); }
+  function interBlockBreakBars(prevCfg, curCfg, mode) {
+    if (mode === 'off') return 0;
+    const barSec = measureSeconds(curCfg) || 2;
+    let bars = Math.max(1, Math.min(4, Math.round(2.0 / barSec)));        // ~2s felt, whole incoming bars
+    const techChange = techniqueClass(prevCfg.mode || prevCfg.practiceType) !== techniqueClass(curCfg.mode || curCfg.practiceType);
+    const bigLeap = Math.abs(segFretCenter(prevCfg) - segFretCenter(curCfg)) >= 5;
+    const tempoSame = prevCfg.bpm === curCfg.bpm;
+    const meterSame = (prevCfg.meter?.numerator === curCfg.meter?.numerator) && (prevCfg.meter?.denominator === curCfg.meter?.denominator);
+    // 'auto': adjacent blocks that genuinely flow (same pulse + hand-mode + region)
+    // get NO break — a clean segue is better there (guitar tier-1).
+    if (mode !== 'always' && tempoSame && meterSame && !techChange && !bigLeap) return 0;
+    if (techChange || bigLeap) bars = Math.max(bars, 2);                  // hand must relocate / re-grip
+    return bars;
+  }
+
   // Concatenate all session segments into one chart with section markers.
   // Each segment's times are offset by the cumulative duration of prior segments.
   // BPM ladder and key cycle are applied per-segment as configured.
@@ -5489,7 +5545,8 @@
     // Per-segment time bounds — drives the session transport (progress bar,
     // segment jump, active-segment highlight, per-segment loop).
     const segmentBounds = [];
-    let t = 0, tplOffset = 0;
+    let t = 0, tplOffset = 0, prevCfg = null;
+    const breakMode = session.interBlockBreak || 'auto';
 
     for (const rawSeg of (session.segments || [])) {
       // Template-ref slots ({ templateId, variantIdx, locks }) materialise through
@@ -5498,6 +5555,17 @@
       const segment = materializeSegment(rawSeg);
       if (!segment) continue;                                 // unknown templateId — skip
       const segCfg = buildSegmentConfig(segment, session);
+      // Inter-block break: a count-in for THIS (incoming) block so the prior block
+      // doesn't slam into it. Adds count beats over the gap + advances the offset.
+      if (prevCfg) {
+        const brkBars = interBlockBreakBars(prevCfg, segCfg, breakMode);
+        if (brkBars > 0) {
+          const brkSec = brkBars * measureSeconds(segCfg);
+          buildBeats(segCfg, Math.max(0, brkSec - 1e-4)).forEach(b =>
+            beats.push(Object.assign({}, b, { time: Number((b.time + t).toFixed(6)), brk: true })));
+          t += brkSec;
+        }
+      }
       // Determine which builder to use for this segment
       const ladder = segment.bpmLadder
         ? (segment.bpmLadder.enabled ? segment.bpmLadder : null)
@@ -5545,6 +5613,7 @@
       tplOffset += (chart.chordTemplates || []).length;
       segmentBounds.push({ name:segment.name, kind:segment.kind, start:Number(t.toFixed(6)), end:Number((t + dur).toFixed(6)) });
       t += dur;
+      prevCfg = segCfg;
     }
     return { notes, chords, chordTemplates, handShapes, sections, anchors, beats, segmentBounds, duration:t };
   }
@@ -10420,8 +10489,18 @@
     // Template-ref blocks don't pin a BPM (it's tier/default-driven) — omit the stat
     // rather than show a misleading "0 BPM".
     const bpmStr = bpms.length ? (Math.min(...bpms) === Math.max(...bpms) ? `${Math.min(...bpms)} BPM` : `${Math.min(...bpms)}–${Math.max(...bpms)} BPM`) : '';
-    const durStr = totalDur < 60 ? `${Math.round(totalDur)}s` : `${Math.floor(totalDur / 60)}m ${Math.round(totalDur % 60)}s`;
+    // A length preset shows its PLANNED total (≈N min); otherwise the natural sum.
+    const presetSec = lengthPresetSec(session.lengthPreset);
+    const durStr = presetSec ? `≈ ${Math.round(presetSec / 60)} min`
+      : (totalDur < 60 ? `${Math.round(totalDur)}s` : `${Math.floor(totalDur / 60)}m ${Math.round(totalDur % 60)}s`);
+    const lenSel = $('slopscale-length-preset');
+    if (lenSel) lenSel.value = session.lengthPreset || '';
     const tags = (session.tags || []).join(', ');
+    // No hard cap on blocks (charette) — just a calm, non-blocking note past a long
+    // set, so a sprawling workout informs without policing. Informational, not green.
+    const longNote = displaySegs.length >= 10
+      ? `<div class="slopscale-session-longnote">That's a long set — every block can loop or be trimmed, and you never have to finish it all in one sitting.</div>`
+      : '';
     info.innerHTML = `
       <div class="slopscale-session-info-name">${session.name}</div>
       <div class="slopscale-session-info-desc">${session.description || ''}</div>
@@ -10430,8 +10509,10 @@
         <span class="slopscale-session-info-stat">${durStr}</span>
         ${bpmStr ? `<span class="slopscale-session-info-stat">${bpmStr}</span>` : ''}
         ${tags ? `<span class="slopscale-session-info-stat">${tags}</span>` : ''}
-      </div>`;
+      </div>${longNote}`;
     list.innerHTML = materialized.map((m, i) => m ? buildSegmentCard(m, i) : '').join('');
+    const breathe = $('slopscale-breathe-toggle');
+    if (breathe) breathe.checked = (session.interBlockBreak || 'auto') !== 'off';   // default on (auto)
     const btn = $('slopscale-workout-refresh');
     if (btn) {
       const can = workoutHasRefs(session);
@@ -10613,12 +10694,14 @@
     // Falls back to a fresh clone if the draft is missing/stale for the selected session.
     if (!_workoutDraft || _workoutDraftId !== sessionId) { _workoutDraft = workoutDraftFor(sessionId); _workoutDraftId = sessionId; }
     const draft = _workoutDraft || baseSession;
-    const session = Object.assign({}, draft, {
+    // Apply the opt-in length preset last (distributes targetSec across the blocks);
+    // no-op when the draft has no preset ("As built"). interBlockBreak rides along.
+    const session = applyLengthPreset(Object.assign({}, draft, {
       ...(inheritForm ? { stringSetup: formStringSetup } : {}),
       segments: (draft.segments || []).map(materializeSegment).filter(Boolean).map(seg =>
         Object.assign({}, seg, { config: Object.assign({}, seg.config, { audio }) })
       )
-    });
+    }), draft.lengthPreset);
     try {
       if (btn) { btn.disabled = true; btn.textContent = 'Building…'; }
       if (playing) stopPlayback();
@@ -11365,6 +11448,12 @@
     });
     $('slopscale-launch-session')?.addEventListener('click', onLaunchSession);
     $('slopscale-workout-refresh')?.addEventListener('click', onRefreshWorkout);   // Phase 9: re-roll blocks
+    $('slopscale-breathe-toggle')?.addEventListener('change', (e) => {             // inter-block break on/off
+      if (_workoutDraft) _workoutDraft.interBlockBreak = e.target.checked ? 'auto' : 'off';
+    });
+    $('slopscale-length-preset')?.addEventListener('change', (e) => {              // opt-in session length
+      if (_workoutDraft) { _workoutDraft.lengthPreset = e.target.value || null; renderWorkoutDraft(); }
+    });
     $('slopscale-refresh-summary')?.addEventListener('click', e => { if (e.target.closest('.slopscale-refresh-summary-close')) clearRefreshSummary(); });
     syncSessionSummary(Object.keys(BUILT_IN_SESSIONS)[0]);
 

@@ -836,6 +836,9 @@
   .slopscale-segment-actions button { flex: 1; padding: 4px 6px; font-size: 10.5px; font-weight: 600; border-radius: 6px; border: 1px solid var(--ss-border, #334155); background: var(--ss-inset, #0b1220); color: var(--ss-text-dim, #94a3b8); cursor: pointer; transition: color 0.12s, border-color 0.12s; }
   .slopscale-segment-actions button:hover:not(:disabled) { color: var(--ss-text, #e2e8f0); border-color: var(--ss-accent-edge, #60a5fa); }
   .slopscale-segment-actions button:disabled { opacity: 0.4; cursor: default; }
+  .slopscale-breathe-toggle { margin-top: 9px; }
+  .slopscale-length-row { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; font-size: 12px; color: #d6deea; font-weight: 650; }
+  .slopscale-session-longnote { font-size: 11px; line-height: 1.45; color: var(--ss-text-muted, #64748b); margin-top: 7px; font-style: italic; }
 
   /* Progress strip — streak + 7-day calendar, always visible in both modes */
   .slopscale-progress-strip { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: rgba(15,23,42,0.6); border: 1px solid #1f2937; border-radius: 10px; }
@@ -1584,14 +1587,14 @@
         <label>Key cycle
           <select name="keyCycle">
             <option value="none">Off</option>
+            <option value="circle_of_fifths">Circle of fifths (recommended)</option>
             <option value="circle_of_fourths">Circle of fourths</option>
-            <option value="circle_of_fifths">Circle of fifths</option>
             <option value="chromatic">Chromatic</option>
           </select>
         </label>
-        <label>Keys to cycle <input name="keyCycleLength" type="number" min="2" max="12" step="1" value="4"></label>
+        <label>Keys to cycle <input name="keyCycleLength" type="number" min="2" max="12" step="1" value="12"></label>
       </div>
-      <div class="slopscale-help slopscale-custom-only" id="slopscale-keycycle-help" style="display:none">Generates one section per key, concatenated into a single chart. Starting key is set by the Key selector above.</div>
+      <div class="slopscale-help slopscale-custom-only" id="slopscale-keycycle-help" style="display:none">Runs the same drill through every key in order — e.g. <b>triads in all 12 keys, circle of fifths</b>, or a scale around the cycle. Circle-of-fifths is the gentlest ramp (one accidental per step); set Keys to 12 for the full tour. Starting key = the Key selector above.</div>
 
       <details class="slopscale-advanced-card slopscale-advanced-only slopscale-custom-only">
         <summary class="slopscale-advanced-summary">Arpeggios and harmony</summary>
@@ -1737,6 +1740,15 @@
           <!-- populated by syncSessionSummary() -->
         </div>
 
+        <label class="slopscale-length-row">Session length
+          <select id="slopscale-length-preset" title="Optional — extend the workout into a longer woodshed. 'As built' keeps each block's natural length; the others spread the time across your blocks.">
+            <option value="">As built</option>
+            <option value="quick">Quick — ~10 min</option>
+            <option value="standard">Standard — ~20 min</option>
+            <option value="woodshed">Woodshed — ~30 min</option>
+          </select>
+        </label>
+
         <div class="slopscale-group-title slopscale-segments-head">
           <span>Segments</span>
           <button type="button" id="slopscale-workout-refresh" class="slopscale-refresh-btn" title="Re-roll every block into a fresh variation — same workout, new keys & positions">↻ Refresh</button>
@@ -1746,6 +1758,9 @@
           <!-- populated by syncSessionSummary() -->
         </div>
         <button type="button" id="slopscale-library-open" class="slopscale-lib-browse-btn">+ Browse library…</button>
+        <label class="slopscale-toggle slopscale-breathe-toggle" title="Insert a short count-in between exercises so they don't slam together — sized to tempo, and longer when the technique or neck position changes">
+          <input id="slopscale-breathe-toggle" type="checkbox" checked> Breathe between blocks
+        </label>
 
         <div class="slopscale-group-title">Preview audio</div>
         <div class="slopscale-audio-options" aria-label="Session audio options">
