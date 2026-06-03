@@ -22,6 +22,16 @@ SlopScale is a **practice & learning tool, not a song/riff generator.** Its purp
 
 The planned random-style generator is an **idiom-demonstration / practice-variety engine** (show the genre's grammar to learn from and riff against), never a "make me a song" crutch. And when finalising user-facing docs/description, let this framing show **implicitly** — describe SlopScale as a way to *learn and practise* an instrument, not as a generator.
 
+## Recurring rules (distilled from session corrections — 2026-06-02)
+
+Promoted from patterns in past-session feedback — the things Christian kept having to repeat. Treat them as hard rules.
+
+1. **Match the established standard — host-first, then DAW / notation convention.** When building or changing ANY UI / rendering / notation / transport element, match how it is *supposed* to look and behave: first **how the SlopSmith host does it** (the 3D Highway look, the transport, section looping, player chrome), then the **Logic-Pro / standard-DAW / standard-music-notation** convention. Do **not** invent non-standard variations. If our output has drifted from the host's default look/behaviour (e.g. a non-standard fret-counter element, a missing nut/headstock, downbeats sitting *on* the bar line instead of *between* bar lines, a 2D tab that doesn't look like plain black-and-white tab), that is a **regression to fix**, not a feature. When unsure, read the host source / look at a real DAW and copy the convention.
+
+2. **Convene the FULL relevant agent panel up front — don't under-scope it.** Christian repeatedly has to add forgotten agents ("don't forget the bass and guitar agents", "we never got input from the slopsmith agent"). When you spin up a design/review panel, include **every** relevant lane the first time. Defaults: any **instrument / playability / exercise / fingering** topic → include **BOTH guitar-pedagogy AND bass-pedagogy** (plus piano-pedagogy when piano is in scope); any **host / integration / borrow-vs-build** topic → include **slopsmith-host-expert**; any **genre / harmony / voicing** topic → the relevant **genre-idiom agent(s) + harmony-theory-architect**. Err toward **over-including** a lane rather than making Christian remind you. (Extends "Agent workflow" below.)
+
+3. **Design in the context of the whole pane — never a rip/replace in isolation.** When you change one UI element, design it against the rest of the pane: keep layout, spacing, control families, and design language consistent with the surrounding controls (see `docs/design-system.md`). Don't isolate the change to just swapping out the one element you were pointed at.
+
 ## File layout
 
 | File | Role |
