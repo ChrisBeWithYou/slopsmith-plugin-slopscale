@@ -473,10 +473,14 @@
     { id:'concept_rhythm', label:'Rhythm', kind:'style', family:'Concepts', buildsOn:'Builds on Core — a steady pulse and the pentatonic box. Own TIME itself: subdivisions, the 16th pocket, swing vs straight, syncopation, and odd meters. Instrument-agnostic — works on guitar or bass.', pathways:['rhy_subdivision','rhy_sixteenth','rhy_swing','rhy_displacement','rhy_odd_meter'] },
     { id:'concept_picking', label:'Picking', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the chromatic warmup and one-finger-per-fret sync. The pick-hand engine: tremolo, alternate across strings, string skipping, hybrid picking.', pathways:['pick_tremolo','pick_alternate','pick_string_skip','pick_hybrid'] },
     { id:'concept_legato', label:'Legato', kind:'style', family:'Concepts', buildsOn:'Builds on Core — clean fretting and a scale shape. The fretting-hand engine: hammer-ons/pull-offs, 3NPS legato runs, then two-hand tapping.', pathways:['leg_hopo','leg_runs','leg_tapping'] },
+    // Bass family — the first bass-NATIVE ladder (cross-instrument parity). Its pathways
+    // are bass_4_standard; the instrument-aware picker filter (isHiddenNode) hides them on
+    // guitar and hides guitar-only pathways on bass.
+    { id:'bass_foundations_ladder', label:'Bass', kind:'style', family:'Bass', buildsOn:"The bassist's core, foundation-first on a 4-string: root-fifth-octave -> the octave groove -> the dead-note pocket -> walking bass -> slap & pop.", pathways:['bass_root_fifth_octave','bass_octave_groove','bass_dead_notes','bass_walking','bass_slap'] },
   ];
   // Family display order for the Pack-manager Available column (Core-branch-point
   // depth → the catalog reads as a curriculum map, not a scrolling wall).
-  const PACK_FAMILY_ORDER = ['Concepts', 'Roots & Rock', 'Groove', 'Jazz & Sophisticated Harmony', 'High-Gain & Technical', 'Acoustic & Fingerstyle'];
+  const PACK_FAMILY_ORDER = ['Concepts', 'Roots & Rock', 'Groove', 'Jazz & Sophisticated Harmony', 'High-Gain & Technical', 'Acoustic & Fingerstyle', 'Bass'];
   // Pack integrity guard (the pack-layer analog of the no-unison guard): a Style
   // pack with no Core foundation or family is a curricular error — fail loudly on load.
   PATHWAY_BANDS.forEach(b => {
@@ -886,6 +890,51 @@
       tempoTiers:[80, 100, 120, 145],
       base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'mixolydian', chordDepth:'triad', chordOverride:'auto', progression:'mixolydian_rock', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', fretMin:0, fretMax:9 },
       vary:[ { progression:'mixolydian_rock' }, { progression:'I-IV-V', scale:'major_pentatonic' }, { key:'A', progression:'mixolydian_rock' }, { key:'D', progression:'I-V-vi-IV', scale:'major' }, { progression:'mixolydian_rock', key:'E' } ]
+    },
+    // ── BASS FOUNDATIONS ladder (the first bass-NATIVE ladder) ───────────────────
+    // Cross-instrument parity (project_cross_instrument_backing_unification): the
+    // engine is shared; this is the bass-native CONTENT over the 5 bass groove
+    // primitives (bass-pedagogy: "re-label, don't port" the guitar ladders). All
+    // bass_4_standard / position. Reviewed by bass-pedagogy-architect's per-ladder verdict.
+    bass_root_fifth_octave: {
+      label:'Root–5th–Octave',
+      goal:'The foundational bass box: root, fifth, octave, fifth, anchored on each chord. Before scales, a bassist owns this shape — it outlines any chord and lays the harmonic floor under the band. The skill is finding the root and reaching the 5th/octave by feel in any key.',
+      scales:['major','natural_minor'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'root_fifth_octave', scale:'major', progression:'I-IV-V', chordDepth:'triad', chordOverride:'auto', meter:'4/4', subdivision:'quarter', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:5 },
+      vary:[ { key:'C', progression:'I-IV-V' }, { key:'G', progression:'I-IV-V' }, { key:'A', progression:'i-VII-VI-VII', scale:'natural_minor' }, { key:'E', progression:'I-V-vi-IV' }, { key:'D', progression:'I-IV-V' } ]
+    },
+    bass_octave_groove: {
+      label:'Octave Groove',
+      goal:'The disco/pop octave bounce: root and its octave, locked to the kick, the weight landing on the high octave (the pop up). The skill is the relentless, even octave pulse that drives dance and pop — the bassline as the engine of the groove.',
+      scales:['major','natural_minor','dorian'],
+      tempoTiers:[70, 95, 115, 135],
+      base:{ practiceType:'octave_groove', scale:'major', progression:'I-V-vi-IV', chordDepth:'triad', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:5 },
+      vary:[ { progression:'I-V-vi-IV' }, { progression:'vi-IV-I-V', key:'A' }, { progression:'i-VII-VI-VII', scale:'natural_minor', key:'A' }, { key:'G' }, { key:'E' } ]
+    },
+    bass_dead_notes: {
+      label:'Dead-Note Pocket',
+      goal:'The funk 16th pocket: real notes on the syncopated pushes, muted ghost notes filling the rest, only a couple of accents per bar. The skill is the pocket — which 16ths you sound, which you ghost, and locking the one to the kick. This is what makes a bassline groove instead of just outline the chord.',
+      scales:['dorian','minor_pentatonic'],
+      tempoTiers:[70, 90, 110, 130],
+      base:{ practiceType:'dead_note_groove', scale:'dorian', progression:'static_i', chordDepth:'seventh', chordOverride:'min7', meter:'4/4', subdivision:'sixteenth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'A', fretMin:0, fretMax:5 },
+      vary:[ { key:'A' }, { key:'E' }, { progression:'i-VII-VI-VII' }, { key:'D' }, { key:'G' } ]
+    },
+    bass_walking: {
+      label:'Walking Bass',
+      goal:'The jazz/blues engine: one note per beat, walking from chord to chord — root on the downbeat, chord tones and chromatic approach notes leading into the next change. The skill is voice-leading the bass line so it both outlines the harmony and pulls forward. The most-wanted bass skill in jazz and blues.',
+      scales:['major','dorian','mixolydian'],
+      tempoTiers:[65, 85, 105, 125],
+      base:{ practiceType:'walking_bass', scale:'major', progression:'ii-V-I', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'quarter', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:7 },
+      vary:[ { progression:'ii-V-I' }, { progression:'12_bar_blues', chordOverride:'dom7', scale:'mixolydian' }, { progression:'vi-ii-V-I' }, { key:'F', progression:'ii-V-I' }, { key:'G', progression:'12_bar_blues', chordOverride:'dom7' } ]
+    },
+    bass_slap: {
+      label:'Slap & Pop',
+      goal:'The funk slap pocket: thumb-slapped roots (low) and popped octaves (high), ghost notes between, space and accents that snap. The skill is the percussive thumb/pop coordination and the syncopation against the one. Advanced — drill the fingerstyle pocket first, then add the snap.',
+      scales:['minor_pentatonic','dorian'],
+      tempoTiers:[70, 90, 110, 130],
+      base:{ practiceType:'slap_pop', scale:'minor_pentatonic', progression:'static_i', chordDepth:'seventh', chordOverride:'min7', meter:'4/4', subdivision:'sixteenth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'A', fretMin:0, fretMax:5 },
+      vary:[ { key:'A' }, { key:'E' }, { progression:'i-VII-VI-VII' }, { key:'G' }, { key:'D' } ]
     },
     // ── RHYTHM / TIME concept ladder (new concept_rhythm pack) ───────────────────
     // The time/pocket spine — learning-design's #2 underserved gap. Instrument-AGNOSTIC
@@ -10508,9 +10557,16 @@
   // Shared node-visibility predicate (lifted out of renderSkillTree so the list and
   // the SVG tree never diverge): bending is a guitar technique — hidden on bass.
   function isHiddenNode(id) {
+    // Instrument-aware picker filter (cross-instrument parity, 2026-06-03): hide a
+    // pathway whose practice type isn't offered on the current instrument — so a bass
+    // player sees the bass-native + transferable ladders, not guitar-only ones (and
+    // vice versa: the bass ladder is hidden on guitar). Subsumes the old bend_drill
+    // case (bending is n-a on bass). Reads the live stringSetup; offerable() + the
+    // PRACTICE_APPLICABILITY ternary tags are the single source of truth.
     const setup = document.querySelector('[name="stringSetup"]');
-    const isBass = setup && (STRING_SETUPS[setup.value] || {}).instrument === 'bass';
-    return isBass && id === 'bend_drill';
+    const inst = (setup && (STRING_SETUPS[setup.value] || {}).instrument) || 'guitar';
+    const pt = PATHWAYS[id] && PATHWAYS[id].base && PATHWAYS[id].base.practiceType;
+    return !!(pt && !offerable(pt, inst));
   }
   // A pathway's prerequisite = the first incoming edge in the prereq graph. Used for
   // the soft "Builds on …" hint (gamification: prereqs suggest, never gate).
