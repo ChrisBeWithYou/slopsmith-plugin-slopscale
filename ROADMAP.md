@@ -1,7 +1,16 @@
 # SlopScale Roadmap
 
 > Read this at the start of every session. Update it before closing.
-> Current date: 2026-06-02.
+> Current date: 2026-06-03.
+
+### ⏸️ STOPPED HERE (2026-06-03 — ready to /clear) — v0.7.1 RELEASED (pushed + tagged + GitHub release)
+> **v0.7.1 shipped** (plugin.json 0.7.1, tag `v0.7.1`, GitHub release `…/releases/tag/v0.7.1`): the **Pathways → Ladder** rename + the **Workout backing/notes/click desync FIX** (per-block & per-rung) + the **band re-entry fade** + **modal M1** groundwork (dormant). Discord copy at `.claude/discord-v0.7.1.txt` (local). All pushed; working tree clean.
+> **This session's arc** (all pushed): modal-harmony **15-agent audit** + the **M1 bright-modal progression tokens** (`ae7ae16`, dormant — next modal step = M4) · CLAUDE/AGENTS split into **3 numbered Parts** + an auto-guideline · **golden-file harness DESIGNED-but-DEFERRED** (memory `project_golden_file_harness`) · **Workout backing desync FIX** (`6e9aca9`, per-block) + **per-rung** ladder/key-cycle backing + the `smoke-session-sync` guard (**npm test = 10 suites**) · **band re-entry fade** (`b4c669a`, dedicated backing-group node) · **Pathways→Ladder rename** (`673db57`) · **v0.7.1 release** (`417a78a`).
+> **⚠️ RENAME NOTE (read before touching the mode UI):** the user-facing mode is now **"Ladder"** / its picker header **"Skill Ladder"**, but **ALL internal tokens are UNCHANGED** — `data-mode="guided"`, `MODE_META.guided`, the `ss-mode-pathways` / `slopscale-pathway-*` classes, the `PATHWAYS` const, `renderPathwayList`, `slopscale.lastPathway`. In code it's still "pathways/guided"; only the labels say "Ladder". (`673db57` is labels-only.)
+> **NEXT (queued, NOT built):**
+>   - **Pathways → Workout-builder bridge** — 3-agent consensus (analysed this session): surface the Ladder routines as Workout blocks **ONE-WAY** via a `pathwayAsBlock` adapter (PATHWAYS canonical; emit a template-shaped object so a derived block gets **Refresh + length-lock for free** via the pathway's `vary[]`; **delete the hand-copied dupes** like `g_tech_pentatonic_box`≈`pent_foundation`). UX = a `Blocks | From Pathways` **source toggle** (not a merged grid) + a `Pathway` badge + goal-first-sentence subtitle. Progression = **gained-XP-only, never node-advance** (strip the Depth-Ladder chrome off the derived block). One new optional **`role`** field per pathway (kind-inference too coarse). Extend `validateSegmentTemplates` over derived blocks. Memory `project_pathways_feed_workout_blocks` (+ ux/gamification agent-memories). A focused build with genre/instrument agents spot-checking the role tags.
+>   - **Modal M4** — wire the M1 bright-modal tokens into `STYLE_PALETTES` (Jam/Custom payoff) + the Custom progression dropdown, per the per-genre map. Memory `project_modal_harmony_audit`.
+>   - Deferred polish: transport ruler raw-hex→`--ss-*` tokens + a min:sec readout; the golden-file harness (when the engine stabilises / extraction starts).
 
 ## 🎼 Modal Harmony & Modal Progressions — full-panel audit + To-Do (2026-06-02)
 
@@ -37,7 +46,7 @@ User-reported: in multi-block Workouts the backing track drifted off the visual 
 - **Follow-on 2 (per-rung):** the rung builders (`buildBpmLadderChart`/`buildKeyCycleChart`) now emit their OWN per-rung backing (built+swung at each rung's tempo/key); `fillBlockToDuration` tiles it; consumers prefer `chart.backingEvents`. Fixes ladder (per-rung tempo) + key-cycle (per-rung key) backing — incl. the **pre-existing single-exercise** key-cycle/ladder case.
 - **Guard:** `smoke-session-sync.mjs` (`npm run smoke:sync`; `npm test` is now **10 suites**) — backing tracks per-block/rung tempo+key, silent in the break, single-config unaffected. Harmony bonus: a Dorian/`static_i` block now voices its OWN scale (was inheriting block-1's mode → the M1 modal vamps in a Workout now sound right).
 - **RULE (rhythm-meter):** *every timed array must be assembled in the same per-block loop, or it desyncs.* `backingEvents` + swing were the two that had escaped it.
-- **Follow-on 1 (PENDING — Christian wants it AFTER the pathway-in-workout analysis):** a band-bus re-entry fade after a break. Investigated: the transition is already clean (natural decay-out via per-note release + a normal downbeat re-entry); a SAFE explicit fade needs a **dedicated envelope node** (can't automate the band sub-bus gains directly — would clobber the Mixer faders + fight the loop). Doing it as an audio-engine task next.
+- **Follow-on 1 (DONE — `b4c669a`, shipped in v0.7.1):** a band re-entry fade. harmony+bass+drums now route through a dedicated **backing-group** gain node (click/notes bypass it; Mixer faders stay upstream); `scheduleBackingEnvelope` rides it for a ~18 ms fade-out into each break + a ~18 ms fade-in on the next downbeat (breaks = gaps in `segmentBounds`, scheduled at absolute ctx-time per pass). Single-exercise modes = no-op at unity. The audible result is a play-test item; smoke confirms no throw.
 
 ## 🧪 Golden-file regression for the generator core — DESIGNED, DEFERRED (2026-06-02)
 
