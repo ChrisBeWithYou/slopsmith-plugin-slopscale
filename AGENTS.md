@@ -7,7 +7,8 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 ## Parts Index
 
 - **Part 1 — Orientation & Rules** — what SlopScale is, the design north star, the recurring hard rules, the file map, and the dev/test workflow.
-- **Part 2 — Architecture & Reference** — the code map (core data flow, the four-mode shell, the transport, `screen.js`/`routes.py` structure, the data schemas), the key constraints, and the session/agent procedures.
+- **Part 2 — Architecture & Code Map** — the whole architecture section: core data flow, the four-mode shell, the two-lane transport, and the `screen.js`/`routes.py` structure + data schemas.
+- **Part 3 — Constraints, Procedures & Workflow** — the key constraints, the contained-playback model, the "add a pathway / generator" how-tos, and the session-start/end + agent-workflow procedures.
 
 ### Adding a Part (do this automatically — no need to ask)
 
@@ -18,7 +19,7 @@ Keep this file in Parts rather than letting one sprawl; it loads every session, 
 - **Order:** keep Parts most-stable-first (constitution before code-map).
 - **Mirror:** make the identical Part change in `CLAUDE.md` the same session (they mirror).
 - **Ceiling, not quota:** never pad content to fill a Part.
-- **Queued split:** Part 2 already runs long — its next growth should peel the `screen.js` / `routes.py` / sloppak / schema reference out into **Part 3 — Code Map & Schemas**.
+- **Single sections stay whole:** Part 2 (`## Architecture`) is the largest because a single `##` is never split across Parts — if it must grow, promote its `###` subsections to `##` first, then peel a coherent cluster into the next Part.
 
 # ─── Part 1 — Orientation & Rules ───
 
@@ -110,7 +111,7 @@ To exercise backend routes directly, hit them via curl or the browser while Slop
 - `GET /api/plugins/slopscale/presets` — list saved presets
 - `POST /api/plugins/slopscale/temp-sloppak` — build a temp chart; body is `{ "exercise": { ... } }`
 
-# ─── Part 2 — Architecture & Reference ───
+# ─── Part 2 — Architecture & Code Map ───
 
 ## Architecture
 
@@ -240,6 +241,8 @@ All note objects in the exercise payload use compact keys (see `docs/exercise-sc
 ### String index convention
 
 **In SlopScale, `s=0` is the lowest string (low E in standard 6-string tuning).** This is the `openMidis` array index in `STRING_SETUPS` and the `s` key in `CAGED_SHAPES.chordTemplates`. This is the opposite of Rifflarr's convention — do not cross-apply.
+
+# ─── Part 3 — Constraints, Procedures & Workflow ───
 
 ## Key constraints (from docs/architecture.md)
 
