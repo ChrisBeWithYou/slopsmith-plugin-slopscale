@@ -4058,30 +4058,51 @@
   }
   function isJamMode() { const r = $('slopscale-root'); return !!(r && (r.classList.contains('ss-mode-jam') || r.classList.contains('slopscale-jam-mode'))); }
 
-  function buildBackingEvents(cfg, duration) {
-    if (cfg.backingStyle === 'boogie') return buildBoogieBacking(cfg, duration);
+  // ── Chord timeline — the single source of "what chord at what bar/beat" ──────
+  // Derived ONCE from the cfg (progression × key × scale × chordDepth/override ×
+  // tritoneSub) into a per-bar harmonic skeleton. Both the BACKING (pad + boogie,
+  // below) read this instead of re-deriving the chord inline, so the accompaniment
+  // can never silently disagree with the foreground about the harmony. Exposed as
+  // chart.timeline (generateExercise) for the Jam loop + future play-the-changes
+  // drill routing. Bar-locked today (one entry per measure); the beat-level
+  // expansion (2-per-bar ii–V, anticipation) rides this same structure. See
+  // memory project_cross_instrument_backing_unification.
+  function compileChordTimeline(cfg, duration) {
     const degrees = progressionDegreesForConfig(cfg);
     const slot = measureSeconds(cfg);
-    const events = [];
+    const beatsPerBar = Math.max(1, cfg.meter.numerator);
+    const out = [];
     for (let t = 0, i = 0; t < duration - 0.001; t += slot, i++) {
       const degree = degrees[i % degrees.length];
       const rootPc = chordRootForDegree(cfg, degree);
       const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride, cfg.progression);
       const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj;
-      const name = chordName(rootPc, quality);
-      const midis = voiceBackingChord(rootPc, formula.intervals, cfg.instrument);
-      const end = Number(Math.min(duration, t + slot).toFixed(6));
-      // Chord-tone + guide-tone pitch classes for the Jam target-highlight (teaching
-      // mirror — lights which neck notes are chord/guide tones for the current chord).
       const { cpcs, gpcs } = chordHighlightPcs(rootPc, formula.intervals);
-      const rn = romanLabel(degree, quality), fn = degreeFunction(degree);   // Jam chord-loop overview
+      out.push({
+        bar: i,
+        startSec: Number(t.toFixed(6)),
+        endSec: Number(Math.min(duration, t + slot).toFixed(6)),
+        startBeat: i * beatsPerBar, durBeats: beatsPerBar,
+        degree, rootPc, quality, intervals: formula.intervals,
+        name: chordName(rootPc, quality),
+        rn: romanLabel(degree, quality), fn: degreeFunction(degree),
+        cpcs, gpcs,
+      });
+    }
+    return out;
+  }
+  function buildBackingEvents(cfg, duration) {
+    if (cfg.backingStyle === 'boogie') return buildBoogieBacking(cfg, duration);
+    const events = [];
+    for (const c of compileChordTimeline(cfg, duration)) {
+      const midis = voiceBackingChord(c.rootPc, c.intervals, cfg.instrument);
       // Coalesce consecutive identical chords into one sustained event so the pad
       // doesn't hard re-attack every bar (the "pumping" on held harmony).
       const prev = events[events.length - 1];
-      if (prev && prev.name === name && prev.midis.length === midis.length && prev.midis.every((m, k) => m === midis[k])) {
-        prev.end = end;
+      if (prev && prev.name === c.name && prev.midis.length === midis.length && prev.midis.every((m, k) => m === midis[k])) {
+        prev.end = c.endSec;
       } else {
-        events.push({ t:Number(t.toFixed(6)), end, name, midis, cpcs, gpcs, rn, fn });
+        events.push({ t:c.startSec, end:c.endSec, name:c.name, midis, cpcs:c.cpcs, gpcs:c.gpcs, rn:c.rn, fn:c.fn });
       }
     }
     return events;
@@ -4091,8 +4112,8 @@
   // stab a rootless dom9 shell (3rd / ♭7 / 9th) on the off-beats — the classic
   // blues shuffle comp. The off-beat stabs swing late once applySwingToBundle runs,
   // giving the triplet feel. Re-articulated, NOT coalesced — movement is the point.
+  // Reads the shared chord timeline so its chords match the pad/drill exactly.
   function buildBoogieBacking(cfg, duration) {
-    const degrees = progressionDegreesForConfig(cfg);
     const slot = measureSeconds(cfg);
     const beatsPerBar = Math.max(1, cfg.meter.numerator);
     const beatSec = slot / beatsPerBar;
@@ -4100,14 +4121,9 @@
     const upperLow = cfg.instrument === 'bass' ? 50 : 58, upperHigh = 72;
     const BOOGIE = [0, 7, 9, 10]; // root, 5th, 6th, ♭7 — the walking boogie figure
     const events = [];
-    for (let bar = 0, t = 0; t < duration - 0.001; bar++, t += slot) {
-      const degree = degrees[bar % degrees.length];
-      const rootPc = chordRootForDegree(cfg, degree);
-      const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride, cfg.progression);
-      const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj;
-      const name = chordName(rootPc, quality);
-      const { cpcs, gpcs } = chordHighlightPcs(rootPc, formula.intervals);   // Jam highlight
-      const ivset = formula.intervals.map(i => ((i % 12) + 12) % 12);
+    for (const c of compileChordTimeline(cfg, duration)) {
+      const t = c.startSec, rootPc = c.rootPc, name = c.name, cpcs = c.cpcs, gpcs = c.gpcs;
+      const ivset = c.intervals.map(i => ((i % 12) + 12) % 12);
       // Rootless shell: guide tones (3rd + 7th) + the 9th colour. Falls back to the
       // full voiced pad when the chord has no clear 3rd/7th (e.g. a power chord).
       const third = ivset.includes(4) ? 4 : ivset.includes(3) ? 3 : null;
@@ -4122,7 +4138,7 @@
         }
         shell.sort((a, b) => a - b);
       } else {
-        shell = voiceBackingChord(rootPc, formula.intervals, cfg.instrument);
+        shell = voiceBackingChord(rootPc, c.intervals, cfg.instrument);
       }
       const bassRoot = pcAtOrAbove(rootPc % 12, bassLow);
       const root0 = bassRoot > bassHigh ? bassRoot - 12 : bassRoot;
@@ -5818,7 +5834,13 @@
     if (tSec != null) chart = fillBlockToDuration(chart, cfg, tSec);
     const duration = Math.max(chart.duration || 0, cfg.bars * measureSeconds(cfg));
     const anchors = chart.anchors && chart.anchors.length ? chart.anchors : buildAnchors(cfg, duration);
-    return { version:1, session:cfg, chart:Object.assign({}, chart, { beats:buildBeats(cfg, duration), anchors, duration }) };
+    // chart.timeline = the shared harmonic skeleton (the single chord source the backing
+    // reads) exposed for the Jam chord-loop + future play-the-changes drill routing.
+    // Skipped for key-cycle charts (they cycle keys, so a single-key timeline would be
+    // wrong) until per-key timelines land — additive, so no consumer breaks when absent.
+    const extra = { beats:buildBeats(cfg, duration), anchors, duration };
+    if (!(cfg.keyCycle && cfg.keyCycle !== 'none')) extra.timeline = compileChordTimeline(cfg, duration);
+    return { version:1, session:cfg, chart:Object.assign({}, chart, extra) };
   }
 
   // Build one segment's config by merging session-level defaults, string setup,
