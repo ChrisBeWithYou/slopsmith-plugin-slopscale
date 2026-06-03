@@ -2,6 +2,26 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **This file is split into numbered Parts** — most-stable first, each Part one coherent concern. It is auto-loaded into context every session, so it is kept scannable.
+
+## Parts Index
+
+- **Part 1 — Orientation & Rules** — what SlopScale is, the design north star, the recurring hard rules, the file map, and the dev/test workflow.
+- **Part 2 — Architecture & Reference** — the code map (core data flow, the four-mode shell, the transport, `screen.js`/`routes.py` structure, the data schemas), the key constraints, and the session/agent procedures.
+
+### Adding a Part (do this automatically — no need to ask)
+
+Keep this file in Parts rather than letting one sprawl; it loads every session, so scannability matters.
+
+- **When:** while editing, if a Part would grow past **~2 screens (~150 lines)** — or the whole file past **~340 lines** — split it *before* saving.
+- **How:** peel the most self-contained cluster (a whole `##` section, or a coherent group of them) into a new `# ─── Part N — <title> ───` banner and add a one-line entry to the Parts Index above. Never split a single `##` section across Parts.
+- **Order:** keep Parts most-stable-first (constitution before code-map).
+- **Mirror:** make the identical Part change in `AGENTS.md` the same session (they mirror).
+- **Ceiling, not quota:** never pad content to fill a Part.
+- **Queued split:** Part 2 already runs long — its next growth should peel the `screen.js` / `routes.py` / sloppak / schema reference out into **Part 3 — Code Map & Schemas**.
+
+# ─── Part 1 — Orientation & Rules ───
+
 ## What this is
 
 **SlopScale** is a **Slopsmith plugin** — it is not a standalone app. It generates guitar/bass scale, arpeggio, and sweep-arpeggio practice routines and plays them back inside the plugin (contained playback — see "Contained playback" below). Install by dropping the repo into Slopsmith's `plugins/` directory and restarting; the plugin then appears in the Slopsmith navigation as "SlopScale".
@@ -89,6 +109,8 @@ To exercise backend routes directly, hit them via curl or the browser while Slop
 - `GET /api/plugins/slopscale/status` — confirms the plugin is loaded
 - `GET /api/plugins/slopscale/presets` — list saved presets
 - `POST /api/plugins/slopscale/temp-sloppak` — build a temp chart; body is `{ "exercise": { ... } }`
+
+# ─── Part 2 — Architecture & Reference ───
 
 ## Architecture
 
