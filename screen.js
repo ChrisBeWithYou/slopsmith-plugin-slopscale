@@ -7720,7 +7720,13 @@
     limiter.threshold.value = -6; limiter.knee.value = 12; limiter.ratio.value = 6;
     limiter.attack.value = 0.003; limiter.release.value = 0.12;
     master.connect(limiter); limiter.connect(ctx.destination);
-    audioBus = { ctx, master, limiter, tracks: {} };
+    // Backing group: harmony + bass + drums route through this one gain node so the
+    // band can fade out into an inter-block break and fade back in on the next
+    // block's downbeat (scheduleBackingEnvelope rides it) WITHOUT touching the Mixer's
+    // per-bus faders (upstream) or the click / notes buses (which bypass it).
+    const backingGroup = ctx.createGain(); backingGroup.gain.value = 1;
+    backingGroup.connect(master);
+    audioBus = { ctx, master, limiter, backingGroup, tracks: {} };
     return audioBus;
   }
   // Lazily-created per-track sub-bus ('notes' | 'harmony' | 'click'). Future
@@ -7730,6 +7736,9 @@
     const bus = ensureAudioBus(ctx);
     if (!bus.tracks[name]) {
       const g = ctx.createGain(); g.gain.value = mixerGainFor(name);
+      // Backing voices (harmony / bass / drums) feed the backing group (the break
+      // envelope rides it); click / notes bypass it straight to master.
+      const groupOut = (name === 'harmony' || name === 'bass' || name === 'drums') ? bus.backingGroup : bus.master;
       if (name === 'drums') {
         // Drum sub-bus (Phase D): a dedicated compressor BEFORE the master limiter
         // — the punch lever is THIS comp's makeup, NEVER a looser master limiter —
@@ -7740,9 +7749,9 @@
         comp.attack.value = 0.005; comp.release.value = 0.12;
         const shelf = ctx.createBiquadFilter();
         shelf.type = 'highshelf'; shelf.frequency.value = 8000; shelf.gain.value = -3;
-        g.connect(comp); comp.connect(shelf); shelf.connect(bus.master);
+        g.connect(comp); comp.connect(shelf); shelf.connect(groupOut);
       } else {
-        g.connect(bus.master);
+        g.connect(groupOut);
       }
       bus.tracks[name] = g;
     }
@@ -8621,6 +8630,36 @@
     else db = -1.5;
     return Math.pow(10, db / 20);
   }
+  // Band re-entry envelope (sound-design): a Workout's backing drops to silence in
+  // each inter-block break (the count-in is click-only), then re-enters on the next
+  // block's downbeat. Ramp the backing GROUP gain (harmony+bass+drums) down ~18ms
+  // into the break and up ~18ms on the downbeat, so the band doesn't slam from
+  // silence to full into the limiter. Click + notes are unaffected (they bypass the
+  // group). Single-exercise modes (≤1 segment) have no breaks → no-op. Scheduled at
+  // absolute ctx-time each playback pass so it tracks the loop scheduler.
+  function scheduleBackingEnvelope(bundle, ctx, base, startFrom, duration) {
+    const bus = audioBus; if (!bus || !bus.backingGroup) return;
+    const g = bus.backingGroup.gain;
+    const bounds = (bundle.segmentBounds || []).filter(b => b && Number.isFinite(b.start) && Number.isFinite(b.end));
+    const breaks = [];
+    for (let i = 0; i < bounds.length - 1; i++) {
+      if (bounds[i + 1].start > bounds[i].end + 1e-3) breaks.push([bounds[i].end, bounds[i + 1].start]);
+    }
+    const FADE = 0.018, at = t => base + (t - startFrom);
+    try {
+      g.cancelScheduledValues(base);
+      if (!breaks.length) { g.setValueAtTime(1, base); return; }       // no breaks (flowing / single block)
+      const inBreak = breaks.some(br => startFrom > br[0] - 1e-6 && startFrom < br[1] - 1e-6);
+      g.setValueAtTime(inBreak ? 0 : 1, base);
+      for (const [b0, b1] of breaks) {
+        if (b1 < startFrom || b0 > duration + 0.05) continue;          // outside this pass window
+        g.setValueAtTime(1, Math.max(base, at(b0)));                    // band on into the block end
+        g.linearRampToValueAtTime(0, Math.max(base, at(b0)) + FADE);    // fade out into the break
+        g.setValueAtTime(0, Math.max(base, at(b1) - 1e-3));             // silent through the break
+        g.linearRampToValueAtTime(1, at(b1) + FADE);                    // fade in on the next downbeat
+      }
+    } catch (_) {}
+  }
   function schedulePreviewAudio(bundle, fromTime, delaySeconds) {
     const cfg = readConfig();
     // Prefer the bundle's own audio settings (sessions patch their own config)
@@ -8640,6 +8679,7 @@
     const opens = (bundle.openMidis && bundle.openMidis.length) ? bundle.openMidis : openMidisForConfig(cfg);
     const instrument = bundle.config?.instrument || cfg.instrument;
     const duration = bundle.songInfo?.duration || 0;
+    if (audio.harmony) scheduleBackingEnvelope(bundle, ctx, base, startFrom, duration);
     const harmProfile = resolveAudioProfile({ ...cfg, audio });
     // Sample path: if a voice wants a sampled instrument, kick its (async) load
     // and use it once ready; until then, fall back to the oscillator voice.
