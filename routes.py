@@ -294,6 +294,17 @@ def _normalise_chart(exercise: dict[str, Any]) -> tuple[dict[str, Any], dict[str
     duration = max(1.0, min(duration, 900.0))
 
     string_count = int(session.get("stringCount", 6) or 6)
+    # DORMANT PATH (contained playback owns the live transport; nothing calls
+    # temp-sloppak — see CLAUDE.md "Contained playback"). LATENT BUG, deferred:
+    # if this writer is ever revived (e.g. an "export drill to the host library"
+    # affordance), the tuning array below MUST be emitted at FULL string-count
+    # length. The host derives string count as max(notes, name, tuning) but treats
+    # len(tuning)==6 as "no signal" (slopsmith lib/song.py:439-440), so a 5/7/8-
+    # string drill padded to 6 here is silently miscounted as 6. Emit
+    # session["customOpenMidis"]-derived offsets at the real string count, never
+    # padded to 6 / trimmed to voiced strings; the manifest tuning (build_manifest)
+    # must match — it OVERRIDES this one at load (lib/sloppak.py:226-231). Verified
+    # against host v0.2.9-alpha.7; rationale in memory project_python_generator_reconciliation.
     arranged = {
         "name": "Lead" if string_count != 4 else "Bass",
         "tuning": list(session.get("tuning") or ([0, 0, 0, 0] if string_count == 4 else [0, 0, 0, 0, 0, 0])),
@@ -330,6 +341,13 @@ def _midi_to_freq(midi: int) -> float:
 
 
 def _open_midis(session: dict[str, Any]) -> list[int]:
+    # DORMANT PATH (see _normalise_chart). LATENT BUG, deferred: this hardcodes a
+    # 6-string E-standard for anything non-4-string, so 5/7/8-string AND any custom
+    # tuning (session["customOpenMidis"]) produce wrong-pitched stem audio. If this
+    # writer is revived, derive open MIDIs from the config's EFFECTIVE tuning
+    # (customOpenMidis, then a STRING_SETUPS lookup), mirroring screen.js
+    # openMidisForConfig — do not assume standard. Deferred only because the path has
+    # no live caller. Rationale: memory project_python_generator_reconciliation.
     string_count = int(session.get("stringCount", 6) or 6)
     tuning_id = str(session.get("tuningId") or "standard")
     if string_count == 4 or tuning_id == "bass_standard":
