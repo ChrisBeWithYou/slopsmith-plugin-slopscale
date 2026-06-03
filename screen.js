@@ -254,14 +254,30 @@
     'metal_i_bVI_bVII':[1, { semis:8, rn:'♭VI' }, { semis:10, rn:'♭VII' }],            // i–♭VI–♭VII : melodic/heavy metal
     'metal_i_bVII_bVI_V':[1, { semis:10, rn:'♭VII' }, { semis:8, rn:'♭VI' }, 5],       // i–♭VII–♭VI–V : neoclassical minor descent (V stays diatonic)
     'metal_pedal_chromatic':[1, { semis:1, rn:'♭II' }, 1, { semis:10, rn:'♭VII' }],    // i–♭II–i–♭VII over a pedal : metalcore/melodeath
-    'metal_death_tritone':[1, { semis:1, rn:'♭II' }, 1, { semis:6, rn:'♭v' }]          // i–♭II–i–tritone : death-metal chromatic
+    'metal_death_tritone':[1, { semis:1, rn:'♭II' }, 1, { semis:6, rn:'♭v' }],         // i–♭II–i–tritone : death-metal chromatic
+    // Bright-modal vamps (M1, 2026-06-02) — the "major-side" modal family the dark/metal
+    // set above lacked. Spelled with BARE degrees so the paired modal chord-scale supplies
+    // the characteristic quality via DIATONIC_QUALITIES (Dorian's major/dom7 IV, Mixolydian's
+    // major ♭VII, Lydian's major II) — pair each with its mode scale. Ship with
+    // chordOverride:'auto' (NEVER 'dom7' — a stray dom7 override mis-colours the whole vamp).
+    // The Phrygian ♭II is a {semis:1,q:'maj'} token so it stays major in any pairing.
+    // Canonical add-list from harmony-theory-architect's modal audit (M1 keystone).
+    mixolydian_rock:[1,7,4],                                 // I–♭VII–IV over mixolydian : classic/Southern/country "train" rock
+    mixolydian_vamp:[1,7,4,1],                               // I–♭VII–IV–I over mixolydian : the riff-vamp variant
+    dorian_vamp:[1,4],                                       // i–IV over dorian : the funk/modal-jazz i7–IV7 groove (the major/dom7 IV carries the ♮6)
+    lydian_vamp:[1,2],                                       // I–II over lydian : two major triads a step apart (the ♯4 lives in the II)
+    so_what:[1,7],                                           // i–♭VII over dorian : the modal-jazz two-chord vamp (true quartal voicing = the M2 engine task)
+    phrygian_vamp:[1, { semis:1, q:'maj', rn:'♭II' }],       // i–♭II over phrygian/phrygian_dominant : the Spanish/flamenco move (q pinned major)
+    andalusian:[1,7,6,5],                                    // i–♭VII–♭VI–V over natural_minor : the Andalusian cadence (V→dom7 via override below)
+    modal_mixture:[1,4,{ deg:4, q:'min7' },5]                // I–IV–iv–V : borrowed-minor-iv modal mixture (the iv is the colour)
   };
   // Per-progression chord quality overrides — win over diatonic scale harmony,
   // but lose to a user-specified chordOverride. Used by chordQualityForDegree.
   const PROGRESSION_QUALITY_OVERRIDES = {
     minor_ii_V_i:        { 2:'min7b5', 5:'dom7', 1:'min7' },
     rhythm_changes_a:    { 6:'dom7' },
-    rhythm_changes_bridge:{ 3:'dom7', 6:'dom7', 2:'dom7', 5:'dom7' }
+    rhythm_changes_bridge:{ 3:'dom7', 6:'dom7', 2:'dom7', 5:'dom7' },
+    andalusian:          { 5:'dom7' }    // the Andalusian V is the one idiomatic dominant in a modal prog (flamenco variant uses {5:'maj'} over phrygian — handled at the pathway stage)
   };
   // Minor-spelled progressions: their Roman numerals (bVI / bIII / bVII) are
   // spelled against the NATURAL-minor (Aeolian) degrees. Harmonic and melodic
