@@ -3528,6 +3528,33 @@
     const gpcs = [third, sev].filter(x => x != null).map(iv => (rootPc + iv) % 12);
     return { cpcs, gpcs };
   }
+  // Roman-numeral + harmonic-function helpers for the Jam chord-loop overview
+  // (the transferable layer + the band tints). Function hues are categorical and
+  // deliberately NOT meter-green (green = cleared-only).
+  const ROMAN_BASE = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+  const FUNCTION_HUE = { tonic: '#3b82f6', subdominant: '#06b6d4', dominant: '#f59e0b' };
+  function degreeFunction(degree) {
+    const d = (degree && typeof degree === 'object') ? (degree.deg || 1) : Math.round(degree || 1);
+    const m = (((d - 1) % 7) + 7) % 7 + 1;
+    if (m === 5 || m === 7) return 'dominant';
+    if (m === 2 || m === 4) return 'subdominant';
+    return 'tonic';
+  }
+  function romanLabel(degree, quality) {
+    if (degree == null) return '';
+    if (typeof degree === 'object') return degree.rn || '';   // chromatic/borrowed token carries its own
+    const d = Math.round(degree);
+    let r = ROMAN_BASE[(((d - 1) % 7) + 7) % 7 + 1] || '';
+    const q = String(quality || '');
+    if (/^min/.test(q) || /^dim/.test(q)) r = r.toLowerCase();
+    if (/min7b5/.test(q)) r += 'ø7'; else if (/dim7/.test(q)) r += '°7'; else if (/^dim/.test(q)) r += '°';
+    else if (/maj(7|9|11|13)/.test(q)) r += 'maj7';   // major-seventh family — never read as dominant "7"
+    else if (/13/.test(q)) r += '13'; else if (/11/.test(q)) r += '11'; else if (/9/.test(q)) r += '9';
+    else if (/7/.test(q)) r += '7';
+    return r;
+  }
+  function isJamMode() { const r = $('slopscale-root'); return !!(r && (r.classList.contains('ss-mode-jam') || r.classList.contains('slopscale-jam-mode'))); }
+
   function buildBackingEvents(cfg, duration) {
     if (cfg.backingStyle === 'boogie') return buildBoogieBacking(cfg, duration);
     const degrees = progressionDegreesForConfig(cfg);
@@ -3544,13 +3571,14 @@
       // Chord-tone + guide-tone pitch classes for the Jam target-highlight (teaching
       // mirror — lights which neck notes are chord/guide tones for the current chord).
       const { cpcs, gpcs } = chordHighlightPcs(rootPc, formula.intervals);
+      const rn = romanLabel(degree, quality), fn = degreeFunction(degree);   // Jam chord-loop overview
       // Coalesce consecutive identical chords into one sustained event so the pad
       // doesn't hard re-attack every bar (the "pumping" on held harmony).
       const prev = events[events.length - 1];
       if (prev && prev.name === name && prev.midis.length === midis.length && prev.midis.every((m, k) => m === midis[k])) {
         prev.end = end;
       } else {
-        events.push({ t:Number(t.toFixed(6)), end, name, midis, cpcs, gpcs });
+        events.push({ t:Number(t.toFixed(6)), end, name, midis, cpcs, gpcs, rn, fn });
       }
     }
     return events;
@@ -6994,6 +7022,21 @@
     const pcs = jamHighlightMode === 'guide' ? cur.gpcs : cur.cpcs;
     return (pcs && pcs.length) ? new Set(pcs) : null;
   }
+  // Play-the-changes ANTICIPATION: within ~1.5 beats of the next chord, the NEXT
+  // chord's guide tones (3rd/7th) — drawn as a distinct amber "ghost" on the strip
+  // so the player preps the change before it lands. Wraps to the top of the loop.
+  function jamNextGuidePcs(t) {
+    if (jamHighlightMode === 'off' || !activeBundle) return null;
+    const evs = activeBundle.backingEvents || []; if (!evs.length) return null;
+    let curIdx = -1;
+    for (let i = 0; i < evs.length; i++) { if (evs[i].t > t + 1e-6) break; if (evs[i].cpcs) curIdx = i; }
+    if (curIdx < 0) return null;
+    const cur = evs[curIdx], next = evs[curIdx + 1] || evs[0];
+    if (!next || next === cur) return null;
+    if ((cur.end - t) > 1.6 * chartBeatSeconds(activeBundle)) return null;   // only as the change approaches
+    const pcs = next.gpcs || [];
+    return pcs.length ? new Set(pcs) : null;
+  }
   // Notes sounding within ~80ms of the playhead, with a sustain-based fade.
   function fretboardActiveNotes(t) {
     const out = [], win = 0.08, notes = activeBundle?.notes || [];
@@ -7150,8 +7193,20 @@
     // Jam target-highlight: light the current chord's chord/guide/scale tones within
     // the lead box (green = --ss-meter "target") so the player sees which box notes to
     // aim for as the changes move. Drawn under the live glow.
-    const targetPcs = $('slopscale-root')?.classList.contains('ss-mode-jam')
-      ? jamTargetPcs(currentPracticeTime) : null;
+    const jamOn = $('slopscale-root')?.classList.contains('ss-mode-jam');
+    // Anticipation ghost: the NEXT chord's guide tones (amber dashed) as the change
+    // nears — prep the target before it lands. Drawn UNDER the current target.
+    const nextPcs = jamOn ? jamNextGuidePcs(currentPracticeTime) : null;
+    if (nextPcs) {
+      ctx.setLineDash([2, 2]); ctx.lineWidth = 1.5; ctx.strokeStyle = '#f59e0b';
+      for (const p of fbPattern) {
+        if (p.s < 0 || p.s >= nStrings) continue;
+        if (!nextPcs.has((opens[p.s] + p.f) % 12)) continue;
+        ctx.globalAlpha = 0.75; ctx.beginPath(); ctx.arc(xNote(p.f), rowY(p.s), 11, 0, 6.2832); ctx.stroke();
+      }
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
+    const targetPcs = jamOn ? jamTargetPcs(currentPracticeTime) : null;
     if (targetPcs) {
       for (const p of fbPattern) {
         if (p.s < 0 || p.s >= nStrings) continue;
@@ -7237,6 +7292,10 @@
     const padX = 2, usableW = W - padX * 2, lz = Math.min(RULER_LOOP_ZONE, H * 0.4);
     const map = rulerMap(); if (!map) return;
     const xAt = map.xAt;
+    // Jam: bar numbers are LOOP-RELATIVE (1…N each cycle), not 1…∞ — "where am I in
+    // this cycle." N = the progression's bar count (the jam loop length).
+    const jam = isJamMode();
+    const cycN = jam ? (activeBundle.config?.bars || 0) : 0;
 
     // Loop-zone backing + base track
     ctx.fillStyle = 'rgba(148,163,184,0.06)'; ctx.fillRect(0, 0, W, lz);
@@ -7253,7 +7312,7 @@
       if (isBar) {
         ctx.strokeStyle = 'rgba(96,165,250,0.45)'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(x, lz); ctx.lineTo(x, H); ctx.stroke();
-        ctx.fillStyle = '#8aa0bd'; ctx.fillText(String(b.measure), x + 3, lz + 2);
+        ctx.fillStyle = '#8aa0bd'; ctx.fillText(String(cycN > 0 ? ((((b.measure - 1) % cycN) + cycN) % cycN) + 1 : b.measure), x + 3, lz + 2);
       } else {
         const grp = b.accent === 'group';
         ctx.strokeStyle = grp ? 'rgba(148,163,184,0.3)' : 'rgba(148,163,184,0.15)';
@@ -7278,7 +7337,7 @@
       else { ctx.beginPath(); ctx.moveTo(W - 2, lz / 2 - 4); ctx.lineTo(W - 9, lz / 2); ctx.lineTo(W - 2, lz / 2 + 4); ctx.closePath(); ctx.fill(); }
     } else {
       ctx.fillStyle = 'rgba(100,116,139,0.65)'; ctx.font = '8px sans-serif'; ctx.textBaseline = 'middle';
-      ctx.fillText('LOOP · drag here', padX + 3, lz / 2 + 0.5);
+      ctx.fillText(jam ? 'CYCLE · drag to focus' : 'LOOP · drag here', padX + 3, lz / 2 + 0.5);
     }
 
     // Playhead: scrolling → FIXED at ~22% (xAt(now)) with the timeline moving under
@@ -7306,6 +7365,13 @@
   function overviewBands() {
     const b = activeBundle; if (!b) return [];
     const dur = b.songInfo?.duration || 0; if (dur <= 0) return [];
+    // Jam: the CHORD LOOP — one cycle of the progression as chord bands (name +
+    // roman), tinted by harmonic function. The DAW arrangement track for a jam.
+    if (isJamMode()) {
+      const evs = b.backingEvents || [];
+      if (evs.length) return evs.map(e => ({ name: e.name || '', rn: e.rn || '', start: e.t, end: e.end,
+        color: FUNCTION_HUE[e.fn] || '#3b82f6', chord: true }));
+    }
     const sb = Array.isArray(b.segmentBounds) ? b.segmentBounds : null;
     if (sb && sb.length) {
       return sb.map(s => ({ name: s.name || s.kind || '', start: s.start, end: s.end,
@@ -7333,29 +7399,55 @@
     if (!activeBundle || dur <= 0) return;
     const padX = 2, usableW = W - padX * 2;
     const xAt = t => padX + (t / dur) * usableW;
-    // Role-tinted named bands.
-    ctx.textBaseline = 'middle'; ctx.font = '8px ui-sans-serif, sans-serif';
-    for (const bnd of overviewBands()) {
+    const jam = isJamMode();
+    const now = Math.max(0, Math.min(dur, currentPracticeTime));
+    const bands = overviewBands();
+    // Jam: which chord is playing now + which is next (the play-the-changes cue).
+    let curIdx = -1;
+    if (jam) {
+      for (let i = 0; i < bands.length; i++) if (now >= bands[i].start - 1e-3 && now < bands[i].end - 1e-3) { curIdx = i; break; }
+      if (curIdx < 0 && bands.length) curIdx = 0;
+    }
+    const nextIdx = jam && bands.length ? (curIdx + 1) % bands.length : -1;
+    // Bands: role tints (finite) or function-tinted chord bands (Jam). In Jam the
+    // current chord is full-strength and the NEXT chord raised — see the change coming.
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < bands.length; i++) {
+      const bnd = bands[i];
       const ax = xAt(bnd.start), w = Math.max(1, xAt(bnd.end) - ax);
-      ctx.fillStyle = hexA(bnd.color, 0.32); ctx.fillRect(ax, 1, w, H - 2);
-      ctx.fillStyle = hexA(bnd.color, 0.9); ctx.fillRect(ax, 1, 1.5, H - 2);
-      if (w > 24 && bnd.name) {
+      const alpha = jam ? (i === curIdx ? 0.6 : (i === nextIdx ? 0.44 : 0.26)) : 0.32;
+      ctx.fillStyle = hexA(bnd.color, alpha); ctx.fillRect(ax, 1, w, H - 2);
+      ctx.fillStyle = hexA(bnd.color, i === curIdx ? 1 : 0.9); ctx.fillRect(ax, 1, i === curIdx ? 2 : 1.5, H - 2);
+      if (w > 22 && bnd.name) {
         ctx.save(); ctx.beginPath(); ctx.rect(ax + 3, 0, w - 5, H); ctx.clip();
-        ctx.fillStyle = 'rgba(226,232,240,0.88)'; ctx.fillText(bnd.name, ax + 4, H / 2 + 0.5); ctx.restore();
+        ctx.fillStyle = 'rgba(226,232,240,0.9)'; ctx.font = (jam ? 'bold ' : '') + '8px ui-sans-serif, sans-serif';
+        ctx.fillText(bnd.name, ax + 4, H / 2 + 0.5);
+        if (jam && bnd.rn && w > 44) {                                  // roman numeral — the transferable layer
+          const nw = ctx.measureText(bnd.name).width;
+          ctx.fillStyle = 'rgba(148,163,184,0.85)'; ctx.font = '7px ui-sans-serif, sans-serif';
+          ctx.fillText(bnd.rn, ax + 7 + nw, H / 2 + 0.5);
+        }
+        ctx.restore();
       }
     }
-    // A–B loop overlay (full-session, the authoring view).
+    // A–B loop / focus overlay (the authoring view).
     if (tpA != null && tpB != null && Math.abs(tpA - tpB) > 0.02) {
       const ax = xAt(Math.min(tpA, tpB)), bx = xAt(Math.max(tpA, tpB));
-      ctx.fillStyle = 'rgba(64,128,224,0.28)'; ctx.fillRect(ax, 0, Math.max(1, bx - ax), H);
+      ctx.fillStyle = 'rgba(64,128,224,0.24)'; ctx.fillRect(ax, 0, Math.max(1, bx - ax), H);
       ctx.fillStyle = '#9ec1ff'; ctx.fillRect(ax - 1, 0, 2, H); ctx.fillRect(bx - 1, 0, 2, H);
     }
-    // Viewport box: the slice the scrolling working ruler is showing right now.
-    const win = rulerWindow();
-    const now = Math.max(0, Math.min(dur, currentPracticeTime));
-    const vx0 = xAt(Math.max(0, now - win.BEHIND)), vx1 = xAt(Math.min(dur, now + win.AHEAD));
-    ctx.strokeStyle = 'rgba(226,232,240,0.5)'; ctx.lineWidth = 1;
-    ctx.strokeRect(vx0 + 0.5, 0.5, Math.max(2, vx1 - vx0) - 1, H - 1);
+    // Viewport box: what the scrolling working ruler is showing now. Finite only —
+    // an endless jam has no "whole" for it to frame (a mirror, not a finite plan).
+    if (!jam) {
+      const win = rulerWindow();
+      const vx0 = xAt(Math.max(0, now - win.BEHIND)), vx1 = xAt(Math.min(dur, now + win.AHEAD));
+      ctx.strokeStyle = 'rgba(226,232,240,0.5)'; ctx.lineWidth = 1;
+      ctx.strokeRect(vx0 + 0.5, 0.5, Math.max(2, vx1 - vx0) - 1, H - 1);
+    } else {
+      // The "this loops forever" tell.
+      ctx.fillStyle = 'rgba(148,163,184,0.7)'; ctx.font = '9px sans-serif'; ctx.textAlign = 'right';
+      ctx.fillText('↻', W - 2, H / 2 + 0.5); ctx.textAlign = 'left';
+    }
     // Playhead.
     const px = xAt(now);
     ctx.strokeStyle = '#f43f5e'; ctx.lineWidth = 1.5;
@@ -9472,6 +9564,10 @@
     const palette = stylePaletteConfig(styleId, { key: jamKey });
     if (!palette) return;
     const base = readConfig();   // instrument / tuning / renderer / audio defaults
+    // Loop = ONE clean cycle of the progression (not a hardcoded 8 bars) so a 12-bar
+    // blues isn't truncated and the chord-loop overview shows the real form.
+    const jamDegs = COMMON_PROGRESSIONS[palette.progression];
+    const jamBars = (jamDegs && jamDegs.length) ? Math.max(2, Math.min(16, jamDegs.length)) : 8;
     const cfg = Object.assign({}, base, {
       mode: undefined, shapeNotes: undefined,
       practiceType: 'scale',
@@ -9480,7 +9576,7 @@
       chordDepth: palette.chordDepth, chordOverride: palette.chordOverride,
       swing: jamFeel, backingStyle: palette.backingStyle,
       fretboardSystem: 'position', fretMin: 2, fretMax: 9,   // a movable box — no shape to re-resolve
-      bpm: jamTempo, bars: 8, harmonize: false, keyCycle: 'none', sequence: 'none', direction: 'up_down',
+      bpm: jamTempo, bars: jamBars, harmonize: false, keyCycle: 'none', sequence: 'none', direction: 'up_down',
       audio: Object.assign({}, base.audio, { notes: true, harmony: true, metronome: false, profile: palette.audioProfile || '' }),
     });
     try {
