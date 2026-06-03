@@ -2,15 +2,15 @@
 
 A Slopsmith plugin that turns scales, arpeggios, technique, and grooves into **practice routines you actually want to run** — and plays them back in its own DAW-style player with a real-sounding backing band.
 
-**Most practice apps teach you _songs_. SlopScale teaches you the _skills_** — the gallop, the ii–V–I, the one-drop — so what you build here you take off the screen into your own playing. Pick a pathway, set a tempo, hit Play, and drill.
+**Most practice apps teach you _songs_. SlopScale teaches you the _skills_** — the gallop, the ii–V–I, the one-drop — so what you build here you take off the screen into your own playing. Pick a routine, set a tempo, hit Play, and drill.
 
 > **Practice the skill, not the song.** SlopScale is a practice & learning tool, not a song/riff generator — generated routines exist to teach a move, then get out of your way.
 
-Install drops it into Slopsmith and it shows up in the nav as **SlopScale**: pick a pathway, hit Play, and you're drilling in under a minute.
+Install drops it into Slopsmith and it shows up in the nav as **SlopScale**: pick a routine, hit Play, and you're drilling in under a minute.
 
 <p align="center">
-  <img src="docs/images/highway.png" width="860" alt="SlopScale's DAW-style shell: a pathway goal card and tempo tiers on the left, the 3D Note Highway mid-playback on the right with a generated exercise scrolling toward the player.">
-  <br><sub><i>The DAW-style shell — pick a pathway, set a tempo, and drill on the 3D Note Highway (or Tab / Notation).</i></sub>
+  <img src="docs/images/highway.png" width="860" alt="SlopScale's DAW-style shell: a Skill Ladder goal card and tempo tiers on the left, the 3D Note Highway mid-playback on the right with a generated exercise scrolling toward the player.">
+  <br><sub><i>The DAW-style shell — pick a routine, set a tempo, and drill on the 3D Note Highway (or Tab / Notation).</i></sub>
 </p>
 
 ## Why SlopScale
@@ -24,9 +24,9 @@ Install drops it into Slopsmith and it shows up in the nav as **SlopScale**: pic
 
 One **DAW-style shell with four modes**, all sharing the same player, ruler/transport, mixer, and render stage — no second window, nothing to relearn between modes:
 
-- **Pathways** — curated, sequenced routines that build a skill from the ground up (the picker groups them into bands from beginner foundations to advanced/idiom packs).
+- **Ladder** — curated, sequenced routines that build a skill from the ground up; the **Skill Ladder** picker groups them into bands from beginner foundations to advanced / idiom packs.
 - **Custom** — full manual control: pick the exact scale, shape, position, meter, progression, and feel you want to drill. Any Custom setup can be saved as a preset or dropped into a Workout.
-- **Workout** — a timed, multi-block practice session ("woodshed N minutes"): warm up, target a weak skill, then apply it — built from the same pathway/Custom units, run back-to-back on a wall clock.
+- **Workout** — a timed, multi-block practice session ("woodshed N minutes"): warm up, target a weak skill, then apply it — built from the same Ladder / Custom units, run back-to-back on a wall clock.
 - **Jam** — pick a style, hit one button, and play along immediately over a looping backing band. **Jam is a mirror, not a judge** — no score, no rank; instead the live fretboard strip lights up the current chord's tones / guide tones so the jam *teaches* you what to reach for.
 
 <p align="center">
@@ -62,7 +62,7 @@ The Workout pillar got a much bigger library and two new corners of practice:
 - **Jam is a mirror, not a judge** — play along over a live backing band while the fretboard strip lights up the chord/guide tones to reach for. No score, no rank — a sandbox to *apply* what you drilled, not a track to mimic
 - **A real backing band** — sampled comp, bass, and **drums** (kits change by feel & genre), through a safety-limited master so nothing clips or jumps in level
 - **Drum kits that change by feel & genre** — procedural **808 / 909** for electronic feels and **sampled acoustic kits** for everything else, on grooves that follow the meter — including **odd meters** (7/8, 5/4, …) via a grouping-aware groove
-- **27 curated pathways** across foundations, technique, jazz/blues vocabulary, modal work, and sweep arpeggios — plus a **metal/djent pack** (pedal chug, gallop, twin leads, polymeter, chromatic riffing)
+- **27 curated Ladder routines** across foundations, technique, jazz/blues vocabulary, modal work, and sweep arpeggios — plus a **metal/djent pack** (pedal chug, gallop, twin leads, polymeter, chromatic riffing)
 - **A live Mixer (`M`)** — swap the comp to organ, the drums to a 909, dim the backing, all while you play
 - **Four render surfaces** — 3D Note Highway, 2D Highway, paper-style Tab, and staff Notation — one chart, your choice, with Light/Dark themes
 - **Extended-range & drop tunings** — 6/7/8-string guitar and 4/5/6-string bass, standard / drop / open / fully custom per-string
@@ -103,7 +103,7 @@ Playback is fully contained in the plugin (its own clock, Web Audio graph, and p
 
 ## Configuration
 
-Dial in anything — 12 keys, 25+ scales, any tuning, any meter, any feel — or let a pathway set it all for you. The full menus:
+Dial in anything — 12 keys, 25+ scales, any tuning, any meter, any feel — or let a Ladder routine set it all for you. The full menus:
 
 ### Key & scale
 12 keys; 25+ scale families: major, natural / harmonic / melodic minor, the seven modes of major, the melodic-minor modes (Dorian ♭2, Lydian augmented, Lydian dominant, Mixolydian ♭6, Locrian ♮2, altered), minor & major pentatonic, blues, bebop major & dominant, whole-tone, diminished, Phrygian dominant, plus exotic colours (double harmonic, Hungarian minor, Neapolitan minor) for the metal/idiom work.
@@ -152,7 +152,7 @@ Clone into the Desktop app's configured plugins directory (visible in **Settings
 After restart, **SlopScale** appears in the plugin navigation.
 
 ### First five minutes
-Open **SlopScale → Pathways**, pick a beginner node (e.g. *Pentatonic Foundation*), and hit **Play** — you're drilling. Then switch to **Jam**: pick a style, press play, and noodle over the band while the fretboard strip shows you the notes to land on. That's the whole loop — drill a skill, then go use it.
+Open **SlopScale → Ladder**, pick a beginner node (e.g. *Pentatonic Foundation*), and hit **Play** — you're drilling. Then switch to **Jam**: pick a style, press play, and noodle over the band while the fretboard strip shows you the notes to land on. That's the whole loop — drill a skill, then go use it.
 
 ## File layout
 
@@ -170,6 +170,6 @@ Open **SlopScale → Pathways**, pick a beginner node (e.g. *Pentatonic Foundati
 
 - **A browsable segment library + design-your-own Workouts + one-tap Refresh** — re-roll a saved routine into fresh keys/positions while it holds the same skill (the v0.7.0 variation engine surfaced as UI; next up)
 - Deeper drum realism (per-genre grooves + humanisation) and a brush/percussion kit set
-- Per-instrument Development Pathways (guitar Core shipped; **bass shipped**; piano to follow)
+- Per-instrument **Skill Ladder** content (guitar Core shipped; **bass shipped**; piano to follow)
 - Live amp-modelled distorted backing (host NAM-engine borrow, in progress)
 - Piano / keyboard exercise generation
