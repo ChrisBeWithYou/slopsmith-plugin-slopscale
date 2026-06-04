@@ -10081,6 +10081,67 @@
     if (field.type === 'checkbox') field.checked = !!value;
     else field.value = String(value);
   }
+
+  // ── Meter-aware subdivision (Tier-1 fix, 2026-06-03 rhythm-meter panel) ──────
+  // A meter is FELT in its denominator note-value (the metronome's pulse unit:
+  // the eighth in x/8, the quarter in x/4). A subdivision COARSER than that pulse
+  // doesn't divide the bar — a QUARTER run in 7/8 (3.5 quarters/bar) phases
+  // against the bar and re-lands on a downbeat only every 2 bars: the classic
+  // "the notes don't follow my tempo" trap. The generation ENGINE is correct and
+  // unchanged (DAW/notation convention: quarter-referenced BPM, absolute
+  // note-values — proven by probe-meter-timing.mjs); we just make the natural
+  // pulse the DEFAULT and NAME the cross-pulse instead of silently defaulting into
+  // it. Panel verdict: meter-aware default (eighth in /8), keep quarter as a
+  // labelled advanced option, never hide it, don't relabel to "notes per beat".
+  const SUBDIV_NOTE_DENOM = { quarter: 4, eighth: 8, sixteenth: 16 };
+  function pulseSubdivisionForDenominator(den) {
+    if (den >= 16) return 'sixteenth';
+    if (den >= 8)  return 'eighth';
+    return 'quarter';
+  }
+  // On a USER meter change, bump ONLY a too-coarse SIMPLE subdivision up to the
+  // pulse unit (quarter→eighth under an /8 meter). Finer or non-simple picks
+  // (sixteenth, triplet, gallop) already lock, so they're left alone. This is a
+  // DEFAULT, not a clamp: it fires only from the meter-change event, so an
+  // explicit subdivision pick afterwards — and every regenerate, preset, and
+  // share-link (which set fields silently) — is preserved.
+  function meterAwareSubdivisionBump() {
+    const mEl = document.querySelector('#slopscale-controls [name="meter"]');
+    const sEl = document.querySelector('#slopscale-controls [name="subdivision"]');
+    if (!mEl || !sEl) return;
+    const den = parseMeter(mEl.value).denominator;
+    const pulse = pulseSubdivisionForDenominator(den);
+    const pulseRank = SUBDIV_NOTE_DENOM[pulse] || 4;
+    const curRank = SUBDIV_NOTE_DENOM[sEl.value];
+    if (curRank && curRank < pulseRank) sEl.value = pulse;
+  }
+  // The calm one-line explainer under Division: names the felt pulse and, when a
+  // coarse subdivision crosses an odd bar, frames the phasing as the device it is
+  // (never an error state — hearing-safety / calm-UI ethos). Recomputes notes/bar
+  // from the same core timing helpers the chart uses, so it can't drift from the
+  // real output. BPM cancels in the ratio, so the constant here is irrelevant.
+  function syncDivisionHelp() {
+    const el = $('slopscale-division-help'); if (!el) return;
+    const mEl = document.querySelector('#slopscale-controls [name="meter"]');
+    const sEl = document.querySelector('#slopscale-controls [name="subdivision"]');
+    if (!mEl || !sEl) { el.textContent = ''; return; }
+    const m = parseMeter(mEl.value);
+    const pulseGlyph = m.denominator >= 8 ? '♪' : '♩';   // ♪ eighth-denom · ♩ quarter-denom
+    const grouping = (m.grouping && m.grouping.length > 1) ? ` (${m.grouping.join('+')})` : '';
+    let txt = `Pulse = ${pulseGlyph} · ${m.numerator} per bar${grouping}`;
+    const cfg = { bpm: 100, meter: m, subdivision: sEl.value };
+    const npb = measureSeconds(cfg) / secondsPerDivision(cfg);
+    const rounded = Math.round(npb);
+    if (Math.abs(npb - rounded) < 0.01) {
+      txt += ` · ${rounded} notes/bar`;
+    } else {
+      // Non-integer ⇒ the run crosses the bar. Smallest k with k·npb whole = re-align bars.
+      let k = 2; for (; k <= 16; k++) { if (Math.abs(k * npb - Math.round(k * npb)) < 0.01) break; }
+      const label = (sEl.options[sEl.selectedIndex] && sEl.options[sEl.selectedIndex].text) || sEl.value;
+      txt += ` · ${label} crosses the ${m.numerator}/${m.denominator} pulse — re-aligns every ${k} bars`;
+    }
+    el.textContent = txt;
+  }
   function syncCagedButtonStrip() {
     // The button-strip UI was removed in favor of the unified Shape dropdown.
     // Kept as a no-op so existing callers don't need to be touched.
@@ -12159,11 +12220,18 @@
       if (name === 'practiceType') syncChromaticVisibility();
       if (name === 'keyCycle') { const h = $('slopscale-keycycle-help'); if (h) h.style.display = ev.target.value !== 'none' ? '' : 'none'; }
       if (name === 'renderer') syncViewSwitcher(ev.target.value);
+      // Meter-aware Division default: a user meter change bumps a too-coarse pick
+      // up to the pulse (quarter→eighth under an /8) BEFORE the share-hash + the
+      // regenerate below, so both reflect the corrected subdivision. The caption
+      // re-renders on either meter or subdivision change. (Tier-1 rhythm fix.)
+      if (name === 'meter') meterAwareSubdivisionBump();
+      if (name === 'meter' || name === 'subdivision') syncDivisionHelp();
       syncAdvancedMode();
       markPathwayModifiedIfApplicable(name);
       writeShareHash();
       if (activeBundle) onGenerate();
     });
+    syncDivisionHelp();   // paint the Division pulse caption on first load
     // Practice mute pills (Notes / Backing / Click) live in the stage view-bar but
     // are form-associated (form="slopscale-controls"), so their change events do
     // NOT bubble to the #slopscale-controls listener above — wire them directly to

@@ -1634,6 +1634,10 @@
         <label class="slopscale-custom-only">Division
           <select name="subdivision"><option value="quarter">Quarter</option><option value="eighth" selected>Eighth</option><option value="sixteenth">Sixteenth</option><option value="triplet">Triplet</option><option value="eighth_triplet">Eighth triplet</option><option value="sixteenth_triplet">Sixteenth triplet</option><option value="gallop">Gallop (♪ ♬)</option><option value="reverse_gallop">Reverse gallop (♬ ♪)</option></select>
         </label>
+        <!-- Calm pulse caption: names the meter's felt pulse and, when a coarse
+             Division crosses an odd bar (e.g. quarters in 7/8), frames the phasing
+             as a device rather than a fault. Filled live by syncDivisionHelp(). -->
+        <div class="slopscale-help slopscale-custom-only" id="slopscale-division-help" style="grid-column:1/-1;margin-top:2px;"></div>
       </div>
       <div class="slopscale-grid-2 slopscale-custom-only">
         <label class="slopscale-toggle"><input name="harmonize" type="checkbox"> Harmonize 3rds/6ths (twin-guitar)</label>
