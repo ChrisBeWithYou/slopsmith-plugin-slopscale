@@ -112,6 +112,8 @@ There is **no unit-test or lint suite**. Verification is behavioural, via thirte
 
 These plus the startup regression guards baked into `screen.js` (e.g. the no-unison check, which throws on load if a resolved shape doubles a pitch) are the safety net before/after any `screen.js` change.
 
+Alongside the durable `smoke-*.mjs` net, the `run-slopscale` dir also fills with **ad-hoc `probe-*.mjs` and `shot-*.mjs` scripts** — local-only (gitignored), one per feature. A `probe-X.mjs` asserts a just-built feature's behaviour (the per-feature counterpart to the suites; the standard way recent work is verified — see the `probe-…` citations throughout `ROADMAP.md`); a `shot-X.mjs` drives the UI and screenshots a state. They are **not** in `npm test` and may go stale — they are throwaway proofs for the session that built them. When a probe guards something durable, promote it to a `smoke-*.mjs` suite and add it to the `test` script in `package.json`.
+
 To exercise backend routes directly, hit them via curl or the browser while Slopsmith is running:
 - `GET /api/plugins/slopscale/status` — confirms the plugin is loaded
 - `GET /api/plugins/slopscale/presets` — list saved presets
