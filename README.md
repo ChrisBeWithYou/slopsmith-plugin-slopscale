@@ -61,6 +61,11 @@ The Workout pillar got a much bigger library and two new corners of practice:
 
 The **Ladder** picker grew from a handful of routines into **~80**, grouped into opt-in **packs** you add from the **`+` Pack manager** — so the list stays a curriculum map, not a wall to scroll. Three Core bands (Beginner → Intermediate → Advanced) are always on; everything else you switch in when you want it:
 
+<p align="center">
+  <img src="docs/images/packs.png" width="520" alt="The Pack manager — an Available column grouped by family (Concepts: Triads, Arpeggios, Guide Tones, Fretboard, Expression…) each naming the skill it builds, beside the always-installed Core bands.">
+  <br><sub><i>The <code>+</code> Pack manager — opt-in packs grouped by family (the Concepts ladders shown), each routine naming the skill it builds; the Core bands stay installed, and genre / bass packs slot in when you want them.</i></sub>
+</p>
+
 - **8 Concept ladders** — one skill, sequenced easy → mastery: **Triads, Arpeggios, Guide Tones, Fretboard Freedom, Expression, Rhythm, Picking, Legato.** Each is a vertical climb through a single idea (Fretboard: one box → CAGED links → position shifts → 3NPS → whole-neck map) rather than another grab-bag.
 - **Deeper genre packs** — **Blues** (box → shuffle → bends → call-and-response → mixing major/minor), **Rock** (power + backbeat → pentatonic → lead vocab → pedal riffs → ♭VII changes), **Country** (major pentatonic → cowboy changes → double-stops → chicken pickin' → pedal bends → train beat), alongside the existing **Metal / djent** pack — a genre ladder is the *application* layer: take the grammar into a style's accent.
 - **A bass-native ladder** — **Bass Foundations** on a 4-string, groove-first the way bass is actually learned: root–5th–octave → octave groove → dead-note pocket → walking bass → slap & pop. The picker is now **instrument-aware** — guitar-only shapes hide on bass, and the reverse.
