@@ -40,6 +40,7 @@ SlopScale is a **practice & learning tool, not a song/riff generator.** Its purp
 - Prefer **recombinable primitives** (power chords, gallop, pedal-riffs, harmonized lines) over fixed canned content — give the blocks, let the player assemble their own.
 - Keep a deliberate on-ramp to creation: Guided → Custom → Improv/Jam. Drills are the entrance; creativity (improv, call-and-response, master/memory mode) is the destination, not optional polish.
 - Realism guardrails (no-unison, the voicing engine, fretboard playability) are mission-critical — they're what make practised skill actually *transfer*, and why the harmony / fretboard / metal-idiom review agents matter.
+- **Gamification describes mastery, never substitutes a score for it** — credit named competencies, not rounds/time/rank; a "score to beat" is on-mission only as a *capstone demonstration of a skill already taught*, never the goal of practice. (This is the general principle the no-song-generator rule is a special case of, and the reason SlopScale is a **practice studio**, not a Slopsmith *minigame* — see the 2026-06-03 "stay a plugin, not a minigame" decision in `ROADMAP.md`.)
 
 The planned random-style generator is an **idiom-demonstration / practice-variety engine** (show the genre's grammar to learn from and riff against), never a "make me a song" crutch. And when finalising user-facing docs/description, let this framing show **implicitly** — describe SlopScale as a way to *learn and practise* an instrument, not as a generator.
 
