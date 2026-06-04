@@ -470,7 +470,7 @@
     { id:'concept_voiceleading', label:'Guide Tones', kind:'style', family:'Concepts', buildsOn:'Builds on Core — diatonic seventh chords and the major scale. The 3rd and 7th are a chord\'s identity; voice-lead just those through the changes, then play a line that follows them.', pathways:['vl_shells','vl_guide_tones','vl_guide_changes','vl_connect'] },
     { id:'concept_fretboard', label:'Fretboard', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the pentatonic box and the CAGED major scale. Stop thinking in one box: connect the shapes, shift positions, learn the 3NPS system, and map the whole neck.', pathways:['fb_one_box','fb_caged_links','fb_position_shifts','fb_3nps','fb_whole_neck'] },
     { id:'concept_expression', label:'Expression', kind:'style', family:'Concepts', buildsOn:'Builds on Core Beginner — a fretted note and a target pitch. Make the note SING: vibrato width first, then bends that land dead in tune (half → whole → mixed).', pathways:['exp_vibrato','exp_bend_half','exp_bend_whole','exp_bend_mixed'] },
-    { id:'concept_rhythm', label:'Rhythm', kind:'style', family:'Concepts', buildsOn:'Builds on Core — a steady pulse and the pentatonic box. Own TIME itself: subdivisions, the 16th pocket, swing vs straight, syncopation, and odd meters. Instrument-agnostic — works on guitar or bass.', pathways:['rhy_subdivision','rhy_sixteenth','rhy_swing','rhy_displacement','rhy_odd_meter'] },
+    { id:'concept_rhythm', label:'Rhythm', kind:'style', family:'Concepts', buildsOn:'Builds on Core — a steady pulse and the pentatonic box. Own TIME itself: subdivisions, the 16th pocket, swing vs straight, syncopation, and odd meters. Instrument-agnostic — works on guitar or bass.', pathways:['rhy_subdivision','rhy_sixteenth','rhy_swing','rhy_displacement','rhy_odd_meter','rhy_over_barline'] },
     { id:'concept_picking', label:'Picking', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the chromatic warmup and one-finger-per-fret sync. The pick-hand engine: tremolo, alternate across strings, string skipping, hybrid picking.', pathways:['pick_tremolo','pick_alternate','pick_string_skip','pick_hybrid'] },
     { id:'concept_legato', label:'Legato', kind:'style', family:'Concepts', buildsOn:'Builds on Core — clean fretting and a scale shape. The fretting-hand engine: hammer-ons/pull-offs, 3NPS legato runs, then two-hand tapping.', pathways:['leg_hopo','leg_runs','leg_tapping'] },
     // Bass family — the first bass-NATIVE ladder (cross-instrument parity). Its pathways
@@ -979,6 +979,27 @@
       tempoTiers:[55, 70, 85, 100],
       base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'7/8:2+2+3', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
       vary:[ { meter:'7/8:2+2+3' }, { meter:'5/8:3+2' }, { meter:'7/8:3+2+2' }, { meter:'5/8:2+3' }, { meter:'6/8:3+3' } ]
+    },
+    // Capstone of the Rhythm band (Tier 2 of the 2026-06-03 meter fix). The
+    // FLIP-SIDE of Odd Meters: instead of locking TO the 2+2+3 pulse, deliberately
+    // play a steady QUARTER line ACROSS it. A 7/8 bar is 3.5 quarters, so the line
+    // phases — re-landing on the downbeat only every 2 bars = metric
+    // superimposition (2-against-7). The Tier-1 meter-aware default bumps a
+    // *user's* coarse pick up to the pulse; this pathway PRESETS subdivision:
+    // 'quarter' (silently, via setFieldSilent), so it survives that bump by design
+    // — the trap becomes the lesson. Band keeps the pitch vehicle constant
+    // (pentatonic box, see note above) so the difficulty axis stays pure rhythm.
+    // 5-agent panel: prog/L&D/guitar/bass-pedagogy/rhythm-meter. The truer 3-over-7
+    // CELL version is deferred to the Tier-3 polymeter primitive (needs a decoupled
+    // phrase clock). swing:'straight' explicit so a stray shuffle can't muddy the
+    // phase boundary; the click (on by default) sounds the 2+2+3 pulse underneath.
+    rhy_over_barline: {
+      label:'Over the Barline',
+      goal:"Now break the bar you just learned to lock. Play a steady stream of QUARTER notes over 7/8 — and listen to it drift. Seven eighths is three-and-a-half quarters, so your line won't fit the bar; it re-lands on the downbeat only every TWO bars, leaning across the barline in between. That misalignment isn't a mistake — it's the device: metric superimposition, laying an even pulse over an odd one on purpose. Count the underlying 2+2+3 out loud (or tap it with your foot) and keep your quarters dead even against it — feeling the two pulses pull apart and snap back is the whole skill. It's the tension behind prog, math rock, and modern metal; once you can ride one pulse against another, polyrhythm and odd-time soloing start to sound like intent, not accident.",
+      scales:['minor_pentatonic','dorian','phrygian'],
+      tempoTiers:[54, 66, 78, 90],
+      base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'7/8:2+2+3', subdivision:'quarter', bpm:54, bars:8, direction:'up_down', sequence:'none', swing:'straight', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { meter:'7/8:2+2+3' }, { meter:'5/8:3+2' }, { meter:'9/8:3+3+3' }, { meter:'7/8:3+2+2' }, { meter:'11/8:3+3+3+2' } ]
     },
     // ── PICKING concept ladder (new concept_picking pack) ───────────────────────
     // The pick-hand engine (guitar-pedagogy #2). Difficulty axis = coordination/crossing,
