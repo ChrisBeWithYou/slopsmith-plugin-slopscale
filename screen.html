@@ -142,9 +142,14 @@
   .slopscale-settings-divider { height: 1px; background: var(--ss-hairline, rgba(148,163,184,0.14)); margin: 4px 6px; }
   /* Mode dropdown fallback — hidden until the narrowest breakpoint. */
   .slopscale-mode-select { display: none; padding: 6px 10px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1px solid var(--ss-border, #334155); background: var(--ss-inset, #0b1220); color: var(--ss-text, #e2e8f0); }
-  /* Narrow-width header degrade (spec order): tagline already dropped → Setup label
+  /* Narrow-width header degrade (spec order): tagline drops FIRST → Setup label
      shortens → view-bar secondary toggles hide → mode segments → Mode ▾ dropdown LAST
-     (primary nav protected longest). */
+     (primary nav protected longest). The masthead identity line is the first thing to
+     yield space because the 4-mode switcher already carries the "this is a studio"
+     signal once horizontal room gets tight. */
+  @media (max-width: 1200px) {
+    .slopscale-tagline { display: none; }
+  }
   @media (max-width: 1120px) {
     #slopscale-setup-label { font-size: 0; }
     #slopscale-setup-label::after { content: attr(data-short); font-size: 12.5px; font-weight: 600; }
@@ -157,7 +162,8 @@
     .slopscale-mode-select { display: inline-block; }
   }
   .slopscale-header h1 { margin: 0; font-size: 22px; line-height: 1.1; letter-spacing: -0.02em; color: #f8fafc; font-weight: 700; }
-  .slopscale-tagline { margin: 3px 0 6px 0; font-size: 12px; color: #94a3b8; max-width: 760px; }
+  .slopscale-tagline { margin: 3px 0 6px 0; font-size: 12px; line-height: 1.35; color: var(--ss-text-muted, #94a3b8); max-width: 760px; }
+  .slopscale-tagline strong { font-weight: 600; color: var(--ss-text-dim, #cbd5e1); }
   .slopscale-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: #cbd5e1; }
   .slopscale-meta #slopscale-renderer-status { color: #94a3b8; }
   .slopscale-meta-sep { color: #475569; }
@@ -1043,6 +1049,13 @@
   <section class="slopscale-panel slopscale-header">
     <div class="slopscale-header-main">
       <h1>SlopScale</h1>
+      <!-- First-paint identity (recurring rule #3 — designed against the whole header,
+           not a rip/replace). Reuses the pre-existing .slopscale-tagline class so a
+           first-time visitor reads "this is a four-mode practice studio" at the
+           masthead. Distinct from the per-MODE JTBD line (.slopscale-mode-desc) lower
+           in the Inspector: this is the PRODUCT identity, that is the active mode's.
+           Dropped first in the narrow-width degrade order (see header media queries). -->
+      <p class="slopscale-tagline" id="slopscale-tagline">Practice studio for guitar &amp; bass — climb the <strong>Ladder</strong>, build a <strong>Workout</strong>, or <strong>Jam</strong> the changes.</p>
       <!-- renderer-status dropped from the meta (the view switcher already shows the
            active renderer — shell-IA de-dup). Kept as a hidden span so the JS that
            writes it (guarded) doesn't need changing. -->

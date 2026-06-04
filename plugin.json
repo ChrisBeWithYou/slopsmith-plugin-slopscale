@@ -3,7 +3,7 @@
   "name": "SlopScale",
   "version": "0.7.1",
   "nav": {
-    "label": "SlopScale",
+    "label": "SlopScale - Practice",
     "screen": "slopscale"
   },
   "screen": "screen.html",
