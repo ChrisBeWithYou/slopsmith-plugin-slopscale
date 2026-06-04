@@ -6369,6 +6369,14 @@
     // drive the highway_3d overlay box. Chord names still appear via `chords`
     // events and the chord-preview thumbnail still renders from chordTemplates.
     bundle.handShapes = [];
+    // Proof-loop guide-tones pilot: measure whether this generated line voice-leads
+    // to the guide tones (the Connect engine) from the RAW chart — pre count-in/tail,
+    // so note times align with chart.timeline. Cheap + harmless; only the flagged
+    // verdict downstream reads bundle.proofMeta. (Park/chord_tone_emphasis is excluded
+    // — it walks one parent scale, it isn't a changes-connecting line.)
+    if (cfg.practiceType === 'chord_scales' && (cfg.chordScaleStrategy || 'mode_of_moment') !== 'chord_tone_emphasis') {
+      bundle.proofMeta = measureGuideToneLandings(exercise.chart, cfg);
+    }
     return bundle;
   }
 
@@ -8744,8 +8752,16 @@
     // ONLY when something was actually proven — plus a Copy-the-card affordance.
     let proofLine = '', copyBtn = '';
     if (s.proof) {
-      proofLine = `<div class="slopscale-ss-cleared">✓ You proved: ${s.proof.label} holds at ${s.proof.tierName} tempo</div>` +
-        (s.proof.transfer ? `<div class="slopscale-ss-sub slopscale-ss-transfer">${s.proof.transfer}</div>` : '');
+      // Kind-aware claim: 'guide_tones' leads with the MUSICAL win (you connected the
+      // changes), then the transfer names the device; 'tempo' is the completion claim.
+      const claim = s.proof.kind === 'guide_tones'
+        ? `✓ You proved: ${s.proof.label} — you connected the changes at ${s.proof.tierName} tempo`
+        : `✓ You proved: ${s.proof.label} holds at ${s.proof.tierName} tempo`;
+      const sub = s.proof.kind === 'guide_tones'
+        ? `Your line voice-led to the guide tones (3rd &amp; 7th)${s.proof.progression ? ` through the ${s.proof.progression}` : ''}. ${s.proof.transfer || ''}`.trim()
+        : (s.proof.transfer || '');
+      proofLine = `<div class="slopscale-ss-cleared">${claim}</div>` +
+        (sub ? `<div class="slopscale-ss-sub slopscale-ss-transfer">${sub}</div>` : '');
       copyBtn = `<button type="button" class="slopscale-ss-copy" data-act="copy-proof" title="Copy a plain-text card to share">Copy progress card</button>`;
     }
     return `<div class="slopscale-progress-sheet-section slopscale-ss-card">` +
@@ -11002,24 +11018,68 @@
   // bundled 0.2.7 — see project_slopsmith_forward_compat): the verdict is
   // completion-at-tempo + settling-tax, NEVER mic-primary. Gained-only, honest (a
   // claim ONLY when earned), no fail verdict, no nag. Pilot = Blues Foundation.
-  const PROOF_PILOTS = new Set(['blues_foundation']);
+  // Pilot → verdict KIND. 'tempo' = the completion-at-tempo claim (Blues v1).
+  // 'guide_tones' = a MUSICAL claim — the run measurably voice-led to the guide
+  // tones across the changes (the Connect engine, the same landing smoke-connect
+  // asserts). The card / claim / share-text branch on the kind. Add a pilot by id.
+  const PROOF_PILOTS = new Map([['blues_foundation', 'tempo'], ['vl_connect', 'guide_tones']]);
   function proofLoopOn() { try { return localStorage.getItem('slopscale.proofloop') === 'on'; } catch { return false; } }
   function proofPilot(id) { return proofLoopOn() && !!id && PROOF_PILOTS.has(id); }
+  function proofKind(id) { return PROOF_PILOTS.get(id) || 'tempo'; }
   // The settling-tax window: the run must have HELD the standard — ≥ max(20s, 85% of
   // the content length). Kills the 22s fluke on a long run; ≥1 real pass on a short one.
   function proofHeld(session) {
     const contentMs = session.content_ms || session.duration_ms || 0;
     return (session.duration_ms || 0) >= Math.max(20000, 0.85 * contentMs);
   }
+  // ── Guide-tone verdict measurement (the Connect fast-follow) ─────────────────
+  // PURE (no DOM). The musical proof for a 'guide_tones' pilot: did the generated
+  // line actually voice-lead — each chord change landing on the NEXT chord's guide
+  // tone (3rd/7th), 0 root-restarts — exactly what smoke-connect.mjs asserts on the
+  // chord_scales/Connect engine? Reads the shared chart.timeline (per-bar rootPc +
+  // gpcs = guide-tone pitch classes from chordHighlightPcs), so the verdict and the
+  // backing agree on the harmony. Returns null when not a measurable changes-run.
+  // Used to (a) NAME the device in the claim and (b) guard against a FALSE claim
+  // (config drift) — never to make the tier harder to clear.
+  function measureGuideToneLandings(chart, cfg) {
+    if (!chart || !cfg) return null;
+    const timeline = (chart.timeline && chart.timeline.length)
+      ? chart.timeline
+      : compileChordTimeline(cfg, chart.duration || (cfg.bars * measureSeconds(cfg)));
+    if (!timeline || timeline.length < 2) return null;
+    const openMidis = openMidisForConfig(cfg);
+    const notes = (chart.notes || []).filter(n => !n._tail).slice().sort((a, b) => a.t - b.t);
+    let changes = 0, landings = 0, rootRestarts = 0;
+    for (let i = 1; i < timeline.length; i++) {            // skip the first chord (the "open" start)
+      const c = timeline[i];
+      // The first foreground note that falls inside this chord's bar.
+      const first = notes.find(n => n.t >= c.startSec - 1e-4 && n.t < c.endSec - 1e-4);
+      if (!first || openMidis[first.s] == null) continue;
+      const pc = (openMidis[first.s] + first.f) % 12;
+      changes++;
+      if (Array.isArray(c.gpcs) && c.gpcs.includes(pc)) landings++;
+      if (pc === c.rootPc) rootRestarts++;
+    }
+    if (changes === 0) return null;
+    return { changes, landings, rootRestarts, ratio: landings / changes };
+  }
+  // The progression token, prettified for a claim ('ii-V-I' → 'ii–V–I').
+  function prettyProgression(p) { return p ? String(p).replace(/-/g, '–') : ''; }
   // One forward-looking "use it off the screen" line per pilot (north-star nod, not a nag).
   const PROOF_TRANSFER = {
     blues_foundation: 'Next time you play a blues, reach for the ♭5 and resolve it up to the 5th — that one note is the blues.',
+    vl_connect: 'Next time you solo over a ii–V–I, aim your line at the next chord\'s 3rd or 7th across the bar line — that is playing the changes.',
   };
   // The shareable plaintext card — Discord-ready, rendered only on a real flip.
+  // Kind-aware: a guide-tones pilot leads with the musical claim, then the tempo.
   function proofCardText(s) {
     if (!s || !s.proof) return '';
     const p = s.proof, mins = Math.floor(s.duration_ms / 60000), secs = Math.round((s.duration_ms % 60000) / 1000);
-    const lines = [`SlopScale — ${p.label}`, `✓ Holds at ${p.tierName} tempo${p.bpm ? ` (${p.bpm} BPM)` : ''}`];
+    const lines = [`SlopScale — ${p.label}`];
+    if (p.kind === 'guide_tones') {
+      lines.push(`✓ Voice-led the changes (3rd & 7th)${p.progression ? ` through the ${p.progression}` : ''}${p.key ? ` in ${p.key}` : ''}`);
+    }
+    lines.push(`✓ Holds at ${p.tierName} tempo${p.bpm ? ` (${p.bpm} BPM)` : ''}`);
     if (s.depth && s.depth.travelKey) lines.push(`✓ Travels — first clean run in ${s.depth.travelKey}`);
     lines.push(`Practiced ${mins}:${String(secs).padStart(2, '0')}${s.streak > 0 ? ` · Day ${s.streak}` : ''}`);
     return lines.join('\n');
@@ -11216,9 +11276,26 @@
     let proof = null;
     if (proofPilot(_activeSession.pathway_id) && unlock) {
       const pw = PATHWAYS[_activeSession.pathway_id];
-      proof = { label: pw.label, tierName: TIER_LABELS[unlock.tier] || `Tier ${unlock.tier + 1}`,
+      let kind = proofKind(_activeSession.pathway_id);
+      proof = { kind, label: pw.label, tierName: TIER_LABELS[unlock.tier] || `Tier ${unlock.tier + 1}`,
                 bpm: _activeSession.bpm, key: _activeSession.key,
                 transfer: PROOF_TRANSFER[_activeSession.pathway_id] || '' };
+      // Guide-tones pilot: only make the MUSICAL claim if the line measurably
+      // voice-led — MOST changes landing on a guide tone (≥0.75, the smoke-connect
+      // bar). The only root-restarts on a finite looped run are the cycle seams (the
+      // run reopens on the ii root at each loop point) — unavoidable, and already
+      // counted against the ratio — so we gate on the landing ratio, not 0 restarts.
+      // If the chart didn't voice-lead (config drift), fall back to the honest
+      // completion-at-tempo claim rather than fabricate voice-leading.
+      if (kind === 'guide_tones') {
+        const m = activeBundle && activeBundle.proofMeta;
+        if (m && m.changes > 0 && m.ratio >= 0.75) {
+          proof.progression = prettyProgression(activeBundle?.config?.progression);
+          proof.landings = m.landings; proof.changes = m.changes;
+        } else {
+          proof.kind = 'tempo';
+        }
+      }
     }
     _lastEndedSession = {
       mode: _activeSession.mode, scale: _activeSession.scale, key: _activeSession.key,

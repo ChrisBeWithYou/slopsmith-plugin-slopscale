@@ -9,7 +9,7 @@
 > `probe-proofloop.mjs` (negative: a short fluke run does NOT clear the settling-tax; positive:
 > a held run clears the tier + the "✓ You proved" card renders + Copy writes the plaintext share
 > card — 7/7 PASS) and the full 10-suite `npm test` green with the flag off (no regression).
-> Fast-follow = the Guide-Tones Connect-measured verdict (see below). The infra was ~70% there.
+> The Guide-Tones Connect-measured verdict (the fast-follow) is also BUILT + VERIFIED — see §7. The infra was ~70% there.
 
 ## What already exists (do NOT rebuild)
 `slopscale.progress` (the Depth-Ladder XP store — gained-only, localStorage, *shell* not core) ·
@@ -93,7 +93,23 @@ musical* verdict (the deepest, most-transferable claim in the set).
 - **S** — the "you proved" + transfer line in `sessionSummaryCardHtml`.
 - **M** — `proofCardText` + the Copy affordance + a delegated handler (~12202).
 - **Fast-follow (M)** — Guide-Tones pilot: wire the Connect guide-tone-landing measurement into the
-  live verdict for a real musical clean-gate.
+  live verdict for a real musical clean-gate. ✅ **BUILT + VERIFIED (2026-06-03).** Pilot =
+  `vl_connect` ("Connect the Changes", the Connect-engine rung of the Guide Tones / Voice-Leading
+  concept ladder). `PROOF_PILOTS` is now a Map of `id → kind` (`blues_foundation:'tempo'`,
+  `vl_connect:'guide_tones'`). A pure `measureGuideToneLandings(chart, cfg)` reads the shared
+  `chart.timeline` (per-bar `rootPc` + `gpcs` guide-tone pitch classes) and the foreground first-note
+  per bar — exactly `smoke-connect`'s landing measure — and is computed once in `makeBundle` as
+  `bundle.proofMeta` (connect chord-scale charts only). At `sessionEnd` the guide-tones claim is
+  emitted **only** when the line measurably voice-led (`ratio ≥ 0.75`, the smoke-connect "most
+  changes land on a guide tone" bar — the cycle-seam root-restarts on a tiled/looped run are
+  unavoidable and already count against the ratio, so we gate on the ratio, **not** 0 restarts); if
+  it didn't (config drift) it falls back to the honest `tempo` claim. The card/`proofCardText` branch
+  on `proof.kind`: *"✓ You proved: Connect the Changes — you connected the changes at Push tempo /
+  Your line voice-led to the guide tones (3rd & 7th) through the ii–V–I."* Verified by
+  `probe-proofloop-guidetones.mjs` (7/7 — held run clears, guide-tone card + sub-line, Copy writes
+  the voice-leading share card), the unchanged blues `probe-proofloop.mjs` (7/7), and the full
+  10-suite `npm test` (incl. `smoke-connect`) green with the flag off. **Open for review:** harmony +
+  learning-design should sign off on the claim wording + the 0.75 landing bar before it's "done".
 
 Files: `screen.js` — `advancePathwayTier` (~11154 path), `sessionSummaryCardHtml` (8717),
 `presentSessionSummary` (8753), the handler block (~12202), the stale comment (8122). *(Line
