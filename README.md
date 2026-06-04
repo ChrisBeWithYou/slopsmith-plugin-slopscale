@@ -57,12 +57,21 @@ The Workout pillar got a much bigger library and two new corners of practice:
 - **Bass groove vocabulary** — the root–5th–octave box, octave groove, the 16th-note dead-note pocket, slap & pop, and right-hand technique — sequenced groove-first, the way bass is actually learned.
 - **A Depth Ladder** above the tempo climb — prove a skill in a *new key* (the Travel axis) — with an XP readout that's **gained-only and never gates** (Off / Casual / Hardcore).
 
+### A Skill Ladder that goes deep <sub><i>(new in v0.7.2)</i></sub>
+
+The **Ladder** picker grew from a handful of routines into **~80**, grouped into opt-in **packs** you add from the **`+` Pack manager** — so the list stays a curriculum map, not a wall to scroll. Three Core bands (Beginner → Intermediate → Advanced) are always on; everything else you switch in when you want it:
+
+- **8 Concept ladders** — one skill, sequenced easy → mastery: **Triads, Arpeggios, Guide Tones, Fretboard Freedom, Expression, Rhythm, Picking, Legato.** Each is a vertical climb through a single idea (Fretboard: one box → CAGED links → position shifts → 3NPS → whole-neck map) rather than another grab-bag.
+- **Deeper genre packs** — **Blues** (box → shuffle → bends → call-and-response → mixing major/minor), **Rock** (power + backbeat → pentatonic → lead vocab → pedal riffs → ♭VII changes), **Country** (major pentatonic → cowboy changes → double-stops → chicken pickin' → pedal bends → train beat), alongside the existing **Metal / djent** pack — a genre ladder is the *application* layer: take the grammar into a style's accent.
+- **A bass-native ladder** — **Bass Foundations** on a 4-string, groove-first the way bass is actually learned: root–5th–octave → octave groove → dead-note pocket → walking bass → slap & pop. The picker is now **instrument-aware** — guitar-only shapes hide on bass, and the reverse.
+- **Own your time** — the Rhythm ladder runs subdivisions → the 16th pocket → swing → displacement → **odd meters** → an **"Over the Barline"** metric-superimposition capstone, plus a **herta** burst drill in the Picking ladder. And Division now **follows your meter** — a quarter-note pick in 7/8 auto-bumps to the felt eighth pulse, with a caption that *names* the cross-pulse instead of letting it feel like a bug.
+
 ## Highlights
 
 - **Jam is a mirror, not a judge** — play along over a live backing band while the fretboard strip lights up the chord/guide tones to reach for. No score, no rank — a sandbox to *apply* what you drilled, not a track to mimic
 - **A real backing band** — sampled comp, bass, and **drums** (kits change by feel & genre), through a safety-limited master so nothing clips or jumps in level
 - **Drum kits that change by feel & genre** — procedural **808 / 909** for electronic feels and **sampled acoustic kits** for everything else, on grooves that follow the meter — including **odd meters** (7/8, 5/4, …) via a grouping-aware groove
-- **27 curated Ladder routines** across foundations, technique, jazz/blues vocabulary, modal work, and sweep arpeggios — plus a **metal/djent pack** (pedal chug, gallop, twin leads, polymeter, chromatic riffing)
+- **~80 curated Ladder routines** — three always-on Core bands (Beginner → Advanced) plus opt-in **Concept** ladders (Triads, Arpeggios, Guide Tones, Fretboard, Expression, Rhythm, Picking, Legato), **genre** packs (Blues, Rock, Country, Metal/djent), and a **bass-native** ladder — every one naming the move it teaches
 - **A live Mixer (`M`)** — swap the comp to organ, the drums to a 909, dim the backing, all while you play
 - **Four render surfaces** — 3D Note Highway, 2D Highway, paper-style Tab, and staff Notation — one chart, your choice, with Light/Dark themes
 - **Extended-range & drop tunings** — 6/7/8-string guitar and 4/5/6-string bass, standard / drop / open / fully custom per-string
@@ -170,6 +179,6 @@ Open **SlopScale → Ladder**, pick a beginner node (e.g. *Pentatonic Foundation
 
 - **A browsable segment library + design-your-own Workouts + one-tap Refresh** — re-roll a saved routine into fresh keys/positions while it holds the same skill (the v0.7.0 variation engine surfaced as UI; next up)
 - Deeper drum realism (per-genre grooves + humanisation) and a brush/percussion kit set
-- Per-instrument **Skill Ladder** content (guitar Core shipped; **bass shipped**; piano to follow)
+- Per-instrument **Skill Ladder** content (guitar Core + Concept/genre packs shipped; **bass-native ladder shipped**; piano to follow) — and surfacing the segment library so you can build & one-tap-refresh your own Workouts
 - Live amp-modelled distorted backing (host NAM-engine borrow, in progress)
 - Piano / keyboard exercise generation
