@@ -471,7 +471,7 @@
     { id:'concept_fretboard', label:'Fretboard', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the pentatonic box and the CAGED major scale. Stop thinking in one box: connect the shapes, shift positions, learn the 3NPS system, and map the whole neck.', pathways:['fb_one_box','fb_caged_links','fb_position_shifts','fb_3nps','fb_whole_neck'] },
     { id:'concept_expression', label:'Expression', kind:'style', family:'Concepts', buildsOn:'Builds on Core Beginner — a fretted note and a target pitch. Make the note SING: vibrato width first, then bends that land dead in tune (half → whole → mixed).', pathways:['exp_vibrato','exp_bend_half','exp_bend_whole','exp_bend_mixed'] },
     { id:'concept_rhythm', label:'Rhythm', kind:'style', family:'Concepts', buildsOn:'Builds on Core — a steady pulse and the pentatonic box. Own TIME itself: subdivisions, the 16th pocket, swing vs straight, syncopation, and odd meters. Instrument-agnostic — works on guitar or bass.', pathways:['rhy_subdivision','rhy_sixteenth','rhy_swing','rhy_displacement','rhy_odd_meter','rhy_over_barline'] },
-    { id:'concept_picking', label:'Picking', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the chromatic warmup and one-finger-per-fret sync. The pick-hand engine: tremolo, alternate across strings, string skipping, hybrid picking.', pathways:['pick_tremolo','pick_alternate','pick_string_skip','pick_hybrid'] },
+    { id:'concept_picking', label:'Picking', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the chromatic warmup and one-finger-per-fret sync. The pick-hand engine: tremolo, alternate across strings, string skipping, hybrid picking.', pathways:['pick_tremolo','pick_alternate','pick_string_skip','pick_hybrid','pick_herta'] },
     { id:'concept_legato', label:'Legato', kind:'style', family:'Concepts', buildsOn:'Builds on Core — clean fretting and a scale shape. The fretting-hand engine: hammer-ons/pull-offs, 3NPS legato runs, then two-hand tapping.', pathways:['leg_hopo','leg_runs','leg_tapping'] },
     // Bass family — the first bass-NATIVE ladder (cross-instrument parity). Its pathways
     // are bass_4_standard; the instrument-aware picker filter (isHiddenNode) hides them on
@@ -1035,6 +1035,21 @@
       tempoTiers:[60, 80, 100, 120],
       base:{ practiceType:'hybrid_picking', scale:'major', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E' },
       vary:[ { key:'G', shape:'E' }, { key:'C', shape:'E' }, { scale:'major_pentatonic' }, { key:'A', scale:'mixolydian' }, { key:'D', shape:'E' } ]
+    },
+    // The herta: a rolling 4-note burst (Tier-3; Christian's dogfood ask). The GUITAR
+    // adaptation — pick/hammer/pull/pick on one string — labelled honestly as a
+    // herta-STYLE burst (the authentic drum rudiment R-R-L-R accent-last is a
+    // separate drum node). Difficulty axis = tempo (the BPM climb); vary = the
+    // accent-control + add-pitch ladder (accent on 1 → the authentic accent-last →
+    // mid → walk the base through the scale). Static-pitch first so it's pure hand
+    // coordination before navigation. See ROADMAP "Tier 3" + memory user_christian_herta_dogfood.
+    pick_herta: {
+      label:'Herta Burst',
+      goal:"The herta on guitar: a four-note rolling burst — pick, hammer-on, pull-off, pick — fired off one string as four even sixteenths, the accent landing on the beat. Borrowed from the drum rudiment of the same name, it's the snapping fill that punctuates fast metal and prog. Start static on one note so it's pure hand coordination — dead-even sixteenths, a clean ringing pull-off, a clear accent — then move the accent around and walk it through the scale. The skill is a relaxed, even burst you can drop into a line at will; a tense hand and a dead pull-off are what kill it, so build the tempo slowly.",
+      scales:['minor_pentatonic','natural_minor','harmonic_minor'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'herta', hertaAccent:0, hertaWalk:false, scale:'minor_pentatonic', meter:'4/4', subdivision:'sixteenth', bpm:60, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { hertaAccent:0 }, { hertaAccent:3 }, { hertaAccent:2 }, { hertaWalk:true }, { hertaWalk:true, key:'E' } ]
     },
     // ── LEGATO concept ladder (new concept_legato pack) ─────────────────────────
     // The fretting-hand engine (guitar-pedagogy #3). Pure curation (legato, tapping).
@@ -3195,6 +3210,7 @@
     legato:           { bass:'adapted' },    // hammer/pull only, no wide runs
     vibrato:          { bass:'adapted' },     // slower, narrower
     tapping:          { bass:'adapted' },     // single-line, advanced only
+    herta:            { bass:'adapted' },     // bass realizes the burst as a rake (or fretting trill), not pick-h-p-pick
     pentatonic_super: { bass:'adapted' },     // low-mid register, stretch caveat
     sweep_arpeggios:  { bass:'adapted' },     // a raked broken arpeggio, not a metal sweep
     shell_voicings:   { bass:'adapted' },     // 2-note low-register, no clusters below ~fret 7
@@ -4969,6 +4985,51 @@
     return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration: Math.max(t, totalTime) };
   }
 
+  // ── Herta — the rolling 4-note burst (Tier-3; Christian's dogfood drill) ──────
+  // THE GUITAR ADAPTATION (guitar-pedagogy panel): a single-string trill burst —
+  // pick → hammer-on → pull-off → pick across four even sixteenths, default accent
+  // on note 1 (the picked attack lands on the beat). The continuous repeat IS the
+  // practice form (the rudiment-isolation ladder). Static-pitch first (one anchor
+  // position); `hertaWalk` walks the base note through the scale ("then add pitch").
+  // `hertaAccent` (0–3) moves the accent for the accent-control ladder (L&D).
+  //
+  // This is NOT the authentic drum rudiment (R R L R, crushed double, accent on the
+  // LAST note — drum-pedagogy) — that's a SEPARATE drum node (Tier-3 follow-on).
+  // This borrows the rhythmic SHAPE onto the fretting+picking hands, honestly
+  // labelled as a herta-STYLE burst, not "the rudiment". Whole-step trill (+2) is
+  // the canonical, always-playable guitar herta; pitch is secondary to the motor.
+  function buildHertaExercise(cfg) {
+    const q = 60 / cfg.bpm, step = q / 4;                 // a herta is inherently sixteenths
+    const mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
+    const TRILL = 2;                                       // whole-step trill partner
+    const positions = scalePositionsForSystem(cfg).slice().sort((a, b) => a.midi - b.midi);
+    if (!positions.length) throw new Error('No notes in range for the herta burst.');
+    const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+    const rootPos = positions.find(p => ((p.midi % 12) + 12) % 12 === keyPc);
+    const walk = !!cfg.hertaWalk;
+    const accentAt = Math.max(0, Math.min(3, cfg.hertaAccent != null ? (cfg.hertaAccent | 0) : 0));
+    const baseSeq = walk ? positions : [rootPos || positions[0]];   // static: one anchor note
+    const cellFor = (b) => ([
+      { s: b.s, f: b.f },                       // 0: pick (the down-attack)
+      { s: b.s, f: b.f + TRILL, ho: true },     // 1: hammer-on (trill up)
+      { s: b.s, f: b.f, po: true },             // 2: pull-off (trill back)
+      { s: b.s, f: b.f },                       // 3: pick (parks for the next burst)
+    ]);
+    const sus = Math.max(0.03, step * 0.9);
+    const notes = [], sections = [{ name: `Herta burst — ${cfg.key} ${cfg.scale}`, number: 1, time: 0 }];
+    let t = 0, cellIdx = 0;
+    while (t < totalTime - 0.001) {
+      const cell = cellFor(baseSeq[cellIdx % baseSeq.length]);
+      for (let k = 0; k < 4 && t < totalTime - 0.001; k++) {
+        const n = cell[k];
+        notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: n.s, f: n.f, sus, ho: !!n.ho, po: !!n.po, ac: k === accentAt }));
+        t += step;
+      }
+      cellIdx++;
+    }
+    return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration: Math.max(t, totalTime) };
+  }
+
   function buildTappingExercise(cfg) {
     const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
     const allPos = scalePositionsForSystem(cfg);
@@ -5787,6 +5848,7 @@
     if (mode === 'scale_sixths')           return buildScaleSixthsExercise(cfg);
     if (mode === 'call_response')          return buildCallResponseExercise(cfg);
     if (mode === 'tremolo_picking')        return buildTremoloPickingExercise(cfg);
+    if (mode === 'herta')                  return buildHertaExercise(cfg);
     if (mode === 'tapping')                return buildTappingExercise(cfg);
     if (mode === 'pedal_point')            return buildPedalPointExercise(cfg);
     if (mode === 'pedal_riff')             return buildPedalRiffExercise(cfg);
