@@ -3,6 +3,9 @@
 > Read this at the start of every session. Update it before closing.
 > Current date: 2026-06-04.
 
+### ✅ v0.7.2 RELEASED (2026-06-04) — pushed + tagged + GitHub release
+> **v0.7.2 shipped** (plugin.json 0.7.2, tag `v0.7.2`, release `…/releases/tag/v0.7.2`, commit `d4575c9`). Headline = the **Skill Ladder expansion** accumulated since v0.7.1: ~80 routines across opt-in packs (8 Concept ladders + deepened Blues/Rock/Country genre packs + a bass-native Bass Foundations ladder, instrument-aware picker) + the **rhythm/meter** arc (meter-aware Division default, Over-the-Barline capstone, guitar herta) + the practice-framed nav label. README rewritten to match (the stale "27 routines" → ~80). Discord copy in the new register at `.claude/discord-v0.7.2.txt` (local) — ends on the #1 ASK ("did you come back to a Ladder a 2nd time this week?"). The proof-loop stays **flag-gated off** → deliberately NOT headlined (not user-facing yet). Working tree clean. Screenshots NOT regenerated (still the v0.7.1 set — a fresh Ladder-picker shot showcasing the packs is a cheap follow-up if wanted).
+
 ### ⏸️ STOPPED HERE (2026-06-04 — ready to /clear) — meter-fix Tiers 1–2 SHIPPED, Tier 3 SCOPED + guitar herta SHIPPED, Rhythm-ladder QUEUED — ALL PUSHED
 > **Everything COMMITTED + PUSHED to `origin/main`** (this session, on top of EOD #3 below). Working tree clean. The "7/8 quarter notes don't follow my tempo" report grew into a full panel-validated meter-fix arc:
 > - **Tier 1 — meter-aware Division default** (`cca67bc`): proven NOT a tempo bug (the engine is DAW-correct; a quarter in 7/8 phases against the 3.5-quarter bar). 7-agent panel: fix the DEFAULT — a user meter change bumps a too-coarse subdivision up to the pulse (quarter→eighth under any /8), keeps quarter as a labelled cross-pulse option, + a calm caption naming the phasing. Guard `smoke-meter-subdiv`.
