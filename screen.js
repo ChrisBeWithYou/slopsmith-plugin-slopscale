@@ -465,6 +465,7 @@
     // Style-kind so they're opt-in via the Pack manager; family 'Concepts' heads the
     // Available column. First of a planned set (Arpeggio, Voice-Leading, Fretboard…).
     // See docs/triad-mastery-ladder.md + memory project_python_generator_reconciliation.
+    { id:'concept_chords', label:'Chords', kind:'style', family:'Concepts', buildsOn:'Builds on Core Beginner — power chords and a steady strum hand; and Core Intermediate — the CAGED major scale (a barre chord is that scale shape\'s skeleton). Hold the grip, change it cleanly in time, then move it around the neck: open cowboy chords -> the five CAGED shapes -> movable barres -> comping a whole progression.', pathways:['chord_cowboy','chord_caged_shapes','chord_barre_changes','chord_caged_progression'] },
     { id:'concept_triads', label:'Triads', kind:'style', family:'Concepts', buildsOn:'Builds on Core Intermediate — the CAGED major scale. A triad is the top three strings of the barre chords you already know; own the three inversions, then use them over the changes.', pathways:['triad_inversions','triad_five_shapes','triads_over_changes','triad_pairs'] },
     { id:'concept_arpeggios', label:'Arpeggios', kind:'style', family:'Concepts', buildsOn:'Builds on Core Intermediate — diatonic triads and the CAGED shapes. An arpeggio is a chord one note at a time; spell the sevenths, invert them, then chase them through the changes.', pathways:['arp_seventh_shapes','arp_inversions','arp_over_changes','arp_sweeps'] },
     { id:'concept_voiceleading', label:'Guide Tones', kind:'style', family:'Concepts', buildsOn:'Builds on Core — diatonic seventh chords and the major scale. The 3rd and 7th are a chord\'s identity; voice-lead just those through the changes, then play a line that follows them.', pathways:['vl_shells','vl_guide_tones','vl_guide_changes','vl_connect'] },
@@ -1076,6 +1077,48 @@
       tempoTiers:[60, 80, 100, 120],
       base:{ practiceType:'tapping', scale:'natural_minor', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
       vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { scale:'harmonic_minor' }, { key:'D', shape:'E' }, { scale:'minor_pentatonic', key:'A' } ]
+    },
+    // ── CHORDS concept ladder (new concept_chords pack) ─────────────────────────
+    // Triads/grips SOUNDED TOGETHER (vs the Triads ladder's arpeggios). 6-agent panel
+    // 2026-06-04 (harmony chair + L&D + guitar/bass-pedagogy + host + folk). Phase A:
+    // triad+power over strum_comp — cowboy → the 5 CAGED shapes → movable barres →
+    // comping a progression. Folk lane: default DDU-UDU strum, real progressions (a
+    // song's bones, not flashcards), name the common tones. 7th/9th BLOCK chords are
+    // DEFERRED behind the STRUM_GRIPS table (strum_comp reduces 7ths→triad today, so a
+    // "Sevenths" rung would teach a false label). Guitar-only (strum_comp = bass n-a).
+    // Specs: .claude/agent-memory/{harmony-theory,learning-design,guitar-pedagogy,
+    // bass-pedagogy}-* / project_chord_concept_ladder.
+    chord_cowboy: {
+      label:'Cowboy Chords',
+      goal:'The open "cowboy" chords every song is built from — G, C, D, A, E, Em, Am — changed cleanly and in time over a real strum. The skill is the change itself: getting from one grip to the next without stuttering, and hearing the I–IV–V / I–V–vi–IV root motion (C→Am shares two notes; the open G rings into C). This is rhythm guitar\'s first language — the bones you take to any campfire.',
+      scales:['major'],
+      tempoTiers:[70, 95, 115, 140],
+      base:{ practiceType:'strum_comp', scale:'major', chordDepth:'triad', chordOverride:'auto', progression:'I-IV-V', strumPattern:'folk_pop_ddu_udu', voicingPosition:'open', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G' },
+      vary:[ { progression:'I-IV-V' }, { progression:'I-V-vi-IV' }, { progression:'vi-IV-I-V', key:'C' }, { key:'A', progression:'I-IV-V' }, { key:'D', progression:'I-V-vi-IV' } ]
+    },
+    chord_caged_shapes: {
+      label:'The Five CAGED Shapes',
+      goal:'The same chord, five ways up the neck. Voice a progression through each CAGED shape — E and A are the workhorse movable barres; C, G and D are the partial/anchor grips — so you stop being trapped at the nut and can play any chord in any region. A movable shape is just the barre-chord skeleton of the scale you already know.',
+      scales:['major','natural_minor'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'strum_comp', scale:'major', chordDepth:'triad', chordOverride:'auto', progression:'I-IV-V', strumPattern:'folk_pop_ddu_udu', voicingPosition:'movable', shape:'E', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G' },
+      vary:[ { shape:'E' }, { shape:'A' }, { shape:'D' }, { shape:'G' }, { shape:'C' } ]
+    },
+    chord_barre_changes: {
+      label:'Barre Chords',
+      goal:'Lock the E-shape and A-shape barres and play a progression in any key, up the neck, with no open strings. The skill is the movable barre: one shape becomes every chord just by sliding it to the root — and it unlocks the keys the open "cowboy" chords can\'t reach.',
+      scales:['major','natural_minor'],
+      tempoTiers:[65, 85, 105, 125],
+      base:{ practiceType:'strum_comp', scale:'major', chordDepth:'triad', chordOverride:'auto', progression:'I-IV-V', strumPattern:'folk_pop_ddu_udu', voicingPosition:'movable', shape:'E', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'F' },
+      vary:[ { shape:'E', key:'F' }, { shape:'A', key:'C' }, { shape:'E', progression:'I-V-vi-IV', key:'G' }, { shape:'A', progression:'I-IV-V', key:'D' }, { shape:'E', progression:'vi-IV-I-V', key:'A' } ]
+    },
+    chord_caged_progression: {
+      label:'Comping the Changes',
+      goal:'Comp a full progression — four-chord songs, ii–V–I — keeping the changes in time across positions. The skill is voice-economy: finding the nearest grip for each chord so your hand barely moves, the lazy-in-the-best-way rhythm-guitar feel that lets you comp a whole song without thinking about it.',
+      scales:['major','natural_minor'],
+      tempoTiers:[80, 105, 125, 150],
+      base:{ practiceType:'strum_comp', scale:'major', chordDepth:'triad', chordOverride:'auto', progression:'I-V-vi-IV', strumPattern:'folk_pop_ddu_udu', voicingPosition:'movable', shape:'E', meter:'4/4', subdivision:'eighth', bpm:105, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G' },
+      vary:[ { progression:'I-V-vi-IV' }, { progression:'vi-IV-I-V', key:'C' }, { progression:'I-vi-IV-V', key:'C' }, { progression:'ii-V-I', key:'C', shape:'A' }, { progression:'I-IV-V', key:'E' } ]
     },
     seventh_vocab: {
       label:'Seventh Chord Vocabulary',
@@ -2419,6 +2462,13 @@
       shapeNotes,
       shapeDisplayName,
       cagedShape: advancedMode ? (data.get('cagedShape') || 'C') : 'C',
+      // strum_comp voicing controls (pathway-driven hidden fields). voicingPosition
+      // 'movable' + a CAGED shape walks a barre up the neck; default 'open' = the
+      // most-open cowboy grip. strumPattern '' lets buildStrumCompExercise pick the
+      // style-based default. These were previously unread, so a movable-barre Chords
+      // rung silently fell back to open mode (degenerate F/B voicings).
+      voicingPosition: advancedMode ? (data.get('voicingPosition') || 'open') : 'open',
+      strumPattern: data.get('strumPattern') || '',
       renderer: data.get('renderer') || localStorage.getItem('slopscale.renderer') || 'highway_3d',
       instrument: setup.instrument,
       stringSetup,

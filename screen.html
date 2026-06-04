@@ -1254,6 +1254,10 @@
           <option value="bend_drill">Bending Drill</option>
         </optgroup>
         <optgroup label="Concepts">
+          <option value="chord_cowboy">Cowboy Chords</option>
+          <option value="chord_caged_shapes">The Five CAGED Shapes</option>
+          <option value="chord_barre_changes">Barre Chords</option>
+          <option value="chord_caged_progression">Comping the Changes</option>
           <option value="triad_inversions">Triad Inversions</option>
           <option value="triad_five_shapes">Triads Across the Neck</option>
           <option value="triads_over_changes">Triads Over Changes</option>
@@ -1474,6 +1478,14 @@
              chord-template helpers (cagedShapeNotesForChord, pickShapeRootFret)
              still receive a CAGED letter when applicable. -->
         <input type="hidden" name="cagedShape" id="slopscale-caged-shape-value" value="C">
+        <!-- strum_comp voicing fields — pathway-driven (the Chords ladder sets these),
+             no visible control yet. voicingPosition: 'open' (most-open cowboy grip) vs
+             'movable' (a fixed CAGED shape walked up the neck). strumPattern empty =
+             let the generator pick the style-based default. Without these reads,
+             applyPathwayConfig's setFieldSilent has no field to write and readConfig
+             drops them, so a movable-barre rung silently runs in open mode. -->
+        <input type="hidden" name="voicingPosition" id="slopscale-voicing-position" value="open">
+        <input type="hidden" name="strumPattern" id="slopscale-strum-pattern" value="">
 
         <!-- Backing comp style + feel. Hidden / pathway-driven for now (a blues
              pathway opts into boogie+shuffle); default values preserve the held-pad,
