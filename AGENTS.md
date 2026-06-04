@@ -76,6 +76,7 @@ Promoted from patterns in past-session feedback — the things Christian kept ha
 | `docs/ui-session.md` | Session UI design notes. |
 | `docs/design-system.md` | GUI style guide (tokens, hierarchy, primary-action parity, theme-safe color rules) — **read before any GUI change**. |
 | `docs/session-2026-05-26-shape-system.md` | Shape-system unification session log. |
+| `docs/backing-engine-roundtable.md` / `triad-mastery-ladder.md` / `proof-loop-slice.md` | Charette/spec docs for in-flight initiatives (backing-engine rebuild, triad-mastery pathway, proof-loop slice) — see `ROADMAP.md` + project memory for status. |
 | `docs/sources/` | Source PDFs — reference material only. |
 | `README.md` | User-facing feature list + install steps. |
 | `ROADMAP.md` | Phase plan; **read at session start**. Authoritative for "what's shipped vs planned". |
@@ -155,7 +156,7 @@ In **Jam** (`isJamMode`) the overview becomes the **chord loop** — function-ti
 
 ### screen.js structure
 
-`screen.js` is one IIFE, ~11,800 lines. It loads as a classic `<script>` (the host injects it without `type="module"`), so it cannot use `import`/`export` — keep it one file. Major sections are marked with `§N` banner comments and indexed in a table-of-contents header at the top; **grep `§` to jump between sections, or use targeted search to locate one before reading.** Key sections (topical walk-through, **not** in §-order — see the TOC header in `screen.js` for the canonical §1–§15 order):
+`screen.js` is one IIFE, ~12,200 lines. It loads as a classic `<script>` (the host injects it without `type="module"`), so it cannot use `import`/`export` — keep it one file. Major sections are marked with `§N` banner comments and indexed in a table-of-contents header at the top; **grep `§` to jump between sections, or use targeted search to locate one before reading.** Key sections (topical walk-through, **not** in §-order — see the TOC header in `screen.js` for the canonical §1–§15 order):
 
 - **Constants** — `NOTE_NAMES`, `STRING_SETUPS`, `SCALE_INTERVALS`, `CHORD_FORMULAS`, `DIATONIC_QUALITIES`, `COMMON_PROGRESSIONS`, `SEQUENCE_PATTERNS`, `CHROMATIC_PATTERNS`, etc. `CHORD_FORMULAS` carries the **full interval stack** for each quality (including extensions past the octave for 9/11/13 chords); it is intentionally complete so the voicing engine decides what to actually play.
 - **`CAGED_SHAPES`** — unified source of truth for CAGED shape data. Contains `rootStringIdx`, `scaleFretSpanFromRoot`, and `chordTemplates` per quality. **Do not split this into separate tables.** (Historical note: a previous version had two diverged tables; they were unified on 2026-05-26.) Scale/arpeggio shapes are resolved by degree-driven, no-unison selection (`resolveCAGEDShape` and the run-seam dedupe), not naive fret-window blocks — see the no-unison constraint below.
