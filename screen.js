@@ -8118,9 +8118,10 @@
   function finiteRunActive() {
     return !!(activeBundle && activeBundle.finiteRun && !keepLooping);
   }
-  // End a finite drill run: run the existing closure (sessionEnd → the descriptive
-  // session-summary card) and tear playback down. This slice has no clean-gate/verdict
-  // yet — the run simply ends with the existing card. Mirrors stopPlayback()'s teardown
+  // End a finite drill run: run the existing closure (sessionEnd → the session-summary
+  // card) and tear playback down. The clean-gate/verdict now lives in advancePathwayTier
+  // (the proof-loop settling-tax guard, flagged + pilot-only); the run ends with the card,
+  // which shows the "you proved" competency claim on a real flip. Mirrors stopPlayback()'s teardown
   // (which also wraps sessionEnd), including rewinding the playhead to where Play began,
   // so pressing Play again cleanly replays the run from its start rather than re-ending
   // instantly at duration.
@@ -8739,13 +8740,21 @@
     if (d && d.travelRung) depthLine = `<div class="slopscale-ss-cleared">▲ Travel rung cleared — it travels now</div>`;
     else if (d && d.travelKey) depthLine = `<div class="slopscale-ss-line">New ground — first clean run in ${d.travelKey}</div>`;
     const xpLine = (d && d.xpGained > 0) ? `<div class="slopscale-ss-line">+${d.xpGained} XP</div>` : '';
+    // Proof-loop (flagged, pilot): a competency CLAIM replaces the generic tier line —
+    // ONLY when something was actually proven — plus a Copy-the-card affordance.
+    let proofLine = '', copyBtn = '';
+    if (s.proof) {
+      proofLine = `<div class="slopscale-ss-cleared">✓ You proved: ${s.proof.label} holds at ${s.proof.tierName} tempo</div>` +
+        (s.proof.transfer ? `<div class="slopscale-ss-sub slopscale-ss-transfer">${s.proof.transfer}</div>` : '');
+      copyBtn = `<button type="button" class="slopscale-ss-copy" data-act="copy-proof" title="Copy a plain-text card to share">Copy progress card</button>`;
+    }
     return `<div class="slopscale-progress-sheet-section slopscale-ss-card">` +
       `<div class="slopscale-ss-head"><h4>Last session</h4>` +
       `<button type="button" class="slopscale-ss-dismiss" data-act="dismiss-summary" title="Dismiss" aria-label="Dismiss last-session card">✕</button></div>` +
       `<div class="slopscale-ss-what">${s.displayName}</div>` +
       (sk ? `<div class="slopscale-ss-sub">${sk}</div>` : '') +
       `<div class="slopscale-ss-line">Practiced ${dur}</div>` +
-      tierLine + depthLine + xpLine + streakLine +
+      (s.proof ? proofLine : tierLine) + depthLine + xpLine + streakLine + copyBtn +
       `</div>`;
   }
   // Auto-present the card on a notable end (a tier cleared, or a real ≥20s run) by
@@ -10984,11 +10993,45 @@
     }
     return { pathwayId, tier };
   }
+  // ── Proof-loop slice (flagged, pilot-only) — docs/proof-loop-slice.md ────────
+  // ONE flagged build, TRIPLE duty: (1) a per-rung CLEAN-PASS verdict — the
+  // settling-tax guard below makes a rung clear only on a run that HELD the standard,
+  // not a 22s fluke (the missing "clean-gate"); (2) the only honest retention signal
+  // at homebrew/tiny-N (the "what you proved" card); (3) a copy-able plaintext
+  // SHAREABLE card for Discord. Mic-OPTIONAL by design (the host scorer is absent on
+  // bundled 0.2.7 — see project_slopsmith_forward_compat): the verdict is
+  // completion-at-tempo + settling-tax, NEVER mic-primary. Gained-only, honest (a
+  // claim ONLY when earned), no fail verdict, no nag. Pilot = Blues Foundation.
+  const PROOF_PILOTS = new Set(['blues_foundation']);
+  function proofLoopOn() { try { return localStorage.getItem('slopscale.proofloop') === 'on'; } catch { return false; } }
+  function proofPilot(id) { return proofLoopOn() && !!id && PROOF_PILOTS.has(id); }
+  // The settling-tax window: the run must have HELD the standard — ≥ max(20s, 85% of
+  // the content length). Kills the 22s fluke on a long run; ≥1 real pass on a short one.
+  function proofHeld(session) {
+    const contentMs = session.content_ms || session.duration_ms || 0;
+    return (session.duration_ms || 0) >= Math.max(20000, 0.85 * contentMs);
+  }
+  // One forward-looking "use it off the screen" line per pilot (north-star nod, not a nag).
+  const PROOF_TRANSFER = {
+    blues_foundation: 'Next time you play a blues, reach for the ♭5 and resolve it up to the 5th — that one note is the blues.',
+  };
+  // The shareable plaintext card — Discord-ready, rendered only on a real flip.
+  function proofCardText(s) {
+    if (!s || !s.proof) return '';
+    const p = s.proof, mins = Math.floor(s.duration_ms / 60000), secs = Math.round((s.duration_ms % 60000) / 1000);
+    const lines = [`SlopScale — ${p.label}`, `✓ Holds at ${p.tierName} tempo${p.bpm ? ` (${p.bpm} BPM)` : ''}`];
+    if (s.depth && s.depth.travelKey) lines.push(`✓ Travels — first clean run in ${s.depth.travelKey}`);
+    lines.push(`Practiced ${mins}:${String(secs).padStart(2, '0')}${s.streak > 0 ? ` · Day ${s.streak}` : ''}`);
+    return lines.join('\n');
+  }
   function advancePathwayTier(session) {
     const total = (session.hit_count || 0) + (session.miss_count || 0);
     const accurate = total === 0 || (session.hit_count || 0) / total >= 0.65;
     if (!accurate) return null;
     if (session.mode === 'pathway' && session.pathway_id && PATHWAYS[session.pathway_id]) {
+      // Proof-loop settling-tax (flagged, pilot only): clear only on a run that HELD
+      // the standard. Off / non-pilot → unchanged behavior.
+      if (proofPilot(session.pathway_id) && !proofHeld(session)) return null;
       const tier = session.bpm_tier;
       if (tier != null && tier >= 0) return _updatePathwayTier(session.pathway_id, tier);
     }
@@ -11134,6 +11177,15 @@
       id: `${now}-${Math.random().toString(36).slice(2, 7)}`,
       date: localDateStr(),
       ts: now, mode, pathway_id, bpm, bpm_tier, scale, key, practice_type,
+      // content_ms = the exercise's MUSIC length (bars × measureSeconds), for the
+      // proof-loop settling-tax (did the run HOLD, vs bail in the first phrase). NOT
+      // songInfo.duration — that's inflated by the count-in lead + the lookahead tail,
+      // which would make the settling-tax absurdly strict. Falls back for sessions.
+      content_ms: (() => {
+        const c = activeBundle?.config;
+        if (c && c.bars && c.meter && c.meter.denominator) { try { return Math.round(c.bars * measureSeconds(c) * 1000); } catch (_) {} }
+        return Math.round((activeBundle?.songInfo?.duration || 0) * 1000);
+      })(),
       duration_ms: 0, hit_count: 0, miss_count: 0
     };
     _sessionStartMs = performance.now();
@@ -11159,12 +11211,22 @@
     if (_activeSession.mode === 'pathway' && PATHWAYS[_activeSession.pathway_id]) displayName = PATHWAYS[_activeSession.pathway_id].label;
     else if (_activeSession.mode === 'session') displayName = (BUILT_IN_SESSIONS[_selectedStarterId]?.name || 'Session practice');
     else displayName = 'Custom practice';
+    // Proof-loop competency claim (flagged, pilot, ONLY on a real flip — the
+    // anti-inflation spine: a "you proved" claim exists only when something was proven).
+    let proof = null;
+    if (proofPilot(_activeSession.pathway_id) && unlock) {
+      const pw = PATHWAYS[_activeSession.pathway_id];
+      proof = { label: pw.label, tierName: TIER_LABELS[unlock.tier] || `Tier ${unlock.tier + 1}`,
+                bpm: _activeSession.bpm, key: _activeSession.key,
+                transfer: PROOF_TRANSFER[_activeSession.pathway_id] || '' };
+    }
     _lastEndedSession = {
       mode: _activeSession.mode, scale: _activeSession.scale, key: _activeSession.key,
       bpm: _activeSession.bpm, bpm_tier: _activeSession.bpm_tier,
       duration_ms: _activeSession.duration_ms, displayName,
       tierCleared: !!unlock, clearedTier: unlock ? unlock.tier : null,
       depth: depthGain,   // { xpGained, travelKey, travelRung } | null — Phase 9 card reads this
+      proof,              // proof-loop competency claim | null (flagged, pilot, on-flip only)
       streak: streakCount(sessions),
     };
     _activeSession = null;
@@ -12202,6 +12264,15 @@
     // "Last session" card dismiss (delegated — the sheet body is re-rendered each open).
     $('slopscale-progress-sheet-body')?.addEventListener('click', (e) => {
       if (e.target.closest('[data-act="dismiss-summary"]')) { _lastEndedSession = null; renderProgressSheet(); }
+      else if (e.target.closest('[data-act="copy-proof"]')) {
+        // Copy the shareable card to the clipboard — silent (no sound/toast), per the
+        // proof-loop guardrails. A brief inline "Copied ✓" is the only feedback.
+        const btn = e.target.closest('[data-act="copy-proof"]');
+        const txt = proofCardText(_lastEndedSession);
+        try { navigator.clipboard?.writeText(txt); } catch (_) {}
+        btn.textContent = 'Copied ✓';
+        setTimeout(() => { if (btn.isConnected) btn.textContent = 'Copy progress card'; }, 1600);
+      }
     });
     $('slopscale-cheat-close')?.addEventListener('click', () => toggleCheatSheet(false));
     // Pack manager (the band-bar "+"). Open is wired on the "+" chip in
