@@ -53,10 +53,14 @@ try {
   await p.click("#slopscale-play"); // generates (countIn=0) + plays + starts the fake tracker
   const h = await p.evaluate(async () => {
     const bundle = window.SlopScale.makeBundle(window.SlopScale.generateExercise(window.SlopScale.readConfig()));
-    const provActive = bundle.getNoteStateProvider() !== null;
     const om = bundle.openMidis || [], n0 = bundle.notes[0], midi = (om[n0.s] || 0) + n0.f, freq = 440 * Math.pow(2, (midi - 69) / 12);
-    let st = null, fired = 0;
-    for (let i = 0; i < 60; i++) { if (window.__fp) { window.__fp({ freqHz: freq, confidence: 0.95 }); fired++; } const x = bundle.getNoteState(n0); if (x === "hit" || x === "active") { st = x; break; } await new Promise(r2 => setTimeout(r2, 20)); }
+    let st = null, fired = 0, provActive = false;
+    for (let i = 0; i < 60; i++) {
+      if (bundle.getNoteStateProvider() !== null) provActive = true;   // scorer startup is async — poll, don't snapshot once
+      if (window.__fp) { window.__fp({ freqHz: freq, confidence: 0.95 }); fired++; }
+      const x = bundle.getNoteState(n0); if (x === "hit" || x === "active") { st = x; break; }
+      await new Promise(r2 => setTimeout(r2, 20));
+    }
     return { provActive, fired, st };
   });
   ok(h.provActive, "getNoteStateProvider() !== null while the scorer runs (the host's detect-mode signal)");

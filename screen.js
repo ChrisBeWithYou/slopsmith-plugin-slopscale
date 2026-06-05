@@ -1226,7 +1226,7 @@
       goal:'Build the seventh chord on every degree of the key, in order: Imaj7 – ii m7 – iii m7 – IVmaj7 – V7 – vi m7 – vii m7♭5. Comping the whole harmonized scale teaches you which quality each degree wants — the map every progression is carved out of. Take the dorian variant and the IV turns dom7 (the bright modal carrier). Pick the nearest grip each time so the hand barely moves.',
       scales:['major','dorian'],
       tempoTiers:[55, 70, 85, 100],
-      base:{ practiceType:'strum_comp', scale:'major', chordDepth:'seventh', chordOverride:'auto', progression:'diatonic_7ths', strumPattern:'folk_pop_ddu_udu', voicingPosition:'open', meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C' },
+      base:{ practiceType:'strum_comp', scale:'major', chordDepth:'seventh', chordOverride:'auto', progression:'diatonic_7ths', strumPattern:'folk_pop_ddu_udu', voicingPosition:'open', meter:'4/4', subdivision:'eighth', bpm:70, bars:7, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C' },
       vary:[ { key:'C' }, { key:'G' }, { scale:'dorian', key:'D' }, { scale:'dorian', key:'A' }, { key:'F' } ]
     },
     chord_color_extensions: {
@@ -9835,16 +9835,22 @@
   // power bridge (`window.slopsmithDesktop.power.setScreenAwake`) when present (the Web
   // API is unreliable in Electron). Both degrade silently where unsupported. The Web
   // sentinel auto-releases when the tab hides; we re-acquire on re-show while playing.
-  let _wakeLock = null;
+  let _wakeLock = null, _wantWakeLock = false;
   function acquireWakeLock() {
+    _wantWakeLock = true;
     try { window.slopsmithDesktop?.power?.setScreenAwake?.(true); } catch (_) {}
     if (_wakeLock || !navigator.wakeLock || typeof navigator.wakeLock.request !== 'function') return;
     navigator.wakeLock.request('screen').then((s) => {
+      // request() is async — playback may have STOPPED while it was pending. If we no
+      // longer want the lock, release the just-acquired sentinel now, else it leaks and
+      // the screen stays awake after a fast play→stop.
+      if (!_wantWakeLock) { try { s.release(); } catch (_) {} return; }
       _wakeLock = s;
       try { s.addEventListener('release', () => { _wakeLock = null; }); } catch (_) {}
     }).catch(() => {});   // denied / non-secure-context / unsupported — degrade silently
   }
   function releaseWakeLock() {
+    _wantWakeLock = false;
     try { window.slopsmithDesktop?.power?.setScreenAwake?.(false); } catch (_) {}
     if (_wakeLock) { try { _wakeLock.release(); } catch (_) {} _wakeLock = null; }
   }

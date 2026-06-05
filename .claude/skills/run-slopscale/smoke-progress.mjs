@@ -15,7 +15,7 @@
 import { chromium } from "playwright";
 
 const HOST = process.env.SLOPSMITH_HOST || "http://127.0.0.1:8765";
-const BENIGN = [/desktop audio api not available/i, /audiocontext/i, /failed to set up audio analyser/i, /continuous scoring failed to start/i];
+const BENIGN = [/desktop audio api not available/i, /audiocontext was (not allowed|prevented|suspended)/i, /the audiocontext was not allowed to start/i, /failed to set up audio analyser/i, /continuous scoring failed to start/i];
 const isBenign = (m) => BENIGN.some((re) => re.test(m));
 
 async function ensureHost() {

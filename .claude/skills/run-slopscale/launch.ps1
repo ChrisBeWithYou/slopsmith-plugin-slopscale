@@ -77,6 +77,7 @@ if ($Source -eq 'checkout') {
       $before = (& git -C $Checkout rev-parse HEAD).Trim()
       & git -C $Checkout fetch --quiet 2>$null
       & git -C $Checkout pull --ff-only --quiet 2>$null
+      if ($LASTEXITCODE -ne 0) { Write-Host "[launch] auto-pull: 'git pull' returned $LASTEXITCODE -- non-fatal, using the current checkout" }
       $after = (& git -C $Checkout rev-parse HEAD).Trim()
       if ($before -ne $after) {
         Write-Host "[launch] checkout updated $($before.Substring(0,7)) -> $($after.Substring(0,7))"
