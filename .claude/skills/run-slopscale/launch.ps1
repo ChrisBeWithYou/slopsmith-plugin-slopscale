@@ -65,6 +65,11 @@ if (-not (Test-Path (Join-Path $Checkout 'main.py'))) {
 if ($Source -eq 'checkout') {
   $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
   try {
+    # The host REGENERATES static/tailwind.min.css at startup (it scans the junctioned
+    # plugins), dirtying this tracked file every run — which would block the auto-pull's
+    # dirty-tree guard forever and silently stale the checkout. It's a runtime artifact we
+    # never hand-edit, so discard it before the dirty check + pull.
+    & git -C $Checkout checkout -- static/tailwind.min.css 2>$null
     $porcelain = & git -C $Checkout status --porcelain
     if ($porcelain) {
       Write-Host "[launch] checkout has local changes -- skipping auto-pull (pull it manually when ready)"
