@@ -323,6 +323,43 @@
     broken_triads:'broken triads (1-3-5)',
     yngwie_sixes:'sixes (1-2-3-4-3-2)'
   };
+  // ── RHYTHM_CELLS — the recombinable rhythm-cell table (Rhythm-ladder panel, ──────
+  // 2026-06-04; spec docs/rhythm-ladder-roundtable.md). The engine already tiles an
+  // arbitrary per-step duration array with no bar-reset (fillNotesFromSeq's `steps`
+  // path), so any rhythmic cell COMMENSURATE with the bar is data, not code: the whole
+  // gallop / dotted-snap / clave / tresillo wave becomes CURATION. `beats` is the cell
+  // as a cycling array of per-onset durations in BEATS (quarter = 1.0); rhythmSteps()
+  // multiplies by the quarter-note seconds. The cross-idiom ATOM is the tresillo
+  // [1.5,1.5,1.0] (3-3-2 eighths) — Latin/NOLA/tango/norteño all point at this ONE def.
+  // INVARIANT (asserted below, mirroring no-unison): every cell sums to a WHOLE number
+  // of beats so it re-aligns to the beat grid (a per-beat cell sums to 1; a 1-bar cell
+  // to 4; son/rumba clave to 8 = 2 bars). A single line teaches the TIME of a feel,
+  // never the ensemble interlock ("tap the clave's time"). gallop/reverse_gallop moved
+  // here from the old hardcoded rhythmSteps lookup.
+  const RHYTHM_CELLS = {
+    // Per-beat gallop family (the Gallop & Snap rung; metal-idiom lane).
+    gallop:         { beats:[0.5, 0.25, 0.25], label:'Gallop (♪ ♬)' },           // NWOBHM/power
+    reverse_gallop: { beats:[0.25, 0.25, 0.5], label:'Reverse gallop (♬ ♪)' },   // thrash/death
+    skip_chug:      { beats:[0.75, 0.25],      label:'Skip / dotted (♩. ♬)' },   // thrash skip
+    snap:           { beats:[0.25, 0.75],      label:'Snap (♬ ♩.)' },            // front-weighted pickup
+    // World-rhythm cells (tap on one note = "the TIME of the feel"). Bar-commensurate.
+    tresillo:       { beats:[1.5, 1.5, 1.0],            label:'Tresillo (3-3-2)' },          // 1 bar — the cross-idiom atom
+    son_clave:      { beats:[1.5, 1.5, 2.0, 1.0, 2.0],  label:'Son clave (2-3, 2-bar)' },    // onsets 0,3,6,10,12 / 16 eighths
+    rumba_clave:    { beats:[1.5, 2.0, 1.5, 1.0, 2.0],  label:'Rumba clave (2-bar)' },       // onsets 0,3,7,10,12 (eighth 7 vs 6 = rumba)
+    habanera:       { beats:[1.5, 0.5, 1.0, 1.0],       label:'Habanera' },                  // onsets 0,3,4,6 / 8 eighths
+  };
+  // Startup integrity guard (mirrors the no-unison / applicability / strum-grip guards):
+  // a cell that doesn't close on a whole number of beats would desync the click, the
+  // loop, and the count-in. Caught the panel's bad Scotch-snap [0.25,0.5] (¾ of a beat).
+  (function assertRhythmCellsValid() {
+    for (const name of Object.keys(RHYTHM_CELLS)) {
+      const beats = RHYTHM_CELLS[name].beats;
+      if (!Array.isArray(beats) || !beats.length) throw new Error(`[SlopScale rhythm-cell] ${name} has no beats array`);
+      if (beats.some(b => !(b > 0))) throw new Error(`[SlopScale rhythm-cell] ${name} has a non-positive step`);
+      const sum = beats.reduce((a, b) => a + b, 0);
+      if (Math.abs(sum - Math.round(sum)) > 1e-6) throw new Error(`[SlopScale rhythm-cell] ${name} sums to ${sum} beats — must be a whole number of beats (it would phase against the bar)`);
+    }
+  })();
   // Default chord-scale for "mode of the moment". These follow the codebase's
   // documented jazz stance (see docs/theory-jazz-advanced.md "Chord-scale
   // defaults"): prefer scales that dodge the avoid-note a half-step above a
@@ -472,7 +509,7 @@
     { id:'concept_voiceleading', label:'Guide Tones', kind:'style', family:'Concepts', buildsOn:'Builds on Core — diatonic seventh chords and the major scale. The 3rd and 7th are a chord\'s identity; voice-lead just those through the changes, then play a line that follows them.', pathways:['vl_shells','vl_guide_tones','vl_guide_changes','vl_connect'] },
     { id:'concept_fretboard', label:'Fretboard', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the pentatonic box and the CAGED major scale. Stop thinking in one box: connect the shapes, shift positions, learn the 3NPS system, and map the whole neck.', pathways:['fb_one_box','fb_caged_links','fb_position_shifts','fb_3nps','fb_whole_neck'] },
     { id:'concept_expression', label:'Expression', kind:'style', family:'Concepts', buildsOn:'Builds on Core Beginner — a fretted note and a target pitch. Make the note SING: vibrato width first, then bends that land dead in tune (half → whole → mixed).', pathways:['exp_vibrato','exp_bend_half','exp_bend_whole','exp_bend_mixed'] },
-    { id:'concept_rhythm', label:'Rhythm', kind:'style', family:'Concepts', buildsOn:'Builds on Core — a steady pulse and the pentatonic box. Own TIME itself: subdivisions, the 16th pocket, swing vs straight, syncopation, and odd meters. Instrument-agnostic — works on guitar or bass.', pathways:['rhy_subdivision','rhy_sixteenth','rhy_swing','rhy_displacement','rhy_odd_meter','rhy_over_barline'] },
+    { id:'concept_rhythm', label:'Rhythm', kind:'style', family:'Concepts', buildsOn:'Builds on Core — a steady pulse and the pentatonic box. Own TIME itself, easy→mastery: the grid (subdivisions, the 16th pocket) → the feel (swing, syncopation, the gallop, moving the accent) → the pulse frame (one-note pulse, half/double-time, odd meters) → two pulses at once (over the barline) → trade bars and make your own groove. World rhythms (tresillo, clave) ride the one-note pulse. Instrument-agnostic — works on guitar or bass.', pathways:['rhy_subdivision','rhy_sixteenth','rhy_swing','rhy_displacement','rhy_gallop_snap','rhy_accent_displace','rhy_single_string','rhy_half_double','rhy_odd_meter','rhy_over_barline','rhy_trade_bars'] },
     { id:'concept_picking', label:'Picking', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the chromatic warmup and one-finger-per-fret sync. The pick-hand engine: tremolo, alternate across strings, string skipping, hybrid picking.', pathways:['pick_tremolo','pick_alternate','pick_string_skip','pick_hybrid','pick_herta'] },
     { id:'concept_legato', label:'Legato', kind:'style', family:'Concepts', buildsOn:'Builds on Core — clean fretting and a scale shape. The fretting-hand engine: hammer-ons/pull-offs, 3NPS legato runs, then two-hand tapping.', pathways:['leg_hopo','leg_runs','leg_tapping'] },
     // Bass family — the first bass-NATIVE ladder (cross-instrument parity). Its pathways
@@ -1002,6 +1039,53 @@
       tempoTiers:[54, 66, 78, 90],
       base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'7/8:2+2+3', subdivision:'quarter', bpm:54, bars:8, direction:'up_down', sequence:'none', swing:'straight', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
       vary:[ { meter:'7/8:2+2+3' }, { meter:'5/8:3+2' }, { meter:'9/8:3+3+3' }, { meter:'7/8:3+2+2' }, { meter:'11/8:3+3+3+2' } ]
+    },
+    // ── Rhythm ladder — genre-spanning expansion (panel 2026-06-04) ──────────────
+    // Spec docs/rhythm-ladder-roundtable.md. ONE genre-neutral spine; genres attach as
+    // a vary[] step / their own Style-pack app rung / goal-card prose — never a new band
+    // rung. New rungs over the RHYTHM_CELLS substrate + the buildRhythmPulseExercise
+    // keystone. Difficulty axis = feel/accent control; the pitch vehicle stays simple.
+    rhy_gallop_snap: {
+      label:'Gallop & Snap',
+      goal:'The galloping picking hand: one rhythmic cell — an eighth plus two sixteenths — repeated until it\'s automatic, then its mirror (reverse gallop) and the dotted "skip" and front-weighted "snap" variants. The gallop is the NWOBHM/thrash engine and a pure picking-hand TIME skill: down on the eighth, down-up on the sixteenths, palm-muted. Lock one feel cold, then switch between them by ear — the device is the rhythm cell, not the notes.',
+      scales:['minor_pentatonic','natural_minor','harmonic_minor'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'gallop', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { subdivision:'gallop' }, { subdivision:'reverse_gallop' }, { subdivision:'skip_chug' }, { subdivision:'snap' }, { subdivision:'gallop', scale:'harmonic_minor' } ]
+    },
+    rhy_accent_displace: {
+      label:'Accent Displacement',
+      goal:'Same notes, different groove: play an even stream of sixteenths on one note and move WHERE the accent falls — on the beat, then the "e", the "&", the "a". Relocating the accent turns one rhythm into four feels; it\'s the highest-leverage groove skill a drummer owns, and it makes your time feel intentional instead of mechanical. Count out loud and let the accent — not the notes — carry the groove (this is the engine under the bluegrass roll, the funk "one", the tango marcato).',
+      scales:['minor_pentatonic'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'rhythm_pulse', pulseAccent:0, scale:'minor_pentatonic', meter:'4/4', subdivision:'sixteenth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { pulseAccent:0 }, { pulseAccent:1 }, { pulseAccent:2 }, { pulseAccent:3 }, { subdivision:'eighth', pulseAccent:1 } ]
+    },
+    rhy_single_string: {
+      label:'Single-String Pulse',
+      goal:'Strip everything away: ONE palm-muted note on a low string, struck in a steady pulse against the click. With no fretting-hand variable, your picking hand IS the metronome — the most direct way to build rock-solid time. Quarters, then eighths, then sixteenths; keep every strike even and relaxed. Then tap a world-rhythm on the same one note — the tresillo (3-3-2), the son clave — and feel its TIME (a single line teaches the time of a feel, not the whole band).',
+      scales:['minor_pentatonic'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'rhythm_pulse', pulseAccent:0, scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { subdivision:'quarter' }, { subdivision:'eighth' }, { subdivision:'sixteenth' }, { subdivision:'tresillo' }, { subdivision:'son_clave' } ]
+    },
+    rhy_half_double: {
+      label:'Half-Time & Double-Time',
+      goal:'Same tempo, different feel: the CLICK never changes — your note density does. Play in quarters and the groove leans back into a half-time feel; double it to sixteenths and it drives as double-time. Learning to shift the felt pulse over a steady click — without rushing or dragging the click itself — is how a rhythm section makes a song breathe and surge. The metronome is the constant; the feel is your choice.',
+      scales:['minor_pentatonic','dorian'],
+      tempoTiers:[70, 85, 100, 115],
+      base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { subdivision:'quarter' }, { subdivision:'eighth' }, { subdivision:'sixteenth' }, { subdivision:'eighth', sequence:'fours' }, { subdivision:'sixteenth', key:'E' } ]
+    },
+    // Capstone — the on-ramp to creation (the north star's "drills are the entrance,
+    // creativity the destination"): echo the rhythm, then make the answer your own.
+    rhy_trade_bars: {
+      label:'Trade Bars — Make a Groove',
+      goal:'The payoff: two bars of call, two bars of space to answer. Echo the rhythm back, then start changing it — your own accents, your own gallop, your own syncopation — until the answer is YOURS. This is where the rhythm vocabulary becomes creativity: you\'re not running a drill anymore, you\'re trading fours and building grooves you own off the screen. Trade with the click; make the space your own.',
+      scales:['minor_pentatonic','dorian','blues'],
+      tempoTiers:[70, 85, 100, 120],
+      base:{ practiceType:'call_response', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { subdivision:'eighth' }, { subdivision:'sixteenth' }, { swing:'swing' }, { key:'E', scale:'blues' }, { subdivision:'eighth', key:'D', scale:'dorian' } ]
     },
     // ── PICKING concept ladder (new concept_picking pack) ───────────────────────
     // The pick-hand engine (guitar-pedagogy #2). Difficulty axis = coordination/crossing,
@@ -2553,6 +2637,10 @@
       keyCycle: data.get('keyCycle') || 'none',
       keyCycleLength: Math.max(2, Math.min(12, parseInt(data.get('keyCycleLength') || '4', 10))),
       bendTarget: data.get('bendTarget') || 'whole',
+      // Rhythm-pulse accent slot (0–3): which sub-pulse of each beat the single-string
+      // pulse accents — the Accent-Displacement axis (same notes, the accent moves).
+      // Pathway-driven hidden field (default 0). See buildRhythmPulseExercise.
+      pulseAccent: Math.max(0, Math.min(3, parseInt(data.get('pulseAccent') || '0', 10) || 0)),
       audio: { notes: data.get('audioNotes') === 'on', metronome: data.get('audioMetronome') === 'on', harmony: data.get('audioHarmony') === 'on', profile: data.get('audioProfile') || '', brightness: Math.max(0, Math.min(1, parseFloat(data.get('brightness')))) }
     };
   }
@@ -3493,8 +3581,8 @@
   // fillNotesFromSeq's `steps` path; generators opt in via rhythmSteps(cfg).
   function rhythmSteps(cfg) {
     const q = 60 / cfg.bpm;
-    if (cfg.subdivision === 'gallop')         return [q / 2, q / 4, q / 4];
-    if (cfg.subdivision === 'reverse_gallop') return [q / 4, q / 4, q / 2];
+    const cell = RHYTHM_CELLS[cfg.subdivision];
+    if (cell) return cell.beats.map(b => b * q);   // gallop/reverse + skip/snap + tresillo/clave/habanera
     return null;
   }
   function measureSeconds(cfg) { return (60 / cfg.bpm) * (4 / cfg.meter.denominator) * cfg.meter.numerator; }
@@ -5113,6 +5201,44 @@
     return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration: Math.max(t, totalTime) };
   }
 
+  // ── Single-string rhythm pulse — the keystone of the Rhythm ladder ───────────
+  // (Rhythm-ladder panel, 2026-06-04; spec docs/rhythm-ladder-roundtable.md.) ONE
+  // palm-muted note on the LOWEST string, struck in the configured rhythm cell over a
+  // steady click, so the drill is PURE TIME — no fretting-hand variable, no pitch
+  // reading: the picking hand IS the metronome (guitar-pedagogy's keystone framing).
+  // `pulseAccent` (0–3) moves the accent within each beat for the Accent-Displacement
+  // rung (same notes, the accent moves — drum-pedagogy's highest-transfer concept). A
+  // world-rhythm cell (subdivision:'tresillo'/'son_clave'/…) rides the same one-note
+  // vehicle = "tap the clave's TIME" (a single line teaches the time of a feel, never
+  // the ensemble interlock). Instrument-agnostic — on bass this is the root pulse
+  // (offerable() leaves it native for both; the bass face is the low-string root).
+  function buildRhythmPulseExercise(cfg) {
+    const step = secondsPerDivision(cfg), steps = rhythmSteps(cfg);
+    const mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
+    const beat = 60 / cfg.bpm;
+    // The anchor: the key's root on the LOWEST string (s=0), low in the neck — the
+    // percussive, palm-muteable pulse the panel specified.
+    const opens = openMidisForConfig(cfg);
+    const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+    const rootFret = (((keyPc - (opens[0] % 12)) % 12) + 12) % 12;   // 0–11 on the low string
+    const accentAt = Math.max(0, Math.min(3, (cfg.pulseAccent | 0) || 0));
+    const stepsLen = (steps && steps.length) ? steps.length : 0;
+    const subsPerBeat = Math.max(1, Math.round(beat / (step || beat)));
+    const sus = Math.max(0.03, (stepsLen ? Math.min.apply(null, steps) : step) * 0.9);
+    const cellLabel = (RHYTHM_CELLS[cfg.subdivision] && RHYTHM_CELLS[cfg.subdivision].label) || cfg.subdivision;
+    const notes = [], sections = [{ name: `Single-string pulse — ${cfg.key} (${cellLabel})`, number: 1, time: 0 }];
+    let t = 0, idx = 0;
+    while (t < totalTime - 0.001) {
+      // Cells accent their downbeat (first onset of each repetition); even
+      // subdivisions accent the accentAt-th note of each beat (Accent Displacement).
+      const isAccent = stepsLen ? (idx % stepsLen === 0)
+                                : ((idx % subsPerBeat) === (accentAt % subsPerBeat));
+      notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: 0, f: rootFret, sus, pm: true, ac: isAccent }));
+      t += stepsLen ? steps[idx % stepsLen] : step; idx++;
+    }
+    return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration: Math.max(t, totalTime) };
+  }
+
   function buildTappingExercise(cfg) {
     const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
     const allPos = scalePositionsForSystem(cfg);
@@ -6111,6 +6237,7 @@
     if (mode === 'call_response')          return buildCallResponseExercise(cfg);
     if (mode === 'tremolo_picking')        return buildTremoloPickingExercise(cfg);
     if (mode === 'herta')                  return buildHertaExercise(cfg);
+    if (mode === 'rhythm_pulse')           return buildRhythmPulseExercise(cfg);
     if (mode === 'tapping')                return buildTappingExercise(cfg);
     if (mode === 'pedal_point')            return buildPedalPointExercise(cfg);
     if (mode === 'pedal_riff')             return buildPedalRiffExercise(cfg);

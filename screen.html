@@ -1286,6 +1286,10 @@
           <option value="rhy_sixteenth">The 16th Pocket</option>
           <option value="rhy_swing">Swing &amp; Shuffle</option>
           <option value="rhy_displacement">Displacement &amp; Syncopation</option>
+          <option value="rhy_gallop_snap">Gallop &amp; Snap</option>
+          <option value="rhy_accent_displace">Accent Displacement</option>
+          <option value="rhy_single_string">Single-String Pulse</option>
+          <option value="rhy_half_double">Half-Time &amp; Double-Time</option>
           <option value="pick_tremolo">Tremolo Picking</option>
           <option value="pick_alternate">Alternate Across Strings</option>
           <option value="pick_string_skip">String Skipping</option>
@@ -1296,6 +1300,7 @@
           <option value="leg_tapping">Tapping</option>
           <option value="rhy_odd_meter">Odd Meters</option>
           <option value="rhy_over_barline">Over the Barline</option>
+          <option value="rhy_trade_bars">Trade Bars — Make a Groove</option>
         </optgroup>
         <optgroup label="Genre">
           <option value="blues_box">The Box &amp; the Blue Note</option>
@@ -1396,6 +1401,7 @@
           <option value="call_response">Call &amp; response</option>
           <option value="tremolo_picking">Tremolo picking</option>
           <option value="herta">Herta burst</option>
+          <option value="rhythm_pulse">Single-string pulse</option>
           <option value="tapping">Tapping</option>
           <option value="pedal_point">Pedal point</option>
           <option value="pedal_riff">Pedal-point riff (power chords)</option>
@@ -1489,6 +1495,10 @@
              drops them, so a movable-barre rung silently runs in open mode. -->
         <input type="hidden" name="voicingPosition" id="slopscale-voicing-position" value="open">
         <input type="hidden" name="strumPattern" id="slopscale-strum-pattern" value="">
+        <!-- Rhythm-pulse accent slot (0–3): the Accent-Displacement axis for the
+             single-string pulse drill. Pathway-driven hidden field (see readConfig /
+             buildRhythmPulseExercise); same setFieldSilent→readConfig contract as above. -->
+        <input type="hidden" name="pulseAccent" id="slopscale-pulse-accent" value="0">
 
         <!-- Backing comp style + feel. Hidden / pathway-driven for now (a blues
              pathway opts into boogie+shuffle); default values preserve the held-pad,
@@ -1650,7 +1660,7 @@
           <select name="meter"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="6/8">6/8</option><option value="7/8:2+2+3">7/8 — 2+2+3</option><option value="7/8:3+2+2">7/8 — 3+2+2</option><option value="5/4">5/4</option><option value="5/8:3+2">5/8 — 3+2</option><option value="9/8:3+3+3">9/8 — 3+3+3</option><option value="11/8:3+3+3+2">11/8 — 3+3+3+2</option><option value="12/8:3+3+3+3">12/8 — 3+3+3+3</option><option value="8/8:3+3+2">Djent — 3+3+2 (8/8)</option><option value="16/8:3+3+3+3+2+2">Djent — 3+3+3+3+2+2 (2-bar)</option></select>
         </label>
         <label class="slopscale-custom-only">Division
-          <select name="subdivision"><option value="quarter">Quarter</option><option value="eighth" selected>Eighth</option><option value="sixteenth">Sixteenth</option><option value="triplet">Triplet</option><option value="eighth_triplet">Eighth triplet</option><option value="sixteenth_triplet">Sixteenth triplet</option><option value="gallop">Gallop (♪ ♬)</option><option value="reverse_gallop">Reverse gallop (♬ ♪)</option></select>
+          <select name="subdivision"><option value="quarter">Quarter</option><option value="eighth" selected>Eighth</option><option value="sixteenth">Sixteenth</option><option value="triplet">Triplet</option><option value="eighth_triplet">Eighth triplet</option><option value="sixteenth_triplet">Sixteenth triplet</option><option value="gallop">Gallop (♪ ♬)</option><option value="reverse_gallop">Reverse gallop (♬ ♪)</option><option value="skip_chug">Skip / dotted (♩. ♬)</option><option value="snap">Snap (♬ ♩.)</option><option value="tresillo">Tresillo (3-3-2)</option><option value="son_clave">Son clave (2-bar)</option><option value="rumba_clave">Rumba clave (2-bar)</option><option value="habanera">Habanera</option></select>
         </label>
         <!-- Calm pulse caption: names the meter's felt pulse and, when a coarse
              Division crosses an odd bar (e.g. quarters in 7/8), frames the phasing
