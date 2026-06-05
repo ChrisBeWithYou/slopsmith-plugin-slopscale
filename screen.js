@@ -2427,7 +2427,15 @@
     // screen) while leaving the global pristine for everyone else.
     const slopscaleActive = () => { const r = document.getElementById('slopscale-root'); return !!(r && r.offsetParent); };
     const Patched = function(...args) {
-      if (slopscaleActive() && audioCtx && audioCtx.state !== 'closed') return makeFakeCtx();
+      // Only fake when there's NO scoring SDK. The fake exists solely to suppress the
+      // borrowed highway's audio-reactive-bg AudioContext (an audible click) on OLD
+      // hosts that don't honor bundle.bgReactive:false (#650). A host WITH the Minigames
+      // SDK is a current host: it honors bgReactive:false (no bg ctx → no click → no fake
+      // needed) AND its scorer opens its OWN `new AudioContext()` for the mic — which the
+      // fake would BREAK (resume() is undefined, state 'closed') → the tuner / grading /
+      // per-note gems silently die. So when the SDK is present, always hand out the REAL
+      // context. (ptAvailable() ⇔ "current host" — the scorer + #650 shipped together.)
+      if (slopscaleActive() && audioCtx && audioCtx.state !== 'closed' && !ptAvailable()) return makeFakeCtx();
       return new Ctor(...args);
     };
     Patched.prototype = Ctor.prototype;
