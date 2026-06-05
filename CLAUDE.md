@@ -93,9 +93,9 @@ No build. No dev server. The workflow is:
 
 To run, screenshot, or smoke-test the plugin without doing the clone/restart dance by hand, use the **`run-slopscale` skill** (`.claude/skills/run-slopscale/`). `launch.ps1` junctions this repo into the Slopsmith plugins dir, starts the bundled-Python host on port 8765, and waits for `/status` to return `ok`; `driver.mjs` drives the SlopScale screen via Playwright and screenshots any of the four renderers. Server logs land in `%TEMP%\slopscale\server.log`.
 
-There is **no unit-test or lint suite**. Verification is behavioural, via thirteen Playwright smoke suites in the `run-slopscale` skill, run against a live host (start it with `launch.ps1` first):
+There is **no unit-test or lint suite**. Verification is behavioural, via fourteen Playwright smoke suites in the `run-slopscale` skill, run against a live host (start it with `launch.ps1` first):
 
-- `npm test` (from `.claude/skills/run-slopscale/`) runs **all thirteen** suites — renderers, then generators, then highway-settings, then strings/tuning, then meter-aware-subdivision, then over-the-barline, then herta, then audiocontext-sharing, then chord-scale connect, then variation-engine, then session-sync, then depth-ladder/progress, then core-purity.
+- `npm test` (from `.claude/skills/run-slopscale/`) runs **all fourteen** suites — renderers, then generators, then highway-settings, then strings/tuning, then meter-aware-subdivision, then over-the-barline, then herta, then audiocontext-sharing, then chord-scale connect, then variation-engine, then session-sync, then depth-ladder/progress, then core-purity, then gems (the #254 per-note gem hook — `smoke-gems.mjs`: the bundle exposes `getNoteState`/`getNoteStateProvider`, both inert with no scorer, and a synthetic correct pitch lights note[0]).
 - `smoke-renderers.mjs` (`npm run smoke`) — walks all four renderers; asserts each attaches, draws, advances the playback clock, and throws no errors.
 - `smoke-generators.mjs` (`npm run smoke:gen`) — drives `generateExercise()` across every practice type + scale, a bass pass, and all built-in sessions; validates chart structure.
 - `smoke-highway-settings.mjs` (`npm run smoke:hwy-settings`) — guards that the borrowed 3D Highway inherits the host's `h3d_bg_*` look settings (and never writes them); see the "3D Highway inherits host settings" memory.
