@@ -220,6 +220,43 @@ async function run() {
       if (!pass) await screenshot(page, `smoke-fail-${r.kind}`);
       results.push({ kind: r.kind, pass, status, canvas, pixels, clock, fails, notes });
     }
+
+    // ── Wake-lock/session teardown pairing (promoted from probe-wakelock-leak,
+    // dev-ops e2e audit 2026-06-05). The "sideways" stop — regenerating while
+    // playing — goes through stopRenderer(), which must release the wake lock
+    // and close the session log like every other stop path. A leak here keeps
+    // the screen awake forever AND lets an abandoned run flush later as a fake
+    // clean pass (tier/proof-loop credit). Fresh context: the bridge stub must
+    // be installed before the page loads.
+    {
+      const wlFails = [];
+      const ctx2 = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+      await ctx2.addInitScript(() => { window.__awake = []; window.slopsmithDesktop = { power: { setScreenAwake: (v) => window.__awake.push(!!v) } }; });
+      const p2 = await ctx2.newPage();
+      p2.on("pageerror", (e) => { if (!isBenign(e.message)) wlFails.push(`pageerror: ${e.message}`); });
+      await p2.goto(`${HOST}/`, { waitUntil: "domcontentloaded" });
+      await p2.waitForSelector("#plugin-slopscale", { state: "attached", timeout: 20000 });
+      await p2.waitForFunction(() => typeof window.showScreen === "function");
+      await p2.evaluate(() => window.showScreen("plugin-slopscale"));
+      await p2.waitForSelector("#slopscale-root", { state: "attached" });
+      await p2.waitForFunction(() => window.SlopScale && typeof window.SlopScale.generateExercise === "function");
+      await p2.waitForTimeout(1200);                       // initial auto-generate settles
+      await p2.click("#slopscale-play");
+      await p2.waitForTimeout(800);
+      const held = await p2.evaluate(() => window.__awake[window.__awake.length - 1]);
+      if (held !== true) wlFails.push(`play did not hold the wake lock (bridge last told ${held})`);
+      await p2.evaluate(() => {                            // regenerate while playing → stopRenderer path
+        const bpm = document.querySelector('#slopscale-controls [name="bpm"]');
+        bpm.value = String(Number(bpm.value) + 5);
+        bpm.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      await p2.waitForTimeout(1000);
+      const after = await p2.evaluate(() => ({ last: window.__awake[window.__awake.length - 1], playingBtn: document.getElementById("slopscale-play")?.classList.contains("is-playing") }));
+      if (after.playingBtn !== false) wlFails.push("regenerate-while-playing did not stop the transport");
+      if (after.last !== false) wlFails.push(`wake lock NOT released after regenerate-while-playing (bridge last told ${after.last})`);
+      await ctx2.close();
+      results.push({ kind: "wakelock-pair", pass: wlFails.length === 0, status: "regenerate-while-playing teardown", canvas: null, pixels: "n/a", clock: { from: "-", to: "-" }, fails: wlFails, notes: [] });
+    }
   } finally {
     await browser.close();
   }

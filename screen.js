@@ -8116,7 +8116,16 @@
     if (ctxNow + LOOP_SCHEDULE_AHEAD >= nextLoopAudioBase) scheduleNextFullPass();
     pruneLoopPasses();
   }
-  function stopRenderer() { playing = false; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } if (renderer && typeof renderer.destroy === 'function') { try { renderer.destroy(); } catch (e) { console.warn('[SlopScale] renderer destroy failed', e); } } renderer = null; syncPlayButton(); }
+  function stopRenderer() {
+    // "Sideways" stops land here while still playing (a setting change mid-play
+    // regenerates; the Library/Plugins nav buttons leave the screen) — close the
+    // practice-session log NOW (while the scorer state is alive, so hit/miss
+    // counts are real, not wiped-and-read-as-clean) and release the wake lock,
+    // exactly like stopPlayback does. Skipping these leaked the screen-awake
+    // lock + let an abandoned run flush later as a fake clean pass (dev-ops
+    // e2e audit, 2026-06-05; guarded in smoke-renderers' play/stop cycle).
+    if (playing) { sessionEnd(); releaseWakeLock(); }
+    playing = false; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } if (renderer && typeof renderer.destroy === 'function') { try { renderer.destroy(); } catch (e) { console.warn('[SlopScale] renderer destroy failed', e); } } renderer = null; syncPlayButton(); }
 
   async function attachRenderer(exercise) {
     const cfg = exercise.session;
