@@ -981,7 +981,7 @@
     // setup). Difficulty axis = subdivision/feel control, not pitch. Pure curation.
     rhy_subdivision: {
       label:'Subdivisions',
-      goal:'The grid under everything: play one scale at each subdivision — quarters, eighths, triplets, sixteenths — staying dead even as they get faster. The skill is internalizing the divisions of the beat so your time is a grid you trust, not a guess. The foundation of every groove.',
+      goal:'The grid under everything: play one scale at each subdivision — quarters, eighths, triplets, sixteenths — staying dead even as they get faster. The skill is internalizing the divisions of the beat so your time is a grid you trust, not a guess. The foundation of every groove. Want the punk version? Drive even eighths with ALL downstrokes — same hand motion every note — and push the tempo until downstrokes physically can\'t keep up (~the 200 bpm "wall"). That breaking point, where the pros switch to alternate picking, is the real lesson.',
       scales:['minor_pentatonic','major','dorian'],
       tempoTiers:[55, 70, 85, 100],
       base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
@@ -1063,11 +1063,11 @@
     },
     rhy_single_string: {
       label:'Single-String Pulse',
-      goal:'Strip everything away: ONE palm-muted note on a low string, struck in a steady pulse against the click. With no fretting-hand variable, your picking hand IS the metronome — the most direct way to build rock-solid time. Quarters, then eighths, then sixteenths; keep every strike even and relaxed. Then tap a world-rhythm on the same one note — the tresillo (3-3-2), the son clave — and feel its TIME (a single line teaches the time of a feel, not the whole band).',
+      goal:'Strip everything away: ONE palm-muted note on a low string, struck in a steady pulse against the click. With no fretting-hand variable, your picking hand IS the metronome — the most direct way to build rock-solid time. Quarters, then eighths, then sixteenths; keep every strike even and relaxed. Then tap a world-rhythm on the same one note — the tresillo (3-3-2), the son clave — and feel its TIME (a single line teaches the time of a feel, not the whole band). Or shift the pulse onto the upbeats for the reggae skank: play only the "&" and trust the empty downbeat — the hardest, most useful time skill is feeling the beat you do NOT play.',
       scales:['minor_pentatonic'],
       tempoTiers:[60, 80, 100, 120],
-      base:{ practiceType:'rhythm_pulse', pulseAccent:0, scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
-      vary:[ { subdivision:'quarter' }, { subdivision:'eighth' }, { subdivision:'sixteenth' }, { subdivision:'tresillo' }, { subdivision:'son_clave' } ]
+      base:{ practiceType:'rhythm_pulse', pulseAccent:0, pulseOffbeat:false, scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { subdivision:'quarter' }, { subdivision:'eighth' }, { subdivision:'sixteenth' }, { subdivision:'tresillo' }, { subdivision:'son_clave' }, { subdivision:'quarter', pulseOffbeat:true } ]
     },
     rhy_half_double: {
       label:'Half-Time & Double-Time',
@@ -2641,6 +2641,9 @@
       // pulse accents — the Accent-Displacement axis (same notes, the accent moves).
       // Pathway-driven hidden field (default 0). See buildRhythmPulseExercise.
       pulseAccent: Math.max(0, Math.min(3, parseInt(data.get('pulseAccent') || '0', 10) || 0)),
+      // Reggae-skank flag: shift the single-string pulse onto the upbeats (the "&").
+      // Pathway-driven hidden field. See buildRhythmPulseExercise.
+      pulseOffbeat: data.get('pulseOffbeat') === 'on' || data.get('pulseOffbeat') === 'true',
       audio: { notes: data.get('audioNotes') === 'on', metronome: data.get('audioMetronome') === 'on', harmony: data.get('audioHarmony') === 'on', profile: data.get('audioProfile') || '', brightness: Math.max(0, Math.min(1, parseFloat(data.get('brightness')))) }
     };
   }
@@ -5222,12 +5225,16 @@
     const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
     const rootFret = (((keyPc - (opens[0] % 12)) % 12) + 12) % 12;   // 0–11 on the low string
     const accentAt = Math.max(0, Math.min(3, (cfg.pulseAccent | 0) || 0));
+    // Reggae skank: shift the whole pulse a half-beat onto the upbeats (the "&"), with
+    // a clipped staccato — "play only the &, trust the empty 1". With subdivision
+    // 'quarter' the onsets land on the & of every beat (the one-drop skank chop).
+    const offbeat = !!cfg.pulseOffbeat;
     const stepsLen = (steps && steps.length) ? steps.length : 0;
     const subsPerBeat = Math.max(1, Math.round(beat / (step || beat)));
-    const sus = Math.max(0.03, (stepsLen ? Math.min.apply(null, steps) : step) * 0.9);
+    const sus = Math.max(0.03, (stepsLen ? Math.min.apply(null, steps) : step) * (offbeat ? 0.5 : 0.9));
     const cellLabel = (RHYTHM_CELLS[cfg.subdivision] && RHYTHM_CELLS[cfg.subdivision].label) || cfg.subdivision;
-    const notes = [], sections = [{ name: `Single-string pulse — ${cfg.key} (${cellLabel})`, number: 1, time: 0 }];
-    let t = 0, idx = 0;
+    const notes = [], sections = [{ name: `Single-string pulse — ${cfg.key} (${offbeat ? 'skank, ' : ''}${cellLabel})`, number: 1, time: 0 }];
+    let t = offbeat ? beat / 2 : 0, idx = 0;
     while (t < totalTime - 0.001) {
       // Cells accent their downbeat (first onset of each repetition); even
       // subdivisions accent the accentAt-th note of each beat (Accent Displacement).
@@ -10638,6 +10645,9 @@
     // (applyPathwayConfig doesn't reset the form; it only writes keys it's given).
     setFieldSilent('backingStyle', config.backingStyle || 'pad');
     setFieldSilent('swing', config.swing || 'straight');
+    // Reggae-skank pulse flag is specialized → default OFF unless the rung opts in,
+    // so a skank variation's offbeat never leaks into the next rung selected.
+    setFieldSilent('pulseOffbeat', config.pulseOffbeat ? 'true' : '');
     // Backing tone is automated: default the profile (anti-leak) + reflect the
     // genre's default brightness onto the slider (the loop below sets the
     // audioProfile field itself from config).
@@ -10880,6 +10890,21 @@
       if (isNewPathway) activeTempoTierIdx = 0;
       // Apply tier BPM over the pathway base BPM
       const tieredConfig = Object.assign({}, pw.base, variation);
+      // Instrument-agnostic bands (the Rhythm ladder teaches pure TIME) ADAPT to the
+      // player's current instrument instead of forcing the rung's coded string-setup —
+      // the time skill transfers to guitar OR bass, so a bassist isn't bounced to a
+      // 6-string. Swap in the form's setup when the families differ (+ drop the
+      // guitar-only shape system on bass; scale/rhythm_pulse/call_response run on
+      // either). Other concept bands (Picking/Legato) stay guitar-coded by design.
+      if (pathwayBandId(id) === 'concept_rhythm') {
+        const formSetup = document.querySelector('#slopscale-controls [name="stringSetup"]')?.value;
+        const fs = formSetup && STRING_SETUPS[formSetup];
+        const rungInst = (STRING_SETUPS[tieredConfig.stringSetup] || {}).instrument;
+        if (fs && fs.instrument !== rungInst) {
+          tieredConfig.stringSetup = formSetup;
+          if (fs.instrument === 'bass') { tieredConfig.fretboardSystem = 'position'; delete tieredConfig.shape; }
+        }
+      }
       if (pw.tempoTiers && pw.tempoTiers[activeTempoTierIdx] != null) {
         tieredConfig.bpm = pw.tempoTiers[activeTempoTierIdx];
       }
