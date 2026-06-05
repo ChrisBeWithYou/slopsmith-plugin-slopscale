@@ -18,7 +18,10 @@ import { fileURLToPath } from "node:url";
 
 const DIR = dirname(fileURLToPath(import.meta.url));
 const HOST = process.env.SLOPSMITH_HOST || "http://127.0.0.1:8765";
-const CONC = Math.max(1, parseInt(process.argv[2] || "4", 10));
+// NaN-proof: `Math.max(1, NaN)` is NaN → zero workers → zero suites → exit 0,
+// a FALSE GREEN (CodeRabbit, 2026-06-05). Fall back to 4 on garbage argv.
+const CONC_RAW = parseInt(process.argv[2] || "4", 10);
+const CONC = Number.isFinite(CONC_RAW) && CONC_RAW >= 1 ? CONC_RAW : 4;
 
 // Measured rough weights (s) — longest-first scheduling keeps the wall clock
 // near max(longest suite, total/concurrency). Unlisted suites are assumed
@@ -32,6 +35,10 @@ const SUITES = readdirSync(DIR)
   .filter((f) => /^smoke-.+\.mjs$/.test(f))
   .map((f) => f.replace(/^smoke-/, "").replace(/\.mjs$/, ""))
   .sort((a, b) => (WEIGHTS[b] ?? 99) - (WEIGHTS[a] ?? 99));
+if (!SUITES.length) {
+  console.error("No smoke-*.mjs suites discovered — refusing to report a false green.");
+  process.exit(2);
+}
 
 // Fail fast with ONE clear message if the host isn't up (otherwise every
 // suite times out with its own copy of the same complaint).

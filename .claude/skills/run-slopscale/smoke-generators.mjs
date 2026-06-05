@@ -178,6 +178,11 @@ async function run() {
       const reg = S.BUILT_IN_SESSIONS || {};
       const regIds = Object.keys(reg);
       const rows = [];
+      // Empty enumeration must FAIL, not silently skip the whole phase
+      // (CodeRabbit, 2026-06-05: a broken export or drawer selector would
+      // otherwise pass with zero sessions validated).
+      if (!regIds.length) rows.push({ label: "session enumeration", ok: false, fatal: ["BUILT_IN_SESSIONS is missing/empty on the public surface"], warn: [], notes: 0 });
+      if (!drawerIds.length) rows.push({ label: "session enumeration", ok: false, fatal: ["no starter cards enumerated from the drawer"], warn: [], notes: 0 });
       const missingCard = regIds.filter((id) => !drawerIds.includes(id));
       const ghostCard = drawerIds.filter((id) => !regIds.includes(id));
       if (missingCard.length) rows.push({ label: "drawer drift", ok: false, fatal: [`sessions missing a drawer card: ${missingCard.join(", ")}`], warn: [], notes: 0 });
