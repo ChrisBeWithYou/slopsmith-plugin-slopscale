@@ -65,6 +65,25 @@ Notes use Slopsmith's compact note fields:
 }
 ```
 
+### Note field meanings
+
+All note objects use these compact keys:
+
+| Key | Meaning |
+|-----|---------|
+| `t` | start time (seconds) |
+| `s` | string index (`s=0` is the lowest string — see CLAUDE.md "String index convention") |
+| `f` | fret number |
+| `sus` | sustain duration (seconds) |
+| `sl` / `slu` | slide target / slide-up target fret (-1 = none) |
+| `bn` | bend value (0 / 0.5 / 1 / 1.5 / 2) |
+| `ho` / `po` | hammer-on / pull-off |
+| `hm` / `hp` | harmonic / pinch harmonic |
+| `pm` | palm mute |
+| `mt` | muted/dead note |
+| `vb` / `tr` | vibrato / tremolo |
+| `ac` / `tp` | accent / tap |
+
 ## Chord templates
 
 Chord templates describe display names and fret shapes. Unused strings are `-1`.

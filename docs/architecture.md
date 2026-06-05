@@ -144,6 +144,14 @@ stems:
 
 Sloppak docs normally show OGG stems, but the important requirement is that `stems` is non-empty and manifest-indexed. SlopScale currently uses a generated silent WAV so the player has a transport clock; if Slopsmith rejects WAV in practice, replace it with generated OGG.
 
+### Audio stem generation
+
+The stem is a synthesized WAV (OGG if `ffmpeg` is on PATH). Content is controlled by `session.audio` in the exercise payload:
+
+- `{ "notes": true }` — synthesizes plucked-sine note audio from the note list using the correct string/fret MIDI pitches.
+- `{ "metronome": true }` — synthesizes a metronome click track from the beats list (accented on measure downbeats).
+- Both false (default) — writes a silent WAV; the player still gets a valid transport clock.
+
 ### Arrangement requirements
 
 The temp arrangement should write Sloppak's on-disk field names:

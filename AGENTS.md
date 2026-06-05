@@ -7,7 +7,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 ## Parts Index
 
 - **Part 1 — Orientation & Rules** — what SlopScale is, the design north star, the recurring hard rules, the file map, and the dev/test workflow.
-- **Part 2 — Architecture & Code Map** — the whole architecture section: core data flow, the four-mode shell, the two-lane transport, and the `screen.js`/`routes.py` structure + data schemas.
+- **Part 2 — Architecture & Code Map** — core data flow, the four-mode shell, the two-lane transport, the string-index convention, and a compact code-map pointer (the full `screen.js`/`routes.py` walkthrough + data schemas live in `docs/code-map.md` / `architecture.md` / `exercise-schema.md`).
 - **Part 3 — Constraints, Procedures & Workflow** — the key constraints, the contained-playback model, the "add a pathway / generator" how-tos, and the session-start/end + agent-workflow procedures.
 
 ### Adding a Part (do this automatically — no need to ask)
@@ -19,7 +19,7 @@ Keep this file in Parts rather than letting one sprawl; it loads every session, 
 - **Order:** keep Parts most-stable-first (constitution before code-map).
 - **Mirror:** make the identical Part change in `CLAUDE.md` the same session (they mirror).
 - **Ceiling, not quota:** never pad content to fill a Part.
-- **Single sections stay whole:** Part 2 (`## Architecture`) is the largest because a single `##` is never split across Parts — if it must grow, promote its `###` subsections to `##` first, then peel a coherent cluster into the next Part.
+- **Single sections stay whole:** a single `##` section is never split across Parts — if one grows too large to keep whole, promote its `###` subsections to `##` first, then peel a coherent cluster into the next Part. (Prefer demoting bulky *reference* detail into an on-demand `docs/` file and pointing to it — only always-loaded vs on-demand actually cuts the session context budget, not an in-file Part split.)
 
 # ─── Part 1 — Orientation & Rules ───
 
@@ -63,8 +63,10 @@ Promoted from patterns in past-session feedback — the things Christian kept ha
 | `screen.js` | All generator logic, CAGED/3NPS data, pathway definitions, built-in renderers, audio playback, and Slopsmith integration. Runs in Slopsmith page scope. |
 | `routes.py` | FastAPI routes under `/api/plugins/slopscale/…` — preset CRUD, status, and `POST /temp-sloppak` (the chart builder). |
 | `settings.html` | Plugin settings panel fragment rendered by Slopsmith. |
-| `docs/architecture.md` | Integration design — the authoritative spec for how the plugin interacts with Slopsmith. Read this first before changing the launch flow. |
-| `docs/exercise-schema.md` | Internal generated exercise JSON schema and note field abbreviations. |
+| `static/` | Self-hosted audio assets served by `routes.py` — `wafonts/` (WebAudioFont sampler assets, committed); `irs/` + `nam/` (cab IRs / NAM amp captures, **gitignored** pending licensing). |
+| `docs/architecture.md` | Integration design — the authoritative spec for how the plugin interacts with Slopsmith (incl. the Sloppak on-disk format, field-name translation, audio stem generation). Read this first before changing the launch flow. |
+| `docs/code-map.md` | Per-section walkthrough of `screen.js` (the §1–§15 sections) + `routes.py` (routes, storage). **Read before working inside either file.** |
+| `docs/exercise-schema.md` | Internal generated exercise/chart JSON schema + the compact note-field key meanings. |
 | `docs/practice-pedagogy.md` | Pedagogical rationale behind the curated pathways and build order. |
 | `docs/pedagogy-sequencing.md` | Beginner→advanced sequencing rationale for pathways. |
 | `docs/fretboard-pedagogy.md` | Guitar fretboard system reference (CAGED, 3NPS, etc.). |
@@ -160,91 +162,13 @@ Built 2026-06-02 (commits `c616e72`→`d8281bf`); all modes share `#slopscale-ru
 
 In **Jam** (`isJamMode`) the overview becomes the **chord loop** — function-tinted bands of the progression with chord name + roman numeral (from enriched `backingEvents` `rn`/`fn`), current chord bright + NEXT raised, loop-relative bars on the working ruler; the fretboard pre-lights the next chord's guide tones as an amber dashed ghost ~1.5 beats early (`jamNextGuidePcs`) = play-the-changes anticipation. Progressive disclosure: a single Pathway drill shows the simplest transport; Custom/Workout scale the band lane out. **Deferred polish:** tokenize the ruler's raw hex → `--ss-*`; a min:sec readout; decimated bar labels on the overview. Full spec + window math: memory `project_transport_two_lane_redesign`.
 
-### screen.js structure
+### Code map (screen.js + routes.py)
 
-`screen.js` is one IIFE, ~13,200 lines. It loads as a classic `<script>` (the host injects it without `type="module"`), so it cannot use `import`/`export` — keep it one file. Major sections are marked with `§N` banner comments and indexed in a table-of-contents header at the top; **grep `§` to jump between sections, or use targeted search to locate one before reading.** Key sections (topical walk-through, **not** in §-order — see the TOC header in `screen.js` for the canonical §1–§15 order):
+`screen.js` is **one IIFE, ~13,200 lines** — it loads as a classic `<script>` (no `type="module"`), so it **cannot use `import`/`export`; keep it one file.** Sections are marked with `§N` banner comments and indexed in a **table-of-contents header at the top of the file** (the canonical §1–§15 order) — **grep `§` or read that header to navigate before editing.**
 
-- **Constants** — `NOTE_NAMES`, `STRING_SETUPS`, `SCALE_INTERVALS`, `CHORD_FORMULAS`, `DIATONIC_QUALITIES`, `COMMON_PROGRESSIONS`, `SEQUENCE_PATTERNS`, `CHROMATIC_PATTERNS`, `RHYTHM_CELLS`, etc. `RHYTHM_CELLS` is the rhythm-cell table (gallop / dotted-snap / tresillo / clave as per-onset **beat**-arrays fed to `rhythmSteps`); a startup guard (`assertRhythmCellsValid`) rejects any cell that doesn't sum to whole beats (it would phase the bar). `CHORD_FORMULAS` carries the **full interval stack** for each quality (including extensions past the octave for 9/11/13 chords); it is intentionally complete so the voicing engine decides what to actually play.
-- **`CAGED_SHAPES`** — unified source of truth for CAGED shape data. Contains `rootStringIdx`, `scaleFretSpanFromRoot`, and `chordTemplates` per quality. **Do not split this into separate tables.** (Historical note: a previous version had two diverged tables; they were unified on 2026-05-26.) Scale/arpeggio shapes are resolved by degree-driven, no-unison selection (`resolveCAGEDShape` and the run-seam dedupe), not naive fret-window blocks — see the no-unison constraint below.
-- **`PATHWAYS`** — curated pathway definitions: `label`, `goal`, `scales[]`, `tempoTiers[]`, `base` config, and `vary[]` list for Next Variation cycling.
-- **`BUILT_IN_SESSIONS`** — the starter Workout library: **23 session presets** spanning goal × level × genre × instrument. The original ~11 are **inline** presets (`starter_arc` warm-up→technique→application default + the `onLaunchSession` fallback; Beginner Foundations; ii–V–I Workshop; Daily 30-min Intermediate; Blues/Bebop Fundamentals; Warm-up 10-min; Rock Essentials; Funk Pocket; Metal Technique; **Bass Foundations**); the rest are **Phase-7 template-ref sessions** — role-skeleton workouts whose slots materialize from `SEGMENT_TEMPLATES` at launch (see the segment-template engine below). Each uses only 3–4 of the ~29 primitives, leaving room for distinct user workouts. `onLaunchSession` inherits the form's `stringSetup` only within the same **instrument family** (so instrument-specific presets stay correct and guitar-only techniques never land on bass). The old starter `<select>` was dropped (Phase 9); `_selectedStarterId` is the selection state and the Workout UI is an editable working-draft (see the four-mode shell above).
-- **Exercise builders** — `buildScaleExercise`, `buildChordScaleExercise`, `buildArpeggioExercise`, `buildSweepArpeggioExercise`, `buildChromaticExercise`, `buildGuideTonesExercise`. Each returns an `exercise` object. **`buildChordScaleExercise` carries the v0.6.0 "play the changes" dial** (Park / Connect / Connect+approach — UI labels for the internal `chord_tone_emphasis` / `mode_of_moment` values): in Connect it voice-leads across chord changes via `connectStartIdx(...)` + a threaded `prevMidi`, starting each new chord's run on the nearest guide tone (3rd/7th) instead of restarting on the root. Guarded by `smoke-connect.mjs`; the beat-based chord-event timeline (Stage 2) is still deferred — see the "Playing-the-changes initiative" memory + `ROADMAP.md`. **`buildRhythmPulseExercise`** (`rhythm_pulse`) is the Rhythm-ladder keystone (panel 2026-06-04, `docs/rhythm-ladder-roundtable.md`): ONE palm-muted low-string note struck in the configured rhythm cell over a click, with a movable `pulseAccent` (0–3) — pure-time drills (Single-String Pulse / Accent Displacement / "tap the tresillo·clave on one note"); host-independent core, guarded by `probe-rhythm-ladder.mjs`.
-- **`generateExercise(cfg)`** — single-exercise dispatch; routes to the correct builder based on `cfg.practiceType`.
-- **Session builders** — `buildSegmentConfig`, `buildBpmLadderChart`, `buildSessionChart`, `generateSession`. `generateSession()` is parallel to `generateExercise()`; both return the same `{ version, session, chart }` shape so the downstream `makeBundle` path is unchanged.
-- **Jazz harmony engine** — `chordQualityForDegree()` resolves the chord quality per scale degree (honouring `chordDepth` = power/triad/seventh/extended, `chordOverride`, and progression context), with optional **tritone substitution** (`cfg.tritoneSub` = `off` / `dominant_v` / `all_dominants`). `voiceChord(rootPc, intervals, opts)` is the **voicing engine** — it turns a raw interval stack into a playable voicing (voice count, register window, drop/omit decisions) rather than stacking every formula note. This is what keeps generated harmony musical; see `docs/musicality-guardrails.md`.
-- **`makeBundle(exercise)`** — wraps an exercise into a renderer-ready bundle.
-- **Renderer factory system** — `resolveRendererFactory(kind)` selects between renderers, borrowing host visualization plugins via the shared `borrowHostViz(globalName, scriptPath)` helper (lazy-load + poll for deferred `window.slopsmithViz_<id>` registration, with built-in fallback): `highway_3d` (host's `window.slopsmithViz_highway_3d`), `builtin_2d` (the **Jumping Tab** slot — borrows `window.slopsmithViz_jumpingtab`; the in-tree `makeBuiltin2DRenderer` is now only its last-resort fallback), `tab_2d` (Tab), `notation_2d` (Notation), and `piano_roll` (**groundwork only** — borrows `window.slopsmithViz_piano`, gated behind `pianoPathwayActive()` which returns `false`; the Piano Roll view button is `hidden`+`disabled`). User selection persisted via `localStorage['slopscale.renderer']`. Note: the host 3D highway renders **4–8 strings** (its `resolveStringCount` + 8-entry palette), so it is the default for guitar AND bass; `attachRenderer()` only force-falls-back to `builtin_2d` for counts it can't handle (>8 — not currently producible in SlopScale). `attachRenderer()` also calls `syncViewSwitcher(cfg.renderer)` after the saved-pref restore + any force, so the highlighted view button always matches the actual render. Borrowed viz plugins mount their own wrap as a sibling of `#slopscale-canvas`; `stopRenderer()` calls their `destroy()` on switch, and `.slopscale-render-host .jumpingtab-wrap` is sized to fill the host.
-- **Built-in renderers** — `makeBuiltin2DRenderer`, `makeBuiltin2DTabRenderer`, `makeBuiltin2DNotationRenderer`, plus their draw helpers, driving `#slopscale-canvas`. Note spacing is **time-linear** (`xForDt(dt)` maps a note's time-offset from the playhead linearly to x — constant-speed scroll). The visible window (`AHEAD`/`BEHIND`, set per-draw) is **beat-relative** via `chartBeatSeconds(bundle)` (≈6.8 beats across the view, clamped), so note density stays comfortable/consistent across tempos instead of cramming at fast BPM; it's constant within a chart so the scroll speed is unchanged.
-- **Live fretboard strip** — `drawFretboardFrame()` (+ `fretboardActiveNotes`, `fretboardSyncRange`, `fretboardStringCount`) draws a horizontal neck diagram on `#slopscale-fretboard` (docked under the render-host). It draws the exercise's whole pattern (`fbPattern`, unique string/fret positions) as **hollow circles**, and notes sounding within ~80ms of the playhead **glow filled** on top. The neck is **zoomed to the pattern's fret window** (`fbFretLo`/`fbFretHi`, ±1 fret with a min span) so the shape fills/centres the strip rather than floating on a full neck. Ported/generalised from the host Fretboard View plugin; any string count. Called from `drawOnce()` each frame, renderer-independently (early-returns when its canvas is hidden) — so it works under any active renderer. **Offered on every stringed-instrument view: 3D Highway, Jumping Tab (`builtin_2d`), Tab, and Notation** — gated by the `.slopscale-fb-capable` root class (set in `syncViewSwitcher`) AND a user toggle (`.slopscale-fb-on`, button `#slopscale-fretboard-toggle`, persisted in `localStorage['slopscale.fretboard']`, default off, `syncFretboardUI()`). Always hidden only for the Piano instrument (`.slopscale-piano-instrument … !important`).
-- **Exercise title** — `exerciseTitle(cfg)` sets `bundle.songInfo.title` to the descriptive name (e.g. "C minor pentatonic"; session name for sessions). Each renderer draws this as its own in-canvas header in its native style (the built-in Tab/Notation `drawHud` draw title-only — no in-canvas timer; that lives in the HUD).
-- **Player HUD** — `#slopscale-hud` overlay floating over the highway: time on the right (single timer, all views), and a title on the left **only for 3D Highway** (`.slopscale-hud-title-on`, set in `syncViewSwitcher`) since every other renderer draws the title in-canvas. Time set in `syncTransportTime()`, title in `syncTransport()`.
-- **Audio engine (§14 — the largest single section, ~1,700 lines)** — a Web Audio graph built by `ensureAudioBus(ctx)`: **per-track buses → a master safety limiter** (a `DynamicsCompressor` that guards against stacked-note peaks for safe, normalized output — no clipping) → destination; grab a per-track sub-bus (notes / harmony / click / bass / drums) with `trackBus(ctx, name)`. This bus/limiter layer landed in the recent audio pass (see git log + ROADMAP audio handoff). **Instrument voices**: sample-based via **WebAudioFont** (`wafPlayer`, self-hosted under `static/wafonts/`, served by the `/wafont` route) on the `engine:'sample'` path, otherwise the synthesized **oscillator** voice. `AUDIO_PROFILES` maps a genre/style → `{ family, harmony:{engine,tone,level}, brightness }` (families: clean / acoustic / distorted / electronic); the resolver applies profile → family → `GLOBAL_AUDIO_DEFAULT`, with the **brightness slider** overriding. The **distorted family's NAM amp-model + cab IR chain** (`/nam` + `/ir` routes; NAM *engine* borrowed from the host `nam_tone` plugin at runtime, not bundled) is **in progress**. **Drums (Phase D, shipped — `a67ec29`/`b6504c6`):** pitch-less `role:'drums'` backing events (`buildDrumEvents`, odd-meter-aware via `buildGenericDrumGroove`) play on their own **drums bus compressed *before* the master limiter**, voiced by `scheduleDrumHit` → `resolveDrumKit` (sampled FluidR3 GM one-shots via `wafDrumVoice`, with a synth-808/909 fallback). §14 also owns the playback clock (`currentPracticeTime`, RAF `tick`), count-in clicks, the metronome, and note scheduling. Lanes: `sound-design-architect` (mix/aesthetics) + `audio-engine-architect` (sourcing method).
-- **Slopsmith Minigames SDK integration** — pitch tracker via `window.slopsmithMinigames.scoring.createContinuous(...)`. Used as a scoring consumer only; **the plugin is not registered as a Slopsmith minigame.**
-- **Public surface** — `window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, rollSegment, refreshWorkout }` (near the end of the file).
-- **Segment-template + variation engine** (just after `stylePaletteConfig`) — the Workout library substrate. `SEGMENT_TEMPLATES` is a registry of templates `{ role, competency, band, style?, kind (1 of the 29 primitives), base, vary[] }` (a generalization of `PATHWAYS[].vary[]` + the palette index-picker). `rollSegment(template,{variantIdx,locks})` materializes one into a normal session segment; `refreshWorkout(session,{scope})` re-rolls template-ref slots. **Browse / Pick / Refresh are three reads of one object.** A workout segment may be an **inline** `{kind,config}` (legacy) OR a **template-ref** `{templateId, variantIdx, locks}` (materialized at the top of `buildSessionChart`'s loop). `validateSegmentTemplates()` is the startup guard enforcing the four refresh invariants (same-band / length-locked / style-locked / no-row-gate). See memory `project_segment_library_and_refresh`.
-- **`offerable(primitive, instrument)` + `PRACTICE_APPLICABILITY`** (just after the segment-template guard) — the **single source of truth for which practice types an instrument is offered**, with a ternary tag: `native` / `adapted` (transfers but the generator changes behaviour — e.g. bass legato = HO/PO only) / `n-a`. `syncInstrumentClass()` drives the instrument-aware practice-type list from it (replacing the old bending-only hide). Builders themselves stay robust on either instrument (the all-4ths bass groove generators run on a guitar's low strings too) — `offerable()` gates the **offering**, not the build. **Bass groove primitives** (`root_fifth_octave`/`octave_groove`/`dead_note_groove`/`right_hand_technique`/`slap_pop`, bass-native) use the all-4ths grip (root `(s,f)` → 5th `(s+1)` → octave `(s+2)`, found by pitch); slap/pop/ghost are encoded via existing `ac`/`mt` (no new field). See memory `project_cross_instrument_workout_structure` + the bass-pedagogy agent-memory specs.
-- **`bind()`** — wires all DOM events; called once on DOMContentLoaded.
+`routes.py` registers FastAPI routes under `/api/plugins/slopscale/…` (status, preset + tuning CRUD, the dormant `POST /temp-sloppak` chart builder, and the self-hosted `/wafont` `/ir` `/nam` audio-asset routes). **Storage is DB-backed** (the shared Slopsmith meta-DB via `context["meta_db"]` → tables `slopscale_presets` + `slopscale_tunings`), not flat files.
 
-### routes.py structure
-
-FastAPI routes registered via `setup(app, context)`. All routes are under `/api/plugins/slopscale/`:
-
-- `GET /status` — health check
-- `GET /presets` / `POST /presets` / `DELETE /presets/{id}` — preset CRUD
-- `GET /tunings` / `POST /tunings` / `DELETE /tunings/{id}` — custom-tuning CRUD (frontend posts a tuning by name + family + string count + MIDI list; id is an autoincrement INTEGER)
-- `POST /temp-sloppak` — normalizes the frontend exercise payload (`_normalise_chart`), writes a directory-form `.sloppak` package under the DLC folder, returns `{ ok, filename, title, duration }`. (Dormant on the live path — see "Contained playback" below.)
-- **Self-hosted audio assets** (offline-safe; declared extension only, path-traversal rejected): `GET /wafont/{name}.js` serves WebAudioFont player + GM presets from `static/wafonts/` (the sampler backing); `GET /ir/{name}.wav` serves cab impulse responses from `static/irs/`; `GET /nam/{name}.nam` serves NAM amp captures (JSON) from `static/nam/`. `static/irs/` + `static/nam/` are **gitignored** (commercial IRs / GPL-3 community captures pending licensing clearance); the NAM *engine* (worklet+WASM) is **borrowed from the host's `nam_tone` plugin at runtime** (`/api/plugins/nam_tone/worklet/…`), not bundled. (The distorted-track chain that consumes the IR/NAM routes is in progress — see ROADMAP audio handoff.)
-
-**Storage is DB-backed, not flat files.** Presets and tunings live in the shared Slopsmith meta-DB obtained via `context["meta_db"]` (a `sqlite3.Connection` on `.conn` guarded by `._lock`), in two dedicated tables `slopscale_presets` (TEXT id, preserves legacy slug ids) and `slopscale_tunings` (INTEGER autoincrement id). `_ensure_tables()` creates them on `setup()`. The legacy `<CONFIG_DIR>/plugin_data/slopscale/presets.json` is migrated into the DB once via `_migrate_presets_from_json()` (idempotent; runs only when the presets table is empty) and then left in place as an audit breadcrumb — it is **no longer the live store**, so don't edit it expecting changes to show up.
-
-Temp sloppaks live under `<DLC_DIR>/.slopscale-temp/<slug>.sloppak/`. They are cleaned up on the next build call (entries older than 24h, or beyond 20 total).
-
-### Sloppak format
-
-A temp sloppak is a directory with this structure:
-```
-<slug>.sloppak/
-  manifest.yaml          ← required; lists arrangements and stems
-  arrangements/lead.json ← normalized note/chord/beat data
-  stems/practice.wav     ← generated audio (OGG if ffmpeg available)
-```
-
-`manifest.yaml` must have a non-empty `stems` list for Slopsmith's player to provide a transport clock. The audio file is synthesized by `routes.py` from the note + beat data.
-
-**Audio stem generation:** The stem is a synthesized WAV (OGG if ffmpeg is on PATH). The stem content is controlled by `session.audio` in the exercise payload:
-- `{ "notes": true }` — synthesizes plucked-sine note audio from the note list using the correct string/fret MIDI pitches.
-- `{ "metronome": true }` — synthesizes a metronome click track from the beats list (accented on measure downbeats).
-- Both false (default) — writes a silent WAV; the player still gets a valid transport clock.
-
-### Field name translation (frontend → sloppak)
-
-Frontend generators use camelCase names; `_normalise_chart()` in `routes.py` translates to the on-disk Sloppak field names before writing:
-
-| Frontend (exercise.chart) | Sloppak (arrangements/lead.json) |
-|---------------------------|----------------------------------|
-| `chordTemplates` | `templates` |
-| `handShapes` | `handshapes` |
-
-All other top-level arrangement fields (`notes`, `chords`, `anchors`, `beats`, `sections`) pass through unchanged.
-
-### Note field abbreviations
-
-All note objects in the exercise payload use compact keys (see `docs/exercise-schema.md` for full reference):
-
-| Key | Meaning |
-|-----|---------|
-| `t` | start time (seconds) |
-| `s` | string index |
-| `f` | fret number |
-| `sus` | sustain duration (seconds) |
-| `sl` / `slu` | slide target / slide-up target fret (-1 = none) |
-| `bn` | bend value (0 / 0.5 / 1 / 1.5 / 2) |
-| `ho` / `po` | hammer-on / pull-off |
-| `hm` / `hp` | harmonic / pinch harmonic |
-| `pm` | palm mute |
-| `mt` | muted/dead note |
-| `vb` / `tr` | vibrato / tremolo |
-| `ac` / `tp` | accent / tap |
+**The full per-section walkthrough of both files lives in `docs/code-map.md`** (the screen.js §-walkthrough — constants, `CAGED_SHAPES`, `PATHWAYS`, `BUILT_IN_SESSIONS`, the exercise/session builders, voicing engine, renderer factory, fretboard strip, audio engine §14, segment-template engine, public surface — plus the routes.py route list + storage model). **Read it before working in either file.** For the rest: the on-disk **Sloppak format, the `chordTemplates`→`templates` / `handShapes`→`handshapes` field translation, and audio stem generation** are in `docs/architecture.md`; the **exercise/chart JSON schema + the compact note-field key meanings** (`t`/`s`/`f`/`sus`/`bn`/`ho`/`po`/…) are in `docs/exercise-schema.md`.
 
 ### String index convention
 
