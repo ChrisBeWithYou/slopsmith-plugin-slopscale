@@ -71,6 +71,7 @@ Promoted from patterns in past-session feedback — the things Christian kept ha
 | `docs/pedagogy-sequencing.md` | Beginner→advanced sequencing rationale for pathways. |
 | `docs/fretboard-pedagogy.md` | Guitar fretboard system reference (CAGED, 3NPS, etc.). |
 | `docs/position-system-rework.md` | Design notes on the unified position system (CAGED_SHAPES consolidation history). |
+| `docs/tuning-model.md` | How tunings are modeled + named (absolute-MIDI canonical, name-resolution layer, host gotchas) — written shareable for the host team. |
 | `docs/session-schema.md` | Session/segment data model used by `BUILT_IN_SESSIONS`. |
 | `docs/theory-caged.md` / `theory-scales.md` / `theory-arpeggios.md` / `theory-jazz-advanced.md` / `theory-progressions.md` | Distilled theory knowledge base (CAGED, scales, arpeggios, advanced jazz, cross-genre progressions). |
 | `docs/genre-framework-guitar.md` | Genre/style framework behind the progression library and random-style generator. |
