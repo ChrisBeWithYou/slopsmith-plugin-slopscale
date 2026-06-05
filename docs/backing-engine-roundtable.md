@@ -299,3 +299,120 @@ the passing-chord spelling; rhythm-meter owns the comp-cell/feel engine + multi-
 drum-pedagogy owns the groove library + fills; bass- & piano-pedagogy verify bass figures + keys voicings;
 audio-engine owns the envelope layer + new voices; sound-design owns the mix + safe output; each genre
 agent authors its own recipe + cells when its tier is built.
+
+---
+
+# Build-plan v2 — 11-lane panel re-check (2026-06-05, build kickoff)
+
+> The 11 build-owning lanes re-reviewed this spec against what shipped since 2026-06-03
+> (rhythm/chord/djent ladders, the host refresh, the dev-ops scheduler measurement, honest
+> scoring). §§1–9 above stand; this addendum records what CHANGED and the locked decisions.
+> Per-lane detail lives in each agent's memory (`.claude/agent-memory/<agent>/project_backing_*`).
+
+## What changed since §§1–9 were written
+
+1. **Step 1 shrinks (L→M): the keystone is ~40% shipped.** `compileChordTimeline` exists
+   (bar-locked) and `buildBackingEvents`/`buildBoogieBacking`/`measureGuideToneLandings` already
+   read it. Remaining: sub-bar `durBeats`, `push` (clamped at count-in + loop seam), `bass`
+   slash/pedal override, `gen:'approach'` tags — plus two per-block assembly fixes (keyCycle
+   skips the timeline; multi-block sessions never assemble one → the proof metric would judge
+   the wrong harmony). **Keep the shipped name `chart.timeline`** (not `chordTimeline`).
+   Beats canonical, seconds derived: `startBeat/durBeats` = the harmonic slot (never pushed);
+   `startSec/endSec` = the sounding window (push applied, pre-swing). The timeline stays
+   compact (1–4 events/bar); `backingEvents` is the dense expansion — renderers never walk
+   the timeline.
+2. **One cell grammar (rhythm-meter ruling):** COMP_GROOVES = the shipped `STRUM_PATTERNS`
+   grid schema with a step token allowed to be `{target, artic, accent}`; `RHYTHM_CELLS`
+   stays the shared timing-atom library bridged by `cellOnsets(cell, div)` so tresillo /
+   gallop / skank are authored ONCE and the backing plays the same named cell the player
+   drilled. Drop `accentMap` (use the shipped accent encoding); per-beat `slots` = a `div:1`
+   grid (country falls out free); `cellBars` 1|2 kept, **`cellBeats` stays gated** (true
+   polymeter — the djent-ladder honesty tier).
+3. **Scheduler = step 0 (unanimous, 5 lanes).** Measured: whole-pass = 39k nodes / 1.57s
+   freeze at CURRENT density; the engine multiplies 5–10× (≈200–400k — "not slow, broken").
+   ~10s window, refill at ~4s headroom off the existing tick; A–B loops stay whole-pass;
+   count-in + per-block assembly untouched. Budget: ≤50ms play-press block, ≤2k live nodes
+   typical / 5k hard, ≤5ms refill. Ride-along: the `_ptStreak` loop-wrap reset (same code
+   path). NOT riding: attach-race counter, PT_HIT_FRAMES clamp (await dogfood evidence).
+4. **Cheaper than spec'd:** articulation = AudioParam automation on the GainNode the WAF
+   player already returns (**zero extra nodes**; mute-chuck +3/hit); all 14 GM voices already
+   self-hosted (sourcing ≈ palette data + GM28 muted electric + CC0 IR clearance); voice-leading
+   common-tone *ties* reduce event count. Mix DSP = persistent per-bus nodes only, never per-event.
+5. **Sound-design re-sequencing:** velocity tiers (accent 1.0 / normal 0.78 / ghost 0.45) +
+   the ARTIC envelope table + −2dB harmony trim + coupling trim ship **inside step 3** (a
+   re-articulated comp without them sounds worse than the pad — the pumping artifact the
+   current coalescing exists to prevent). Old step 7 splits: 7a inside #3; 7b (one shared
+   zero-asset reverb + pan + register-carve) lands after #3 and **before drums**.
+6. **Bass design flip:** backing bass landings = **ROOT on beat 1** (Connect's guide-tone
+   preference is right for the lead line, wrong for bass), locked to the kick's grid slot.
+   Reuse `nearestPositionForPc`, flip the preference. Roots MIDI 28–43, line ceiling 50,
+   leap ≤9 (octave whitelisted), boogie ports as figure #1, mute the figure when the player
+   IS the bassist. Walking/motown_counter generator rule-sets in bass-pedagogy's memory.
+7. **Voice-leading rule-set (piano):** thread `prevVoicing` (anchor only the loop's first
+   chord; never re-anchor mid-form), common tones hold literal MIDI, 7th resolves down by
+   step into the next 3rd, nearest-motion ≤2 semis preferred / 5 hard, top-note ±3, re-seed
+   at block seams + loop-seam drift correction (> a 4th). Hand-span guard in the voicer
+   (≤12 semis AND ≤5 notes per hand, else re-voice; mirrors the no-unison guard) + the 3-row
+   low-interval rule (below MIDI 48 only roots/5ths/octaves; 48–55 ≥m3; ≥55 anything).
+   Rootless A/B formulas in piano-pedagogy's memory. Metal/djent need no voicingStyle
+   (`chordOverride:'5'` covers them). NOT schema-gated on piano-as-instrument.
+8. **Drums:** rename piece ids to the host's `lib/drums.py` vocabulary first (closed
+   source-of-truth vocab; makes drum_tab export a serializer). ~11-cell NOW set (token
+   sketches in drum-pedagogy's memory: jazz spang-a-lang + feathered kick ~0.10, gospel
+   pocket, train beat). Fills land in the SAME batch (2–3 per groove + a no-fill pass,
+   seeded round-robin, repeat period ≥12–16 bars; **the fill bar mutes the hat lane** —
+   no third arm). Schema adds: per-lane velocity scale + a feathered-kick token `t` (never
+   `f` — collides with the host wire-flam). Humanization kit-gated (electronic 0 / acoustic
+   0.6 / jazz 0.8), never the count-in or a loop's first downbeat.
+9. **Determinism is a hard rule:** humanization/fill rolls are **seeded and baked at
+   generation time** (seed = stable hash of cfg identity + block index, stored on the chart);
+   no bare `Math.random` in the generation path; the windowed scheduler stays a pure read;
+   charts stay byte-golden. The determinism assert lands WITH step 1.
+10. **L&D difficulty axis:** one ordinal `backingDensity` field, four named levels
+    (0 click → 1 vamp → 2 groove → 3 full). Authored per-rung in `base`/`vary[]` (vary[]
+    stepping it = the lateral ladder); Workout derives a default from block role; Jam = full.
+    Orthogonal to tempo. New lane-suppression rule: **player-is-the-comp** (`strum_comp`
+    blocks drop the comp lane; sibling of drop-the-pad-root). Name the active primitives on
+    the goal card + the pulse-caption slot ("Backing: boom-chuck · two-feel bass") — every
+    registry primitive carries a player-facing `label` from day one.
+11. **Verification:** new `smoke-backing-engine.mjs` (timeline structural validity for every
+    recipe; same cfg+seed → byte-identical chart; recipe-integrity guard fires on an injected
+    bad ref; bounded backing voice-leading motion) + a scheduler node-ceiling row in
+    `smoke-session-sync`. Generators/core-purity cover the new paths free via enumeration.
+
+## Locked decisions (Christian, 2026-06-05)
+
+1. **Scope: build all ~9 taught genres BEFORE the release** (overrides the panel's
+   ship-one-genre-and-measure rec — Christian's call). Jazz still goes FIRST as the vertical
+   pilot through steps 3–5 (L&D: the differentiator's home; today's jazz backing actively
+   mis-teaches swing); blues stays the A/B control; the other 8 follow before release.
+2. **NAM: in-house + detect.** A WaveShaper + CC0 cab-IR chain is the first-class distorted
+   comp voice (zero deps, zero license risk — the nam_tone repo is UNLICENSED, so vendoring
+   is off the table); feature-detect `nam_tone` behind a `toneChain(input)→output` seam in
+   §14 as a free upgrade. Follow-ups: clear one CC0 cab IR; add the repo LICENSE file.
+3. **Proof-loop flag ON with this build** — dogfood the verdict card; the rich-vs-pad seam
+   measurement (local ring buffer: seamRatio, rootRestarts, backing kind, per id) rides it.
+4. Minor (panel recs applied): REF_TRIM bus trims become the fader-unity defaults (notes 0 /
+   bass −5 / harmony −10 / drums −9..10 / click −14; limiter unchanged, ≤3–4dB GR ceiling);
+   funk palette goes Dorian (`dorian_vamp` + `auto` depth); pushed/anticipated landings
+   CREDIT the seam proof (score the sounding window); `backingDensity` authored-only at
+   first (no player stepper yet); the pad-vs-comp A/B toggle ships as a dev flag.
+
+## Build order v2 (supersedes §7)
+
+0. **Rolling-window scheduler** (§14) — the prerequisite.
+1. **Finish `chart.timeline`** (sub-bar durBeats, push, bass, approach tags; keyCycle +
+   per-block session assembly fixes; determinism assert + the new smoke suite land here).
+2. **Voice-leading between backing chords** (prevVoicing threading + the piano rule-set +
+   in-voicer guards; modal-M1 palette tokens + funk-Dorian ride along; keys register-carve).
+3. **COMP_GROOVES** on the unified grammar + the pad-kill + mix 7a + `backingDensity` +
+   player-is-the-comp suppression; boogie migrates to a recipe as the proof.
+   **3.5** mix 7b (shared reverb / pan / carve) — before drums.
+4. **BASS_FIGURES** (root-on-1, kick-locked; boogie figure #1; walking + motown generators).
+5. **DRUM_GROOVES + fills** (lib/drums.py rename first; ~11 cells; fills same batch;
+   per-lane velocity scale; seeded humanization).
+6. **Palettes → recipes** + integrity-guard extension; then the remaining 8 genres' recipes
+   (each vetted by its genre-idiom agent) before release.
+7. *(unchanged)* Breadth/exotic tier stays DEFERRED behind proof: compLanes[] multi-lane,
+   cellBeats polymeter, swung-16ths (`swingUnit`), quartal/drop2, busy_melodic, the
+   passing-chord generator, pump/roll/arrastre/808-glide.

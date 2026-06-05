@@ -126,18 +126,36 @@
 >   - **Genre ladders + underserved map** (DESIGNED by L&D chair + market + blues/jazz/rock/funk, 2026-06-03 — memory `project_genre_ladders_design`): the #1 underserved gap = GENRE DEPTH (3 thin Style packs vs 5 concept ladders + 34 idle agents). FRAMING: a **genre ladder = the APPLICATION layer** (vocabulary→technique→application→improv in a style's accent) — the thin Style packs are under-built genre ladders; "deepen Blues" ≠ a new concept. Market: genre > concept on pull; build 2-3 + measure, don't pre-commit the matrix. **CRUCIAL:** every genre ladder's top rungs hit the backing-engine limiter — **Blues least gated** (boogie backing built), **Funk most gated** (worst backing; bass-funk native-now). 4 sketches captured (Blues/Rock/Jazz/Funk, all over existing generators; Blues+Rock fully buildable now). Bass parity: Funk + a **Rhythm/Time** concept ladder built guitar+bass-parallel. **✅ BUILT (uncommitted) — 5 ladders, 20 pathways:** **Blues** (deepened `style_blues` 1→5: blues_box→blues_shuffle→blues_bends→blues_call_response→blues_mix) · **Rock** (new `style_rock`: power_backbeat→pentatonic→lead_vocab→pedal_riff→classic_changes) · **Rhythm** (`concept_rhythm`, instrument-agnostic: subdivision→16th→swing→displacement) · **Picking** (`concept_picking`: tremolo→alternate→string_skip→hybrid) · **Legato** (`concept_legato`: hopo→runs→tapping). Verified by `probe-genre-rhythm.mjs` (20/20 rungs + 5 bands render, 0 errors) + syntax. **HELD:** Funk (most backing-gated — build bass-side or wait for the 16th-scratch comp) + Jazz (swing-backing-gated) + the Blues **turnaround** rung (needs a turnaround-figure token). **AUDIT of pre-existing ladders (Christian asked "make sure it meets current framework"):** FIXED — upgraded 4 sub-standard terse goal-cards to the current name-the-skill+why standard (`diatonic_triad_drill`, `seventh_vocab`, `ii_V_I_workout`, `harmonic_minor_exotic`). FLAGGED (Christian's calls): (1) **Country pack still 1 rung** — conspicuously thin next to Blues/Rock (5 each); next genre to deepen. (2) **Re-home decision now louder** — concept/genre rungs shadow Core pathways (Rhythm↔sixteenth_pocket, Picking↔chromatic_warmup, Rock↔power_chord_comping/pent_foundation, Fretboard↔major_scale_caged, etc.); additive-duplication today. (3) **Band-bar density** — 15 bands when all installed; the bar doesn't visually group Concepts vs Genre vs Core (only the pack-manager Available column does, by family) — a slopscale-ux-designer item. (4) **Bass parity thin** — most ladders guitar-coded; only Rhythm is agnostic; no dedicated bass ladder yet.
 >   - **Country deepened + full harmony/metric/framework AUDIT** ✅ (2026-06-03, uncommitted; 4-agent: country-idiom + harmony + rhythm-meter + learning-design): **BUILT** — Country `style_country` 1→6 (major_pent_country + cowboy_changes/double_stops/chicken_pickin/pedal_bends/train) + a `rhy_odd_meter` rung (7/8/5/8/6/8) in the Rhythm ladder. Verified `probe-country-audit.mjs` (14/14, incl. **dorian dom7 proof** + odd meters) + 5-suite regression green. **AUDIT FIXES APPLIED:** (a) **`dorian_groove`** was a dark-Aeolian drone mislabeled Dorian (`i-VII-VI-VII` + `chordOverride:'min7'` silenced the characteristic IV) → now `progression:'dorian_vamp'` + `chordOverride:'auto'` so the **IV voices as dom7** (backing proves `Am7→D7`, the ♮6 carrier); (b) **`ii_V_I_workout`** + **`vl_connect`** were jazz played STRAIGHT → added `swing:'swing'`; (c) **`rhy_sixteenth`** had a dead `{swing:'straight'}` no-op variant (swing is eighth-only) → replaced; (d) **`modal_awareness`** goal-card rewritten to name the skill + frame the dom7-on-everything device. **DECISIONS FLAGGED (not applied):** (1) **re-home ~7 genre/concept rungs out of Core** (`power_chord_comping`, `blues_shuffle`, `dorian_groove`, `modal_vamp`, `sweep_arpeggio_primer`, `melmin_exotic_12key`, `harmonic_minor_exotic`) — L&D's #1, the biggest framework violation (Core staircase carrying genre/concept rungs); (2) **group the 8 Concept bands under one "Concepts" family head in the picker** (render-only; restores the ~6-7 cap; 15 bands when all installed); (3) **bass parity via `offerable()` tagging** per ladder, not a per-instrument fork; (4) **`death_chromatic`** subdivision (rhythm-meter flagged eighth-vs-tremolo — but `tremolo:true` is per-NOTE, may be intentional → needs metal-idiom confirm); (5) **`modal_awareness` chordOverride** dom7→auto (harmony recommends for true diatonic modes; kept the device as intentional + reframed); (6) **`modal_vamp`/`triad_pairs`** adopting the bright-modal vamps (entangled w/ M7 comp-backing); (7) Country **cluck** (mt ghost) + **oblique double-stop bends** need new generators. Full per-finding lists in agent outputs; memory `project_genre_ladders_design`.
 >   - **Cross-instrument parity + practice↔backing unification** (6-agent round-table, memory `project_cross_instrument_backing_unification`): SlopScale already has the right SHARED model (offerable/PRACTICE_APPLICABILITY + instrument-agnostic chart); the ladders were just guitar-CODED. **✅ BUILT steps 1-3 (committed `92e484d`,`a880dbd`):** (1) **`compileChordTimeline`** = the single chord source the backing reads + `chart.timeline` field (output-preserving, all 10 smokes green) — the keystone for the backing rebuild AND Connect Stage 2; (2) **instrument-aware picker filter** (`isHiddenNode`→`offerable`); (3) a **bass-native Bass Foundations ladder** over the 5 groove primitives. **STEP 4 NOT built — it IS the full backing-engine rebuild** (the role-tagged BASS_FIGURES/COMP_GROOVES registry + retiring pad/boogie = `docs/backing-engine-roundtable.md`'s multi-phase initiative, now UNBLOCKED by the timeline). Also deferred: the drill side reading `chart.timeline` (Connect Stage 2); the unified chart schema (midi spine + str/key/voice addenda) for piano/drums; `applyPathwayConfig` stringSetup-respect + caged→position adapt; vocal. **Defer (needs generator):** Modal Color (bright-modal generator), the Playing-the-Changes "approach" rung (the chord-event timeline). **Open decision for Christian:** whether to RE-HOME the existing single-concept pathways (`guide_tones_path`/`seventh_vocab`/`ii_V_I_workout`/`bend_drill`/`whole_neck_freedom`/`sweep_arpeggio_primer`) into their ladders (cleaner; removes them from Core bands) vs the current additive duplication. Picker cap ~6–7 visible ladders (now at 3 — room for ~3–4 more). Memory `project_python_generator_reconciliation`.
->   - **Backing-Engine Rebuild** (SPEC ready, NOT built): `docs/backing-engine-roundtable.md` — 34-agent charette; keystone = the beat-based chord-event timeline (= Playing-changes Stage 2). See the "Backing-Engine Rebuild" section below.
+>   - **Backing-Engine Rebuild** (plan v2 LOCKED 2026-06-05, BUILDING): `docs/backing-engine-roundtable.md` (incl. the Build-plan v2 addendum) — 34-agent charette + 11-lane re-check; keystone = the beat-based chord-event timeline (= Playing-changes Stage 2, ~40% already shipped). See the "Backing-Engine Rebuild" section below.
 >   - **⛔ DON'T re-propose a pure-Python generator package.** A 2026-06-03 mobile-chat built `fretboard.py`/`emit.py` + a "Phase 0 sloppak round-trip" off a STALE snapshot + the RETIRED host-player-handoff model. 4-agent re-run verdict: host facts TRUE but architecture wrong; the canonical generator is the JS `screen.js` core; a Python core forks SlopScale from itself. Do NOT add the package / paste its `CLAUDE.md` append-block. Full-length-tuning latent bug captured as TODOs in `routes.py` (dormant path). Memory `project_python_generator_reconciliation`.
 >   - Deferred polish: transport ruler raw-hex→`--ss-*` tokens + a min:sec readout; the golden-file harness (when the engine stabilises / extraction starts).
 
-## 🎚️ Backing-Engine Rebuild — 34-agent round-table, DESIGNED (2026-06-03)
+## 🎚️ Backing-Engine Rebuild — DESIGNED 2026-06-03 · **plan v2 LOCKED + BUILD STARTED 2026-06-05**
 
 Full charette on the **chord-progression + backing-track + harmony/metric** engines: *make it
 better per-genre + more lifelike; what's the USP.* Panel = harmony-theory (chair) + rhythm-meter +
 sound-design + audio-engine + drum-pedagogy + market + learning-design + bass/piano-pedagogy + **25
 genre lanes** (shoegaze/surf/emo/punk held out as texture/lead-only). **Full spec + per-genre
 signature table + decision log: `docs/backing-engine-roundtable.md`; durable synthesis: memory
-`project_backing_engine_roundtable`. Status: DESIGNED, NOT built.**
+`project_backing_engine_roundtable`.**
+
+**2026-06-05: an 11-lane panel re-check (the build-owning lanes, background agents) re-validated the
+spec against everything shipped since — synthesis + locked decisions in the doc's "Build-plan v2"
+addendum** (per-lane detail in each agent's `.claude/agent-memory/<agent>/project_backing_*`).
+Plan-changers: the timeline keystone is **~40% already shipped** (`compileChordTimeline` exists,
+backing + proof metric read it — step 1 shrinks to finishing it + two per-block assembly fixes);
+**one cell grammar** (COMP_GROOVES = the STRUM_PATTERNS grid with object steps; RHYTHM_CELLS = the
+shared timing atoms via a `cellOnsets` bridge); the **rolling-window scheduler is step 0**
+(unanimous); articulation costs **zero extra nodes** (automation on the WAF-returned GainNode);
+mix 7a (velocity tiers + ARTIC envelopes) ships **inside** step 3; backing bass lands **ROOT on 1**
+kick-locked (flip of Connect's guide-tone preference); drums rename to the host `lib/drums.py`
+vocab; seeded determinism baked at generation (byte-golden charts). **Christian's locked decisions:**
+(1) **build all ~9 taught genres BEFORE release** (overrides the panel's ship-one-and-measure rec);
+jazz = the vertical pilot through steps 3–5, blues = the A/B control; (2) **NAM = in-house
+WaveShaper + CC0 cab-IR chain + feature-detect `nam_tone`** (NO vendoring — upstream is unlicensed;
+follow-ups: clear a CC0 IR + add our repo LICENSE); (3) **proof-loop flag ON with this build**;
+(4) minors per panel rec: REF_TRIM fader-unity defaults, funk goes Dorian, pushed landings credit
+the seam proof, `backingDensity` authored-only, A/B pad-vs-comp toggle = dev flag.
 
 **Diagnosis:** the harmony is right (`COMMON_PROGRESSIONS` + the `voiceChord` engine are good); the
 whole **rhythm/texture layer is missing**. Backing = exactly TWO comp shapes — one sustained voiced
@@ -171,13 +189,22 @@ sampler** (ZERO new assets) + **kill the sustained pad** (sound-design's #1 fix)
 become thin **recipes** over the registries (adding a genre = pick ~5 primitives, zero new code;
 startup guard mirrors no-unison).
 
-**Build order:** **1** chord-event timeline (L, keystone) → **2** voice-leading-to-mirror (M, the
-differentiator) → **3** `COMP_GROOVES` for the **~9 taught genres** + re-articulate the pad + WAF
-envelope layer (L/S) → **4** `BASS_FIGURES` (M) → **5** genre drums + fills + humanize (M) → **6**
-palette-as-recipe refactor (M) → **7** mix realism (register-carve/pan/shared-reverb/pre-limiter, M;
-alongside #3) → **8 DEFER behind proof:** `compLanes[]` multi-lane (reggae bubble, afrobeat
-interlock, bluegrass roll), multi-bar/polymeter cells (Latin clave, flamenco compás, prog unison),
-the exotic articulations + passing-chord generator + quartal/drop2 + feel-flags.
+**Build order v2 (2026-06-05 — supersedes the original §7 order; full detail in the doc's
+"Build-plan v2" addendum):** **0** rolling-window scheduler (§14 — ≤50ms play-press, ≤2k live
+nodes typical; `_ptStreak` wrap-reset rides along) → **1** finish `chart.timeline` (sub-bar
+`durBeats`, `push` clamped at count-in/loop seam, `bass` override, approach tags; keyCycle +
+per-block session assembly fixes; determinism assert + the new `smoke-backing-engine.mjs` land
+here) → **2** voice-leading between backing chords (thread `prevVoicing`, piano's comper rule-set,
+in-voicer hand-span/low-interval guards; modal-M1 tokens + funk-Dorian ride along) → **3**
+`COMP_GROOVES` (unified grammar) + pad-kill + mix-7a + `backingDensity` + player-is-the-comp
+suppression; boogie migrates to a recipe as the proof → **3.5** mix-7b (shared reverb/pan/carve —
+before drums) → **4** `BASS_FIGURES` (root-on-1 kick-locked; boogie = figure #1; walking + motown
+generators) → **5** genre `DRUM_GROOVES` + fills same batch (lib/drums.py rename first; seeded
+humanize) → **6** palette-as-recipe refactor + guard, then the remaining 8 genres' recipes (each
+vetted by its genre-idiom agent) before release → **DEFER behind proof:** `compLanes[]` multi-lane
+(reggae bubble, afrobeat interlock, bluegrass roll), multi-bar/polymeter cells (`cellBeats` — Latin
+clave, flamenco compás, prog unison), swung-16ths (`swingUnit`), the exotic articulations +
+passing-chord generator + quartal/drop2 + `busy_melodic`.
 
 **Discipline (market + L&D): right thing, RIGHT order.** NOW = unbreak the ~9 taught genres +
 voice-leading (the proof-loop payload). DEFER = palette breadth + the exotic-meter lanes. **Proof
