@@ -22,14 +22,18 @@ $PluginRoot = (Resolve-Path (Join-Path $ScriptDir '..\..\..')).Path
 $Port = if ($env:SLOPSCALE_PORT) { $env:SLOPSCALE_PORT } else { '8765' }
 $Checkout = if ($env:SLOPSMITH_CHECKOUT) { $env:SLOPSMITH_CHECKOUT } else { 'C:\Users\chris\slopsmith' }
 # Which Slopsmith RUNTIME to boot:
-#   bundled  (default) — the frozen Desktop install (resources\slopsmith, ~0.2.7).
-#            Its python312._pth pins imports to the bundled code, so this tests
-#            against what users currently run.
-#   checkout — your git checkout ($Checkout, kept current with `git pull`), run via
-#            a normal venv python (no ._pth isolation → the checkout's own code
-#            loads). Tests against CURRENT Slopsmith. Needs a venv at $VenvDir with
-#            requirements.txt installed (see SKILL.md "Testing against current Slopsmith").
-$Source = if ($env:SLOPSMITH_SOURCE) { $env:SLOPSMITH_SOURCE } else { 'bundled' }
+#   checkout (DEFAULT) — your git checkout ($Checkout), AUTO-PULLED current on every
+#            launch (see the auto-update block below), run via a normal venv python
+#            (no ._pth isolation → the checkout's own code loads). This is our primary
+#            test target: CURRENT Slopsmith, which ships the Minigames scoring SDK and
+#            the latest capabilities. Needs a venv at $VenvDir with requirements.txt
+#            installed (see SKILL.md "Testing against current Slopsmith").
+#   bundled  — the frozen Desktop install (resources\slopsmith, older). Its
+#            python312._pth pins imports to the bundled code, so this tests against
+#            what users on the current Desktop release actually run (e.g. NO scoring
+#            SDK). Use `$env:SLOPSMITH_SOURCE='bundled'` before a release to verify
+#            the version users currently have.
+$Source = if ($env:SLOPSMITH_SOURCE) { $env:SLOPSMITH_SOURCE } else { 'checkout' }
 $VenvDir = if ($env:SLOPSMITH_VENV) { $env:SLOPSMITH_VENV } else { 'C:\Users\chris\slopsmith-venv' }
 if ($Source -eq 'checkout') {
   $PythonExe = Join-Path $VenvDir 'Scripts\python.exe'
@@ -51,6 +55,36 @@ if (-not (Test-Path $PythonExe)) {
 }
 if (-not (Test-Path (Join-Path $Checkout 'main.py'))) {
   throw "Slopsmith source not found at $Checkout. Set `$env:SLOPSMITH_CHECKOUT or git clone the slopsmith repo there."
+}
+
+# Keep the checkout CURRENT before each launch, so our primary test target tracks
+# upstream Slopsmith (the version that ships the Minigames scoring SDK + the latest
+# capabilities). Non-fatal by design: skipped on a dirty tree, offline, or any error,
+# so a launch never blocks on the network or clobbers a local edit. Refreshes the venv
+# only when requirements.txt actually changed in the pull.
+if ($Source -eq 'checkout') {
+  $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  try {
+    $porcelain = & git -C $Checkout status --porcelain
+    if ($porcelain) {
+      Write-Host "[launch] checkout has local changes -- skipping auto-pull (pull it manually when ready)"
+    } else {
+      $before = (& git -C $Checkout rev-parse HEAD).Trim()
+      & git -C $Checkout fetch --quiet 2>$null
+      & git -C $Checkout pull --ff-only --quiet 2>$null
+      $after = (& git -C $Checkout rev-parse HEAD).Trim()
+      if ($before -ne $after) {
+        Write-Host "[launch] checkout updated $($before.Substring(0,7)) -> $($after.Substring(0,7))"
+        if (& git -C $Checkout diff --name-only $before $after | Select-String 'requirements' -Quiet) {
+          Write-Host "[launch] requirements changed -- refreshing venv (pip install)..."
+          & $PythonExe -m pip install -q -r (Join-Path $Checkout 'requirements.txt') 2>$null
+        }
+      } else {
+        Write-Host "[launch] checkout already current ($($after.Substring(0,7)))"
+      }
+    }
+  } catch { Write-Host "[launch] auto-pull skipped: $($_.Exception.Message)" }
+  $ErrorActionPreference = $prevEAP
 }
 
 Write-Host "[launch] killing any prior server on port $Port..."

@@ -28,6 +28,7 @@ const BENIGN = [
   /audiocontext was not allowed to start/i,
   /the audiocontext was (not allowed|prevented)/i,
   /play\(\) request was interrupted/i,
+  /continuous scoring failed to start/i,   // Minigames SDK can't start the mic in headless — scoring is optional (the SDK is now PRESENT on the checkout target, so it tries + fails benignly)
 ];
 const isBenign = (m) => BENIGN.some((re) => re.test(m));
 

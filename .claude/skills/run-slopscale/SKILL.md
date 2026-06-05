@@ -102,14 +102,19 @@ Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue | Select-Obje
 
 `launch.ps1` can boot **two different Slopsmith runtimes**, selected by `SLOPSMITH_SOURCE`:
 
-- **`bundled`** (default) — the frozen Desktop install at `C:\Program Files\Slopsmith\…`
-  (~0.2.7). Its `python312._pth` pins imports to the bundled code, so this tests against
-  **what users currently run**. This is the default and needs no setup.
-- **`checkout`** — your git checkout (`C:\Users\chris\slopsmith`, kept current with
-  `git pull`) run via a **venv python** (no `._pth` isolation → the checkout's own code
-  loads). This tests against **current Slopsmith** (e.g. new host APIs / merged PRs). Run:
+- **`checkout`** (**DEFAULT** since 2026-06-04) — your git checkout (`C:\Users\chris\slopsmith`)
+  run via a **venv python** (no `._pth` isolation → the checkout's own code loads). This is our
+  **primary test target: CURRENT Slopsmith**, which ships the **Minigames scoring SDK** (so
+  on-screen note-detection/grading is available — see the Scoring note below) plus the latest
+  host capabilities. **`launch.ps1` AUTO-PULLS it current on every launch** (non-fatal: skipped
+  on a dirty tree or when offline; refreshes the venv only when `requirements.txt` changed in
+  the pull). Needs the one-time venv setup below.
+- **`bundled`** — the frozen Desktop install at `C:\Program Files\Slopsmith\…` (older). Its
+  `python312._pth` pins imports to the bundled code, so this tests against **what users on the
+  current Desktop release actually run** — notably **WITHOUT the Minigames scoring SDK** (so no
+  on-screen note-detection/grading). Use it before a release to verify the installed base:
   ```powershell
-  $env:SLOPSMITH_SOURCE = 'checkout'; & .claude\skills\run-slopscale\launch.ps1
+  $env:SLOPSMITH_SOURCE = 'bundled'; & .claude\skills\run-slopscale\launch.ps1
   ```
 
 **One-time setup for the checkout runtime** (a venv at `C:\Users\chris\slopsmith-venv`,
@@ -123,11 +128,18 @@ No build step (Tailwind via CDN, static served as-is). `launch.ps1` sets `PYTHON
 (checkout root + `lib/`, mirroring the bundled `._pth`) and `SLOPSMITH_PLUGINS_DIR`
 (the junction dir, so the checkout discovers SlopScale) for the checkout path.
 
-**Why two targets:** test `bundled` to avoid breaking the installed base, and `checkout`
-to catch forward-compat breakage before users update. (This immediately caught two
-real issues 2026-06-01: SlopScale's `borrowHostViz` fetching `/api/plugins/jumpingtab/screen.js`
-404s on current Slopsmith — the host's plugin-asset route changed in #620 — and the
-Minigames scoring SDK throwing `NotSupportedError`.)
+**Why two targets:** `checkout` (default) develops against current Slopsmith — it has the
+scoring SDK and the newest capabilities; `bundled` verifies the installed base before a release.
+
+**Scoring note (the SDK is PRESENT on checkout / ABSENT on bundled):** on checkout the SDK tries
+to start the mic and — in headless Playwright (no mic) — logs a benign
+`[minigames] continuous scoring failed to start: NotSupportedError`; this is allowlisted in the
+smoke suites' BENIGN lists. The checkout also lacks the Desktop-bundled `jumpingtab`/`piano` viz
+plugins, so `builtin_2d` falls back to the in-tree renderer — `smoke-renderers` **soft-passes
+that fallback's clock edge**, but only when the renderer genuinely fell back (status contains
+"fallback"); the Desktop target borrows the viz fine, so the clock check still applies there.
+(The two-target setup caught real forward-compat issues 2026-06-01: the `borrowHostViz` 404 after
+the host's #620 plugin-asset route change, and the scoring `NotSupportedError`.)
 
 ## Run (human path)
 
