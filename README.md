@@ -71,12 +71,20 @@ The **Ladder** picker grew from a handful of routines into **~80**, grouped into
 - **A bass-native ladder** — **Bass Foundations** on a 4-string, groove-first the way bass is actually learned: root–5th–octave → octave groove → dead-note pocket → walking bass → slap & pop. The picker is now **instrument-aware** — guitar-only shapes hide on bass, and the reverse.
 - **Own your time** — the Rhythm ladder runs subdivisions → the 16th pocket → swing → displacement → **odd meters** → an **"Over the Barline"** metric-superimposition capstone, plus a **herta** burst drill in the Picking ladder. And Division now **follows your meter** — a quarter-note pick in 7/8 auto-bumps to the felt eighth pulse, with a caption that *names* the cross-pulse instead of letting it feel like a bug.
 
+### Note detection that just works, and a real djent climb <sub><i>(new in v0.7.3)</i></sub>
+
+- **Scoring fixed on current Slopsmith** — an internal audio conflict was silently disabling note detection. Fixed: the tuner, grading, and new **per-note hit/miss gems on the 3D Highway** light up as you play (mic on).
+- **The djent ladder** — the Metal pack deepens from one advanced rung into a climb: **Low Chug Lock → Accent the Grid → Chug & Stab (grouping cells) → Skip & Gallop → Moving Power-Chord Chug**, topped by a trade-bars **Lock the Cell** jam capstone — plus **"The Breathe"** Workout (the clean ↔ heavy dynamic arc) and drop-A / 8-string floors on tap. The riff is the rhythm; every rung names the device honestly (a 3+3+2 cell is a *grouping* — true polymeter stays the summit).
+- **The Chords concept ladder** — open cowboy grips → the five CAGED shapes → barre chords → comping whole progressions → 7th/9th colour grips.
+- **The Rhythm ladder grows** — the gallop family (gallop / reverse / skip / snap) as one-note cells, accent displacement, the single-string pulse (tresillo and clave ride it), half/double-time, the reggae skank, and a **Trade Bars** make-your-own-groove capstone. The pure-time rungs adapt to bass automatically.
+- **The screen stays awake** during playback — no more display sleep mid-drill.
+
 ## Highlights
 
 - **Jam is a mirror, not a judge** — play along over a live backing band while the fretboard strip lights up the chord/guide tones to reach for. No score, no rank — a sandbox to *apply* what you drilled, not a track to mimic
 - **A real backing band** — sampled comp, bass, and **drums** (kits change by feel & genre), through a safety-limited master so nothing clips or jumps in level
 - **Drum kits that change by feel & genre** — procedural **808 / 909** for electronic feels and **sampled acoustic kits** for everything else, on grooves that follow the meter — including **odd meters** (7/8, 5/4, …) via a grouping-aware groove
-- **~80 curated Ladder routines** — three always-on Core bands (Beginner → Advanced) plus opt-in **Concept** ladders (Triads, Arpeggios, Guide Tones, Fretboard, Expression, Rhythm, Picking, Legato), **genre** packs (Blues, Rock, Country, Metal/djent), and a **bass-native** ladder — every one naming the move it teaches
+- **Nearly 100 curated Ladder routines** — three always-on Core bands (Beginner → Advanced) plus opt-in **Concept** ladders (Chords, Triads, Arpeggios, Guide Tones, Fretboard, Expression, Rhythm, Picking, Legato), **genre** packs (Blues, Rock, Country, Metal with a full djent climb), and a **bass-native** ladder — every one naming the move it teaches
 - **A live Mixer (`M`)** — swap the comp to organ, the drums to a 909, dim the backing, all while you play
 - **Four render surfaces** — 3D Note Highway, 2D Highway, paper-style Tab, and staff Notation — one chart, your choice, with Light/Dark themes
 - **Extended-range & drop tunings** — 6/7/8-string guitar and 4/5/6-string bass, standard / drop / open / fully custom per-string
