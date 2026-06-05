@@ -2494,7 +2494,11 @@
     if (renderer && activeBundle) drawOnce();
   }
   // Pitch tracker state — wraps slopsmithMinigames.scoring.createContinuous (no registration required)
-  let _ptHandle = null, _ptNotes = [], _ptOpenMidis = [], _ptScored = new Set();
+  let _ptHandle = null, _ptNotes = [], _ptOpenMidis = [], _ptScored = new Set(), _ptByKey = new Map(), _ptHadInput = false;
+  // Per-note identity key for the #254 gem hook: the host highway calls
+  // bundle.getNoteState(note, note.t) and matches notes by (s, f, t), so we judge on
+  // that same composite — reference-independent (the highway may normalize our notes).
+  const ptKey = (n) => n.s + '|' + n.f + '|' + Math.round((n.t || 0) * 1e4);
   // Active pathway state — tracks which pathway is showing and which variation
   // index we are on, so Next Variation rotates predictably.
   let activePathwayId = null;
@@ -6840,7 +6844,12 @@
       stringCount:cfg.stringCount, tuning:tuningOffsetsForConfig(cfg), openMidis:openMidisForConfig(cfg), capo:0,
       lyrics:[], toneChanges:[], toneBase:'', drumTab:null, mastery:1, hasPhraseData:false,
       inverted:readHighwayInverted(), lefty:readLefty(), renderScale:readRenderScale(), lyricsVisible:false, project:null, fretX:null,
-      getNoteState:function(){return null;}, getNoteStateProvider:function(){return null;}
+      // #254 — per-note hit/miss GEMS on the highway. getNoteState returns the live
+      // judgment; getNoteStateProvider returns the provider (non-null) only while a
+      // scorer is actually running, which is the host's "detect mode active" signal
+      // (drives the verdict cull-window + chord-rim). No scorer (no SDK / not playing)
+      // → both inert → no gems, unchanged behavior. See ptGetNoteState.
+      getNoteState: function(note){ return ptGetNoteState(note); }, getNoteStateProvider: function(){ return _ptHandle ? ptGetNoteState : null; }
     };
     syncHighwaySettings(bundle);
     if (!c.backingEvents) applySwingToBundle(bundle, cfg);   // sessions are swung per-block at assembly; single exercises swing here
@@ -11485,6 +11494,8 @@
     _ptNotes = [...(bundle.notes || [])].sort((a, b) => a.t - b.t);
     _ptOpenMidis = bundle.openMidis || [];
     _ptScored = new Set();
+    _ptByKey = new Map(); for (const n of _ptNotes) _ptByKey.set(ptKey(n), n);   // (s,f,t) → note, for the gem hook
+    _ptHadInput = false;
     // Scoring is optional. Guard the host-SDK call: it can throw or return null
     // when the tracker can't start (no mic, unsupported/secure-context, a host
     // SDK version mismatch). Playback must run regardless.
@@ -11505,6 +11516,7 @@
       if (n.t - 0.06 <= t && t <= n.t + (n.sus || 0.24) + 0.06) { activeNote = n; activeIdx = i; break; }
     }
     const passedTotal = _ptNotes.filter(n => n.t + (n.sus || 0.24) + 0.06 < t).length;
+    if (confidence >= 0.55) _ptHadInput = true;   // real input seen → misses may now light (anti "sea of red")
     if (confidence < 0.55 || !activeNote) {
       ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: _ptScored.size, total: passedTotal });
       return;
@@ -11513,7 +11525,7 @@
     if (openMidi == null) return;
     const expectedMidi = openMidi + activeNote.f;
     const cents = Math.round(1200 * Math.log2(freqHz / midiToFreq(expectedMidi)));
-    if (!_ptScored.has(activeIdx) && Math.abs(cents) <= 50) _ptScored.add(activeIdx);
+    const _k = ptKey(activeNote); if (!_ptScored.has(_k) && Math.abs(cents) <= 50) _ptScored.add(_k);
     const noteName = NOTE_NAMES[((expectedMidi % 12) + 12) % 12] + (Math.floor(expectedMidi / 12) - 1);
     ptUpdateMeter({ show: true, active: true, cents, note: noteName, hits: _ptScored.size, total: passedTotal });
   }
@@ -11522,8 +11534,28 @@
     if (_ptHandle) { try { _ptHandle.stop(); } catch (_) {} _ptHandle = null; }
     // Clear scoring state so a later silent preview can't read this run's
     // notes/hits and feed stale hit/miss counts to the pathway tier gate.
-    _ptNotes = []; _ptScored = new Set();
+    _ptNotes = []; _ptScored = new Set(); _ptByKey = new Map(); _ptHadInput = false;
     ptUpdateMeter({ show: false });
+  }
+
+  // #254 per-note gem hook — the per-note judgment the host highway lights on the gem
+  // ITSELF (hit/active flare + glow, miss wash), via bundle.getNoteState. Reads the live
+  // scorer state by (s,f,t) key. Returns null when no scorer runs (the bundled host with
+  // no Minigames SDK, or before play) → no gems = today's behavior. 'miss' is gated on
+  // _ptHadInput so an idle player (mic not started) never sees a sea of red; hits/active
+  // need no gate — they're the reward. 'active' = a sustain currently ringing correctly;
+  // a short note that's hit stays 'hit' (the strike flare).
+  function ptGetNoteState(note) {
+    if (!_ptHandle || !note) return null;
+    const k = ptKey(note), tn = _ptByKey.get(k);
+    if (!tn) return null;                                   // not a judged note (e.g. count-in lead-in)
+    const now = currentPracticeTime, end = tn.t + (tn.sus || 0.24);
+    if (_ptScored.has(k)) {
+      const isSustain = (tn.sus || 0) > 0.3;
+      return (isSustain && now <= end + 0.05) ? 'active' : 'hit';
+    }
+    if (_ptHadInput && now > end + 0.12) return 'miss';     // window passed, never hit, and we know they're playing
+    return null;                                            // not yet judged — don't pre-color
   }
 
   function ptUpdateMeter({ show, active, cents, note, hits, total }) {
