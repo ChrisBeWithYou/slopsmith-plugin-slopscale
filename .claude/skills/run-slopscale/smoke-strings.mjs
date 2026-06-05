@@ -125,6 +125,33 @@ try {
   ok(sw7.n > 0 && !sw7.strings.includes(0), "7-string sweep: low B (s=0) NOT used (top-six grip, not a low-B rake)", `[${sw7.strings.join(",")}]`);
   ok(sw8.n > 0 && !sw8.strings.includes(0) && !sw8.strings.includes(1), "8-string sweep: low F#/B (s=0,1) NOT used", `[${sw8.strings.join(",")}]`);
 
+  console.log("-- (7) Pathway tuning plumbing: instAgnostic adapt + customOpenMidis vary + anti-leak (djent ladder, 2026-06-05) --");
+  // Folded from probe-djent-ladder per the per-system rule (this suite owns the
+  // tuning/config plumbing): an instAgnostic pure-time rung must ADAPT to the
+  // player's instrument; a drop-tuning vary must land through the form=""-
+  // associated hidden field (the stepper path); and the custom tuning must
+  // NEVER leak into the next pathway selected.
+  await page.evaluate(() => { document.querySelector("#slopscale-mode-guided")?.click(); });
+  await page.waitForTimeout(150);
+  const pw = await page.evaluate(() => {
+    const S = window.SlopScale;
+    const selPathway = (id) => { const sel = document.querySelector("#slopscale-pathway"); sel.value = id; sel.dispatchEvent(new Event("change", { bubbles: true })); return S.readConfig(); };
+    const setupEl = document.querySelector('#slopscale-controls [name="stringSetup"]');
+    setupEl.value = "bass_4_standard"; setupEl.dispatchEvent(new Event("change", { bubbles: true }));
+    const adapt = selPathway("djent_chug_lock");          // instAgnostic → keeps the bass
+    const coded = selPathway("djent_moving_chug");        // pedal_riff → guitar-coded
+    const next = document.querySelector("#slopscale-shape-next");
+    next.click(); next.click(); next.click();             // vary[3] = the drop-A override
+    const drop = S.readConfig();
+    const leak = selPathway("djent_chug_lock");           // next pathway must clear it
+    setupEl.value = "guitar_6_standard"; setupEl.dispatchEvent(new Event("change", { bubbles: true }));
+    return { adaptSetup: adapt.stringSetup, codedSetup: coded.stringSetup, dropMidis: drop.customOpenMidis, dropKey: drop.key, leakMidis: leak.customOpenMidis || null };
+  });
+  ok(pw.adaptSetup === "bass_4_standard", "instAgnostic rung adapts to the player's bass setup", pw.adaptSetup);
+  ok(pw.codedSetup === "guitar_7_standard", "pedal_riff rung stays guitar-coded", pw.codedSetup);
+  ok(Array.isArray(pw.dropMidis) && pw.dropMidis[0] === 33 && pw.dropKey === "A", "drop-A vary lands customOpenMidis via the form-associated hidden field", JSON.stringify(pw.dropMidis));
+  ok(pw.leakMidis === null, "custom tuning does NOT leak into the next pathway selected", JSON.stringify(pw.leakMidis));
+
   ok(pageErrs.length === 0, "no uncaught page errors", pageErrs.join(" | "));
   console.log(`\n${fails === 0 ? "PASS" : "FAIL"}  strings/tuning: ${fails} failure(s)`);
   process.exit(fails ? 1 : 0);
