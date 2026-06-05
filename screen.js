@@ -53,11 +53,16 @@
   const NOTE_ALIASES = { C:0, 'B#':0, 'C#':1, Db:1, D:2, 'D#':3, Eb:3, E:4, Fb:4, F:5, 'E#':5, 'F#':6, Gb:6, G:7, 'G#':8, Ab:8, A:9, 'A#':10, Bb:10, B:11, Cb:11 };
   const STRING_COLORS = ['#ef4444', '#eab308', '#3b82f6', '#f97316', '#22c55e', '#a855f7', '#ec4899', '#14b8a6'];
   const AUDIO_LOOKAHEAD_SECONDS = 0.20;
-  // How far ahead (seconds) of the currently-scheduled audio pass to schedule
-  // the next loop pass. Must be >= AUDIO_LOOKAHEAD so the next pass's first
-  // event is already queued before the current pass ends — that's what makes
-  // the whole-chart loop gapless (no stopAudio()/restart at the seam).
-  const LOOP_SCHEDULE_AHEAD = 0.35;
+  // Rolling-window scheduling (backing-engine step 0, 2026-06-05). Audio is
+  // scheduled in ~SCHED_WINDOW_SECONDS chunks of chart time rather than whole
+  // passes: a Play on a 30-min Workout used to create ~39k audio nodes in one
+  // 1.57s main-thread block (dev-ops audit), and the backing engine multiplies
+  // event density several-fold. The tick refills the next chunk whenever the
+  // scheduled horizon falls within SCHED_REFILL_AHEAD of the context clock —
+  // chunk boundaries (incl. the loop seam) stay gapless because each chunk is
+  // queued on the same AudioContext clock before the previous one ends.
+  const SCHED_WINDOW_SECONDS = 10;
+  const SCHED_REFILL_AHEAD = 4;
 
   const STRING_SETUPS = {
     guitar_6_standard: { label:'6-string guitar — standard', instrument:'guitar', openMidis:[40,45,50,55,59,64], tuning:[0,0,0,0,0,0] },
@@ -2492,12 +2497,14 @@
   // the highlight only touches the DOM when it actually changes.
   let _activeSegIdx = -1;
   let audioCtx = null, audioNodes = [];
-  // Continuous whole-chart loop bookkeeping (see maybeScheduleLoopAhead).
-  // nextLoopAudioBase = absolute AudioContext time at which the next not-yet-
-  // scheduled pass should begin (chart-time 0 maps here). loopPasses tracks
-  // each scheduled pass's nodes + end time so finished passes can be
-  // disconnected — keeps node count bounded during extended practice.
-  let nextLoopAudioBase = 0, loopPasses = [];
+  // Rolling-window scheduling bookkeeping (see maybeScheduleLoopAhead).
+  // scheduledUntilCtx = absolute AudioContext time up to which audio has been
+  // scheduled (the horizon; the next chunk begins here). schedChartPos = the
+  // chart time the next chunk starts from (wraps duration→leadIn at the loop
+  // seam). schedChunks tracks each scheduled chunk's nodes + real sound-end
+  // time so finished chunks can be disconnected — keeps the live node count
+  // bounded (~2-3 chunks) during extended practice.
+  let scheduledUntilCtx = 0, schedChartPos = 0, schedChunks = [];
   // highway_3d's _bgGetAnalyser() creates a fresh AudioContext every call
   // until setup succeeds, then calls ctx.close() in the catch block when
   // createMediaElementSource throws (stem_mixer already holds the element).
@@ -8041,14 +8048,16 @@
   }
 
   function replaceCanvas() { const host = $('slopscale-render-host'), old = $('slopscale-canvas'), canvas = document.createElement('canvas'); canvas.id = 'slopscale-canvas'; canvas.style.width = '100%'; canvas.style.height = '100%'; if (old && old.parentElement) old.replaceWith(canvas); else if (host) host.appendChild(canvas); const rect = (host || canvas).getBoundingClientRect(); canvas.width = Math.max(640, Math.round(rect.width || 1280)); canvas.height = Math.max(420, Math.round(rect.height || 720)); return canvas; }
-  function stopAudio() { for (const n of audioNodes) { try { n.stop && n.stop(0); } catch {} try { n.disconnect && n.disconnect(); } catch {} } audioNodes = []; nextLoopAudioBase = 0; loopPasses = []; }
+  function stopAudio() { for (const n of audioNodes) { try { n.stop && n.stop(0); } catch {} try { n.disconnect && n.disconnect(); } catch {} } audioNodes = []; scheduledUntilCtx = 0; schedChartPos = 0; schedChunks = []; }
 
-  // ── Continuous whole-chart loop scheduling ───────────────────────────────────
-  // The seam between loop iterations is made gapless by scheduling the NEXT
-  // pass's audio on the same AudioContext clock, slightly before the current
-  // pass ends — never stopAudio()+restart. The last note's tail then rings
-  // naturally into the first note of the repeat. The visual clock wraps by
-  // phase-carry (see tick()), so neither audio nor playhead freezes at the seam.
+  // ── Rolling-window loop scheduling ───────────────────────────────────────────
+  // Audio is queued in ~SCHED_WINDOW_SECONDS chunks of chart time (never the
+  // whole chart at once — see the constant's comment). Chunk seams — including
+  // the loop seam, which is just a chunk boundary where the chart position
+  // wraps duration→leadIn — are gapless because each chunk is scheduled on the
+  // same AudioContext clock before the previous one ends; the last note's tail
+  // rings naturally into the next chunk. The visual clock wraps by phase-carry
+  // (see tick()), so neither audio nor playhead freezes at the seam.
 
   // Whether note/metronome/harmony audio is enabled for the active bundle.
   function loopAudioEnabled() {
@@ -8056,65 +8065,87 @@
     return !!(audio && (audio.notes || audio.metronome || audio.harmony));
   }
 
-  // Schedule the current pass starting at the live playhead and (re)set the
-  // loop baseline. Used on play, seek, and re-anchor. Captures the nodes this
-  // call created so the pass can later be pruned. Caller stops prior audio.
+  // Schedule the first chunk starting at the live playhead and (re)set the
+  // window baseline. Used on play, seek, and re-anchor. Captures the nodes this
+  // call created so the chunk can later be pruned. Caller stops prior audio.
   function scheduleCurrentPassAndAnchor(delaySeconds) {
     const dur = activeBundle?.songInfo?.duration || 0;
+    const lead = activeBundle?.leadIn || 0;
+    const from = currentPracticeTime;
+    // The first chunk covers at least the full count-in: its clicks must all
+    // land even when the lead-in outruns the window (slow-tempo 2-bar count-in),
+    // and with all audio off no refill ever runs (loopAudioEnabled gates it) —
+    // a handful of click nodes, so scheduling them upfront costs nothing.
+    const winEnd = Math.min(dur, Math.max(from + SCHED_WINDOW_SECONDS, from < lead ? lead + 0.01 : 0));
     const before = audioNodes.length;
-    const base = schedulePreviewAudio(activeBundle, currentPracticeTime, delaySeconds);
-    if (base == null) { nextLoopAudioBase = 0; loopPasses = []; return; }
-    const endCtx = base + (dur - currentPracticeTime);
-    loopPasses = [{ endCtx, nodes: audioNodes.slice(before) }];
-    nextLoopAudioBase = endCtx;
+    const ret = schedulePreviewAudio(activeBundle, from, delaySeconds, winEnd);
+    if (ret == null) { scheduledUntilCtx = 0; schedChartPos = 0; schedChunks = []; return; }
+    schedChunks = [{ endCtx: ret.end, nodes: audioNodes.slice(before) }];
+    scheduledUntilCtx = ret.base + (winEnd - from);
+    schedChartPos = winEnd;
   }
 
-  // Schedule one full music pass starting at nextLoopAudioBase. The pass covers
-  // [leadIn, duration] — i.e. the music only, NOT the count-in lead-in — so the
-  // count-in plays once on the first pass and every loop is music.
-  function scheduleNextFullPass() {
+  // Schedule the next chunk starting at schedChartPos / scheduledUntilCtx. At
+  // the loop seam the chart position wraps to leadIn — the music only, NOT the
+  // count-in — so the count-in plays once and every loop is music. Finite
+  // drills (Depth Ladder) never wrap: scheduling stops cleanly at duration.
+  function scheduleNextChunk() {
     const dur = activeBundle?.songInfo?.duration || 0;
     const lead = activeBundle?.leadIn || 0;
-    const contentLen = dur - lead;
-    if (contentLen <= 0) return;
+    if (dur - lead <= 0) return;
+    let from = schedChartPos;
+    if (from >= dur - 1e-6) {
+      if (finiteRunActive()) return;   // play-once drill: no audio past the end
+      from = lead;                      // loop seam: wrap to the music start
+    }
+    const winEnd = Math.min(dur, from + SCHED_WINDOW_SECONDS);
     const before = audioNodes.length;
-    const base = schedulePreviewAudio(activeBundle, lead, Math.max(0, nextLoopAudioBase - audioCtx.currentTime));
-    if (base == null) return;
-    loopPasses.push({ endCtx: base + contentLen, nodes: audioNodes.slice(before) });
-    nextLoopAudioBase += contentLen;
+    const ret = schedulePreviewAudio(activeBundle, from,
+      Math.max(0, scheduledUntilCtx - audioCtx.currentTime), winEnd, /*onsetOnly*/ true);
+    if (ret == null) return;
+    schedChunks.push({ endCtx: ret.end, nodes: audioNodes.slice(before) });
+    scheduledUntilCtx = ret.base + (winEnd - from);
+    schedChartPos = winEnd;
   }
 
-  // Disconnect + drop one fully-finished pass per call (cheap, keeps >=1 pass).
-  function pruneLoopPasses() {
-    if (!audioCtx || loopPasses.length <= 1) return;
-    if (loopPasses[0].endCtx + 0.5 >= audioCtx.currentTime) return; // keep ring-out tails
-    const dead = loopPasses.shift();
+  // Disconnect + drop one fully-finished chunk per call (cheap, keeps >=1).
+  // endCtx is the chunk's real last sound-end (incl. sustains that run past
+  // the chunk's chart window), so ring-out tails are never cut.
+  function pruneSchedChunks() {
+    if (!audioCtx || schedChunks.length <= 1) return;
+    if (schedChunks[0].endCtx + 0.5 >= audioCtx.currentTime) return; // keep ring-out tails
+    const dead = schedChunks.shift();
     const set = new Set(dead.nodes);
     for (const n of dead.nodes) { try { n.disconnect(); } catch {} }
     audioNodes = audioNodes.filter(n => !set.has(n));
   }
 
-  // Per-frame: pre-schedule the next pass before the current one ends, and
-  // re-anchor if the loop audio fell out of sync (resumed from an A-B loop,
+  // Per-frame: refill the next chunk before the scheduled horizon runs dry,
+  // and re-anchor if the audio fell out of sync (resumed from an A-B loop,
   // a seek that bypassed the anchor, or a long rAF stall). Called from tick()
-  // only when no A-B segment loop is engaged.
+  // when no A-B segment loop is engaged (incl. finite runs, which need the
+  // refill too — their initial chunk no longer covers the whole drill).
   function maybeScheduleLoopAhead(nowMs) {
     if (!audioCtx || !activeBundle || !loopAudioEnabled()) return;
     const dur = activeBundle.songInfo?.duration || 0;
     if (dur <= 0) return;
     const ctxNow = audioCtx.currentTime;
-    if (nextLoopAudioBase <= 0 || nextLoopAudioBase <= ctxNow) {
+    if (scheduledUntilCtx <= 0 || scheduledUntilCtx <= ctxNow) {
+      // For a finite run past its scheduled end this would re-schedule the
+      // tail of the drill from the playhead — harmless but pointless churn
+      // each frame; the run is about to end at duration. Let it coast.
+      if (finiteRunActive() && schedChartPos >= dur - 1e-6) return;
       // Out of sync — reschedule from the live playhead and realign the visual
       // clock. A brief lookahead here is fine: this only fires on a transition
-      // (e.g. clearing an A-B loop), never at the steady-state loop seam.
+      // (e.g. clearing an A-B loop), never at the steady-state chunk seam.
       stopAudio();
       scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
       playAnchorChartTime = currentPracticeTime;
       playAnchorMs = nowMs + AUDIO_LOOKAHEAD_SECONDS * 1000;
       return;
     }
-    if (ctxNow + LOOP_SCHEDULE_AHEAD >= nextLoopAudioBase) scheduleNextFullPass();
-    pruneLoopPasses();
+    if (ctxNow + SCHED_REFILL_AHEAD >= scheduledUntilCtx) scheduleNextChunk();
+    pruneSchedChunks();
   }
   function stopRenderer() {
     // "Sideways" stops land here while still playing (a setting change mid-play
@@ -8811,7 +8842,11 @@
         playAnchorChartTime = segmentLoopA;
         playAnchorMs = nowMs + AUDIO_LOOKAHEAD_SECONDS * 1000;
         stopAudio();
-        schedulePreviewAudio(activeBundle, segmentLoopA, AUDIO_LOOKAHEAD_SECONDS);
+        // Whole-segment scheduling (A-B regions are short), but bounded at B:
+        // events past B were dead weight — killed unheard by this very
+        // stopAudio() at the next wrap — and on a long Workout that waste was
+        // the whole rest of the chart, every few seconds.
+        schedulePreviewAudio(activeBundle, segmentLoopA, AUDIO_LOOKAHEAD_SECONDS, segmentLoopB);
         if (window.slopsmith && typeof window.slopsmith.emit === 'function') {
           window.slopsmith.emit('slopscale:loop:wrap', { a: segmentLoopA, b: segmentLoopB, time: segmentLoopA });
         }
@@ -8820,9 +8855,11 @@
         if (lc) { lc.hidden = false; lc.textContent = 'Loop ' + _loopWraps; }
       } else if (finiteRunActive()) {
         // Finite drill (Depth Ladder slice 1): the right-sized run plays ONCE, then
-        // ends with the existing session-summary closure instead of looping. No
-        // loop-ahead is pre-scheduled (see maybeScheduleLoopAhead) so audio stops
-        // cleanly at the seam. Let the run reach the end, then end it.
+        // ends with the existing session-summary closure instead of looping. The
+        // rolling window still refills (the initial chunk no longer covers the
+        // whole drill) but scheduleNextChunk never wraps for a finite run, so
+        // audio still stops cleanly at the end. Let the run reach it, then end.
+        maybeScheduleLoopAhead(nowMs);
         if (currentPracticeTime >= duration) {
           currentPracticeTime = duration;
           drawOnce();
@@ -8843,6 +8880,10 @@
           const contentLen = duration - (activeBundle.leadIn || 0);
           playAnchorChartTime -= contentLen;
           currentPracticeTime -= contentLen;
+          // Scoring hygiene (dev-ops audit ride-along): a pitch-streak must not
+          // survive the loop wrap — two matching frames a whole pass apart are
+          // not consecutive evidence of a held note.
+          _ptStreak = { key: null, count: 0 };
         }
       }
     }
@@ -9838,7 +9879,16 @@
       }
     } catch (_) {}
   }
-  function schedulePreviewAudio(bundle, fromTime, delaySeconds) {
+  // Schedule audio events whose ONSET falls in [fromTime, toTime) — the
+  // rolling-window chunk. `toTime` omitted = the whole rest of the chart (the
+  // A-B segment-loop path still uses that). `onsetOnly` (chunk refills) keeps
+  // events that START before fromTime out even when they're still sounding —
+  // the previous chunk already scheduled them in full; only the FIRST chunk of
+  // an anchor (play/seek) includes straddling sustains, clamped to fromTime.
+  // Returns { base, end }: base = the ctx-time chart-time `fromTime` maps to;
+  // end = the real last sound-end ctx-time (sustains may outlive the window),
+  // which is what chunk pruning must respect.
+  function schedulePreviewAudio(bundle, fromTime, delaySeconds, toTime, onsetOnly) {
     const cfg = readConfig();
     // Prefer the bundle's own audio settings (sessions patch their own config)
     // so the session's checkboxes are honoured rather than the single-exercise ones.
@@ -9857,6 +9907,15 @@
     const opens = (bundle.openMidis && bundle.openMidis.length) ? bundle.openMidis : openMidisForConfig(cfg);
     const instrument = bundle.config?.instrument || cfg.instrument;
     const duration = bundle.songInfo?.duration || 0;
+    // Onset-selection window end (exclusive — an event at exactly winEnd
+    // belongs to the next chunk; chunks reuse the identical float, so the
+    // boundary can't double-schedule or drop). Sound DURATIONS are still
+    // clamped to the chart, never to the window — sustains ring past it.
+    const winEnd = Number.isFinite(toTime) ? Math.min(toTime, duration) : duration + 0.1;
+    let schedEnd = base;   // real last sound-end (ctx time) — for chunk pruning
+    // Break-band gain automation rides the persistent backingGroup bus at
+    // absolute ctx times, so re-running it per chunk just re-asserts the same
+    // points (idempotent) — cheap, and every chunk sees its upcoming breaks.
     if (audio.harmony) scheduleBackingEnvelope(bundle, ctx, base, startFrom, duration);
     const harmProfile = resolveAudioProfile({ ...cfg, audio });
     // Sample path: if a voice wants a sampled instrument, kick its (async) load
@@ -9879,9 +9938,11 @@
     };
     if (audio.harmony) for (const ev of bundle.backingEvents || []) {
       if (ev.role === 'drums') continue;   // drums have their own kit/bus/loop below
-      if (ev.end < startFrom || ev.t > duration + 0.1) continue;
+      if (ev.end < startFrom || ev.t >= winEnd) continue;
+      if (onsetOnly && ev.t < startFrom - 1e-6) continue;  // prior chunk owns it
       const start = Math.max(ev.t, startFrom), end = Math.min(ev.end, duration);
       const when = base + (start - startFrom), d = Math.max(0.2, end - start);
+      schedEnd = Math.max(schedEnd, when + d);
       if (ev.role === 'bass') {
         // Backing bass line — a real bass voice on its own bus, not the harmony pad.
         for (const m of (ev.midis || [])) {
@@ -9907,17 +9968,19 @@
       for (const ev of bundle.backingEvents || []) {
         if (ev.role !== 'drums') continue;
         if (ev.t < lead - 1e-4) continue;                 // count-in silence
-        if (ev.t < startFrom || ev.t > duration + 0.1) continue;
+        if (ev.t < startFrom || ev.t >= winEnd) continue;
         scheduleDrumHit(ctx, drumKit, ev.voice, base + (ev.t - startFrom),
           WAF_VOICE_VOL.drums * (Number.isFinite(ev.velocity) ? ev.velocity : 0.78), ev.dur);
+        schedEnd = Math.max(schedEnd, base + (ev.t - startFrom) + (Number.isFinite(ev.dur) ? ev.dur + 0.5 : 2));
       }
     }
     if (audio.notes) for (const n of bundle.notes || []) {
       if (n._tail) continue;  // visual loop-preview copy; audio loops via the scheduler
-      if (n.t < startFrom || n.t > duration + 0.1) continue;
+      if (n.t < startFrom || n.t >= winEnd) continue;
       if (n.s < 0 || n.s >= opens.length || n.f < 0) continue;
       const when = base + (n.t - startFrom), midi = opens[n.s] + n.f;
       const dur = Math.max(0.10, Math.min(0.85, n.sus || 0.24)), bend = bendSemitones(n.bn);
+      schedEnd = Math.max(schedEnd, when + dur);
       // Sampled practice voice for plain notes; the oscillator voice still owns
       // BENT notes (the sampler can't slide pitch) so blues bends stay audible.
       if (notesPreset && wafPlayer && bend <= 0) {
@@ -9943,7 +10006,7 @@
       for (let i = 0; i < beats.length; i++) {
         const b = beats[i];
         if (b._tail) continue;  // visual loop-preview copy; don't double-click at the seam
-        if (b.time < startFrom || b.time > duration + 0.1) continue;
+        if (b.time < startFrom || b.time >= winEnd) continue;
         const inCountIn = lead > 0 && b.time < lead - 1e-4;
         if (!audio.metronome && !inCountIn) continue;
         // Strong accent on measure downbeats and grouping starts (e.g. 7/8 as
@@ -9951,6 +10014,7 @@
         // follows the time-signature selection.
         const accent = b.accent === 'measure' || b.accent === 'group' || (b.measure || -1) >= 0;
         scheduleClick(ctx, base + (b.time - startFrom), accent, false);
+        schedEnd = Math.max(schedEnd, base + (b.time - startFrom) + 0.1);
         if (perBeat > 1) {
           // Derive this beat's length from the actual gap to the next beat so
           // sub-ticks stay correct across bar lines and per-segment meters in
@@ -9961,15 +10025,20 @@
           const tickLen = beatLen / perBeat;
           for (let k = 1; k < perBeat; k++) {
             const t = b.time + k * tickLen;
+            // Sub-ticks ride their PARENT beat's chunk (no winEnd check): a
+            // beat just inside the window owns all its subdivision clicks,
+            // even ones landing past the boundary — the next chunk's onset
+            // selection skips the parent, so it would never revisit them.
             if (t < startFrom || t > duration + 0.1) continue;
             scheduleClick(ctx, base + (t - startFrom), false, true);
           }
         }
       }
     }
-    // Return the ctx-time that chart-time `startFrom` maps to, so the loop
-    // scheduler can compute when this pass ends and queue the next gaplessly.
-    return base;
+    // base: the ctx-time chart-time `startFrom` maps to — the chunk scheduler
+    // advances its horizon from it. end: the real last sound-end, so pruning
+    // never cuts a sustain that rings past the chunk's chart window.
+    return { base, end: schedEnd };
   }
   // ===========================================================================
   // §14 · TRANSPORT, HUD, PLAYBACK CLOCK + AUDIO ENGINE
@@ -13397,10 +13466,11 @@
     if (playing) {
       // Re-anchor the play clock and re-schedule audio from A so the listener
       // hears the loop region immediately, not silence until the next wrap.
+      // Bounded at B — see the A-B wrap branch in tick() for why.
       playAnchorChartTime = aNum;
       playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
       stopAudio();
-      schedulePreviewAudio(activeBundle, aNum, AUDIO_LOOKAHEAD_SECONDS);
+      schedulePreviewAudio(activeBundle, aNum, AUDIO_LOOKAHEAD_SECONDS, bNum);
     } else {
       drawOnce();
     }
