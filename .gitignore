@@ -24,6 +24,9 @@ docs/sources/
 .claude/agents/
 .claude/agent-memory/
 
+# Local-only research notes (some carry competitor refs) — never commit
+.claude/research/
+
 # On-hand alternate soundfonts for A/B auditioning (not shipped)
 static/wafonts/alt/
 
