@@ -9811,12 +9811,34 @@
   // startPlayback() owns the RAF clock (currentPracticeTime), Web Audio scheduling,
   // and the Minigames pitch tracker. Contained playback — never hands off to host.
   // ===========================================================================
+  // Screen Wake Lock — keep the OS display / screensaver awake during contained
+  // playback. The host's wake lock (#686) is tied to its own song:play/pause events,
+  // which our CONTAINED player never emits — so we hold our own. Web Wake Lock API
+  // (secure-context only → active on localhost / HTTPS) + the host's Electron native
+  // power bridge (`window.slopsmithDesktop.power.setScreenAwake`) when present (the Web
+  // API is unreliable in Electron). Both degrade silently where unsupported. The Web
+  // sentinel auto-releases when the tab hides; we re-acquire on re-show while playing.
+  let _wakeLock = null;
+  function acquireWakeLock() {
+    try { window.slopsmithDesktop?.power?.setScreenAwake?.(true); } catch (_) {}
+    if (_wakeLock || !navigator.wakeLock || typeof navigator.wakeLock.request !== 'function') return;
+    navigator.wakeLock.request('screen').then((s) => {
+      _wakeLock = s;
+      try { s.addEventListener('release', () => { _wakeLock = null; }); } catch (_) {}
+    }).catch(() => {});   // denied / non-secure-context / unsupported — degrade silently
+  }
+  function releaseWakeLock() {
+    try { window.slopsmithDesktop?.power?.setScreenAwake?.(false); } catch (_) {}
+    if (_wakeLock) { try { _wakeLock.release(); } catch (_) {} _wakeLock = null; }
+  }
+
   function startPlayback() {
     if (!activeBundle) return;
     sessionEnd(); // flush any in-progress session before starting a new one
     sessionBegin();
     stopAudio(); syncHighwaySettings(activeBundle);
     playing = true;
+    acquireWakeLock();   // hold the screen awake for the duration of this play
     // With an active A–B loop, playback begins at the loop start — not wherever
     // the playhead happens to sit (DAW cycle behavior; the playhead is just a
     // seek cursor). Without this, scrubbing then hitting Play started mid-loop.
@@ -9838,7 +9860,7 @@
   // Stop returns the playhead to where playback last began (Logic Pro behaviour:
   // hit Play to instantly replay the same passage). The ⏮ button jumps to the
   // very start — Logic's "press Stop again to go to the top".
-  function stopPlayback() { sessionEnd(); playing = false; currentPracticeTime = playStartChartTime; playAnchorChartTime = playStartChartTime; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
+  function stopPlayback() { sessionEnd(); playing = false; releaseWakeLock(); currentPracticeTime = playStartChartTime; playAnchorChartTime = playStartChartTime; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
   // Toggle for the primary Play/Stop button. If we don't have a chart yet,
   // generate one first so the very first click always plays something.
   async function onPlayToggle() {
@@ -13083,7 +13105,7 @@
         if (renderer && activeBundle && !playing) { try { renderer.resize && renderer.resize(); } catch (_) {} drawOnce(); }
       }, 120);
     });
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshForHostSettingChange(); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { refreshForHostSettingChange(); if (playing) acquireWakeLock(); } });   // re-acquire the wake lock the browser auto-released on hide
     // Flush any in-progress session on page hide / unload so duration is saved
     // even if the user closes the tab or navigates away while the preview plays.
     const onPageHide = () => { if (playing) sessionEnd(); };
