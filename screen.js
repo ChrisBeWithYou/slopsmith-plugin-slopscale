@@ -214,6 +214,7 @@
   };
   const COMMON_PROGRESSIONS = {
     diatonic:[1,2,3,4,5,6,7,1],
+    diatonic_7ths:[1,2,3,4,5,6,7],   // the harmonized-key lap (Chords ladder): one diatonic 7th per degree, no wrap. With chordDepth:'seventh' + chordOverride:'auto' → Imaj7 ii7 iii7 IVmaj7 V7 vi7 vii7♭5 (modal over dorian/mixo).
     static_i:[1],                 // one-chord vamp — Beginner Core "static vamp" (Pulse & Muting); roots stay on the tonic
     'I-IV-V':[1,4,5,1],
     'I-V-vi-IV':[1,5,6,4],
@@ -465,7 +466,7 @@
     // Style-kind so they're opt-in via the Pack manager; family 'Concepts' heads the
     // Available column. First of a planned set (Arpeggio, Voice-Leading, Fretboard…).
     // See docs/triad-mastery-ladder.md + memory project_python_generator_reconciliation.
-    { id:'concept_chords', label:'Chords', kind:'style', family:'Concepts', buildsOn:'Builds on Core Beginner — power chords and a steady strum hand; and Core Intermediate — the CAGED major scale (a barre chord is that scale shape\'s skeleton). Hold the grip, change it cleanly in time, then move it around the neck: open cowboy chords -> the five CAGED shapes -> movable barres -> comping a whole progression.', pathways:['chord_cowboy','chord_caged_shapes','chord_barre_changes','chord_caged_progression'] },
+    { id:'concept_chords', label:'Chords', kind:'style', family:'Concepts', buildsOn:'Builds on Core Beginner — power chords and a steady strum hand; and Core Intermediate — the CAGED major scale (a barre chord is that scale shape\'s skeleton). Hold the grip, change it cleanly in time, then move it around the neck: open cowboy chords -> the five CAGED shapes -> movable barres -> comping a whole progression.', pathways:['chord_cowboy','chord_caged_shapes','chord_barre_changes','chord_caged_progression','chord_sevenths','chord_diatonic_7ths','chord_color_extensions'] },
     { id:'concept_triads', label:'Triads', kind:'style', family:'Concepts', buildsOn:'Builds on Core Intermediate — the CAGED major scale. A triad is the top three strings of the barre chords you already know; own the three inversions, then use them over the changes.', pathways:['triad_inversions','triad_five_shapes','triads_over_changes','triad_pairs'] },
     { id:'concept_arpeggios', label:'Arpeggios', kind:'style', family:'Concepts', buildsOn:'Builds on Core Intermediate — diatonic triads and the CAGED shapes. An arpeggio is a chord one note at a time; spell the sevenths, invert them, then chase them through the changes.', pathways:['arp_seventh_shapes','arp_inversions','arp_over_changes','arp_sweeps'] },
     { id:'concept_voiceleading', label:'Guide Tones', kind:'style', family:'Concepts', buildsOn:'Builds on Core — diatonic seventh chords and the major scale. The 3rd and 7th are a chord\'s identity; voice-lead just those through the changes, then play a line that follows them.', pathways:['vl_shells','vl_guide_tones','vl_guide_changes','vl_connect'] },
@@ -1083,9 +1084,9 @@
     // 2026-06-04 (harmony chair + L&D + guitar/bass-pedagogy + host + folk). Phase A:
     // triad+power over strum_comp — cowboy → the 5 CAGED shapes → movable barres →
     // comping a progression. Folk lane: default DDU-UDU strum, real progressions (a
-    // song's bones, not flashcards), name the common tones. 7th/9th BLOCK chords are
-    // DEFERRED behind the STRUM_GRIPS table (strum_comp reduces 7ths→triad today, so a
-    // "Sevenths" rung would teach a false label). Guitar-only (strum_comp = bass n-a).
+    // song's bones, not flashcards), name the common tones. Phase B (below): 7th/9th/
+    // 11th/13th block chords NOW BUILT via the STRUM_GRIPS table — real sounded
+    // sevenths/extensions, not triad reductions (3 added rungs). Guitar-only (bass n-a).
     // Specs: .claude/agent-memory/{harmony-theory,learning-design,guitar-pedagogy,
     // bass-pedagogy}-* / project_chord_concept_ladder.
     chord_cowboy: {
@@ -1119,6 +1120,38 @@
       tempoTiers:[80, 105, 125, 150],
       base:{ practiceType:'strum_comp', scale:'major', chordDepth:'triad', chordOverride:'auto', progression:'I-V-vi-IV', strumPattern:'folk_pop_ddu_udu', voicingPosition:'movable', shape:'E', meter:'4/4', subdivision:'eighth', bpm:105, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G' },
       vary:[ { progression:'I-V-vi-IV' }, { progression:'vi-IV-I-V', key:'C' }, { progression:'I-vi-IV-V', key:'C' }, { progression:'ii-V-I', key:'C', shape:'A' }, { progression:'I-IV-V', key:'E' } ]
+    },
+    // ── CHORDS ladder, Phase B (the STRUM_GRIPS extended-grip tier) ─────────────
+    // Unlocked by the STRUM_GRIPS movable 7th/9th/11th/13th table (§ above): real
+    // sounded seventh/extension chords, NOT triad reductions. Order: the 7th
+    // FOUNDATION first (min7/maj7/dom7), then the harmonized-key lap, then color
+    // extensions. Honesty rules from the panel: the diatonic lap ships
+    // chordOverride:'auto' (never a stray dom7 — modal-audit rule); the dominant
+    // extension is labelled dom9, never "11". Specs: agent-memory/{harmony-theory,
+    // learning-design,guitar-pedagogy}-* / project_chord_concept_ladder.
+    chord_sevenths: {
+      label:'Sevenths Around the Neck',
+      goal:'The three seventh-chord QUALITIES as movable barre grips — min7, dom7, maj7 — the colors that make soul, funk and jazz sound like themselves. Grab each as an E-shape and an A-shape barre and move it: a ii–V–I lays all three in a row (Dm7 → G7 → Cmaj7). The seventh is the chord\'s character; this is the grip that carries it (the Triads ladder spells it one note at a time — here it rings as a chord).',
+      scales:['major'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'strum_comp', scale:'major', chordDepth:'seventh', chordOverride:'auto', progression:'ii-V-I', strumPattern:'folk_pop_ddu_udu', voicingPosition:'movable', shape:'E', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C' },
+      vary:[ { shape:'E' }, { shape:'A' }, { shape:'E', progression:'I-vi-ii-V' }, { shape:'A', progression:'ii-V-I', key:'G' }, { shape:'E', progression:'vi-ii-V-I', key:'A' } ]
+    },
+    chord_diatonic_7ths: {
+      label:'The Harmonized Key',
+      goal:'Build the seventh chord on every degree of the key, in order: Imaj7 – ii m7 – iii m7 – IVmaj7 – V7 – vi m7 – vii m7♭5. Comping the whole harmonized scale teaches you which quality each degree wants — the map every progression is carved out of. Take the dorian variant and the IV turns dom7 (the bright modal carrier). Pick the nearest grip each time so the hand barely moves.',
+      scales:['major','dorian'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'strum_comp', scale:'major', chordDepth:'seventh', chordOverride:'auto', progression:'diatonic_7ths', strumPattern:'folk_pop_ddu_udu', voicingPosition:'open', meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C' },
+      vary:[ { key:'C' }, { key:'G' }, { scale:'dorian', key:'D' }, { scale:'dorian', key:'A' }, { key:'F' } ]
+    },
+    chord_color_extensions: {
+      label:'Color: 9ths, 11ths & 13ths',
+      goal:'The extension grips that add color over a seventh: the funk dom9 (E9/A9), the neo-soul min9 and min11, and the big-band dom13. Each lives on the top strings — the low strings keep the root and 5th. One honest lesson baked in: a guitar "11 chord" is really a min11 or a 9sus (a true dominant 11th drops the 3rd), so we label the funk grip dom9, never "11".',
+      scales:['mixolydian','dorian'],
+      tempoTiers:[60, 78, 95, 110],
+      base:{ practiceType:'strum_comp', scale:'mixolydian', chordDepth:'seventh', chordOverride:'dom9', progression:'I-IV-V', strumPattern:'folk_pop_ddu_udu', voicingPosition:'open', meter:'4/4', subdivision:'eighth', bpm:78, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C' },
+      vary:[ { chordOverride:'dom9', scale:'mixolydian', progression:'I-IV-V', key:'C' }, { chordOverride:'dom13', scale:'mixolydian', progression:'I-IV-V', key:'C' }, { chordOverride:'min9', scale:'dorian', progression:'static_i', key:'C' }, { chordOverride:'min11', scale:'dorian', progression:'static_i', key:'A' }, { chordOverride:'sus4', scale:'major', progression:'I-IV-V', key:'D' } ]
     },
     seventh_vocab: {
       label:'Seventh Chord Vocabulary',
@@ -5599,14 +5632,193 @@
     const name = chordName(rootPc, quality);
     return { shape:'power', rootFret:f, gripNotes, template:templateFromPositions(name, gripNotes, cfg, false) };
   }
-  // Pick one grabbable grip for a chord. Power chords build directly; everything
-  // else voices from a CAGED triad grip (7ths reduce to the triad in v1 — the
-  // STRUM_GRIPS dom7/9/sus table is Phase 3). voicingPosition: 'open' (default,
-  // prefer the most open cowboy grip) | 'movable' (a fixed CAGED shape walked up
-  // the neck nearest the previous chord).
+  // ── STRUM_GRIPS — movable 7th / 9th / 11th / 13th / sus voicings (Phase B) ───
+  // strum_comp voices triads from CAGED_SHAPES.chordTemplates (maj/min/dim only):
+  // 7ths there reduce to a triad and 9/11/13 produce NO grip. STRUM_GRIPS is the
+  // SEPARATE movable-shape table (per the harmony voicing spec — do NOT bloat
+  // CAGED_SHAPES, the scale resolver shares it) that supplies REAL extended grips;
+  // pickStrumGrip consults it BEFORE the triad fallback. Each grip is a standard
+  // movable barre/shape transcribed relative to a root fret:
+  //   s    = string, low-E = 0 (mapped onto the top six on a 7/8-string)
+  //   fOff = fret offset from the root fret (root sits at fOff 0 on the root string);
+  //          a negative fOff means a note BELOW the root fret (compact 9/13 shapes)
+  //   iv   = interval label (display / probe only)
+  //   fg   = fretting finger (1 index/barre … 4 pinky)
+  // `form` letter (E = root on low-E s0, A = root on A s1) lets a rung teach "the
+  // same quality two ways" the way the CAGED-shapes rung does. Rules baked in
+  // (harmony-theory + guitar-pedagogy pre-build specs, agent-memory):
+  //   • extensions live on the TOP strings — never a 6-string 9/11/13;
+  //   • a doubled pc is a true OCTAVE (different MIDI), never the same MIDI on two
+  //     strings (that is a unison = dead) — enforced by assertStrumGripsValid below;
+  //   • a guitar "11" is a min11 or a 9sus (true dom11 drops the 3rd) → the dominant
+  //     extension grip is labelled dom9, never "11".
+  const STRUM_GRIPS = {
+    // Foundation sevenths — E-form and A-form barre grips (the four 7th colors).
+    dom7: [
+      { form:'E', rootStr:0, notes:[ {s:0,fOff:0,iv:'R',fg:1},{s:1,fOff:2,iv:'5',fg:3},{s:2,fOff:0,iv:'♭7',fg:1},{s:3,fOff:1,iv:'3',fg:2},{s:4,fOff:0,iv:'5',fg:1},{s:5,fOff:0,iv:'R',fg:1} ] },
+      { form:'A', rootStr:1, notes:[ {s:1,fOff:0,iv:'R',fg:1},{s:2,fOff:2,iv:'5',fg:3},{s:3,fOff:0,iv:'♭7',fg:1},{s:4,fOff:2,iv:'3',fg:4},{s:5,fOff:0,iv:'5',fg:1} ] },
+    ],
+    min7: [
+      { form:'E', rootStr:0, notes:[ {s:0,fOff:0,iv:'R',fg:1},{s:1,fOff:2,iv:'5',fg:3},{s:2,fOff:0,iv:'♭7',fg:1},{s:3,fOff:0,iv:'♭3',fg:1},{s:4,fOff:0,iv:'5',fg:1},{s:5,fOff:0,iv:'R',fg:1} ] },
+      { form:'A', rootStr:1, notes:[ {s:1,fOff:0,iv:'R',fg:1},{s:2,fOff:2,iv:'5',fg:3},{s:3,fOff:0,iv:'♭7',fg:1},{s:4,fOff:1,iv:'♭3',fg:2},{s:5,fOff:0,iv:'5',fg:1} ] },
+    ],
+    maj7: [
+      { form:'E', rootStr:0, notes:[ {s:0,fOff:0,iv:'R',fg:1},{s:1,fOff:2,iv:'5',fg:4},{s:2,fOff:1,iv:'7',fg:3},{s:3,fOff:1,iv:'3',fg:2},{s:4,fOff:0,iv:'5',fg:1},{s:5,fOff:0,iv:'R',fg:1} ] },
+      { form:'A', rootStr:1, notes:[ {s:1,fOff:0,iv:'R',fg:1},{s:2,fOff:2,iv:'5',fg:3},{s:3,fOff:1,iv:'7',fg:2},{s:4,fOff:2,iv:'3',fg:4},{s:5,fOff:0,iv:'5',fg:1} ] },
+    ],
+    // vii of the harmonized-key lap.
+    min7b5: [
+      { form:'A', rootStr:1, notes:[ {s:1,fOff:0,iv:'R',fg:1},{s:2,fOff:1,iv:'♭5',fg:2},{s:3,fOff:0,iv:'♭7',fg:1},{s:4,fOff:1,iv:'♭3',fg:3} ] },
+    ],
+    // Suspended color.
+    sus2: [
+      { form:'A', rootStr:1, notes:[ {s:1,fOff:0,iv:'R',fg:1},{s:2,fOff:2,iv:'5',fg:3},{s:3,fOff:2,iv:'R',fg:4},{s:4,fOff:0,iv:'2',fg:1},{s:5,fOff:0,iv:'5',fg:1} ] },
+    ],
+    sus4: [
+      { form:'E', rootStr:0, notes:[ {s:0,fOff:0,iv:'R',fg:1},{s:1,fOff:2,iv:'5',fg:3},{s:2,fOff:2,iv:'R',fg:3},{s:3,fOff:2,iv:'4',fg:3},{s:4,fOff:0,iv:'5',fg:1},{s:5,fOff:0,iv:'R',fg:1} ] },
+      { form:'A', rootStr:1, notes:[ {s:1,fOff:0,iv:'R',fg:1},{s:2,fOff:2,iv:'5',fg:2},{s:3,fOff:2,iv:'R',fg:3},{s:4,fOff:3,iv:'4',fg:4},{s:5,fOff:0,iv:'5',fg:1} ] },
+    ],
+    // Extensions — compact top-string shapes (omit the 5th, root carried by bass).
+    // dom9 = the funk "E9/A9"; labelled dom9, never "11".
+    dom9: [
+      { form:'A', rootStr:1, notes:[ {s:1,fOff:0,iv:'R',fg:2},{s:2,fOff:-1,iv:'3',fg:1},{s:3,fOff:0,iv:'♭7',fg:3},{s:4,fOff:0,iv:'9',fg:4} ] },
+    ],
+    min9: [
+      { form:'A', rootStr:1, notes:[ {s:1,fOff:0,iv:'R',fg:2},{s:2,fOff:-2,iv:'♭3',fg:1},{s:3,fOff:0,iv:'♭7',fg:3},{s:4,fOff:0,iv:'9',fg:4} ] },
+    ],
+    maj9: [
+      { form:'A', rootStr:1, notes:[ {s:1,fOff:0,iv:'R',fg:2},{s:2,fOff:-1,iv:'3',fg:1},{s:3,fOff:1,iv:'7',fg:3},{s:4,fOff:0,iv:'9',fg:4} ] },
+    ],
+    // min11 — the best-value extension grip (Am11 "x-0-0-0-1-0" form): barre + one finger.
+    min11: [
+      { form:'A', rootStr:1, notes:[ {s:1,fOff:0,iv:'R',fg:1},{s:2,fOff:0,iv:'11',fg:1},{s:3,fOff:0,iv:'♭7',fg:1},{s:4,fOff:1,iv:'♭3',fg:2},{s:5,fOff:0,iv:'5',fg:1} ] },
+    ],
+    // dom13 — the big-band/blues V (R-3-♭7-9-13 on the top strings).
+    dom13: [
+      { form:'A', rootStr:1, notes:[ {s:1,fOff:0,iv:'R',fg:2},{s:2,fOff:-1,iv:'3',fg:1},{s:3,fOff:0,iv:'♭7',fg:3},{s:4,fOff:0,iv:'9',fg:3},{s:5,fOff:2,iv:'13',fg:4} ] },
+    ],
+  };
+
+  // Find the root fret for a STRUM_GRIPS form, honoring a note below the root fret
+  // (rejects any fret that would push a note below 0). Lowest valid on the first
+  // chord; nearest the previous root after that (smooth, no teleporting).
+  function strumGripRootFret(cfg, grip, rootPc, prevRootFret) {
+    const opens = openMidisForConfig(cfg);
+    const off = Math.max(0, cfg.stringCount - 6);
+    const sIdx = grip.rootStr + off;
+    if (sIdx < 0 || sIdx >= cfg.stringCount) return null;
+    const anchorPc = ((opens[sIdx] % 12) + 12) % 12;
+    const base = (((rootPc - anchorPc) % 12) + 12) % 12;
+    let minOff = 0, maxOff = 0;
+    for (const n of grip.notes) { if (n.fOff < minOff) minOff = n.fOff; if (n.fOff > maxOff) maxOff = n.fOff; }
+    const options = [];
+    for (let oct = 0; oct <= 2; oct++) {
+      const f = base + oct * 12;
+      if (f + minOff >= 0 && f + maxOff <= 22) options.push(f);
+    }
+    if (!options.length) return null;
+    if (prevRootFret == null || prevRootFret < 0) return Math.min.apply(null, options);
+    let best = options[0], bd = Math.abs(options[0] - prevRootFret);
+    for (const f of options) { const d = Math.abs(f - prevRootFret); if (d < bd) { best = f; bd = d; } }
+    return best;
+  }
+
+  // Resolve a STRUM_GRIPS form at a root fret into {s,f,midi,pc,interval} notes
+  // (top-six window on a 7/8-string, mirroring cagedShapeNotesForChord). Returns
+  // null if the grip runs off the neck at this fret.
+  function resolveStrumGrip(cfg, grip, rootFret) {
+    const opens = openMidisForConfig(cfg);
+    const off = Math.max(0, cfg.stringCount - 6);
+    const out = [];
+    for (const n of grip.notes) {
+      const s = n.s + off;
+      if (s < 0 || s >= cfg.stringCount) continue;
+      const f = rootFret + n.fOff;
+      if (f < 0 || f > 24) return null;
+      const midi = opens[s] + f;
+      out.push({ s, f, midi, pc: ((midi % 12) + 12) % 12, interval: n.iv });
+    }
+    out.sort((a, b) => a.midi - b.midi || a.s - b.s);
+    return out.length >= 3 ? out : null;
+  }
+
+  // Pick an extended grip (7th/9th/11th/13th/sus). fixedShape ('E'/'A') selects the
+  // form when movable; open mode scores the most-open grip across forms.
+  function pickExtendedStrumGrip(cfg, rootPc, quality, prevRootFret, opts) {
+    const all = STRUM_GRIPS[quality];
+    if (!all) return null;
+    const forms = (opts.fixedShape && all.some(g => g.form === opts.fixedShape))
+      ? all.filter(g => g.form === opts.fixedShape) : all;
+    const name = chordName(rootPc, quality);
+    let best = null;
+    for (const grip of forms) {
+      const rootFret = strumGripRootFret(cfg, grip, rootPc, prevRootFret);
+      if (rootFret == null) continue;
+      const gripNotes = resolveStrumGrip(cfg, grip, rootFret);
+      if (!gripNotes) continue;
+      const cand = { shape: grip.form, rootFret, gripNotes, template: templateFromPositions(name, gripNotes, cfg, false) };
+      if (opts.fixedShape && forms.length === 1) { best = cand; break; }
+      const score = c => c.gripNotes.filter(p => p.f === 0).length * 100 - Math.max.apply(null, c.gripNotes.map(p => p.f));
+      if (!best || score(cand) > score(best)) best = cand;
+    }
+    return best;
+  }
+
+  // Startup guard (mirrors assertNoUnison): every STRUM_GRIPS grip, at several
+  // frets, must voice ONLY chord tones of its CHORD_FORMULAS stack (subset — a
+  // voicing may omit the 5th/9th), include the root + 3rd/♭3 + 7th + the headline
+  // extension, and never double a MIDI (a same-pitch unison sounds dead). Throws on
+  // load → any wrong fOff/interval is caught by every smoke as a pageerror.
+  (function assertStrumGripsValid() {
+    const opens = [40, 45, 50, 55, 59, 64];   // standard 6-string, for a tuning-independent relative check
+    for (const quality of Object.keys(STRUM_GRIPS)) {
+      const F = CHORD_FORMULAS[quality];
+      if (!F) throw new Error(`[SlopScale strum-grip] ${quality} has no CHORD_FORMULAS entry`);
+      const formula = new Set(F.intervals.map(i => ((i % 12) + 12) % 12));
+      const has3 = formula.has(4), hasFlat3 = formula.has(3), has7 = formula.has(10) || formula.has(11);
+      // Only the NAME tone (the HIGHEST extension) must be voiced — real grips omit
+      // inner extensions (a min11 drops the 9, a 13 may drop the 11).
+      const exts = F.intervals.filter(i => i >= 13);
+      const headline = exts.length ? ((Math.max.apply(null, exts) % 12) + 12) % 12 : null;
+      for (const grip of STRUM_GRIPS[quality]) {
+        // Finger-collision (fret-independent): one finger can barre many strings at
+        // ONE fret, never two different frets. `fg` is a display hint (does not affect
+        // pitch, so the pc checks below can't catch this) — but a chord box that draws
+        // an impossible fingering misteaches. (guitar-pedagogy Phase-B review.)
+        const byFinger = {};
+        for (const n of grip.notes) { if (!n.fg) continue; (byFinger[n.fg] = byFinger[n.fg] || new Set()).add(n.fOff); }
+        for (const fg of Object.keys(byFinger)) {
+          if (byFinger[fg].size > 1) throw new Error(`[SlopScale strum-grip] ${quality}/${grip.form} finger ${fg} spans ${byFinger[fg].size} frets (impossible)`);
+        }
+        for (const rootFret of [3, 5, 7, 9]) {
+          const rootMidi = opens[grip.rootStr] + rootFret, midis = [], pcs = new Set();
+          for (const n of grip.notes) { const m = opens[n.s] + rootFret + n.fOff; midis.push(m); pcs.add(((m - rootMidi) % 12 + 12) % 12); }
+          const tag = `${quality}/${grip.form}@${rootFret}`;
+          if (new Set(midis).size !== midis.length) throw new Error(`[SlopScale strum-grip] ${tag} doubles a MIDI (unison)`);
+          for (const pc of pcs) if (!formula.has(pc)) throw new Error(`[SlopScale strum-grip] ${tag} has non-chord-tone ${pc}`);
+          if (!pcs.has(0)) throw new Error(`[SlopScale strum-grip] ${tag} missing the root`);
+          if (pcs.size < 3) throw new Error(`[SlopScale strum-grip] ${tag} has <3 distinct tones`);
+          if (has3 && !pcs.has(4)) throw new Error(`[SlopScale strum-grip] ${tag} missing the 3rd`);
+          if (!has3 && hasFlat3 && !pcs.has(3)) throw new Error(`[SlopScale strum-grip] ${tag} missing the ♭3`);
+          if (has7 && !(pcs.has(10) || pcs.has(11))) throw new Error(`[SlopScale strum-grip] ${tag} missing the 7th`);
+          if (headline != null && !pcs.has(headline)) throw new Error(`[SlopScale strum-grip] ${tag} missing the headline extension ${headline}`);
+        }
+      }
+    }
+  })();
+
+  // Pick one grabbable grip for a chord. Power chords build directly; extended
+  // qualities (7th/9th/11th/13th/sus) voice from STRUM_GRIPS; everything else
+  // voices from a CAGED triad grip. voicingPosition: 'open' (default, prefer the
+  // most open cowboy grip) | 'movable' (a fixed CAGED shape walked up the neck
+  // nearest the previous chord).
   const STRUM_SHAPE_ORDER = ['C','A','G','E','D'];
   function pickStrumGrip(cfg, rootPc, quality, prevRootFret, opts) {
     if (quality === '5' || quality === '5oct') return powerChordGrip(cfg, rootPc, quality, prevRootFret);
+    if (STRUM_GRIPS[quality]) {
+      const ext = pickExtendedStrumGrip(cfg, rootPc, quality, prevRootFret, opts);
+      if (ext) return ext;   // else fall through to the CAGED triad reduction (off-neck edge)
+    }
     const name = chordName(rootPc, quality);
     const shapes = opts.fixedShape ? [opts.fixedShape] : STRUM_SHAPE_ORDER;
     let best = null;
