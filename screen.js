@@ -475,8 +475,17 @@
     ['harmonic_minor_exotic','metalcore_chug'],
     ['harmonic_minor_exotic','melodic_metal_gallop'],
     ['sweep_arpeggio_primer','melodeath_twin_leads'],
-    ['sweep_arpeggio_primer','djent_polymeter'],
     ['sweep_arpeggio_primer','death_chromatic'],
+    // Djent sub-ladder chain (panel 2026-06-05) — supersedes the old
+    // sweep_arpeggio_primer→djent_polymeter edge: the ladder gives the grouping
+    // rung a real prereq climb. Rung 1 builds on the Rhythm band's one-note pulse
+    // (the reuse ledger: djent is that skill at maximum heaviness; soft hint only).
+    ['rhy_single_string',  'djent_chug_lock'],
+    ['djent_chug_lock',    'djent_accent_grid'],
+    ['djent_accent_grid',  'djent_polymeter'],
+    ['djent_polymeter',    'djent_skip_gallop'],
+    ['djent_skip_gallop',  'djent_moving_chug'],
+    ['djent_moving_chug',  'djent_lock_the_cell'],
   ];
   // Band map — the single source for the two-level picker that replaces the SVG
   // skill-tree display (which tangles at 27 nodes). L1 = band (array order); L2 =
@@ -496,7 +505,7 @@
     { id:'core_advanced',     label:'Advanced',     kind:'core', pinned:true, pathways:['seventh_vocab','whole_neck_freedom','guide_tones_path','ii_V_I_workout','modal_vamp','melmin_exotic_12key','harmonic_minor_exotic','sweep_arpeggio_primer'] },
     { id:'style_blues',       label:'Blues',        kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner — minor-pentatonic box 1, the blue note (♭5), and a steady pulse over the 12-bar form.', pathways:['blues_box','blues_shuffle','blues_bends','blues_call_response','blues_mix'] },
     { id:'style_country',     label:'Country',      kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner→Intermediate — major pentatonic and the CAGED major scale; you target chord tones inside the shape, then add the country idiom (double-stops, chicken pickin\', the ♭VII train change).', pathways:['major_pent_country','country_cowboy_changes','country_double_stops','country_chicken_pickin','country_pedal_bends','country_train'] },
-    { id:'style_metal',       label:'Metal',        kind:'style', family:'High-Gain & Technical', buildsOn:'Builds on Core — power chords and palm-mute pulse (Beginner), tight 16th picking (Intermediate), plus exotic/harmonic-minor scales and sweep mechanics (Advanced).', pathways:['metalcore_chug','melodic_metal_gallop','djent_polymeter','melodeath_twin_leads','death_chromatic'] },
+    { id:'style_metal',       label:'Metal',        kind:'style', family:'High-Gain & Technical', buildsOn:'Builds on Core — power chords and palm-mute pulse (Beginner), tight 16th picking (Intermediate), plus exotic/harmonic-minor scales and sweep mechanics (Advanced). The djent sub-ladder climbs chug precision → accent control → grouping cells → cell vocabulary → moving stacks, topping out in a trade-bars jam.', pathways:['metalcore_chug','melodic_metal_gallop','djent_chug_lock','djent_accent_grid','djent_polymeter','djent_skip_gallop','djent_moving_chug','djent_lock_the_cell','melodeath_twin_leads','death_chromatic'] },
     { id:'style_rock',        label:'Rock',         kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core — power chords + the backbeat (Beginner), the pentatonic box (Beginner), then the blues-rock mix, pedal-tone riffs, and the ♭VII classic-rock changes.', pathways:['rock_power_backbeat','rock_pentatonic','rock_lead_vocab','rock_pedal_riff','rock_classic_changes'] },
     // Concepts family — "concept ladders" (one skill, sequenced easy→mastery): a
     // VERTICAL column through difficulty, vs the Core bands' horizontal staircase.
@@ -1401,17 +1410,109 @@
         { practiceType:'scale_thirds', harmonize:true, scale:'natural_minor', subdivision:'gallop' },
       ]
     },
-    djent_polymeter: {
-      label:'Djent Polymeter Chug',
-      goal:'One palm-muted power chord (root+5th+octave), arranged as a rhythmic cell — the harmony is static, the "progression" is the grouping. Feel the 3+3+2 pulse against a steady count. Extended range, lowest tunings. The riff is the rhythm.',
+    // ── Djent sub-ladder (panel 2026-06-05; memory project_djent_ladder_design) ──
+    // A DEEPEN of this Metal pack, not a new band: the old lone djent_polymeter rung
+    // started a learner at the summit; these rungs build the climb under it. Pure
+    // curation — rhythm_pulse / RHYTHM_CELLS / pedal_riff + grouping meters; the
+    // difficulty axis is rhythmic grouping/displacement + tempo, never pitch.
+    // `instAgnostic:true` rungs are pure TIME skills: applyPathwayById adapts them to
+    // the player's instrument (the bass djent job is locking the same cell on the low
+    // fundamental — bass-pedagogy ruling: rhythm_pulse IS the bass chug; pedal_riff's
+    // chord stack is guitar-coded). TRUE polymeter (a cell coprime with the bar that
+    // drifts + re-locks after lcm bars) is GATED on the `@` decoupled phrase clock —
+    // do not promise it in a goal-card; the 16/8 long cell is the honest stand-in.
+    djent_chug_lock: {
+      label:'Low Chug Lock',
+      goal:'The bedrock of djent: ONE palm-muted note on the lowest string, struck dead even against the click. The pitched content is a single note — the music is the staccato gate: pick-hand evenness, consistent palm-mute depth, and the fret-hand mute that chokes the string between hits. Your picking hand IS the metronome (this is the Single-String Pulse skill at maximum heaviness). All downstrokes for the tight, aggressive default — and know the gate: past roughly 200 BPM in eighths the wrist ceiling hits and real players switch to alternate picking. Tightness beats speed. On bass this rung adapts as-is — pick, palm-muted, locked on the low fundamental is the canonical djent-bass attack; if the picking forearm tightens, drop a tier — relaxation is the skill.',
       scales:['phrygian','natural_minor'],
       tempoTiers:[70, 90, 110, 130],
-      base:{ practiceType:'pedal_riff', harmonize:false, scale:'phrygian', key:'E', meter:'8/8:3+3+2', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_7_standard', renderer:'highway_3d', progression:'metal_pedal_chromatic', chordOverride:'5oct', fretMin:0, fretMax:7 },
+      instAgnostic:true,
+      base:{ practiceType:'rhythm_pulse', pulseAccent:0, pulseOffbeat:false, scale:'phrygian', key:'D', meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', audioProfile:'djent', fretMin:0, fretMax:4 },
+      vary:[
+        { subdivision:'eighth' },
+        { subdivision:'triplet' },
+        { subdivision:'sixteenth' },
+        { subdivision:'eighth', pulseOffbeat:true },
+        { subdivision:'sixteenth', stringSetup:'guitar_7_standard', key:'B' },
+      ]
+    },
+    djent_accent_grid: {
+      label:'Accent the Grid',
+      goal:'Keep the chug dead even and move WHERE the accent falls — on the beat, then the "e", the "&", the "a". The accented-vs-ghost chug is djent\'s groove engine: one rhythm becomes four feels without changing a single note. The grid stays square; only the emphasis walks. Count out loud and let the accent carry the groove — this is Accent Displacement applied at full weight, and it\'s what separates a riff that leans from a riff that just repeats.',
+      scales:['phrygian'],
+      tempoTiers:[55, 70, 85, 100],
+      instAgnostic:true,
+      base:{ practiceType:'rhythm_pulse', pulseAccent:0, pulseOffbeat:false, scale:'phrygian', key:'D', meter:'4/4', subdivision:'sixteenth', bpm:55, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', audioProfile:'djent', fretMin:0, fretMax:4 },
+      vary:[
+        { pulseAccent:0 },
+        { pulseAccent:1 },
+        { pulseAccent:2 },
+        { pulseAccent:3 },
+        { subdivision:'eighth', pulseOffbeat:true },
+      ]
+    },
+    // Rung 3 — the former "Djent Polymeter Chug", RELABELLED (panel honesty fix):
+    // 8/8:3+3+2 is an additive GROUPING that re-locks every bar, not true polymeter.
+    // The id stays `djent_polymeter` (stored progress/lastPathway references).
+    djent_polymeter: {
+      label:'Chug & Stab (Grouping Cells)',
+      goal:'THE djent signature: a palm-muted low pedal with power-chord stabs (root+5th+octave) landing on the starts of an additive grouping — 3+3+2 over a steady count. Count the eighths 1-2-3 / 1-2-3 / 1-2 and let the stabs walk against the grid; the bar snaps them back on the downbeat. The harmony is static — the "progression" IS the grouping. Named honestly: this cell re-locks every bar (an additive grouping, metric superimposition\'s square cousin) — TRUE polymeter, where a riff cell drifts across many bars before realigning, is the summit this ladder builds toward. The 16/8 variation is the longest honest climb: a cell twice as long before it resolves.',
+      scales:['phrygian','natural_minor'],
+      tempoTiers:[70, 90, 110, 130],
+      base:{ practiceType:'pedal_riff', harmonize:false, scale:'phrygian', key:'B', meter:'8/8:3+3+2', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_7_standard', renderer:'highway_3d', progression:'metal_pedal_chromatic', chordOverride:'5oct', audioProfile:'djent', fretMin:0, fretMax:7 },
+      // key B on the 7-string = the pedal on the OPEN low B (metal-idiom review:
+      // the djent pedal idiom is the open lowest string; was key E = fret 5).
       vary:[
         { meter:'8/8:3+3+2', chordOverride:'5oct' },
         { meter:'16/8:3+3+3+3+2+2', chordOverride:'5oct' },
         { meter:'8/8:3+3+2', scale:'natural_minor' },
         { meter:'7/8:3+2+2', chordOverride:'5oct' },
+      ]
+    },
+    djent_skip_gallop: {
+      label:'Skip & Gallop Chug',
+      goal:'The cell vocabulary ON the chug: the gallop (an eighth + two sixteenths), then its mirror the reverse gallop — the djent stutter, back-weighted and meaner — then the dotted "skip" and the front-loaded "snap". Down on the eighth, down-up on the sixteenths, palm muted throughout. Lock one cell until it\'s automatic, then switch cells by ear; the device is the rhythm cell, not the notes. These stay in 4/4 on purpose — a gallop doesn\'t divide an asymmetric bar, so the cells live on the square grid here and the groupings live in Chug & Stab.',
+      scales:['phrygian','natural_minor'],
+      tempoTiers:[60, 80, 100, 120],
+      instAgnostic:true,
+      base:{ practiceType:'rhythm_pulse', pulseAccent:0, pulseOffbeat:false, scale:'phrygian', key:'D', meter:'4/4', subdivision:'gallop', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', audioProfile:'djent', fretMin:0, fretMax:4 },
+      vary:[
+        { subdivision:'gallop' },
+        { subdivision:'reverse_gallop' },
+        { subdivision:'skip_chug' },
+        { subdivision:'snap' },
+        { subdivision:'reverse_gallop', stringSetup:'guitar_7_standard', key:'B' },
+      ]
+    },
+    djent_moving_chug: {
+      label:'Moving Power-Chord Chug',
+      goal:'Move the riff, not just the accent: shift the root+5th+octave stack across the low strings inside a dead-even palm-muted chug — semitone menace first (i–♭II), then the modal i–♭VI–♭VII. The skill is hand independence: the fretting hand jumps, the picking hand never flinches. On drop tunings, fret the low stack with the THUMB OVER the neck — the named technique that frees fingers 1–4 for everything above the pedal. The variations walk the floor down: 7-string B standard → drop A → 8-string F♯. The sixteenth variation sits past the all-downstroke ceiling — alternate-pick it.',
+      scales:['phrygian','natural_minor'],
+      tempoTiers:[70, 90, 110, 130],
+      base:{ practiceType:'pedal_riff', harmonize:false, scale:'phrygian', key:'B', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_7_standard', renderer:'highway_3d', progression:'metal_pedal_chromatic', chordOverride:'5oct', audioProfile:'djent', fretMin:0, fretMax:7 },
+      vary:[
+        { progression:'metal_pedal_chromatic' },
+        { progression:'metal_i_bVI_bVII' },
+        { subdivision:'sixteenth', progression:'metal_pedal_chromatic' },
+        { customOpenMidis:'33,40,45,50,55,59,64', key:'A', progression:'metal_pedal_chromatic' },
+        { stringSetup:'guitar_8_standard', key:'F#', progression:'metal_pedal_chromatic' },
+      ]
+    },
+    // Capstone — the on-ramp to creation (mirror of the Rhythm band's Trade Bars):
+    // echo the chug cell, then construct your own grouping. Mirror, not judge.
+    djent_lock_the_cell: {
+      label:'Lock the Cell — Djent Jam',
+      goal:'The payoff: two bars of call, two bars of space to answer. Echo the call\'s RHYTHM back, then start bending it — your accents, your gallop, your grouping — until the answer is YOUR riff. This is where the cell grammar becomes writing: you\'re not running a drill anymore, you\'re constructing djent over a steady pulse, the way the bands you listen to actually write. Trade with the click and make the space heavy — in this style the silence between chugs is part of the riff.',
+      scales:['phrygian','minor_pentatonic'],
+      tempoTiers:[70, 85, 100, 120],
+      instAgnostic:true,
+      base:{ practiceType:'call_response', scale:'phrygian', key:'D', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', audioProfile:'djent', fretMin:0, fretMax:4 },
+      vary:[
+        { subdivision:'eighth' },
+        { subdivision:'sixteenth' },
+        { subdivision:'reverse_gallop' },
+        { meter:'8/8:3+3+2' },
+        { subdivision:'sixteenth', stringSetup:'guitar_7_standard', key:'B' },
       ]
     },
     death_chromatic: {
@@ -1645,6 +1746,28 @@
           config:{ key:'E', scale:'phrygian_dominant', bpm:100, bars:8, meter:'4/4', subdivision:'sixteenth', direction:'up_down', sequence:'fours', fretboardSystem:'caged', shape:'E', keyCycle:'none' } },
         { id:'sweeps',  name:'Minor-triad sweeps',        kind:'sweep_arpeggios',
           config:{ key:'E', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:80, bars:8, direction:'up_down', fretboardSystem:'caged', shape:'E', keyCycle:'none' } }
+      ]
+    },
+    // Djent ladder rung 6 — "The Breathe" (panel 2026-06-05). The clean↔heavy
+    // dynamic arc is the skill djent players most lack; a single pathway can't
+    // switch audioProfile mid-exercise, so it ships as a two-block Workout (the
+    // flagged per-section profile toggle would collapse this to one rung). Same
+    // key both blocks: the clean let-ring block makes room an octave up, then
+    // resolves INTO the grouping chug — the heavy hits harder because the clean
+    // breathed first. Memory project_djent_ladder_design.
+    djent_breathe: {
+      version:1,
+      name:'Djent — The Breathe (clean ↔ heavy)',
+      description:'The dynamic arc most chug practice skips: a clean, let-ring arpeggio interlude that makes space, resolving into the palm-muted 3+3+2 grouping chug. Same key, two worlds — dynamics are the skill, not speed.',
+      stringSetup:'guitar_6_drop_d',
+      tags:['metal','djent','dynamics','intermediate'],
+      bpmLadder:{ enabled:false },
+      keyCycle:{ enabled:false },
+      segments:[
+        { id:'breathe', name:'The Breathe — clean let-ring arpeggios', kind:'diatonic_arpeggios',
+          config:{ key:'D', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', bpm:90, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', fretboardSystem:'caged', shape:'E', keyCycle:'none' } },
+        { id:'resolve', name:'The Resolve — grouping chug (3+3+2)',    kind:'pedal_riff',
+          config:{ harmonize:false, key:'D', scale:'phrygian', meter:'8/8:3+3+2', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', fretboardSystem:'position', progression:'metal_pedal_chromatic', chordOverride:'5oct', audioProfile:'djent', swing:'straight', fretMin:0, fretMax:7, keyCycle:'none' } }
       ]
     },
     bass_foundations: {
@@ -3394,6 +3517,7 @@
     strum_comp:       { bass:'n-a' },        // bass doesn't strum held chords — its comping is the groove primitives
     // Transfer to bass but the generator must adapt the feel/register.
     legato:           { bass:'adapted' },    // hammer/pull only, no wide runs
+    pedal_riff:       { bass:'adapted' },    // the s:0 pedal stream transfers; the power-chord stack on s:1-3 is guitar-coded (bass chug = rhythm_pulse, per bass-pedagogy)
     vibrato:          { bass:'adapted' },     // slower, narrower
     tapping:          { bass:'adapted' },     // single-line, advanced only
     herta:            { bass:'adapted' },     // bass realizes the burst as a rake (or fretting trill), not pick-h-p-pick
@@ -5135,6 +5259,12 @@
 
   function buildCallResponseExercise(cfg) {
     const step = secondsPerDivision(cfg), mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
+    // Honour RHYTHM_CELLS so a gallop/reverse-gallop call actually models the cell
+    // the player is told to echo (was a silent no-op — the djent capstone review,
+    // 2026-06-05). Cells sum to whole beats (startup guard), so cycling them
+    // continuously through the silent response bars keeps every call bar starting
+    // on the cell's first onset; null for simple subdivisions = unchanged timing.
+    const steps = rhythmSteps(cfg);
     const allPos = scalePositionsForSystem(cfg);
     if (!allPos.length) throw new Error('No notes in range.');
     const sorted = allPos.slice().sort((a, b) => a.midi - b.midi);
@@ -5143,13 +5273,17 @@
     const CALL = 2, CYCLE = 4; // 2 bars call, 2 bars silence
     const sus = Math.max(0.05, step * 0.85);
     const notes = [], sections = [{ name: 'Call', number: 1, time: 0 }, { name: 'Response', number: 2, time: CALL * mLen }];
-    let t = 0, noteIdx = 0;
+    let t = 0, noteIdx = 0, stepIdx = 0;
     while (t < totalTime - 0.001) {
-      if (Math.floor(t / mLen) % CYCLE < CALL) {
+      // +1e-9: accumulated float t can land one ulp under k·mLen, leaking one
+      // extra note ON the response-bar downbeat — smearing the exact call/space
+      // boundary this drill teaches (rhythm-meter review; also fixes the shipped
+      // blues_call_response / rhy_trade_bars 33rd-note leak).
+      if (Math.floor(t / mLen + 1e-9) % CYCLE < CALL) {
         notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: seq[noteIdx % seq.length].s, f: seq[noteIdx % seq.length].f, sus }));
         noteIdx++;
       }
-      t += step;
+      t += (steps && steps.length) ? steps[stepIdx % steps.length] : step; stepIdx++;
     }
     return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration: Math.max(t, totalTime) };
   }
@@ -10600,7 +10734,11 @@
     document.querySelectorAll('.slopscale-advanced-only input, .slopscale-advanced-only select, .slopscale-advanced-only textarea, .slopscale-advanced-only button').forEach(el => { el.disabled = !enabled; });
   }
   function setFieldSilent(name, value) {
-    const field = document.querySelector('#slopscale-controls [name="' + name + '"]');
+    // Fields living OUTSIDE the form element but associated via the form=""
+    // attribute (e.g. the header Setup popover's hidden customOpenMidis input)
+    // aren't descendants of #slopscale-controls — fall back to the attribute.
+    const field = document.querySelector('#slopscale-controls [name="' + name + '"]')
+      || document.querySelector('[form="slopscale-controls"][name="' + name + '"]');
     if (!field) return;
     if (field.type === 'checkbox') field.checked = !!value;
     else field.value = String(value);
@@ -10693,6 +10831,11 @@
     // Reggae-skank pulse flag is specialized → default OFF unless the rung opts in,
     // so a skank variation's offbeat never leaks into the next rung selected.
     setFieldSilent('pulseOffbeat', config.pulseOffbeat ? 'true' : '');
+    // Custom tuning override (drop-A djent etc.) is specialized → default EMPTY
+    // unless the rung opts in, so a drop-tuned variation never leaks its tuning
+    // into the next pathway selected. (readConfig also length-validates the CSV
+    // against the stringSetup, so a stale mismatch degrades to standard tuning.)
+    setFieldSilent('customOpenMidis', config.customOpenMidis || '');
     // Backing tone is automated: default the profile (anti-leak) + reflect the
     // genre's default brightness onto the slider (the loop below sets the
     // audioProfile field itself from config).
@@ -10941,12 +11084,18 @@
       // 6-string. Swap in the form's setup when the families differ (+ drop the
       // guitar-only shape system on bass; scale/rhythm_pulse/call_response run on
       // either). Other concept bands (Picking/Legato) stay guitar-coded by design.
-      if (pathwayBandId(id) === 'concept_rhythm') {
+      // Per-pathway `instAgnostic:true` extends this to pure-time rungs in otherwise
+      // guitar-coded bands (the djent chug rungs: bass djent = lock the same cell on
+      // the low fundamental — bass-pedagogy ruling, memory project_djent_ladder_design).
+      if (pathwayBandId(id) === 'concept_rhythm' || pw.instAgnostic) {
         const formSetup = document.querySelector('#slopscale-controls [name="stringSetup"]')?.value;
         const fs = formSetup && STRING_SETUPS[formSetup];
         const rungInst = (STRING_SETUPS[tieredConfig.stringSetup] || {}).instrument;
         if (fs && fs.instrument !== rungInst) {
           tieredConfig.stringSetup = formSetup;
+          // A guitar rung's custom-tuning CSV is meaningless on the other family's
+          // string count — drop it with the setup it belonged to.
+          delete tieredConfig.customOpenMidis;
           if (fs.instrument === 'bass') { tieredConfig.fretboardSystem = 'position'; delete tieredConfig.shape; }
         }
       }
