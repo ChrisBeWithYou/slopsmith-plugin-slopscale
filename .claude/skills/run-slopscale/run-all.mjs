@@ -27,9 +27,10 @@ const CONC = Number.isFinite(CONC_RAW) && CONC_RAW >= 1 ? CONC_RAW : 4;
 // near max(longest suite, total/concurrency). Unlisted suites are assumed
 // long so brand-new ones also start early.
 const WEIGHTS = {
-  generators: 45, renderers: 20, "highway-settings": 8, "meter-subdiv": 5,
-  strings: 4, audioctx: 3, connect: 3, gems: 3, "session-sync": 3,
-  "over-barline": 2, herta: 2, variation: 2, progress: 2, "core-purity": 1,
+  generators: 45, renderers: 20, "highway-settings": 8, "scoring-e2e": 7,
+  "meter-subdiv": 5, strings: 4, audioctx: 3, connect: 3, gems: 3,
+  "session-sync": 3, "over-barline": 2, herta: 2, variation: 2, progress: 2,
+  "core-purity": 1,
 };
 const SUITES = readdirSync(DIR)
   .filter((f) => /^smoke-.+\.mjs$/.test(f))

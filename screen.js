@@ -2626,6 +2626,11 @@
   }
   // Pitch tracker state — wraps slopsmithMinigames.scoring.createContinuous (no registration required)
   let _ptHandle = null, _ptNotes = [], _ptOpenMidis = [], _ptScored = new Set(), _ptByKey = new Map(), _ptHadInput = false;
+  // Anti-false-hit streak: a note scores only after PT_HIT_FRAMES consecutive
+  // in-tune frames (the detector's lock-on sweep crosses the ±50¢ window in a
+  // single frame — see ptOnPitch). 2 frames ≈ 80ms at the 40ms smoothing cadence.
+  const PT_HIT_FRAMES = 2;
+  let _ptStreak = { key: null, count: 0 };
   // Per-note identity key for the #254 gem hook: the host highway calls
   // bundle.getNoteState(note, note.t) and matches notes by (s, f, t), so we judge on
   // that same composite — reference-independent (the highway may normalize our notes).
@@ -11659,6 +11664,7 @@
     _ptScored = new Set();
     _ptByKey = new Map(); for (const n of _ptNotes) _ptByKey.set(ptKey(n), n);   // (s,f,t) → note, for the gem hook
     _ptHadInput = false;
+    _ptStreak = { key: null, count: 0 };
     // Scoring is optional. Guard the host-SDK call: it can throw or return null
     // when the tracker can't start (no mic, unsupported/secure-context, a host
     // SDK version mismatch). Playback must run regardless.
@@ -11688,7 +11694,20 @@
     if (openMidi == null) return;
     const expectedMidi = openMidi + activeNote.f;
     const cents = Math.round(1200 * Math.log2(freqHz / midiToFreq(expectedMidi)));
-    const _k = ptKey(activeNote); if (!_ptScored.has(_k) && Math.abs(cents) <= 50) _ptScored.add(_k);
+    // Score only after PT_HIT_FRAMES CONSECUTIVE in-tune frames (~80ms at the
+    // 40ms smoothing cadence). The detector's lock-on SWEEPS from startup
+    // garbage through the ±50¢ window in a single frame (measured 2026-06-05:
+    // +4023¢ → +485¢ → -285¢ converging on a -500¢ wrong note — one in-window
+    // frame falsely scored it), so a single frame must never score; any truly
+    // held note yields dozens of consecutive frames. Guarded by
+    // smoke-scoring-e2e's negative control.
+    const _k = ptKey(activeNote);
+    if (!_ptScored.has(_k) && Math.abs(cents) <= 50) {
+      if (_ptStreak.key === _k) _ptStreak.count++; else _ptStreak = { key: _k, count: 1 };
+      if (_ptStreak.count >= PT_HIT_FRAMES) _ptScored.add(_k);
+    } else if (_ptStreak.key === ptKey(activeNote) && Math.abs(cents) > 50) {
+      _ptStreak = { key: null, count: 0 };   // out-of-tune frame breaks the streak
+    }
     const noteName = NOTE_NAMES[((expectedMidi % 12) + 12) % 12] + (Math.floor(expectedMidi / 12) - 1);
     ptUpdateMeter({ show: true, active: true, cents, note: noteName, hits: _ptScored.size, total: passedTotal });
   }
@@ -11698,6 +11717,7 @@
     // Clear scoring state so a later silent preview can't read this run's
     // notes/hits and feed stale hit/miss counts to the pathway tier gate.
     _ptNotes = []; _ptScored = new Set(); _ptByKey = new Map(); _ptHadInput = false;
+    _ptStreak = { key: null, count: 0 };
     ptUpdateMeter({ show: false });
   }
 
