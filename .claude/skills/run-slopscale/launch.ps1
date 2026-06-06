@@ -84,6 +84,7 @@ if ($Source -eq 'checkout') {
         if (& git -C $Checkout diff --name-only $before $after | Select-String 'requirements' -Quiet) {
           Write-Host "[launch] requirements changed -- refreshing venv (pip install)..."
           & $PythonExe -m pip install -q -r (Join-Path $Checkout 'requirements.txt') 2>$null
+          if ($LASTEXITCODE -ne 0) { Write-Host "[launch] WARNING: pip install exited $LASTEXITCODE -- venv may be stale; rerun 'pip install -r requirements.txt' manually if the host fails to start" }
         }
       } else {
         Write-Host "[launch] checkout already current ($($after.Substring(0,7)))"

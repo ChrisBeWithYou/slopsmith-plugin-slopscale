@@ -11182,7 +11182,19 @@
     const grouping = (m.grouping && m.grouping.length > 1) ? ` (${m.grouping.join('+')})` : '';
     let txt = `Pulse = ${pulseGlyph} · ${m.numerator} per bar${grouping}`;
     const cfg = { bpm: 100, meter: m, subdivision: sEl.value };
-    const npb = measureSeconds(cfg) / secondsPerDivision(cfg);
+    // Rhythm cells (gallop/tresillo/clave/…) generate via rhythmSteps() — a cycling
+    // array of per-onset durations — not the uniform division, so derive notes/bar
+    // from the cell's own cycle. Uniform-division math here showed e.g. gallop in
+    // 4/4 as "8 notes/bar" (it's 12) and tresillo as 8 (it's 3). (PR #2 review.)
+    const cell = RHYTHM_CELLS[sEl.value];
+    let npb;
+    if (cell) {
+      const cycleBeats = cell.beats.reduce((a, b) => a + b, 0);   // quarter-note beats per cell cycle
+      const barBeats = m.numerator * (4 / m.denominator);
+      npb = (barBeats / cycleBeats) * cell.beats.length;
+    } else {
+      npb = measureSeconds(cfg) / secondsPerDivision(cfg);
+    }
     const rounded = Math.round(npb);
     if (Math.abs(npb - rounded) < 0.01) {
       txt += ` · ${rounded} notes/bar`;
