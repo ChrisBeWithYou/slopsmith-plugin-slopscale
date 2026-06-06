@@ -2884,11 +2884,14 @@
   //   audioProfile    AUDIO_PROFILES key (the sound), or null → clean family inferred
   const STYLE_PALETTES = {
     blues:   { label:'Blues',      defaultKey:'A', progressions:['12_bar_blues','quick_change_blues'], leadScales:['blues','minor_pentatonic'], chordDepth:'seventh', chordOverride:'dom7', guideTones:false, feel:{ swing:'shuffle', backingStyle:'boogie' }, audioProfile:'blues' },
-    rock:    { label:'Rock',       defaultKey:'E', progressions:['i-VII-VI-VII','I-V-vi-IV','I-IV-V'], leadScales:['minor_pentatonic','natural_minor'], chordDepth:'triad', chordOverride:'5', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'rock' },
+    rock:    { label:'Rock',       defaultKey:'E', progressions:['i-VII-VI-VII','I-V-vi-IV','I-IV-V','mixolydian_rock'], leadScales:['minor_pentatonic','natural_minor','mixolydian'], chordDepth:'triad', chordOverride:'5', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'rock' },
     metal:   { label:'Metal',      defaultKey:'E', progressions:['metal_i_bVI_bVII','metal_pedal_chromatic','metal_i_bVII_bVI_V'], leadScales:['phrygian','natural_minor','harmonic_minor'], chordDepth:'triad', chordOverride:'5', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'metal' },
     djent:   { label:'Djent',      defaultKey:'E', progressions:['metal_pedal_chromatic'], leadScales:['phrygian','natural_minor'], chordDepth:'triad', chordOverride:'5oct', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'djent' },
-    jazz:    { label:'Jazz',       defaultKey:'C', progressions:['ii-V-I','vi-ii-V-I','minor_ii_V_i','rhythm_changes_a'], leadScales:['major','dorian','mixolydian'], chordDepth:'seventh', chordOverride:'auto', guideTones:true, feel:{ swing:'swing', backingStyle:'pad' }, audioProfile:'jazz' },
-    funk:    { label:'Funk / R&B', defaultKey:'A', progressions:['i-VII-VI-VII','static_i'], leadScales:['dorian','minor_pentatonic'], chordDepth:'seventh', chordOverride:'min7', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:null },
+    jazz:    { label:'Jazz',       defaultKey:'C', progressions:['ii-V-I','vi-ii-V-I','minor_ii_V_i','rhythm_changes_a','so_what'], leadScales:['major','dorian','mixolydian'], chordDepth:'seventh', chordOverride:'auto', guideTones:true, feel:{ swing:'swing', backingStyle:'pad' }, audioProfile:'jazz' },
+    // Funk goes Dorian (modal-M1 ride-along, approved 2026-06-05): dorian_vamp's
+    // dom7 IV carries the ♮6 — the James Brown sound — so chordOverride must be
+    // 'auto' (a min7 override would silence the vamp's major/dom IV).
+    funk:    { label:'Funk / R&B', defaultKey:'A', progressions:['dorian_vamp','static_i','i-VII-VI-VII'], leadScales:['dorian','minor_pentatonic'], chordDepth:'seventh', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:null },
     pop:     { label:'Pop',        defaultKey:'C', progressions:['I-V-vi-IV','vi-IV-I-V','I-vi-IV-V'], leadScales:['major','major_pentatonic'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:null },
     country: { label:'Country',    defaultKey:'G', progressions:['I-IV-V','I-V-vi-IV'], leadScales:['major_pentatonic','major'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'bluegrass' },
     gospel:  { label:'Gospel',     defaultKey:'C', progressions:['ii-V-I','I-vi-ii-V'], leadScales:['major','dorian'], chordDepth:'ninth', chordOverride:'auto', guideTones:true, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'gospel' },
@@ -4413,6 +4416,71 @@
     // by the register-anchor + bass-gap, so no upperLow floor here.
     return voiceChord(rootPc, intervals, Object.assign({ instrument, maxVoices: 4, upperHigh: 74 }, bassWin));
   }
+  // ── Voice-leading between successive backing chords (backing-engine step 2) ──
+  // The named differentiator: the comp moves like a comper's hand, not a machine.
+  // Piano-pedagogy rule-set: anchor only the FIRST chord to the register centre
+  // (voiceChord's CENTER); after that, common tones HOLD at the same literal
+  // pitch and the other voices take the nearest chord tone (minimal total
+  // motion — the 7th resolving down by step into the next 3rd falls out of it).
+  // The bass voice stays the ROOT (bass motion is root motion), folded to the
+  // octave nearest the previous bass inside the bass window. Re-anchoring
+  // happens only at the top of the form (see buildBackingEvents). Guards:
+  // register band, unison dedupe, the 48–55 ≥minor-3rd low-interval row, and a
+  // one-hand span cap on the upper structure — an unfixable shape re-anchors
+  // fresh rather than emit mud. Guarded by smoke-backing-engine's VL row.
+  function voiceLeadBackingChord(rootPc, intervals, instrument, prev) {
+    const fresh = voiceBackingChord(rootPc, intervals, instrument);
+    if (!prev || prev.length < 2 || fresh.length < 2) return fresh;
+    const bassWin = instrument === 'bass' ? { lo: 23, hi: 40 } : { lo: 36, hi: 48 };
+    const rpc = ((rootPc % 12) + 12) % 12;
+    let bass = null;
+    for (let m = rpc; m <= bassWin.hi; m += 12) {
+      if (m < bassWin.lo) continue;
+      if (bass === null || Math.abs(m - prev[0]) < Math.abs(bass - prev[0])) bass = m;
+    }
+    if (bass == null) bass = fresh[0];
+    // Upper targets: reuse voiceChord's tone SELECTION (avoid-notes dropped,
+    // guide tones kept, voice cap respected) — only the PLACEMENT changes.
+    const targetPcs = [...new Set(fresh.slice(1).map(m => ((m % 12) + 12) % 12))];
+    const prevUpper = prev.slice(1);
+    const LO = 50, HI = 76, CENTER = 55;
+    // Nearest placement of a pc to a previous voice (≤6 semitones either way —
+    // a common tone lands at distance 0, i.e. holds literally).
+    const nearTo = (pc, v) => { let m = v + ((((pc - v) % 12) + 12) % 12); if (m - v > 6) m -= 12; return m; };
+    // Minimal-total-motion assignment of target pcs onto previous voices
+    // (≤4 voices → brute-force permutations). Extra targets place fresh near
+    // the centre; extra previous voices drop (the chord got smaller).
+    const n = targetPcs.length, k = prevUpper.length;
+    const perm = (arr) => arr.length <= 1 ? [arr] : arr.flatMap((x, i) => perm(arr.slice(0, i).concat(arr.slice(i + 1))).map(p => [x, ...p]));
+    let best = null;
+    for (const order of perm(targetPcs.map((_, i) => i))) {
+      let cost = 0; const placed = [];
+      for (let v = 0; v < Math.min(n, k); v++) {
+        const m = nearTo(targetPcs[order[v]], prevUpper[v]);
+        cost += Math.abs(m - prevUpper[v]);
+        placed.push({ i: order[v], m });
+      }
+      if (best === null || cost < best.cost) best = { cost, placed };
+    }
+    const used = new Set(best.placed.map(p => p.i));
+    let out = best.placed.map(p => p.m);
+    for (let i = 0; i < n; i++) {                       // targets with no prior voice
+      if (used.has(i)) continue;
+      let m = targetPcs[i]; while (m < CENTER - 6) m += 12; while (m > CENTER + 6) m -= 12;
+      out.push(m);
+    }
+    out = [...new Set(out.map(m => { while (m < LO) m += 12; while (m > HI) m -= 12; return m; }))].sort((a, b) => a - b);
+    // Low-interval row: between MIDI 48–55, adjacent voices need ≥ a minor 3rd —
+    // lift the upper offender an octave (drop it if the band is full).
+    for (let i = 1, guard = 0; i < out.length && guard < 12; i++) {
+      if (out[i] - out[i - 1] < 3 && out[i] < 55) {
+        if (out[i] + 12 <= HI && !out.includes(out[i] + 12)) out[i] += 12; else out.splice(i, 1);
+        out.sort((a, b) => a - b); i = 0; guard++;
+      }
+    }
+    if (out.length < 2 || out[out.length - 1] - out[0] > 14) return fresh;   // shape broke — re-anchor
+    return [bass, ...out].sort((a, b) => a - b);
+  }
   // Place a pitch class (0..11) at or above a floor MIDI.
   function pcAtOrAbove(pc, floor) { let m = ((pc % 12) + 12) % 12; while (m < floor) m += 12; return m; }
 
@@ -4537,8 +4605,21 @@
   function buildBackingEvents(cfg, duration) {
     if (cfg.backingStyle === 'boogie') return buildBoogieBacking(cfg, duration);
     const events = [];
+    // Voice-lead chord-to-chord (step 2): thread prevVoicing through the loop.
+    // Block/rung scoping is free — sessions and ladders call buildBackingEvents
+    // per part (the desync rule), so voice-leading never crosses a block seam.
+    // Re-anchor only at the TOP OF THE FORM (progression-cycle start) and only
+    // when the comp has drifted > a 4th from the register centre — a comper
+    // resets at the top of the form, never mid-form.
+    const cycleLen = Math.max(1, (progressionDegreesForConfig(cfg) || []).length);
+    let prevVoicing = null, evIdx = 0;
     for (const c of compileChordTimeline(cfg, duration)) {
-      const midis = voiceBackingChord(c.rootPc, c.intervals, cfg.instrument);
+      if (evIdx % cycleLen === 0 && prevVoicing && Math.abs((prevVoicing[1] ?? 55) - 55) > 5) prevVoicing = null;
+      const midis = prevVoicing
+        ? voiceLeadBackingChord(c.rootPc, c.intervals, cfg.instrument, prevVoicing)
+        : voiceBackingChord(c.rootPc, c.intervals, cfg.instrument);
+      prevVoicing = midis;
+      evIdx++;
       // Coalesce consecutive identical chords into one sustained event so the pad
       // doesn't hard re-attack every bar (the "pumping" on held harmony).
       const prev = events[events.length - 1];

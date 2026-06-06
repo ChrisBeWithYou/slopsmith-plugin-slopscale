@@ -195,6 +195,52 @@ try {
   ok(ses.monotonic, "session timeline is time-monotonic", "");
   ok(ses.overlap && ses.overlap.length === 0, "block B's window holds block B's harmony (C vs F# ii-V-I roots disjoint)", `A=${ses.ra} B=${ses.rb}`);
 
+  // ── (8) voice-leading between backing chords (step 2) ──────────────────────
+  step("voice-leading");
+  const vl = await page.evaluate(() => {
+    const S = window.SlopScale;
+    const cfg = Object.assign({}, S.readConfig(), {
+      practiceType: "chord_scales", progression: "ii-V-I", key: "C", scale: "major",
+      chordDepth: "seventh", chordOverride: "auto", bars: 4, keyCycle: "none",
+      audio: { notes: false, metronome: false, harmony: true },
+    });
+    // Single-exercise backing is synthesized at bundle time (makeBundle), not on
+    // the chart — go through it like playback does.
+    const bundle = S.makeBundle(S.generateExercise(cfg));
+    const pads = (bundle.backingEvents || []).filter(e => !e.role && e.midis && e.midis.length);
+    const probs = [];
+    let seams = 0, holds = 0;
+    for (let i = 1; i < pads.length; i++) {
+      const a = pads[i - 1], b = pads[i];
+      if (a.name === b.name && a.name) continue;                       // coalesce handles identicals
+      const apcs = new Set(a.midis.map(m => m % 12)), bpcs = new Set(b.midis.map(m => m % 12));
+      const share = [...apcs].some(pc => bpcs.has(pc));
+      if (!share) continue;
+      seams++;
+      // Common tone must HOLD at the same literal MIDI (the comper's hand).
+      if (b.midis.some(m => a.midis.includes(m))) holds++;
+      else probs.push(`${a.name}->${b.name}: no literal common tone (${a.midis} vs ${b.midis})`);
+      const upper = b.midis.slice(1);
+      if (upper.length && (upper[upper.length - 1] - upper[0]) > 14) probs.push(`${b.name}: upper span ${upper[upper.length - 1] - upper[0]} > 14`);
+      if (b.midis.length > 5) probs.push(`${b.name}: ${b.midis.length} voices > 5`);
+    }
+    return { seams, holds, probs: probs.slice(0, 4) };
+  });
+  ok(vl.seams > 0 && vl.holds === vl.seams, "voice-leading: common tones hold literally at every shared-pc chord seam", `${vl.holds}/${vl.seams} ${vl.probs.join(" | ")}`);
+
+  // ── (9) modal-M1 palette ride-along (funk goes Dorian; rock/jazz tokens) ────
+  const m1 = await page.evaluate(() => {
+    const P = window.SlopScale.STYLE_PALETTES;
+    return {
+      funkDorian: P.funk.progressions[0] === "dorian_vamp" && P.funk.chordOverride === "auto",
+      rockMixo: P.rock.progressions.includes("mixolydian_rock"),
+      jazzSoWhat: P.jazz.progressions.includes("so_what"),
+    };
+  });
+  ok(m1.funkDorian, "funk palette leads with dorian_vamp + chordOverride auto (the dom7 IV sounds)", "");
+  ok(m1.rockMixo, "rock palette carries mixolydian_rock", "");
+  ok(m1.jazzSoWhat, "jazz palette carries so_what", "");
+
   // ── (7) scheduler ceiling: a Woodshed Play stays windowed ───────────────────
   step("scheduler ceiling");
   await page.click("#slopscale-mode-session");
