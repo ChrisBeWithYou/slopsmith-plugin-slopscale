@@ -37,6 +37,10 @@
 7. **Progress is a map, not a scoreboard.** Bands are chapters, pathways are
    skills-owned, tiers are speeds-cleared, modes are phases-of-mastery. Every progress
    element answers "where am I in *learning the instrument*," never "what's my rank."
+8. **Corners belong to the host.** The viewport's bottom corners — especially
+   bottom-right — are host/third-party overlay territory (floating plugin buttons,
+   toasts). SlopScale never anchors chrome or load-bearing readouts there. (§7
+   "Corner etiquette" has the layout rules.)
 
 ---
 
@@ -137,6 +141,27 @@ Close-glyph convention: slide-in sheets/modals get `✕`; the mixer keeps `▾`
   - **Actions never span.** Primary CTAs cap at 360px, left-aligned in column 1. A
     banner spans; a button does not. (This rule is what permanently prevents the
     START-CTA-as-slab regression.)
+
+### Corner etiquette (host / third-party chrome)
+
+The viewport's bottom corners — especially **bottom-right** — are host and third-party
+territory: floating plugin buttons, host toasts, and browser chrome all park there.
+(Learned 2026-06-05: a third-party floating tuner button covered the pitch-meter hit
+counter.)
+
+- **No SlopScale chrome or load-bearing readout sits flush to a viewport bottom
+  corner.** Bottom-edge strips cluster content away from the right end (a
+  divider-separated cluster — never `margin-left: auto` to the edge).
+- **Measure, don't guess:** `ptDodgeOverlays()` (screen.js) measures fixed-position
+  body-level intruders into the pitch-strip's band at runtime and pads the strip
+  clear of the actual overlap — re-run on show + debounced resize. New bottom-edge
+  surfaces should reuse it rather than hard-coding a reserve.
+- Interactive controls near the bottom edge end with their content cluster, never
+  corner-anchored.
+- Scope: the *viewport* bottom edge (the shell is 100vh, so the stage's bottom strip
+  ends at the window corner). In-flow header chrome (⚙ top-right) is unaffected.
+- The real fix is host-level overlay slots (`ui.player-overlays` z-order rules are on
+  the host capability roadmap) — until that lands, this etiquette is our defense.
 
 ---
 
