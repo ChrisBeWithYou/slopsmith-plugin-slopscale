@@ -2670,6 +2670,8 @@
   }
   // Pitch tracker state — wraps slopsmithMinigames.scoring.createContinuous (no registration required)
   let _ptHandle = null, _ptNotes = [], _ptOpenMidis = [], _ptScored = new Set(), _ptByKey = new Map(), _ptHadInput = false;
+  let _ptRunInfo = null;        // results-modal diagnostics: judged universe + exemptions + which ear (set per run)
+  let _deliberateStop = false;  // true only across an explicit Stop / finite-run end — gates the results modal
   // Anti-false-hit streak: a note scores only after PT_HIT_FRAMES consecutive
   // in-tune frames (the detector's lock-on sweep crosses the ±50¢ window in a
   // single frame — see ptOnPitch). 2 frames ≈ 80ms at the 40ms smoothing cadence.
@@ -9241,7 +9243,9 @@
   // so pressing Play again cleanly replays the run from its start rather than re-ending
   // instantly at duration.
   function endFiniteRun() {
-    sessionEnd();                 // flush the session → presentSessionSummary (closure)
+    // A finite run completing is a DELIBERATE end → results modal eligible.
+    _deliberateStop = true;
+    try { sessionEnd(); } finally { _deliberateStop = false; }   // flush the session → presentSessionSummary (closure)
     playing = false; paused = false;
     currentPracticeTime = playStartChartTime;
     playAnchorChartTime = playStartChartTime;
@@ -9900,11 +9904,68 @@
   // Auto-present the card on a notable end (a tier cleared, or a real ≥20s run) by
   // opening P; for short blips just refresh so the card is ready when P next opens.
   function presentSessionSummary() {
-    const root = $('slopscale-root');
-    const notable = _lastEndedSession && (_lastEndedSession.tierCleared || _lastEndedSession.duration_ms >= 20000);
-    if (notable && root && !root.classList.contains('ss-progress-open')) toggleProgressSheet(true);
-    else renderProgressSheet();
+    renderProgressSheet();
+    // Deliberate ends (the Stop button / a finite run completing) pop the
+    // RESULTS modal — the detection-testing instrument (Christian, 2026-06-06).
+    // The P-sheet no longer auto-opens; the gamified progress content lives
+    // COLLAPSED inside the modal's disclosure ("keep the progress bar
+    // collapsed unless clicked"). Sideways stops stay quiet.
+    if (_lastEndedSession && _deliberateStop) showResultsModal(_lastEndedSession);
   }
+  // ── End-of-run RESULTS modal (2026-06-06) ──────────────────────────────────
+  // The detection-testing instrument: raw hit/judged/% + the honesty breakdown
+  // (what was exempt and WHY, and which ear judged — YIN vs the note_detect
+  // verifier) so Christian + the host devs can gauge what the detection stack
+  // needs. Numbers are RAW (a >100% readout is the known hits>passed counting
+  // nit made visible — diagnostic, not cosmetic). Reuses the packs-modal
+  // overlay + cheat-card chrome; never touches Escape (host-owned).
+  function showResultsModal(s) {
+    const root = $('slopscale-root'), body = $('slopscale-results-body'), title = $('slopscale-results-title');
+    if (!root || !body || !s) return;
+    const r = s.results || {};
+    const info = r.info || null;
+    const mins = Math.floor(s.duration_ms / 60000), secs = Math.round((s.duration_ms % 60000) / 1000);
+    let headline, sub, cls = '';
+    if (r.judgedPassed > 0) {
+      const pct = Math.round((r.hits / r.judgedPassed) * 100);
+      cls = pct >= 80 ? 'good' : pct >= 60 ? 'mid' : 'low';
+      headline = `${pct}%`;
+      sub = `<strong>${r.hits}</strong> hit of <strong>${r.judgedPassed}</strong> judged notes`;
+    } else if (!r.hadInput) {
+      headline = 'Not judged';
+      sub = 'No mic input reached the scorer this run — the click was the judge.';
+    } else {
+      headline = '—';
+      sub = 'Mic heard, but no judged notes passed (all content exempt, or the run ended early).';
+    }
+    const rows = [];
+    if (r.judgedPassed > 0 && r.missed > 0) rows.push(`Missed <strong>${r.missed}</strong>`);
+    if (info) {
+      rows.push(`Judged universe: <strong>${info.judged}</strong> of <strong>${info.total}</strong> chart notes`);
+      if (info.exemptChords) rows.push(`Shown, not judged: <strong>${info.exemptChords}</strong> chord notes (mono detector)`);
+      if (info.exemptSubFloor) rows.push(`Below the 70 Hz mic floor: <strong>${info.exemptSubFloor}</strong> notes (the click judges those)`);
+      rows.push(`Ear: <strong>${info.ear}</strong>`);
+    }
+    rows.push(`Practiced <strong>${mins}:${String(secs).padStart(2, '0')}</strong>${s.bpm ? ` @ <strong>${s.bpm}</strong> BPM` : ''}`);
+    if (title) title.textContent = `Results — ${s.displayName || 'Practice'}`;
+    body.innerHTML =
+      `<div class="slopscale-results-pct ${cls}">${headline}</div>` +
+      `<div class="slopscale-results-head">${sub}</div>` +
+      `<div class="slopscale-results-rows">${rows.map(t => `<div>${t}</div>`).join('')}</div>` +
+      `<button type="button" id="slopscale-results-progress-toggle" class="slopscale-results-progress-toggle" aria-expanded="false">▸ Progress</button>` +
+      `<div id="slopscale-results-progress" hidden></div>`;
+    $('slopscale-results-progress-toggle')?.addEventListener('click', () => {
+      const sec = $('slopscale-results-progress'), btn = $('slopscale-results-progress-toggle');
+      if (!sec || !btn) return;
+      const open = sec.hidden;
+      sec.hidden = !open;
+      btn.setAttribute('aria-expanded', String(open));
+      btn.textContent = (open ? '▾' : '▸') + ' Progress';
+      if (open && !sec.innerHTML) sec.innerHTML = sessionSummaryCardHtml() || '<div class="slopscale-pm-coming">Nothing new this run.</div>';
+    });
+    root.classList.add('ss-results-open');
+  }
+  function closeResultsModal() { $('slopscale-root')?.classList.remove('ss-results-open'); }
   // Progress sheet content (gamification's slot). Renders the "Last session" card
   // (if any) + streak + per-pathway tempo-tier dots — with an honest "coming" state
   // for XP/badges, since the slopscale.progress store is unbuilt (don't fake XP).
@@ -10526,6 +10587,7 @@
 
   function startPlayback() {
     if (!activeBundle) return;
+    closeResultsModal();   // a new run dismisses the previous run's results
     stopTuner();  // the practice scorer owns the strip during playback
     sessionEnd(); // flush any in-progress session before starting a new one
     sessionBegin();
@@ -10581,7 +10643,14 @@
   }
   // Dedicated transport Stop (the button left of Play/Pause). Acts on a running
   // OR paused run; inert when already stopped (the button is disabled then).
-  function onStop() { if (playing) stopPlayback(); }
+  function onStop() {
+    if (!playing) return;
+    // An explicit Stop is a DELIBERATE run end → the results modal may show.
+    // Sideways stops (regenerate-while-playing, mode/screen switches) keep the
+    // flag false so a settings fiddle never pops a modal.
+    _deliberateStop = true;
+    try { stopPlayback(); } finally { _deliberateStop = false; }
+  }
   // Toggle for the primary Play/Pause button. If we don't have a chart yet,
   // generate one first so the very first click always plays something.
   async function onPlayToggle() {
@@ -12499,6 +12568,7 @@
   }
 
   function startPitchTracker(bundle) {
+    _ptRunInfo = null;   // a run with no scorer leaves no stale diagnostics
     if (!ptAvailable() && !ndVerifyAvailable()) return;
     stopPitchTracker();
     const allNotes = [...(bundle.notes || [])].sort((a, b) => a.t - b.t);
@@ -12578,6 +12648,16 @@
       }
     }
     if (!_ptHandle && !_ndVerifyMode) return;   // no ear at all → nothing to show
+    // Results-modal diagnostics (detection-testing instrument): the judged
+    // universe for this run — what was exempt and WHY, and which ear owns
+    // scoring. Read by sessionEnd → showResultsModal.
+    _ptRunInfo = {
+      total: allNotes.length,
+      judged: _ptNotes.length,
+      exemptSubFloor: allNotes.filter(n => !_audible(n)).length,
+      exemptChords: allNotes.filter(n => _audible(n) && !_ndVerifyMode && _gCounts.get(_gk(n)) > 1).length,
+      ear: _ndVerifyMode ? (_ptHandle ? 'verifier (note_detect) · YIN on display' : 'verifier (note_detect)') : 'YIN mic (minigames)',
+    };
     ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: 0, total: 0 });
     syncStripTuneBtn();   // the scorer owns the strip — hide the idle Tune… button
   }
@@ -13199,6 +13279,17 @@
       depth: depthGain,   // { xpGained, travelKey, travelRung } | null — Phase 9 card reads this
       proof,              // proof-loop competency claim | null (flagged, pilot, on-flip only)
       streak: streakCount(sessions),
+      // Detection-testing results (2026-06-06): raw hit/judged counts + the
+      // exemption breakdown + which ear judged. Read by showResultsModal —
+      // the dev-gauge for the note-detection work. Raw on purpose: a >100%
+      // readout is the known hits>passed counting nit made visible.
+      results: {
+        hits: _activeSession.hit_count,
+        missed: _activeSession.miss_count,
+        judgedPassed: passedTotal,
+        hadInput: _ptHadInput,
+        info: _ptRunInfo,   // { total, judged, exemptChords, exemptSubFloor, ear } | null (no scorer ran)
+      },
     };
     _activeSession = null;
     if (unlock) { _newlyUnlockedTier = unlock.tier; syncTempoTierButtons(); renderSkillTree(); _newlyUnlockedTier = null; }
@@ -14359,6 +14450,9 @@
     // Target-aware tuner: entry in the Setup popover; Done chip on the strip.
     $('slopscale-tune-btn')?.addEventListener('click', () => { toggleSetupPopover(false); startTuner(); });
     $('slopscale-strip-tune')?.addEventListener('click', () => startTuner());
+    // Results modal: close on ✕ or an overlay click (never Escape — host-owned).
+    $('slopscale-results-close')?.addEventListener('click', closeResultsModal);
+    $('slopscale-results-modal')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeResultsModal(); });
     // Show the resting-state strip on load; the delayed retry covers plugin
     // load order (the minigames / note_detect surfaces may register after us).
     ptShowIdleStrip();

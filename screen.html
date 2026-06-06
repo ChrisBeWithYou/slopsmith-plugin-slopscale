@@ -634,6 +634,20 @@
      cheat-sheet's open-class can't reveal it); reuses the cheat-card chrome. */
   .slopscale-packs-modal { position: absolute; inset: 0; z-index: 22; display: none; align-items: center; justify-content: center; background: rgba(2,6,16,0.55); }
   .slopscale-root.ss-packs-open .slopscale-packs-modal { display: flex; }
+  /* ── End-of-run RESULTS modal (2026-06-06, detection-testing instrument):
+     raw hit/judged/% headline + the exemption/ear breakdown; gamified progress
+     COLLAPSED behind the disclosure. Same overlay pattern as the packs modal. */
+  .slopscale-results-modal { position: absolute; inset: 0; z-index: 23; display: none; align-items: center; justify-content: center; background: rgba(2,6,16,0.55); }
+  .slopscale-root.ss-results-open .slopscale-results-modal { display: flex; }
+  .slopscale-results-card { width: 400px; max-width: 92%; }
+  .slopscale-results-pct { text-align: center; font-size: 44px; font-weight: 800; line-height: 1.1; padding: 12px 0 2px; color: var(--ss-text, #e2e8f0); }
+  .slopscale-results-pct.good { color: #22c55e; } .slopscale-results-pct.mid { color: #eab308; } .slopscale-results-pct.low { color: #ef4444; }
+  .slopscale-results-head { text-align: center; font-size: 13px; color: #cbd5e1; padding: 0 16px 10px; }
+  .slopscale-results-rows { display: flex; flex-direction: column; gap: 4px; padding: 10px 18px 4px; font-size: 12px; color: #94a3b8; border-top: 1px solid rgba(51,65,85,0.5); }
+  .slopscale-results-rows strong { color: #cbd5e1; }
+  .slopscale-results-progress-toggle { display: block; width: calc(100% - 32px); margin: 10px 16px 14px; padding: 6px 10px; border-radius: 7px; border: 1px solid var(--ss-border, #334155); background: #131c2e; color: #cbd5e1; font-size: 12px; font-weight: 600; cursor: pointer; text-align: left; }
+  .slopscale-results-progress-toggle:hover { background: #1a2438; }
+  #slopscale-results-progress { padding: 0 16px 14px; }
   .slopscale-packs-card { width: 720px; max-width: 92%; max-height: 82%; display: flex; flex-direction: column; }
   .slopscale-packs-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; padding: 12px 14px; align-items: stretch; min-height: 0; }
   .slopscale-packs-col { display: flex; flex-direction: column; min-width: 0; }
@@ -2143,6 +2157,16 @@
           <div class="slopscale-sheet-body" id="slopscale-progress-sheet-body"><!-- renderProgressSheet() --></div>
         </div>
 
+        <!-- End-of-run RESULTS modal (2026-06-06): the detection-testing
+             instrument — raw hits/judged/% + exemption breakdown + which ear
+             judged. Shown only on DELIBERATE ends (Stop / finite-run
+             completion); progress collapsed behind the disclosure. -->
+        <div id="slopscale-results-modal" class="slopscale-results-modal" aria-hidden="true">
+          <div class="slopscale-cheat-card slopscale-results-card">
+            <div class="slopscale-sheet-head"><span id="slopscale-results-title">Results</span><button type="button" id="slopscale-results-close" class="slopscale-sheet-close" aria-label="Close">✕</button></div>
+            <div id="slopscale-results-body"></div>
+          </div>
+        </div>
         <!-- Shortcuts cheat-sheet (?). -->
         <div id="slopscale-cheatsheet" class="slopscale-cheatsheet" aria-hidden="true">
           <div class="slopscale-cheat-card">

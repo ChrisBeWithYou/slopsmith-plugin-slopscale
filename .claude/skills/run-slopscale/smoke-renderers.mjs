@@ -146,7 +146,9 @@ async function clockAdvances(page) {
   // Stop so the next renderer starts clean (Play toggles PAUSE since the 2026-06-06
   // transport split — the dedicated Stop button is the full-stop path; evaluate-click
   // so a disabled Stop is a no-op rather than a Playwright actionability timeout).
-  await page.evaluate(() => document.getElementById("slopscale-stop")?.click());
+  // A deliberate Stop pops the RESULTS modal (detection-testing instrument) —
+  // close it so the overlay can't intercept the next renderer-switch click.
+  await page.evaluate(() => { document.getElementById("slopscale-stop")?.click(); document.getElementById("slopscale-results-close")?.click(); });
   await page.waitForTimeout(150);
   return { advanced, from: t0, to: now };
 }
@@ -254,6 +256,14 @@ async function run() {
       if (!resumed) tFails.push(`resume did not advance the clock (stuck at ${f2})`);
       await page.click("#slopscale-stop");                       // dedicated stop
       await page.waitForTimeout(300);
+      // The deliberate stop pops the results modal — assert it showed (the
+      // detection-testing instrument), then close it for the wakelock phase.
+      const modalShown = await page.evaluate(() => {
+        const open = document.getElementById("slopscale-root")?.classList.contains("ss-results-open");
+        document.getElementById("slopscale-results-close")?.click();
+        return !!open;
+      });
+      if (!modalShown) tFails.push("deliberate Stop did not pop the results modal");
       const end = await page.evaluate(() => ({ t: document.getElementById("slopscale-time-cur").textContent.trim(), txt: document.getElementById("slopscale-play").textContent, stopOff: document.getElementById("slopscale-stop").disabled }));
       if (end.t !== "0:00") tFails.push(`Stop did not return the playhead to the run start (at ${end.t})`);
       if (!/play/i.test(end.txt)) tFails.push(`stopped button reads "${end.txt}" (expected Play)`);
