@@ -83,6 +83,7 @@ All note objects use these compact keys:
 | `mt` | muted/dead note |
 | `vb` / `tr` | vibrato / tremolo |
 | `ac` / `tp` | accent / tap |
+| `ch` | chord/strum group key (optional). Notes sharing a `ch` value — or, untagged, sharing an *exactly* equal `t` — form one simultaneous chord/diad event. The pitch scorer exempts such groups from judgment (the host detector is monophonic and reports nothing usable for polyphony — probe-verified 2026-06-05); builders that rake-stagger strums (`emitStrum`) must tag, since their notes don't share a `t`. |
 
 ## Chord templates
 

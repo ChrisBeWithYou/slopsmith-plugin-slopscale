@@ -691,7 +691,16 @@
   .slopscale-cents-track::after { content: ''; position: absolute; left: 50%; top: 0; width: 1px; height: 100%; background: #334155; }
   #slopscale-cents-needle { position: absolute; width: 4px; height: 100%; top: 0; left: 50%; transform: translateX(-50%); background: #475569; border-radius: 2px; transition: left 0.08s, background 0.08s; }
   #slopscale-pitch-cents { min-width: 42px; text-align: right; }
-  #slopscale-pitch-accuracy { margin-left: auto; }
+  /* Strip identity labels (LCD grammar — mirrors .slopscale-lcd-lbl): name the
+     clusters so the strip never reads as mystery numbers. MIC = the whole bar is
+     a live input monitor; HIT = the running notes-hit/judged tally. The HIT label
+     carries the divider, and the whole cluster stays LEFT — never margin-left:auto
+     to the corner: the viewport's bottom-right is host/third-party territory (a
+     floating tuner plugin's button parks there and was covering the counter,
+     2026-06-05). ptDodgeOverlays() in screen.js additionally measures any
+     fixed-position intruder at runtime and pads the strip clear of it. */
+  .slopscale-pm-lbl { font-size: 8.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b; flex-shrink: 0; }
+  .slopscale-pm-hit-lbl { padding-left: 12px; border-left: 1px solid rgba(75, 85, 99, 0.55); }
   /* ── The Climb — the SPEED tier ladder, the hero of the pathway pane ───────
      A framed, slightly-elevated card so the one motivational element no longer
      reads as a flat button row with the same weight as the settings below it.
@@ -2131,11 +2140,13 @@
            neck diagram (the highway shows WHEN, this shows WHERE). Driven by
            SlopScale's own clock; hidden for the Piano instrument. -->
       <div id="slopscale-fretboard-strip" class="slopscale-fretboard-strip"><canvas id="slopscale-fretboard"></canvas></div>
-      <div id="slopscale-pitch-meter" class="slopscale-pitch-meter">
-        <span id="slopscale-pitch-note">--</span>
-        <div class="slopscale-cents-track"><div id="slopscale-cents-needle"></div></div>
-        <span id="slopscale-pitch-cents"></span>
-        <span id="slopscale-pitch-accuracy">--</span>
+      <div id="slopscale-pitch-meter" class="slopscale-pitch-meter" title="Live mic monitor — what the scorer hears from your instrument">
+        <span class="slopscale-pm-lbl">Mic</span>
+        <span id="slopscale-pitch-note" title="Current target note">--</span>
+        <div class="slopscale-cents-track" title="Your pitch vs the target (center = in tune)"><div id="slopscale-cents-needle"></div></div>
+        <span id="slopscale-pitch-cents" title="Cents off the target (within ±50¢ scores)"></span>
+        <span class="slopscale-pm-lbl slopscale-pm-hit-lbl">Hit</span>
+        <span id="slopscale-pitch-accuracy" title="Notes hit / notes judged so far" aria-label="Notes hit out of notes judged">--</span>
       </div>
     </section>
   </section>

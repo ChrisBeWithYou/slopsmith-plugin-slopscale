@@ -136,6 +136,54 @@ try {
   ok(neg.provider, "(5a) scorer also runs in the negative control (so the pass below is meaningful)");
   ok(neg.hit == null, "(5b) the WRONG pitch lights nothing (no pass-everything grader)", neg.hit != null ? `note at t=${neg.hit} wrongly hit` : "");
   await page.click("#slopscale-play").catch(() => {});
+  await page.waitForTimeout(200);
+
+  // ── (6) CHORD EXEMPTION through the REAL detector (2026-06-05): a pedal_riff
+  // chord drill in A — the pedal singles expect A2 (= the WAV) and must score;
+  // the 2-note power-chord stabs are exempt (the monophonic detector reports
+  // nothing usable for polyphony — probe-chord-detector.mjs) and must show NO
+  // judgment: no hit even though the chord root also expects A2, and no miss
+  // after their windows pass. Catches both regressions: per-note chord judging
+  // returning (chord root would hit), and exemption leaking into singles.
+  const expC = await page.evaluate(() => {
+    const set = (name, v) => { const el = document.querySelector(`#slopscale-controls [name="${name}"]`); if (el) { if (el.type === "checkbox") el.checked = !!v; else el.value = String(v); el.dispatchEvent(new Event("change", { bubbles: true })); } };
+    set("advancedMode", true);
+    set("practiceType", "pedal_riff"); set("chordOverride", "5"); set("progression", "static_i");
+    set("scale", "natural_minor"); set("key", "A");
+    set("stringSetup", "guitar_6_standard"); set("fretboardSystem", "position");
+    set("meter", "4/4"); set("subdivision", "eighth"); set("bpm", "60"); set("bars", "8"); set("countIn", "0");
+    const b = window.SlopScale.makeBundle(window.SlopScale.generateExercise(window.SlopScale.readConfig()));
+    window.__e2eBundle = b;
+    const om = b.openMidis || [];
+    const byG = new Map();
+    for (const n of b.notes) { const k = n.ch != null ? "c" + n.ch : "t" + n.t; if (!byG.has(k)) byG.set(k, []); byG.get(k).push(n); }
+    const chord = [...byG.values()].find((g) => g.length > 1) || [];
+    const single = [...byG.values()].filter((g) => g.length === 1).map((g) => g[0])[0];
+    return { nChord: chord.length, pedalMidi: single ? (om[single.s] || 0) + single.f : -1 };
+  });
+  ok(expC.nChord >= 2 && expC.pedalMidi === 45, "(6) chord drill structural: 2-note stabs + A2 pedal singles", `chord=${expC.nChord} pedalMidi=${expC.pedalMidi}`);
+  await page.click("#slopscale-play");
+  const chordRes = await page.evaluate(async () => {
+    const b = window.__e2eBundle;
+    const byG = new Map();
+    for (const n of b.notes) { const k = n.ch != null ? "c" + n.ch : "t" + n.t; if (!byG.has(k)) byG.set(k, []); byG.get(k).push(n); }
+    const chordPair = [...byG.values()].find((g) => g.length > 1) || [];
+    const singles = [...byG.values()].filter((g) => g.length === 1).map((g) => g[0]).slice(0, 8);
+    const out = { singleHit: null, chordLit: null, meterAcc: "" };
+    for (let i = 0; i < 80; i++) {   // ~8s: chord windows at 60bpm open and pass
+      for (const n of chordPair) { const st = b.getNoteState(n); if (st) out.chordLit = st; }
+      if (!out.singleHit) for (const n of singles) { const st = b.getNoteState(n); if (st === "hit" || st === "active") { out.singleHit = st; break; } }
+      const accEl = document.getElementById("slopscale-pitch-accuracy");
+      if (accEl && /^[1-9]/.test(accEl.textContent)) out.meterAcc = accEl.textContent;
+      if (out.singleHit && out.meterAcc && i > 40) break;   // keep polling past several chord windows
+      await new Promise((r2) => setTimeout(r2, 100));
+    }
+    return out;
+  });
+  ok(chordRes.singleHit === "hit" || chordRes.singleHit === "active", "(6a) pedal singles still score through the real detector in a chord chart", `state=${chordRes.singleHit}`);
+  ok(chordRes.chordLit == null, "(6b) chord members show NO judgment (exempt — shown, not scored)", `lit=${chordRes.chordLit}`);
+  ok(!!chordRes.meterAcc, "(6c) accuracy counts the singles (denominator excludes exempt chords)", chordRes.meterAcc || "(no hits counted)");
+  await page.click("#slopscale-play").catch(() => {});
 
   // ── error surfaces: NO benign list in this suite — scoring failures ARE the point.
   const scoringFailures = consoleErrs.filter((e) => /continuous scoring failed to start|failed to set up audio analyser/i.test(e));

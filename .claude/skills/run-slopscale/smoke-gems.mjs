@@ -66,6 +66,48 @@ try {
   ok(h.provActive, "getNoteStateProvider() !== null while the scorer runs (the host's detect-mode signal)");
   ok(h.st === "hit" || h.st === "active", "a CORRECT pitch lights note[0] (hit/active)", `state=${h.st} fired=${h.fired}`);
   await p.click("#slopscale-play").catch(() => {});
+
+  // (5) CHORD EXEMPTION (2026-06-05, the DapperTap report): the host detector is
+  // monophonic and reports nothing usable for polyphony (probe-chord-detector.mjs),
+  // so simultaneous notes (chords/diads) are SHOWN but never pitch-judged — no hit
+  // even on a root-matching pitch, and no miss after the window passes. Singles in
+  // the same chart stay individually judged. Built from the REAL pedal_riff builder
+  // (chordOverride '5' emits 2-note power chords at identical t), never synthetic
+  // same-t notes.
+  await p.evaluate(() => {
+    const set = (name, v) => { const el = document.querySelector(`#slopscale-controls [name="${name}"]`); if (el) { if (el.type === "checkbox") el.checked = !!v; else el.value = String(v); el.dispatchEvent(new Event("change", { bubbles: true })); } };
+    set("advancedMode", true); set("practiceType", "pedal_riff"); set("chordOverride", "5");
+    set("progression", "static_i"); set("scale", "natural_minor"); set("key", "A");
+    set("stringSetup", "guitar_6_standard"); set("fretboardSystem", "position");
+    set("meter", "4/4"); set("subdivision", "eighth"); set("bpm", "120"); set("bars", "4"); set("countIn", "0");
+  });
+  await p.click("#slopscale-play");
+  const c5 = await p.evaluate(async () => {
+    const b = window.SlopScale.makeBundle(window.SlopScale.generateExercise(window.SlopScale.readConfig()));
+    const om = b.openMidis || [];
+    const byG = new Map();
+    for (const n of b.notes) { const k = n.ch != null ? "c" + n.ch : "t" + n.t; if (!byG.has(k)) byG.set(k, []); byG.get(k).push(n); }
+    const groups = [...byG.values()];
+    const chordPair = groups.find((g) => g.length > 1) || [];
+    const singles = groups.filter((g) => g.length === 1).map((g) => g[0]).slice(0, 8);
+    if (!chordPair.length || !singles.length) return { structural: false };
+    // In key-A static_i the pedal AND the chord root both expect A2 — one fired
+    // pitch stream exercises both judgments at once.
+    const root = chordPair.slice().sort((a, b2) => (om[a.s] + a.f) - (om[b2.s] + b2.f))[0];
+    const freq = 440 * Math.pow(2, ((om[root.s] + root.f) - 69) / 12);
+    let singleHit = null, chordLit = null;
+    for (let i = 0; i < 150; i++) {   // ~3s: several chord windows open AND pass
+      if (window.__fp) window.__fp({ freqHz: freq, confidence: 0.95 });
+      for (const n of chordPair) { const st = b.getNoteState(n); if (st) chordLit = st; }
+      if (!singleHit) for (const n of singles) { const st = b.getNoteState(n); if (st === "hit" || st === "active") { singleHit = st; break; } }
+      await new Promise((r2) => setTimeout(r2, 20));
+    }
+    return { structural: true, nChord: chordPair.length, singleHit, chordLit };
+  });
+  ok(c5.structural, "(5a) chord drill yields chord groups + pedal singles (real builder output)");
+  ok(c5.singleHit === "hit" || c5.singleHit === "active", "(5b) singles in a chord chart still judge (pedal lights on correct pitch)", `state=${c5.singleHit}`);
+  ok(c5.chordLit == null, "(5c) chord members NEVER judged — no hit on a root-matching pitch, no miss after the window (shown, not scored)", `lit=${c5.chordLit}`);
+  await p.click("#slopscale-play").catch(() => {});
   ok(errs.length === 0, "no page errors from the gem path", errs.join(" | "));
 
   console.log(`\n${fails === 0 ? "PASS" : "FAIL"}  gems: ${fails} failure(s)`);

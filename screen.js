@@ -6314,6 +6314,11 @@
       notes.push(noteDefaults({
         t: Number((stepT + k * stagger).toFixed(6)), s: p.s, f: p.f, sus: Number(sus.toFixed(6)),
         mt: mute, ac: !!accent, noSwing: !!preSwing,
+        // Strum-group tag: one strike = one chord event. The rake stagger means
+        // these notes do NOT share a t, so the scorer's chord-exemption grouping
+        // (startPitchTracker) needs this explicit key. stepT is unique per strike
+        // within a chart and deterministic (byte-golden safe).
+        ch: Number(stepT.toFixed(6)),
       }));
     });
   }
@@ -11938,7 +11943,25 @@
   function startPitchTracker(bundle) {
     if (!ptAvailable()) return;
     stopPitchTracker();
-    _ptNotes = [...(bundle.notes || [])].sort((a, b) => a.t - b.t);
+    const allNotes = [...(bundle.notes || [])].sort((a, b) => a.t - b.t);
+    // ── Chord exemption (2026-06-05, the DapperTap report) ────────────────────
+    // The host detector is MONOPHONIC, and probe-verified (probe-chord-detector.mjs)
+    // it reports NOTHING usable for simultaneous notes — YIN's confidence collapses
+    // on polyphony; it doesn't even read the chord's root. So chords/diads are
+    // SHOWN but never pitch-judged: they're excluded from the judged set entirely
+    // (no miss gems, not in the accuracy denominator, not in the session
+    // hit/miss counts the tier + proof-loop gates read) until real chord
+    // verification (a band-energy mirror of the host's note_detect contract)
+    // lands. Without this, a 3-note power chord capped every chord drill near
+    // 33% — structurally un-passable even played perfectly.
+    // A "chord" = notes sharing the builder's explicit `ch` strum-group tag
+    // (emitStrum rake-staggers strings 6–18ms, so time can't group them), or
+    // notes at EXACTLY equal t (block chords / double-stops / harmonized lines).
+    // Never a time-tolerance window — fast runs must stay individually judged.
+    const _gk = (n) => n.ch != null ? ('c' + n.ch) : ('t' + n.t);
+    const _gCounts = new Map();
+    for (const n of allNotes) { const k = _gk(n); _gCounts.set(k, (_gCounts.get(k) || 0) + 1); }
+    _ptNotes = allNotes.filter(n => _gCounts.get(_gk(n)) === 1);
     _ptOpenMidis = bundle.openMidis || [];
     _ptScored = new Set();
     _ptByKey = new Map(); for (const n of _ptNotes) _ptByKey.set(ptKey(n), n);   // (s,f,t) → note, for the gem hook
@@ -12020,11 +12043,45 @@
     return null;                                            // not yet judged — don't pre-color
   }
 
+  // Floating third-party overlays (e.g. a tuner plugin's fixed bottom-right
+  // button) can cover the meter strip's right end at some window scales. Rather
+  // than guessing a fixed reserve, MEASURE any fixed-position body-level element
+  // that intrudes into the strip's band and pad our content clear of it.
+  // Read-only DOM measurement — never touches the other plugin's elements
+  // (the same etiquette we expect of them). Runs on the strip's hidden→shown
+  // transition and on the debounced window resize in bind().
+  function ptDodgeOverlays() {
+    const meter = $('slopscale-pitch-meter');
+    if (!meter || meter.style.display === 'none' || !meter.offsetParent) return;
+    const mr = meter.getBoundingClientRect();
+    if (!mr.width) return;
+    let clearFrom = mr.right;
+    for (const el of document.body.children) {
+      if (el.contains(meter)) continue;   // the app shell that contains us
+      let cs;
+      try { cs = getComputedStyle(el); } catch (_) { continue; }
+      if (cs.position !== 'fixed' || cs.display === 'none' || cs.visibility === 'hidden') continue;
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) continue;
+      const vOverlap = r.bottom > mr.top + 2 && r.top < mr.bottom - 2;
+      // Only dodge right-side intruders: the element's left edge must sit in the
+      // strip's right half (a centered/full-width host toast shouldn't squeeze
+      // the strip to nothing — content is left-clustered anyway).
+      if (!vOverlap || r.left <= mr.left + mr.width * 0.5 || r.left >= mr.right) continue;
+      clearFrom = Math.min(clearFrom, r.left);
+    }
+    const intruded = Math.round(mr.right - clearFrom);
+    // 14px base padding (the strip's own) + 10px breathing gap before the intruder.
+    meter.style.paddingRight = intruded > 0 ? `${intruded + 24}px` : '';
+  }
+
   function ptUpdateMeter({ show, active, cents, note, hits, total }) {
     const meter = $('slopscale-pitch-meter');
     if (!meter) return;
     if (!show) { meter.style.display = 'none'; return; }
+    const wasHidden = meter.style.display !== 'flex';
     meter.style.display = 'flex';
+    if (wasHidden) ptDodgeOverlays();
     const noteEl = $('slopscale-pitch-note'), centsEl = $('slopscale-pitch-cents');
     const needleEl = $('slopscale-cents-needle'), accEl = $('slopscale-pitch-accuracy');
     if (noteEl) noteEl.textContent = active ? note : '--';
@@ -13597,6 +13654,7 @@
       _resizeT = setTimeout(() => {
         _resizeT = null;
         if (renderer && activeBundle && !playing) { try { renderer.resize && renderer.resize(); } catch (_) {} drawOnce(); }
+        ptDodgeOverlays();   // re-measure floating third-party chrome at the new scale
       }, 120);
     });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) { refreshForHostSettingChange(); if (playing) acquireWakeLock(); } });   // re-acquire the wake lock the browser auto-released on hide
