@@ -195,3 +195,9 @@ Open **SlopScale → Ladder**, pick a beginner node (e.g. *Pentatonic Foundation
 - Per-instrument **Skill Ladder** content (guitar Core + Concept/genre packs shipped; **bass-native ladder shipped**; piano to follow) — and surfacing the segment library so you can build & one-tap-refresh your own Workouts
 - Live amp-modelled distorted backing (host NAM-engine borrow, in progress)
 - Piano / keyboard exercise generation
+
+## License
+
+Copyright (C) 2026 Christian Cowan.
+
+SlopScale is free software, licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-only): you may use, study, modify, and share it — and anything you build on it (including running it as a service) must stay open under the same terms.
