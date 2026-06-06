@@ -11054,6 +11054,7 @@
     if (!allValid) return;
     commitCustomTuning(midis);
     instrumentStoreSave();   // user-driven tuning edit = the player's L1 declaration
+    reapplyActivePathway();  // per-string edits don't dispatch a setup change
     if (commit && activeBundle) onGenerate();
   }
   function onTuningPresetChange() {
@@ -11088,6 +11089,7 @@
       }
       syncCustomTuningInputs();
       instrumentStoreSave();
+      reapplyActivePathway();   // custom-CSV branch doesn't dispatch a setup change
       if (activeBundle) onGenerate();
       return;
     }
@@ -11577,6 +11579,73 @@
     return true;
   }
 
+  // The key select becomes a READOUT on anchor rungs (the key is derived from
+  // the player's lowest string — changing it would contradict the derivation;
+  // to move the pitch, change the tuning in Setup). A CSS/interaction lock,
+  // never the disabled attribute (disabled fields drop out of FormData and
+  // readConfig would lose the key). The hint lives on the wrapping label.
+  function syncAnchorKeyLock() {
+    const keyEl = document.querySelector('#slopscale-controls [name="key"]');
+    if (!keyEl) return;
+    const locked = !!($('slopscale-anchor-station')?.value) && activePathwayId && activePathwayId !== 'custom';
+    keyEl.classList.toggle('slopscale-key-locked', locked);
+    keyEl.setAttribute('aria-disabled', locked ? 'true' : 'false');
+    const label = keyEl.closest('label');
+    if (label) label.title = locked ? 'This lesson anchors on your lowest string — the key is derived from your tuning (change it in Setup).' : '';
+  }
+
+  // Re-derive the active rung's DERIVED fields after an instrument/tuning change:
+  // the anchor key, the L1 transpose adapt metadata, and the goal-card readout
+  // are all computed AT APPLY TIME, so without this they go stale (the bug:
+  // change tuning mid-rung and the card still names the old pitch). SURGICAL by
+  // design — it must NOT re-run the full applyPathwayConfig form write: the
+  // user's mid-rung instrument pick (and any hand-set fields) stick; only the
+  // derived outputs refresh against the form's CURRENT declaration.
+  function reapplyActivePathway() {
+    if (!(activePathwayId && activePathwayId !== 'custom' && PATHWAYS[activePathwayId])) return;
+    const pw = PATHWAYS[activePathwayId];
+    const vary = pw.vary && pw.vary.length ? pw.vary : [{}];
+    const idx = ((activePathwayVariationIdx % vary.length) + vary.length) % vary.length;
+    const merged = Object.assign({}, pw.base, vary[idx] || {});
+    if (merged.anchor === 'open_lowest') {
+      // Derive from the form's CURRENT effective opens (the player's declaration
+      // — or the rung step's own L3 CSV, which also lives in the form).
+      const setupName = document.querySelector('#slopscale-controls [name="stringSetup"]')?.value;
+      const setup = STRING_SETUPS[setupName] || STRING_SETUPS.guitar_6_standard;
+      let opens = setup.openMidis;
+      const csv = ($('slopscale-custom-open-midis')?.value || '').trim();
+      if (csv) {
+        const list = csv.split(',').map(s => parseInt(s, 10)).filter(Number.isFinite);
+        if (list.length === setup.openMidis.length) opens = list;
+      }
+      const af = Math.max(0, Math.min(11, parseInt(merged.anchorFret, 10) || 0));
+      setFieldSilent('key', NOTE_NAMES[((opens[0] + af) % 12 + 12) % 12]);
+      setFieldSilent('anchorStation', af === 0 ? 'open' : `fret ${af}`);
+    } else if (merged.key) {
+      // Keyed rung: re-run the uniform-offset adapt against the rung's nominal
+      // key + the player's CURRENT L1 declaration. On no-adapt (standard tuning,
+      // structural tuning, family mismatch) the key resets to nominal and the
+      // stale adapt metadata clears — the form's CSV (the player's tuning) is
+      // deliberately left untouched.
+      const probe = { key: merged.key, stringSetup: merged.stringSetup, customOpenMidis: merged.customOpenMidis };
+      applyTuningAdaptL1(probe);
+      if (probe.tuningOffset) {
+        setFieldSilent('key', probe.key);
+        setFieldSilent('keyNominal', probe.keyNominal);
+        setFieldSilent('tuningOffset', probe.tuningOffset);
+        setFieldSilent('customOpenMidis', probe.customOpenMidis || '');
+      } else {
+        setFieldSilent('key', merged.key);
+        setFieldSilent('keyNominal', '');
+        setFieldSilent('tuningOffset', '');
+      }
+    } else {
+      return;   // no derived pitch fields on this rung — nothing to refresh
+    }
+    updatePathwayGoalCard(activePathwayId, $('slopscale-pathway-goal-card')?.classList.contains('modified'));
+    syncAnchorKeyLock();
+  }
+
   function applyPathwayById(id, variationIdx) {
     const isNewPathway = id !== activePathwayId;
     activePathwayId = id;
@@ -11587,6 +11656,7 @@
       setFieldSilent('keyNominal', '');
       setFieldSilent('tuningOffset', '');
       setFieldSilent('anchorStation', '');
+      syncAnchorKeyLock();   // Custom mode: the key select is always live
       // Custom mode hides the goal card via CSS, so no card update needed.
       return;
     }
@@ -11670,6 +11740,7 @@
       syncScaleDropdown(id);
       updatePositionStepper();
       renderSkillTree();
+      syncAnchorKeyLock();   // anchor rungs: the key select is a derived readout
       return;
     }
     const preset = window.__slopscaleFavorites && window.__slopscaleFavorites[id];
@@ -13402,6 +13473,7 @@
       if (!setup) return;
       setup.value = instrument.value === 'bass' ? 'bass_4_standard' : 'guitar_6_standard';
       syncInstrumentClass();
+      reapplyActivePathway();   // re-derive the active rung for the new instrument
       if (activeBundle) onGenerate();
     });
     setup?.addEventListener('change', () => {
@@ -13410,6 +13482,9 @@
       // (Pathway writes go through setFieldSilent — no 'change' — so a rung's
       // coded setup never overwrites the player's durable store.)
       instrumentStoreSave();
+      // Re-derive the active rung AGAINST the new declaration (anchor key, L1
+      // adapt, goal-card readout) — save first so the derivation reads it.
+      reapplyActivePathway();
       // A string-count/tuning change reshapes the generated pattern (different
       // string count, different open pitches) — regenerate so the displayed
       // chart + audio actually reflect it. Mirrors the instrument/tuning-select

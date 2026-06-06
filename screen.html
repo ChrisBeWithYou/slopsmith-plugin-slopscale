@@ -310,6 +310,10 @@
   }
   .slopscale-pathway-goal-card.modified .pathway-tag { color: #fbbf24; }
   #slopscale-pathway-tuning-note { margin-top: 6px; font-size: 11px; color: var(--ss-text-muted, #94a3b8); font-style: italic; }
+  /* Anchor-rung key lock: the key is DERIVED (from the player's lowest string),
+     so the select becomes a readout. NOT the disabled attribute — disabled fields
+     vanish from FormData and readConfig would lose the key. */
+  .slopscale-key-locked { pointer-events: none; opacity: 0.65; }
   /* Title is redundant with the highlighted active row — keep the element (JS writes
      it) but don't show it; the caption leads with the goal text. */
   .slopscale-pathway-goal-card .pathway-title { display: none; }
