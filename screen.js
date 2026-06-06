@@ -2714,15 +2714,85 @@
   let _ptHandle = null, _ptNotes = [], _ptOpenMidis = [], _ptScored = new Set(), _ptByKey = new Map(), _ptHadInput = false;
   let _ptRunInfo = null;        // results-modal diagnostics: judged universe + exemptions + which ear (set per run)
   let _deliberateStop = false;  // true only across an explicit Stop / finite-run end — gates the results modal
-  // Anti-false-hit streak: a note scores only after PT_HIT_FRAMES consecutive
-  // in-tune frames (the detector's lock-on sweep crosses the ±50¢ window in a
-  // single frame — see ptOnPitch). 2 frames ≈ 80ms at the 40ms smoothing cadence.
-  const PT_HIT_FRAMES = 2;
-  let _ptStreak = { key: null, count: 0 };
+  // ── Timing model (2026-06-06 seven-lane panel; MIRRORS the host's grader) ──
+  // The host's note_detect judges with PARALLEL per-note candidate windows
+  // (early-strict ±100ms; late grace rides the sustain, capped 1s), disambiguates
+  // overlapping candidates by PITCH (an adjacent fret is 100¢ — candidates never
+  // cross-verify), and subtracts a latency offset from the judging playhead
+  // (its shipped default 0.080s). SlopScale's old model — serialized first-match
+  // active note + a 2-CONSECUTIVE-frame streak on the raw clock — judged every
+  // attack against the PREVIOUS note in continuous runs (the chromatic
+  // "unforgiving" complaint). See docs/timing-judging-roundtable.md.
+  const PT_DETECT_LATENCY = 0.080;  // judge at currentPracticeTime − this (host's shipped default)
+  const PT_WIN_EARLY = 0.100;       // candidate window opens this early (host: early-strict ±100ms)
+  const PT_WIN_LATE  = 0.100;       // late pad past the ring end
+  const PT_RING_CAP  = 1.0;         // ring credit rides the sustain, capped (host: min(sus, 1s))
+  const PT_EVID_PAIR_MS = 150;      // two in-window frames ≤ this apart = a hit. The anti-sweep
+                                    // guard: the detector's lock-on sweep crosses a ±50¢ window in
+                                    // a SINGLE frame (measured +4023¢ → +485¢ → −285¢), so one frame
+                                    // never scores — but unlike the old consecutive-streak rule, a
+                                    // boundary-jitter frame no longer resets earned evidence.
+  const PT_BEND_CENTS = 600;        // bn notes: lenient pitch gate (host convention — the hit rides
+                                    // presence + timing, never a moving bend target)
   // Per-note identity key for the #254 gem hook: the host highway calls
   // bundle.getNoteState(note, note.t) and matches notes by (s, f, t), so we judge on
   // that same composite — reference-independent (the highway may normalize our notes).
   const ptKey = (n) => n.s + '|' + n.f + '|' + Math.round((n.t || 0) * 1e4);
+  // ── Precomputed window table — ONE source of truth for both ears ───────────
+  // Built once per run in startPitchTracker from the judged set, grouped by
+  // onset-group (a chord = one window). matchStart/matchEnd are the PARALLEL
+  // candidate bounds (YIN ear; same-pitch neighbors clamp at the midpoint — the
+  // one case pitch can't disambiguate, so a ringing chug/pedal can't credit its
+  // successor). exclStart/exclEnd are the midpoint-split EXCLUSIVE bounds: the
+  // verifier's one-target-at-a-time owner and the passed denominator. The cursor
+  // is monotonic; a backward seek ≥ 0.25s (loop wrap, overview click-seek)
+  // re-searches from the top — mirrors the host's backward-seek note reopen.
+  let _ptWin = [];                 // [{ key, t, susEff, matchStart, matchEnd, exclStart, exclEnd, notes[], pcs, lastEvidMs }]
+  let _ptWinByKey = new Map();     // ptKey(note) → window entry (gem miss-arming)
+  let _ptWinLo = 0;                // monotonic cursor: first entry with matchEnd > tJudge
+  let _ptWinLastT = -Infinity;
+  let _ptWinPassedNotes = [];      // prefix sums of notes.length → passed denominator is O(1)
+  let _ptMeterEma = { key: null, cents: NaN };  // display-only cents smoothing (scoring uses raw frames)
+  function ptBuildWindows(notes, gk) {
+    _ptWin = []; _ptWinByKey = new Map(); _ptWinLo = 0; _ptWinLastT = -Infinity; _ptWinPassedNotes = [];
+    _ptMeterEma = { key: null, cents: NaN };
+    const groups = new Map();
+    for (const n of notes) { const k = gk(n); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(n); }
+    const wins = [...groups.entries()].map(([key, gn]) => {
+      const t = Math.min(...gn.map(n => n.t));
+      const susEff = Math.min(PT_RING_CAP, Math.max(...gn.map(n => n.sus || 0.24)));
+      const pcs = new Set(gn.map(n => (_ptOpenMidis[n.s] ?? 0) + n.f));
+      return { key, t, susEff, matchStart: t - PT_WIN_EARLY, matchEnd: t + susEff + PT_WIN_LATE,
+               exclStart: t - PT_WIN_EARLY, exclEnd: t + susEff + PT_WIN_LATE, notes: gn, pcs, lastEvidMs: -Infinity };
+    }).sort((a, b) => a.t - b.t);
+    for (let i = 0; i + 1 < wins.length; i++) {
+      const a = wins[i], b = wins[i + 1], mid = (a.t + b.t) / 2;
+      a.exclEnd = Math.min(a.exclEnd, mid); b.exclStart = Math.max(b.exclStart, mid);
+      let share = false; for (const pc of a.pcs) if (b.pcs.has(pc)) { share = true; break; }
+      if (share) { a.matchEnd = Math.min(a.matchEnd, mid); b.matchStart = Math.max(b.matchStart, mid); }
+    }
+    let acc = 0;
+    for (const w of wins) { acc += w.notes.length; _ptWinPassedNotes.push(acc); for (const n of w.notes) _ptWinByKey.set(ptKey(n), w); }
+    _ptWin = wins;
+  }
+  function ptWinSeek(tJudge) {   // advance (or re-search) the cursor; returns it
+    if (tJudge < _ptWinLastT - 0.25) _ptWinLo = 0;
+    _ptWinLastT = tJudge;
+    while (_ptWinLo < _ptWin.length && _ptWin[_ptWinLo].matchEnd <= tJudge) _ptWinLo++;
+    return _ptWinLo;
+  }
+  function ptWinPassedCount(tJudge) {   // notes whose candidate window fully passed (the denominator)
+    const lo = ptWinSeek(tJudge);
+    return lo > 0 ? _ptWinPassedNotes[lo - 1] : 0;
+  }
+  function ptWinOwnerAt(tJudge) {       // the one-target owner (midpoint-split exclusive bounds)
+    for (let i = ptWinSeek(tJudge); i < _ptWin.length; i++) {
+      const w = _ptWin[i];
+      if (w.exclStart > tJudge) break;
+      if (tJudge < w.exclEnd) return w;
+    }
+    return null;
+  }
   // ── Verifier-backed scoring (host note_detect timing-free verify API) ───────
   // When the host exposes window.noteDetect.setVerifyTarget (notedetect #61),
   // we score against the harmonic-comb VERIFIER instead of the monophonic YIN
@@ -2741,18 +2811,15 @@
   function ndVerifyAvailable() {
     return typeof window.noteDetect?.setVerifyTarget === 'function';
   }
-  // Active group at the playhead: the first judged note whose window contains t,
-  // plus every judged note sharing its strum-group/onset key (so a chord is
-  // pushed and judged as one target). Mirrors ptOnPitch's window + start's _gk.
+  // Active group at the playhead: the window-table OWNER on the latency-shifted
+  // judge clock. The verifier's evidence runs ~50–170ms behind the string (its
+  // analysis buffer is history), so anchoring the push on tJudge holds each
+  // target through that arrival instead of swapping at the nominal boundary —
+  // and midpoint-split exclusive bounds hand off promptly in dense runs.
   function _ndActiveGroupAt(t) {
-    let active = null;
-    for (const n of _ptNotes) {
-      if (n.t - 0.06 <= t && t <= n.t + (n.sus || 0.24) + 0.06) { active = n; break; }
-    }
-    if (!active) return { key: null, notes: [] };
-    const gk = (active.ch != null) ? ('c' + active.ch) : ('t' + active.t);
-    const notes = _ptNotes.filter(n => ((n.ch != null) ? ('c' + n.ch) : ('t' + n.t)) === gk);
-    return { key: gk + '@' + Math.round((active.t || 0) * 1e4), notes };
+    const w = ptWinOwnerAt(t - PT_DETECT_LATENCY);
+    if (!w) return { key: null, notes: [] };
+    return { key: w.key + '@' + Math.round((w.t || 0) * 1e4), notes: w.notes };
   }
   // Push (or refresh) the verify target for the current playhead. Cheap: only
   // re-pushes when the active group changes. Clears the target between notes so
@@ -9391,10 +9458,10 @@
           const contentLen = duration - (activeBundle.leadIn || 0);
           playAnchorChartTime -= contentLen;
           currentPracticeTime -= contentLen;
-          // Scoring hygiene (dev-ops audit ride-along): a pitch-streak must not
-          // survive the loop wrap — two matching frames a whole pass apart are
-          // not consecutive evidence of a held note.
-          _ptStreak = { key: null, count: 0 };
+          // Scoring hygiene across the wrap is inherent now: the window cursor
+          // re-searches on the backward clock jump (ptWinSeek), and armed
+          // evidence can't pair across it — the PT_EVID_PAIR_MS (150ms) gate
+          // rejects frames a whole pass apart in wall time.
         }
       }
       // Verifier scoring: refresh the harmonic-comb verify target for the
@@ -9978,31 +10045,76 @@
   function presentSessionSummary() {
     renderProgressSheet();
     // Deliberate ends (the Stop button / a finite run completing) pop the
-    // RESULTS modal — the detection-testing instrument (Christian, 2026-06-06).
-    // The P-sheet no longer auto-opens; the gamified progress content lives
-    // COLLAPSED inside the modal's disclosure ("keep the progress bar
-    // collapsed unless clicked"). Sideways stops stay quiet.
-    if (_lastEndedSession && _deliberateStop) showResultsModal(_lastEndedSession);
+    // RESULTS modal. Sideways stops stay quiet — and JAM never judges: a
+    // deliberate Jam stop must not pop a graded % (mirror, not judge; the
+    // 2026-06-06 panel caught this leaking through the custom-mode path).
+    if (_lastEndedSession && _deliberateStop && !_lastEndedSession.jam) showResultsModal(_lastEndedSession);
   }
-  // ── End-of-run RESULTS modal (2026-06-06) ──────────────────────────────────
-  // The detection-testing instrument: raw hit/judged/% + the honesty breakdown
-  // (what was exempt and WHY, and which ear judged — YIN vs the note_detect
-  // verifier) so Christian + the host devs can gauge what the detection stack
-  // needs. Numbers are RAW (a >100% readout is the known hits>passed counting
-  // nit made visible — diagnostic, not cosmetic). Reuses the packs-modal
-  // overlay + cheat-card chrome; never touches Escape (host-owned).
+  // ── End-of-run RESULTS modal (redesigned 2026-06-06, three-lane panel) ──────
+  // Player-first hierarchy: VERDICT (earned only) → the % readout (always
+  // neutral — meter-green belongs to cleared things, never to a number) → the
+  // inline PROGRESS strip (mini rung-ladder, gained-only deltas, ONE recognizer
+  // line) → practiced → "▸ Details" (the detection diagnostics, demoted NEVER
+  // deleted — the DapperTap instrument; its open state persists for dev use) →
+  // a close-and-arm CTA row (nothing autoplays). Three outcomes: earned (one
+  // hero, meter-green edge), ordinary (% leads, forward signpost), rough
+  // (encouraging, optional step-down, no red). Honest empty states never
+  // celebrate. Numbers stay RAW (>100% = the known counting nit, visible).
+  // Reuses the packs-modal overlay + cheat-card chrome; never touches Escape.
+  function jamStyleForPathway(pwId) {
+    if (!pwId) return null;
+    if (String(pwId).startsWith('blues')) return 'blues';
+    const band = PATHWAY_BANDS.find(b => Array.isArray(b.pathways) && b.pathways.includes(pwId));
+    if (band && band.kind === 'style') {
+      const sid = band.id.replace(/^style_/, '');
+      if (STYLE_PALETTES[sid]) return sid;
+    }
+    return null;
+  }
   function showResultsModal(s) {
     const root = $('slopscale-root'), body = $('slopscale-results-body'), title = $('slopscale-results-title');
     if (!root || !body || !s) return;
     const r = s.results || {};
     const info = r.info || null;
+    const reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     const mins = Math.floor(s.duration_ms / 60000), secs = Math.round((s.duration_ms % 60000) / 1000);
-    let headline, sub, cls = '';
-    if (r.judgedPassed > 0) {
-      const pct = Math.round((r.hits / r.judgedPassed) * 100);
-      cls = pct >= 80 ? 'good' : pct >= 60 ? 'mid' : 'low';
+    const dur = `${mins}:${String(secs).padStart(2, '0')}`;
+    const judged = r.judgedPassed > 0;
+    const pct = judged ? Math.round((r.hits / r.judgedPassed) * 100) : null;
+    // Passive-flip cap (gamification guardrail): a Custom-mode run can flip an
+    // unrelated pathway's tier via the ±5 BPM attribution — that flip records
+    // (P-sheet) but never takes the hero slot here; only a pathway run's own
+    // tier flip is an earned verdict.
+    const ownTierFlip = !!(s.tierCleared && s.clearedTier != null && s.mode === 'pathway');
+    const earned = !!(s.proof || ownTierFlip || (s.depth && s.depth.travelRung));
+    const rough = judged && pct < 65 && !earned;
+    let xpOff = false; try { xpOff = (progressLoad().mode === 'off'); } catch (_) {}
+
+    // 1 · VERDICT slot — earned outcomes only; ONE hero (proof > tier > travel).
+    let verdict = '';
+    if (s.proof) {
+      const claim = s.proof.kind === 'guide_tones'
+        ? `✓ You proved: ${s.proof.label} — you connected the changes at ${s.proof.tierName} tempo`
+        : `✓ You proved: ${s.proof.label} holds at ${s.proof.tierName} tempo`;
+      const psub = s.proof.kind === 'guide_tones'
+        ? `Your line voice-led to the guide tones (3rd &amp; 7th)${s.proof.progression ? ` through the ${s.proof.progression}` : ''}. ${s.proof.transfer || ''}`.trim()
+        : (s.proof.transfer || '');
+      verdict = `<div class="slopscale-ss-cleared slopscale-results-verdict">${claim}</div>` +
+        (psub ? `<div class="slopscale-ss-sub slopscale-ss-transfer">${psub}</div>` : '') +
+        `<button type="button" class="slopscale-ss-copy" data-act="copy-proof" title="Copy a plain-text card to share">Copy progress card</button>`;
+    } else if (ownTierFlip) {
+      verdict = `<div class="slopscale-ss-cleared slopscale-results-verdict">▲ Rung cleared — ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}</div>`;
+    } else if (s.depth && s.depth.travelRung) {
+      verdict = `<div class="slopscale-ss-cleared slopscale-results-verdict">▲ Travel rung cleared — it travels now</div>`;
+    }
+
+    // 2 · the % readout — ALWAYS neutral color; the sub-line keeps the
+    // load-bearing word "judged" + the one-clause exemption disclosure.
+    let headline, sub;
+    if (judged) {
       headline = `${pct}%`;
-      sub = `<strong>${r.hits}</strong> hit of <strong>${r.judgedPassed}</strong> judged notes`;
+      const shownNot = (info && info.total > info.judged) ? ` · ${info.total - info.judged} shown, not judged` : '';
+      sub = `<strong>${r.hits}</strong> hit of <strong>${r.judgedPassed}</strong> judged notes${shownNot}`;
     } else if (!r.hadInput) {
       headline = 'Not judged';
       sub = 'No mic input reached the scorer this run — the click was the judge.';
@@ -10010,34 +10122,237 @@
       headline = '—';
       sub = 'Mic heard, but no judged notes passed (all content exempt, or the run ended early).';
     }
-    const rows = [];
-    if (r.judgedPassed > 0 && r.missed > 0) rows.push(`Missed <strong>${r.missed}</strong>`);
-    if (info) {
-      rows.push(`Judged universe: <strong>${info.judged}</strong> of <strong>${info.total}</strong> chart notes`);
-      if (info.exemptChords) rows.push(`Shown, not judged: <strong>${info.exemptChords}</strong> chord notes (mono detector)`);
-      if (info.exemptSubFloor) rows.push(`Below the 70 Hz mic floor: <strong>${info.exemptSubFloor}</strong> notes (the click judges those)`);
-      rows.push(`Ear: <strong>${info.ear}</strong>`);
+
+    // 4 · inline PROGRESS strip — what this run CHANGED (state lives in the
+    // P-sheet). Gained-only; in XP-Off only the functional ladder facts remain.
+    const stripBits = [];
+    if (s.ladder && s.ladder.tiers.length) {
+      const rungs = s.ladder.tiers.map((b, i) => {
+        const clr = i <= s.ladder.highestCleared;
+        const isNew = !xpOff && s.tierCleared && i === s.clearedTier;
+        return `<span class="slopscale-results-rung${clr ? ' cleared' : ''}${isNew ? ' rung-new' : ''}">${TIER_LABELS[i] || ('T' + (i + 1))}</span>`;
+      }).join('');
+      stripBits.push(`<div class="slopscale-results-ladder">${rungs}</div>`);
     }
-    rows.push(`Practiced <strong>${mins}:${String(secs).padStart(2, '0')}</strong>${s.bpm ? ` @ <strong>${s.bpm}</strong> BPM` : ''}`);
+    if (!xpOff) {
+      const d = s.depth, deltas = [];
+      if (d && d.xpGained > 0) deltas.push(`+${d.xpGained} XP`);
+      if (s.streak > 0) deltas.push(s.streak === 1 ? 'Streak started — day 1' : `Day ${s.streak}`);
+      // Distance-to-next-rung: the descriptive goal-gradient ("12 BPM to Push").
+      if (s.ladder && !s.tierCleared && s.bpm != null) {
+        const nIdx = (s.ladder.highestCleared ?? -1) + 1;
+        if (nIdx < s.ladder.tiers.length && s.ladder.tiers[nIdx] > s.bpm) {
+          deltas.push(`${s.ladder.tiers[nIdx] - s.bpm} BPM to ${TIER_LABELS[nIdx] || ('T' + (nIdx + 1))}`);
+        }
+      }
+      if (deltas.length) stripBits.push(`<div class="slopscale-results-deltas">${deltas.join(' · ')}</div>`);
+      // "Best here" — a STANDING TARGET FACT (L&D ruling 2026-06-06): no "today",
+      // no "was", no gap — the UI never performs the comparison for the player.
+      // Suppressed on rough runs, before 3 same-spec runs, and when today IS the
+      // best (the recognizer below carries that, upward).
+      if (s.specBest && !rough && s.specBest.runs >= 3 && !s.specBest.isNew) {
+        stripBits.push(`<div class="slopscale-results-deltas">Best here: ${s.specBest.best}%</div>`);
+      }
+      // ONE recognizer line, accent-colored (a new-best is new ground, not a clear).
+      if (s.recognizer && s.recognizer.kind === 'first_clear') {
+        stripBits.push(`<div class="slopscale-results-recog">First clear on ${s.displayName}</div>`);
+      } else if (s.recognizer && s.recognizer.kind === 'fastest') {
+        stripBits.push(`<div class="slopscale-results-recog">Fastest clean run — ${s.recognizer.bpm} BPM (was ${s.recognizer.prev})</div>`);
+      } else if (s.recognizer && s.recognizer.kind === 'best_pct') {
+        stripBits.push(`<div class="slopscale-results-recog">New best here — ${s.recognizer.pct}% (was ${s.recognizer.prev}%)</div>`);
+      } else if (d && d.travelKey) {
+        stripBits.push(`<div class="slopscale-results-recog">New ground — first clean run in ${d.travelKey}</div>`);
+      }
+    }
+    const strip = stripBits.length ? `<div class="slopscale-results-strip">${stripBits.join('')}</div>` : '';
+
+    // 6 · ▸ How this run was judged — player language ("name the capability,
+    // never the implementation", 2026-06-06 copy round): the rows answer "did
+    // you count everything? → why not those? → what was listening?", every
+    // exemption phrased as the system's limit, never the player's fault. The
+    // dev-verbatim strings (byte-comparable across detection builds) ride as
+    // dim mono tails behind the `slopscale.resultsVerbose` flag, with a Copy
+    // diagnostics button — the field-debugging instrument.
+    let verbose = false; try { verbose = localStorage.getItem('slopscale.resultsVerbose') === 'on'; } catch (_) {}
+    const devTail = (t) => verbose ? ` <span class="slopscale-results-dev">${t}</span>` : '';
+    const rows = [];
+    if (judged && r.missed > 0) rows.push(`Missed: <strong>${r.missed}</strong> judged notes`);
+    if (info) {
+      const exempt = info.total - info.judged;
+      if (exempt > 0) {
+        rows.push(`Judged: <strong>${info.judged}</strong> of <strong>${info.total}</strong> — the other ${exempt} were shown, not judged:${devTail(`(judged ${info.judged}/${info.total})`)}`);
+        if (info.exemptChords) rows.push(`<span class="slopscale-results-exrow">· <strong>${info.exemptChords}</strong> chord notes — this ear hears one note at a time${devTail('(mono detector)')}</span>`);
+        if (info.exemptSubFloor) rows.push(`<span class="slopscale-results-exrow">· <strong>${info.exemptSubFloor}</strong> notes too low for the mic to hear — play them with the click; they never count against you${devTail('(&lt; 70 Hz floor)')}</span>`);
+        if (info.exemptMuted) rows.push(`<span class="slopscale-results-exrow">· <strong>${info.exemptMuted}</strong> muted ghost notes — a good mute has no pitch to judge${devTail('(mt, pitch-exempt)')}</span>`);
+      } else {
+        rows.push(`Every note judged: <strong>${info.judged}</strong> of <strong>${info.total}</strong>`);
+      }
+      const earPlayer = String(info.ear || '').indexOf('verifier') === 0
+        ? 'chord-aware verifier · single-note for the display meter'
+        : 'single-note (the mic hears one pitch at a time)';
+      rows.push(`Ear: <strong>${earPlayer}</strong>${devTail(`(${info.ear})`)}`);
+    }
+    let detailsOpen = false; try { detailsOpen = localStorage.getItem('slopscale.resultsDetails') === 'open'; } catch (_) {}
+
+    // 7 · CTA row — close-and-arm, never autoplay; CHALLENGE voice (2026-06-06
+    // copy round): the dare names the destination ("Take it to 88"), the dim
+    // sub-line carries the climb state counting TOWARD the named summit (never
+    // "2 left" — destination, not remainder). Per outcome: clear → the dare up;
+    // re-running cleared ground → point UP (don't loop the past); not-yet-cleared
+    // → "Run it back" with the stake as possibility; rough → no rung-talk, the
+    // step-down reframed as the smart move ("Lock it in"); SUMMIT → open the
+    // next AXIS (Jam), never a completion readout. Empty states: quiet Done only.
+    const hasResult = judged || r.hadInput;
+    const jamStyle = jamStyleForPathway(s.pathway_id);
+    let primary = null, stepdown = null, secondaryAgain = false;
+    const lastIdx = s.ladder ? s.ladder.tiers.length - 1 : -1;
+    const tname = (i) => TIER_LABELS[i] || ('T' + (i + 1));
+    const climbSub = (i) => i >= lastIdx ? `${tname(i)} · the top rung` : `${tname(i)} · ${lastIdx - i + 1} rungs to ${tname(lastIdx)}`;
+    const dareUp = (i) => ({ act: 'next-tier', idx: i, label: `Take it to ${s.ladder.tiers[i]} ▸`, sub: climbSub(i) });
+    if (hasResult) {
+      const hi = s.ladder ? s.ladder.highestCleared : -1;
+      if (rough) {
+        primary = { act: 'again', label: 'Run it back ▸' };   // no rung-talk at a rough moment
+        if (s.ladder && s.bpm_tier != null && s.bpm_tier > 0) {
+          const dIdx = s.bpm_tier - 1;
+          stepdown = { idx: dIdx, label: `Lock it in at ${s.ladder.tiers[dIdx]} ▸` };
+        }
+      } else if (s.ladder && lastIdx >= 0 && hi >= lastIdx) {
+        // SUMMIT — every rung cleared: the destination is playing, not repeating.
+        primary = jamStyle
+          ? { act: 'jam', label: 'Jam this skill ▸', sub: `${tname(lastIdx)} cleared · the destination is playing` }
+          : { act: 'again', label: 'Run it back ▸', sub: `${tname(lastIdx)} cleared` };
+        secondaryAgain = !!jamStyle;
+      } else if (s.tierCleared && s.clearedTier != null && s.ladder && s.clearedTier + 1 < s.ladder.tiers.length) {
+        primary = dareUp(s.clearedTier + 1);
+      } else if (s.ladder && s.bpm_tier != null && s.bpm_tier <= hi && hi + 1 < s.ladder.tiers.length) {
+        // Re-running already-cleared ground: point UP, demote the rerun.
+        primary = dareUp(hi + 1);
+        primary.sub = `${tname(s.bpm_tier)} is yours — ${tname(hi + 1)} is next`;
+        secondaryAgain = true;
+      } else if (s.ladder && s.bpm_tier != null && s.bpm_tier > hi) {
+        primary = { act: 'again', label: 'Run it back ▸', sub: `a clean pass clears ${tname(s.bpm_tier)}` };
+      } else {
+        primary = { act: 'again', label: 'Run it back ▸' };
+      }
+    }
+    const btnHtml = (p) => `<span class="cta-dare">${p.label}</span>` + (p.sub ? `<span class="cta-sub">${p.sub}</span>` : '');
+    const ctaHtml =
+      `<div class="slopscale-results-cta">` +
+      (primary ? `<button type="button" id="slopscale-results-primary" class="slopscale-results-primary">${btnHtml(primary)}</button>` : '') +
+      (secondaryAgain ? `<button type="button" id="slopscale-results-again" class="slopscale-results-quiet">Run it back</button>` : '') +
+      (stepdown ? `<button type="button" id="slopscale-results-stepdown" class="slopscale-results-quiet">${stepdown.label}</button>` : '') +
+      (jamStyle && !rough && !(primary && primary.act === 'jam') ? `<button type="button" id="slopscale-results-jam" class="slopscale-results-quiet">Jam this skill</button>` : '') +
+      `<button type="button" id="slopscale-results-done" class="slopscale-results-quiet">Done</button>` +
+      `</div>`;
+
     if (title) title.textContent = `Results — ${s.displayName || 'Practice'}`;
     body.innerHTML =
-      `<div class="slopscale-results-pct ${cls}">${headline}</div>` +
+      verdict +
+      `<div class="slopscale-results-pct">${(judged && !reduceMotion) ? '0%' : headline}</div>` +
       `<div class="slopscale-results-head">${sub}</div>` +
-      `<div class="slopscale-results-rows">${rows.map(t => `<div>${t}</div>`).join('')}</div>` +
-      `<button type="button" id="slopscale-results-progress-toggle" class="slopscale-results-progress-toggle" aria-expanded="false">▸ Progress</button>` +
-      `<div id="slopscale-results-progress" hidden></div>`;
-    $('slopscale-results-progress-toggle')?.addEventListener('click', () => {
-      const sec = $('slopscale-results-progress'), btn = $('slopscale-results-progress-toggle');
+      strip +
+      `<div class="slopscale-results-practiced">Practiced ${dur}${s.bpm ? ` @ ${s.bpm} BPM` : ''}</div>` +
+      `<button type="button" id="slopscale-results-details-toggle" class="slopscale-results-progress-toggle" aria-expanded="${detailsOpen}">${detailsOpen ? '▾' : '▸'} How this run was judged</button>` +
+      `<div id="slopscale-results-details" class="slopscale-results-rows"${detailsOpen ? '' : ' hidden'}>${rows.map(t => `<div>${t}</div>`).join('')}` +
+      (verbose && info ? `<button type="button" id="slopscale-results-copydiag" class="slopscale-results-quiet">Copy diagnostics</button>` : '') +
+      `</div>` +
+      ctaHtml;
+
+    // Earned-outcome chrome (the meter-green top edge) + the entry animation.
+    const card = root.querySelector('.slopscale-results-card');
+    if (card) {
+      card.classList.toggle('ss-earned', earned && hasResult);
+      card.classList.remove('ss-enter'); void card.offsetWidth; card.classList.add('ss-enter');
+    }
+    // The % count-up — the meter-settling idiom (an LCD landing on its value).
+    // Never on empty states; reduced-motion gets the final value immediately.
+    if (judged && !reduceMotion) {
+      const el = body.querySelector('.slopscale-results-pct');
+      const t0 = performance.now(), durMs = 550;
+      const step = (now) => {
+        if (!el.isConnected) return;
+        const k = Math.min(1, (now - t0) / durMs);
+        el.textContent = Math.round(pct * (1 - Math.pow(1 - k, 3))) + '%';
+        if (k < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+    // Wiring — all CTAs close-and-arm (load config, focus Play, start nothing).
+    const focusPlay = () => { $('slopscale-play')?.focus(); };
+    $('slopscale-results-done')?.addEventListener('click', () => closeResultsModal());
+    $('slopscale-results-primary')?.addEventListener('click', () => {
+      closeResultsModal();
+      if (primary && primary.act === 'next-tier') {
+        activeTempoTierIdx = primary.idx;
+        setFieldSilent('bpm', String(s.ladder.tiers[primary.idx]));
+        syncTempoTierButtons();
+        onGenerate();
+        focusPlay();
+      } else if (primary && primary.act === 'jam') {
+        selectMode('jam');
+        document.querySelector(`#slopscale-jam-styles .slopscale-jam-style[data-style="${jamStyle}"]`)?.click();
+      } else {
+        focusPlay();
+      }
+    });
+    $('slopscale-results-again')?.addEventListener('click', () => { closeResultsModal(); focusPlay(); });
+    $('slopscale-results-copydiag')?.addEventListener('click', (ev) => {
+      // The verbatim dev block — byte-comparable across detection builds; the
+      // "paste it in Discord" field-debugging instrument.
+      const diag = [
+        `SlopScale run diagnostics — ${s.displayName || 'Practice'}`,
+        `hits ${r.hits} / judgedPassed ${r.judgedPassed} / missed ${r.missed} / hadInput ${r.hadInput}`,
+        info ? `judged universe: ${info.judged} of ${info.total} chart notes` : '',
+        info && info.exemptChords ? `exempt chords: ${info.exemptChords} (mono detector)` : '',
+        info && info.exemptSubFloor ? `exempt sub-floor: ${info.exemptSubFloor} (< 70 Hz)` : '',
+        info && info.exemptMuted ? `exempt muted: ${info.exemptMuted} (mt)` : '',
+        info ? `ear: ${info.ear}` : '',
+        `bpm ${s.bpm} · practiced ${dur}`,
+      ].filter(Boolean).join('\n');
+      try { navigator.clipboard.writeText(diag); ev.target.textContent = 'Copied ✓'; } catch (_) {}
+    });
+    $('slopscale-results-stepdown')?.addEventListener('click', () => {
+      closeResultsModal();
+      if (stepdown) {
+        activeTempoTierIdx = stepdown.idx;
+        setFieldSilent('bpm', String(s.ladder.tiers[stepdown.idx]));
+        syncTempoTierButtons();
+        onGenerate();
+      }
+      focusPlay();
+    });
+    $('slopscale-results-jam')?.addEventListener('click', () => {
+      closeResultsModal();
+      selectMode('jam');
+      document.querySelector(`#slopscale-jam-styles .slopscale-jam-style[data-style="${jamStyle}"]`)?.click();
+    });
+    $('slopscale-results-details-toggle')?.addEventListener('click', () => {
+      const sec = $('slopscale-results-details'), btn = $('slopscale-results-details-toggle');
       if (!sec || !btn) return;
       const open = sec.hidden;
       sec.hidden = !open;
       btn.setAttribute('aria-expanded', String(open));
-      btn.textContent = (open ? '▾' : '▸') + ' Progress';
-      if (open && !sec.innerHTML) sec.innerHTML = sessionSummaryCardHtml() || '<div class="slopscale-pm-coming">Nothing new this run.</div>';
+      btn.textContent = (open ? '▾' : '▸') + ' How this run was judged';
+      try { localStorage.setItem('slopscale.resultsDetails', open ? 'open' : 'closed'); } catch (_) {}
+    });
+    body.querySelector('[data-act="copy-proof"]')?.addEventListener('click', (ev) => {
+      try { navigator.clipboard.writeText(proofCardText(s)); ev.target.textContent = 'Copied ✓'; } catch (_) {}
     });
     root.classList.add('ss-results-open');
+    ($('slopscale-results-primary') || $('slopscale-results-done'))?.focus();
   }
-  function closeResultsModal() { $('slopscale-root')?.classList.remove('ss-results-open'); }
+  function closeResultsModal() {
+    const root = $('slopscale-root'); if (!root) return;
+    root.classList.remove('ss-results-open');
+    // The rail tier-glow fired at sessionEnd UNDER the modal scrim and burned out
+    // unseen (UX finding 2026-06-06). Re-fire on dismiss so the player watches the
+    // real artifact — the rail ladder — carry the new state.
+    const s = _lastEndedSession;
+    if (s && s.tierCleared && s.clearedTier != null && !s.jam) {
+      _newlyUnlockedTier = s.clearedTier; syncTempoTierButtons(); _newlyUnlockedTier = null;
+    }
+  }
   // Progress sheet content (gamification's slot). Renders the "Last session" card
   // (if any) + streak + per-pathway tempo-tier dots — with an honest "coming" state
   // for XP/badges, since the slopscale.progress store is unbuilt (don't fake XP).
@@ -10708,9 +11023,9 @@
     playAnchorChartTime = currentPracticeTime;
     playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
     scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
-    // Scoring hygiene: frames either side of a pause are not consecutive
-    // evidence of a held note (mirrors the loop-wrap streak reset).
-    _ptStreak = { key: null, count: 0 };
+    // Scoring hygiene across a pause is inherent: paused frames are discarded
+    // in ptOnPitch, and armed evidence can't pair across the gap — the
+    // PT_EVID_PAIR_MS (150ms) gate rejects frames a pause apart in wall time.
     syncPlayButton(); refreshStatusFromState();
   }
   // Dedicated transport Stop (the button left of Play/Pause). Acts on a running
@@ -11006,7 +11321,10 @@
       : cell('Key', `${cfg.key} ${String(cfg.scale || '').replace(/_/g, ' ')}`);
     return [
       keyCell,
-      cell('Tempo', `${cfg.bpm} BPM`),
+      // Tempo is an editable LCD cell (DAW transport convention): same glyphs as
+      // a readout, commits via the delegated handler in bind() (two-way with the
+      // Inspector BPM field). Sessions (above) keep no tempo cell — mixed tempos.
+      `<div class="slopscale-lcd-cell"><span class="slopscale-lcd-lbl">Tempo</span><span class="slopscale-lcd-val"><input id="slopscale-lcd-bpm" class="slopscale-lcd-input" type="number" min="30" max="260" step="1" value="${esc(cfg.bpm)}" aria-label="Tempo (BPM)" title="Click to edit the tempo — applies on Enter"> BPM</span></div>`,
       cell('Meter', `${cfg.meter.numerator}/${cfg.meter.denominator}`),
       cell('Bars', bars),
       cell('Length', len),
@@ -12643,7 +12961,10 @@
     _ptRunInfo = null;   // a run with no scorer leaves no stale diagnostics
     if (!ptAvailable() && !ndVerifyAvailable()) return;
     stopPitchTracker();
-    const allNotes = [...(bundle.notes || [])].sort((a, b) => a.t - b.t);
+    // _tail copies are the renderer's visual loop-preview, not playable content —
+    // unfiltered they inflated the judged universe and could phantom-credit an
+    // anticipated next-pass note at the loop seam (2026-06-06 panel finding).
+    const allNotes = (bundle.notes || []).filter(n => !n._tail).sort((a, b) => a.t - b.t);
     // ── Chord exemption (2026-06-05, the DapperTap report) ────────────────────
     // The host detector is MONOPHONIC, and probe-verified (probe-chord-detector.mjs)
     // it reports NOTHING usable for simultaneous notes — YIN's confidence collapses
@@ -12673,12 +12994,15 @@
     // polyphonic, so chords/diads become judged (shown AND scored), not exempt.
     // The sub-floor exemption stays — a mic still can't hear sub-70Hz strings.
     _ndVerifyMode = ndVerifyAvailable();
-    _ptNotes = allNotes.filter(n => _audible(n) && (_ndVerifyMode || _gCounts.get(_gk(n)) === 1));
+    // Muted ghosts (mt) are never judged — the HOST's own convention (note_detect
+    // skips mt in matchNotes/checkMisses/engine push): correct muting must not
+    // read as a miss (the DapperTap mt bug, fixed the host's way).
+    _ptNotes = allNotes.filter(n => _audible(n) && !n.mt && (_ndVerifyMode || _gCounts.get(_gk(n)) === 1));
     _ptOpenMidis = bundle.openMidis || [];
     _ptScored = new Set();
     _ptByKey = new Map(); for (const n of _ptNotes) _ptByKey.set(ptKey(n), n);   // (s,f,t) → note, for the gem hook
     _ptHadInput = false;
-    _ptStreak = { key: null, count: 0 };
+    ptBuildWindows(_ptNotes, _gk);   // the one window table both ears read
 
     // Verifier-backed scoring (host note_detect timing-free verify, notedetect
     // #61): score against the PLAYER's real tuning (openMidis), polyphonic +
@@ -12710,7 +13034,11 @@
     // must never abort a verifier run.
     if (ptAvailable()) {
       try {
-        _ptHandle = window.slopsmithMinigames.scoring.createContinuous({ smoothingMs: 40 });
+        // smoothingMs 12 ≈ near-raw YIN per frame (the SDK's EMA α→1). The old 40ms
+        // EMA made a semitone step read ~47¢ on its FIRST frame — at the ±50¢ gate
+        // boundary for exactly the chromatic content this judge must catch. The
+        // meter strip re-smooths for display in ptOnPitch; scoring uses raw frames.
+        _ptHandle = window.slopsmithMinigames.scoring.createContinuous({ smoothingMs: 12 });
       } catch (_) { _ptHandle = null; }
       if (_ptHandle && typeof _ptHandle.on === 'function') {
         _ptHandle.on('pitch', ptOnPitch);
@@ -12727,7 +13055,8 @@
       total: allNotes.length,
       judged: _ptNotes.length,
       exemptSubFloor: allNotes.filter(n => !_audible(n)).length,
-      exemptChords: allNotes.filter(n => _audible(n) && !_ndVerifyMode && _gCounts.get(_gk(n)) > 1).length,
+      exemptMuted: allNotes.filter(n => _audible(n) && n.mt).length,
+      exemptChords: allNotes.filter(n => _audible(n) && !n.mt && !_ndVerifyMode && _gCounts.get(_gk(n)) > 1).length,
       ear: _ndVerifyMode ? (_ptHandle ? 'verifier (note_detect) · YIN on display' : 'verifier (note_detect)') : 'YIN mic (minigames)',
     };
     ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: 0, total: 0 });
@@ -12737,46 +13066,69 @@
   function ptOnPitch({ freqHz, confidence }) {
     // Paused: the handle stays alive (gem states keep painting) but frames are
     // discarded — a note held across a frozen clock must never accumulate
-    // streak evidence or score against the note sitting under the playhead.
+    // evidence or score against the note sitting under the playhead.
     if (paused) return;
-    const t = currentPracticeTime;
-    let activeNote = null, activeIdx = -1;
-    for (let i = 0; i < _ptNotes.length; i++) {
-      const n = _ptNotes[i];
-      if (n.t - 0.06 <= t && t <= n.t + (n.sus || 0.24) + 0.06) { activeNote = n; activeIdx = i; break; }
-    }
-    const passedTotal = _ptNotes.filter(n => n.t + (n.sus || 0.24) + 0.06 < t).length;
+    // Judge on the latency-shifted clock: mic capture + analysis means evidence
+    // for an attack at t ARRIVES ~80ms later. The host's grader subtracts the
+    // same offset before matching; we judged at the raw clock until 2026-06-06,
+    // grading an on-time player ~80ms late on every note.
+    const tJudge = currentPracticeTime - PT_DETECT_LATENCY;
+    const passedTotal = ptWinPassedCount(tJudge);
     if (confidence >= 0.55) _ptHadInput = true;   // real input seen → misses may now light (anti "sea of red")
-    if (confidence < 0.55 || !activeNote) {
+    if (confidence < 0.55) {
       ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: _ptScored.size, total: passedTotal });
       return;
     }
-    const openMidi = _ptOpenMidis[activeNote.s];
-    if (openMidi == null) return;
-    const expectedMidi = openMidi + activeNote.f;
-    const cents = Math.round(1200 * Math.log2(freqHz / midiToFreq(expectedMidi)));
-    // Score only after PT_HIT_FRAMES CONSECUTIVE in-tune frames (~80ms at the
-    // 40ms smoothing cadence). The detector's lock-on SWEEPS from startup
-    // garbage through the ±50¢ window in a single frame (measured 2026-06-05:
-    // +4023¢ → +485¢ → -285¢ converging on a -500¢ wrong note — one in-window
-    // frame falsely scored it), so a single frame must never score; any truly
-    // held note yields dozens of consecutive frames. Guarded by
-    // smoke-scoring-e2e's negative control.
-    // YIN scoring runs only when YIN is the scorer. In verifier mode the
-    // harmonic-comb verifier owns hit scoring (_ptScored is written by
-    // ndOnVerify); ptOnPitch is display-only — the streak/±50¢ gate below would
-    // double-judge (and can't see chords), so skip it.
-    const _k = ptKey(activeNote);
+    // PARALLEL candidate matching (host-mirror): every unscored window containing
+    // tJudge is a live candidate, each judged at its OWN pitch; the frame credits
+    // its best pitch match. This replaces the serialized first-match rule that
+    // judged every attack against the PREVIOUS note's window in continuous runs.
+    // Evidence rule: two in-window frames ≤ PT_EVID_PAIR_MS apart (the lock-on
+    // sweep contributes exactly one — guarded by smoke-scoring-e2e's negative
+    // control); a boundary-jitter frame no longer resets earned evidence.
+    // YIN scoring runs only when YIN is the scorer — in verifier mode ptOnPitch
+    // is display-only (ndOnVerify owns _ptScored; double-judging would also
+    // re-admit the chord asymmetry).
     if (!_ndVerifyMode) {
-      if (!_ptScored.has(_k) && Math.abs(cents) <= 50) {
-        if (_ptStreak.key === _k) _ptStreak.count++; else _ptStreak = { key: _k, count: 1 };
-        if (_ptStreak.count >= PT_HIT_FRAMES) _ptScored.add(_k);
-      } else if (_ptStreak.key === ptKey(activeNote) && Math.abs(cents) > 50) {
-        _ptStreak = { key: null, count: 0 };   // out-of-tune frame breaks the streak
+      let best = null, bestAbs = Infinity;
+      for (let i = _ptWinLo; i < _ptWin.length; i++) {
+        const w = _ptWin[i];
+        if (w.matchStart > tJudge) break;
+        if (tJudge >= w.matchEnd) continue;
+        const n = w.notes[0];                    // YIN-judged groups are singletons (chords are the verifier's)
+        if (_ptScored.has(ptKey(n))) continue;   // one-shot per key
+        const om = _ptOpenMidis[n.s];
+        if (om == null) continue;
+        const c = Math.abs(1200 * Math.log2(freqHz / midiToFreq(om + n.f)));
+        const tol = n.bn ? PT_BEND_CENTS : 50;
+        if (c <= tol && c < bestAbs) { best = w; bestAbs = c; }
+      }
+      if (best) {
+        const nowMs = performance.now();
+        if (nowMs - best.lastEvidMs <= PT_EVID_PAIR_MS) {
+          for (const n of best.notes) _ptScored.add(ptKey(n));
+        } else {
+          best.lastEvidMs = nowMs;   // first evidence frame — armed, awaiting its pair
+        }
       }
     }
+    // Meter readout: the midpoint-split OWNER (what you should be playing now),
+    // cents vs its pitch — display only, re-smoothed here because the scoring
+    // handle now runs near-raw (smoothingMs 12).
+    const own = ptWinOwnerAt(tJudge);
+    if (!own) {
+      ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: _ptScored.size, total: passedTotal });
+      return;
+    }
+    const n0 = own.notes[0];
+    const om0 = _ptOpenMidis[n0.s];
+    if (om0 == null) return;
+    const expectedMidi = om0 + n0.f;
+    const cents = 1200 * Math.log2(freqHz / midiToFreq(expectedMidi));
+    if (_ptMeterEma.key !== own.key || !isFinite(_ptMeterEma.cents)) _ptMeterEma = { key: own.key, cents };
+    else _ptMeterEma.cents += 0.45 * (cents - _ptMeterEma.cents);
     const noteName = NOTE_NAMES[((expectedMidi % 12) + 12) % 12] + (Math.floor(expectedMidi / 12) - 1);
-    ptUpdateMeter({ show: true, active: true, cents, note: noteName, hits: _ptScored.size, total: passedTotal });
+    ptUpdateMeter({ show: true, active: true, cents: Math.round(_ptMeterEma.cents), note: noteName, hits: _ptScored.size, total: passedTotal });
   }
 
   function stopPitchTracker() {
@@ -12785,7 +13137,8 @@
     // Clear scoring state so a later silent preview can't read this run's
     // notes/hits and feed stale hit/miss counts to the pathway tier gate.
     _ptNotes = []; _ptScored = new Set(); _ptByKey = new Map(); _ptHadInput = false;
-    _ptStreak = { key: null, count: 0 };
+    _ptWin = []; _ptWinByKey = new Map(); _ptWinLo = 0; _ptWinLastT = -Infinity; _ptWinPassedNotes = [];
+    _ptMeterEma = { key: null, cents: NaN };
     // Return to the resting state instead of hiding — the strip stays a
     // standing affordance between runs (hidden only on detector-less hosts).
     ptUpdateMeter({ show: false });
@@ -12808,7 +13161,11 @@
       const isSustain = (tn.sus || 0) > 0.3;
       return (isSustain && now <= end + 0.05) ? 'active' : 'hit';
     }
-    if (_ptHadInput && now > end + 0.12) return 'miss';     // window passed, never hit, and we know they're playing
+    if (_ptHadInput) {
+      const w = _ptWinByKey.get(k);
+      const missAt = (w ? w.matchEnd : end + 0.06) + 0.10;   // candidate window + display grace
+      if (now - PT_DETECT_LATENCY > missAt) return 'miss';   // window passed on the JUDGE clock, never hit
+    }
     return null;                                            // not yet judged — don't pre-color
   }
 
@@ -12889,7 +13246,7 @@
   // cents (so the tuner can say "tune THIS string to THIS note" — something a
   // generic chromatic tuner can't), and per-string chips lock green after the
   // pitch holds within ±TUNER_LOCK_CENTS for TUNER_LOCK_FRAMES consecutive
-  // frames (the PT_HIT_FRAMES lesson: the detector's lock-on sweep must never
+  // frames (the lock-on-sweep lesson: the detector's pitch sweep must never
   // false-lock a chip). Mic in, nothing out. Stops on Done / Play / screen
   // leave (self-healing in the pitch callback, mirroring the screen-scoped
   // AudioContext discipline). This is also the hand-off surface for the
@@ -13290,7 +13647,11 @@
         if (c && c.bars && c.meter && c.meter.denominator) { try { return Math.round(c.bars * measureSeconds(c) * 1000); } catch (_) {} }
         return Math.round((activeBundle?.songInfo?.duration || 0) * 1000);
       })(),
-      duration_ms: 0, hit_count: 0, miss_count: 0
+      duration_ms: 0, hit_count: 0, miss_count: 0,
+      // Jam is a MIRROR, never a judge: flag at begin so the deliberate-end path
+      // can suppress the graded results modal (panel finding 2026-06-06 — Jam's
+      // Stop was leaking a judged-% modal through the custom-mode path).
+      jam: isJamMode()
     };
     _sessionStartMs = performance.now();
   }
@@ -13302,15 +13663,70 @@
     const durationMs = Math.round(performance.now() - _sessionStartMs - sessionPausedMs());
     // Discard sub-2s blips (accidental clicks, regenerate-while-playing)
     if (durationMs < 2000) { _activeSession = null; return; }
-    const passedTotal = _ptNotes.filter(n => n.t + (n.sus || 0.24) + 0.06 < currentPracticeTime).length;
+    const passedTotal = ptWinPassedCount(currentPracticeTime - PT_DETECT_LATENCY);
     _activeSession.duration_ms = durationMs;
     _activeSession.hit_count   = _ptScored.size;
     _activeSession.miss_count  = Math.max(0, passedTotal - _ptScored.size);
+    // End-of-run redesign (2026-06-06 three-lane panel): read PRIOR store state
+    // before advancePathwayTier mutates it, so first-clear/fastest deltas are real.
+    const _pw = _activeSession.mode === 'pathway' ? _activeSession.pathway_id : null;
+    const _priorEntry = _pw ? pathwayTiersLoad()[_pw] : null;
     const sessions = sessionsLoad();
     sessions.unshift(_activeSession);
     sessionsSave(sessions);
     const unlock = advancePathwayTier(_activeSession);
     const depthGain = advanceDepthLadder(_activeSession);   // XP + Travel axis (Phase 8)
+    // Recognizers (gamification spec): DETERMINISTIC new-bests on stored artifacts —
+    // the honest "variable" reward (unpredictable because the player's growth is;
+    // zero RNG). One line max, precedence first-clear > fastest-clean; "new ground"
+    // (travelKey) stays the render-time fallback. bestBpm rides the same
+    // pathway_tiers entry; a clean run = ≥8 really-judged notes at ≥65% (the
+    // minimum-denominator rule — never issue a claim off a tiny judged set).
+    let recognizer = null;
+    if (_pw) {
+      const judgedN = (_activeSession.hit_count || 0) + (_activeSession.miss_count || 0);
+      const clean = judgedN >= 8 && (_activeSession.hit_count || 0) / judgedN >= 0.65;
+      if (clean && _activeSession.bpm != null) {
+        const all = pathwayTiersLoad(); const cur = all[_pw] || { highest_tier: -1 };
+        const prevBest = cur.bestBpm || 0;
+        if (_activeSession.bpm > prevBest) {
+          cur.bestBpm = _activeSession.bpm; all[_pw] = cur; pathwayTiersSave(all);
+          if (prevBest > 0) recognizer = { kind: 'fastest', bpm: _activeSession.bpm, prev: prevBest };
+        }
+      }
+      if (unlock && !_priorEntry) recognizer = { kind: 'first_clear' };
+    }
+    // "Best here" per-spec store (L&D ruling 2026-06-06): the best % at THIS spec
+    // — drill + BPM + key credit — kept as a STANDING TARGET FACT, never gap
+    // arithmetic. The four suppression rules live at render (same-spec, ≥3 runs,
+    // never on rough runs, hidden when today IS the best — the recognizer carries
+    // that upward). Runs count only when ≥8 notes were really judged, so blips
+    // and mic-less runs never dilute the spec history. Jam never touches it.
+    let specBest = null;
+    if (!_activeSession.jam) {
+      const judgedN2 = (_activeSession.hit_count || 0) + (_activeSession.miss_count || 0);
+      if (judgedN2 >= 8) {
+        const pctNow = Math.round(100 * (_activeSession.hit_count || 0) / judgedN2);
+        const specKey = [
+          _activeSession.mode === 'pathway' ? _activeSession.pathway_id
+            : (_activeSession.mode + ':' + (_activeSession.practice_type || '')),
+          _activeSession.bpm ?? '', _activeSession.key_credit || _activeSession.key || ''
+        ].join('|');
+        let store = {}; try { store = JSON.parse(localStorage.getItem('slopscale.spec_best') || '{}'); } catch (_) {}
+        const cur = store[specKey] || { best: 0, runs: 0 };
+        cur.runs += 1;
+        const isNew = pctNow > cur.best, prevBestPct = cur.best;
+        if (isNew) cur.best = pctNow;
+        store[specKey] = cur;
+        try { localStorage.setItem('slopscale.spec_best', JSON.stringify(store)); } catch (_) {}
+        specBest = { best: cur.best, runs: cur.runs, isNew, prev: prevBestPct };
+        // New-best recognizer — below first_clear/fastest in precedence; upward
+        // past-printing is the established gained-only grammar.
+        if (!recognizer && isNew && prevBestPct > 0 && cur.runs >= 3) {
+          recognizer = { kind: 'best_pct', pct: pctNow, prev: prevBestPct };
+        }
+      }
+    }
     // Snapshot for the P-sheet "Last session" card — descriptive + gained-only,
     // no score/accuracy (mirror not judge; see docs/design-system.md §13).
     let displayName;
@@ -13351,6 +13767,14 @@
       depth: depthGain,   // { xpGained, travelKey, travelRung } | null — Phase 9 card reads this
       proof,              // proof-loop competency claim | null (flagged, pilot, on-flip only)
       streak: streakCount(sessions),
+      jam: !!_activeSession.jam,   // Jam = mirror: the deliberate-end modal is suppressed
+      recognizer,                  // { kind:'first_clear' } | { kind:'fastest', bpm, prev } | { kind:'best_pct', pct, prev } | null
+      specBest,                    // { best, runs, isNew, prev } | null — the standing-target "Best here" line
+      // Mini rung-ladder context for the modal's progress strip (post-update state).
+      ladder: (_pw && PATHWAYS[_pw]) ? {
+        tiers: PATHWAYS[_pw].tempoTiers || [],
+        highestCleared: (pathwayTiersLoad()[_pw] || {}).highest_tier ?? -1,
+      } : null,
       // Detection-testing results (2026-06-06): raw hit/judged counts + the
       // exemption breakdown + which ear judged. Read by showResultsModal —
       // the dev-gauge for the note-detection work. Raw on purpose: a >100%
@@ -13358,9 +13782,12 @@
       results: {
         hits: _activeSession.hit_count,
         missed: _activeSession.miss_count,
-        judgedPassed: passedTotal,
+        // A scored note has certainly been attempted — fold it into the passed
+        // denominator so a mid-window Stop can't show >100% in the player-facing
+        // headline (the old raw display was diagnostic-first by design).
+        judgedPassed: Math.max(passedTotal, _activeSession.hit_count),
         hadInput: _ptHadInput,
-        info: _ptRunInfo,   // { total, judged, exemptChords, exemptSubFloor, ear } | null (no scorer ran)
+        info: _ptRunInfo,   // { total, judged, exemptChords, exemptSubFloor, exemptMuted, ear } | null (no scorer ran)
       },
     };
     _activeSession = null;
@@ -13945,6 +14372,33 @@
   function bind() {
     const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1';
     const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'), advancedToggle = $('slopscale-advanced-toggle');
+    // LCD tempo is EDITABLE in place (DAW transport convention) — two-way with
+    // the Inspector BPM field. Delegated on the strip (the LCD re-renders on
+    // every generate); commit on change (Enter/blur): clamp to the form's
+    // 30–260 bounds, write the form field (dispatching change so dependent
+    // logic runs), regenerate — the same path a tier-button click takes.
+    const lcdHost = $('slopscale-summary');
+    const formBpm = document.querySelector('#slopscale-controls [name="bpm"]');
+    if (lcdHost) {
+      lcdHost.addEventListener('keydown', (e) => {
+        if (e.target && e.target.id === 'slopscale-lcd-bpm' && e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+      });
+      lcdHost.addEventListener('change', (e) => {
+        if (!e.target || e.target.id !== 'slopscale-lcd-bpm') return;
+        const v = Math.max(30, Math.min(260, parseInt(e.target.value, 10) || 0));
+        if (!v || !formBpm) { if (formBpm) e.target.value = formBpm.value; return; }
+        e.target.value = String(v);
+        if (String(formBpm.value) !== String(v)) {
+          formBpm.value = String(v);
+          formBpm.dispatchEvent(new Event('change', { bubbles: true }));
+          onGenerate();
+        }
+      });
+      // Mirror Inspector→LCD live, so the two boxes always agree between generates.
+      formBpm?.addEventListener('input', () => {
+        const lcd = $('slopscale-lcd-bpm'); if (lcd) lcd.value = formBpm.value;
+      });
+    }
     instrument?.addEventListener('change', () => {
       if (!setup) return;
       setup.value = instrument.value === 'bass' ? 'bass_4_standard' : 'guitar_6_standard';
@@ -14711,6 +15165,6 @@
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
   window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, ptPracticeTime: () => currentPracticeTime, ptWindows: () => _ptWin };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();

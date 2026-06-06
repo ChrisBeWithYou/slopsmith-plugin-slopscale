@@ -23,7 +23,9 @@ const browser = await chromium.launch({ headless: true });
 try {
   const r = await fetch(`${HOST}/api/plugins/slopscale/status`).catch(() => null);
   if (!r || !r.ok) throw new Error(`Host not reachable at ${HOST}. launch.ps1 first.`);
-  const p = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await ctx.addInitScript(() => { globalThis.__SS_HARNESS__ = true; });   // row 6 reads __ss_debug (playhead + window table)
+  const p = await ctx.newPage();
   const errs = [];
   p.on("pageerror", e => { if (!isBenign(e.message)) errs.push(e.message); });
   await p.goto(`${HOST}/`, { waitUntil: "domcontentloaded" });
@@ -113,6 +115,52 @@ try {
   ok(c5.structural, "(5a) chord drill yields chord groups + pedal singles (real builder output)");
   ok(c5.singleHit === "hit" || c5.singleHit === "active", "(5b) singles in a chord chart still judge (pedal lights on correct pitch)", `state=${c5.singleHit}`);
   ok(c5.chordLit == null, "(5c) chord members NEVER judged — no hit on a root-matching pitch, no miss after the window (shown, not scored)", `lit=${c5.chordLit}`);
+  await p.click("#slopscale-play").catch(() => {});
+
+  // (6) TIMING-MODEL acceptance (2026-06-06 seven-lane panel): an ON-TIME player
+  // must credit EVERY note of a 160 BPM chromatic 16th run. Structurally
+  // impossible under the old first-match/consecutive-streak judge (each window
+  // opened ~46ms late and the 80ms streak couldn't fit the 94ms slot); the
+  // parallel-window + latency-anchored + evidence-pair model must make it pass.
+  // Also asserts the precomputed window table's exclusive bounds are
+  // non-overlapping (the by-construction invariant both ears rely on).
+  await p.evaluate(() => {
+    const set = (name, v) => { const el = document.querySelector(`#slopscale-controls [name="${name}"]`); if (el) { if (el.type === "checkbox") el.checked = !!v; else el.value = String(v); el.dispatchEvent(new Event("change", { bubbles: true })); } };
+    set("practiceType", "chromatic"); set("stringSetup", "guitar_6_standard");
+    set("meter", "4/4"); set("subdivision", "sixteenth"); set("bpm", "160"); set("bars", "2"); set("countIn", "0");
+  });
+  await p.click("#slopscale-play");
+  const c6 = await p.evaluate(async () => {
+    const dbg = globalThis.__ss_debug;
+    if (!dbg || typeof dbg.ptPracticeTime !== "function") return { wired: false };
+    const b = window.SlopScale.makeBundle(window.SlopScale.generateExercise(window.SlopScale.readConfig()));
+    const om = b.openMidis || [];
+    const notes = b.notes.filter((n) => !n._tail).sort((a, b2) => a.t - b2.t);
+    // window-table invariant: exclusive bounds sorted + non-overlapping
+    let contiguous = true;
+    const ws = dbg.ptWindows();
+    for (let i = 0; i + 1 < ws.length; i++) if (ws[i].exclEnd > ws[i + 1].exclStart + 1e-6) { contiguous = false; break; }
+    // drive an on-time perfect player: each ~15ms, fire the pitch of the note
+    // under the JUDGE clock (playhead − 80ms detector latency)
+    const dur = notes[notes.length - 1].t + 0.6;
+    const deadline = performance.now() + dur * 1000 + 4000;
+    while (performance.now() < deadline) {
+      const tj = dbg.ptPracticeTime() - 0.08;
+      if (tj > notes[notes.length - 1].t + 0.3) break;
+      let nearest = null, nd = Infinity;
+      for (const n of notes) { const d = Math.abs(n.t - tj); if (d < nd) { nd = d; nearest = n; } }
+      if (nearest && window.__fp) {
+        const midi = (om[nearest.s] || 0) + nearest.f;
+        window.__fp({ freqHz: 440 * Math.pow(2, (midi - 69) / 12), confidence: 0.95 });
+      }
+      await new Promise((r2) => setTimeout(r2, 15));
+    }
+    const hit = notes.filter((n) => { const st = b.getNoteState(n); return st === "hit" || st === "active"; }).length;
+    return { wired: true, contiguous, hit, total: notes.length, nWin: ws.length };
+  });
+  ok(c6.wired, "(6a) harness debug surface exposes ptPracticeTime + ptWindows");
+  ok(c6.contiguous, "(6b) window table exclusive bounds are non-overlapping (by-construction invariant)", `windows=${c6.nWin}`);
+  ok(c6.wired && c6.hit === c6.total, "(6c) on-time player credits EVERY note of a 160 BPM chromatic 16th run", `hit=${c6.hit}/${c6.total}`);
   await p.click("#slopscale-play").catch(() => {});
   ok(errs.length === 0, "no page errors from the gem path", errs.join(" | "));
 

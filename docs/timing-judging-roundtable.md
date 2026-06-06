@@ -1,0 +1,70 @@
+# Timing & Judging Roundtable — note-timing forgiveness rework
+
+*2026-06-06. Seven-lane panel (slopsmith-host-expert, audio-engine, rhythm-meter, guitar-pedagogy, bass-pedagogy, metal-idiom, slopscale-ux) convened on Christian's dogfood report: "note timing feels unforgiving on chromatic runs; melodic/arpeggiated feels okay." Full per-lane rulings live in each agent's memory (`.claude/agent-memory/<agent>/`); this doc is the synthesis, the Slice 1 build record, and the Slice 2 design.*
+
+## HOST CHECK
+
+- **Capability:** note-timing hit-window judging semantics (grading, not detection).
+- **What the host has:** note_detect's `matchNotes` grades with **parallel per-note candidate windows** (`±150ms` match + late grace `min(sus,1s)`; clean = `±100ms` early-strict / `±20¢`), **pitch disambiguates overlapping candidates**, judging playhead is **latency-compensated** (`latencyOffset` default `0.080s`, user slider, auto-calibration sweep writes `av_offset_ms`), commit-only-on-clean, retire at 2×tolerance. Conventions: `mt` muted notes **never judged**; `tr` tremolo = **one** judged note; bends get a **600¢** lenient pitch gate. `docs/NOTE_FAILURE_SPEC.md` codifies the same constitution. (Host checkout `plugins/note_detect/screen.js` :1437–:1504, :3476–:3612; `plugins/minigames/screen.js` :168–:302.)
+- **Evidence + date:** source-read 2026-06-06 by slopsmith-host-expert (memory `reference_host_timing_grading_2026-06-06`).
+- **Verdict:** **MIRROR** — judgment semantics are ours by doctrine (host owns detectors; we own judgment), so we replicate the host's grading model inside our contained player rather than borrow code that is chart-coupled to the host highway.
+- **Flip:** a host scoring-core extraction / note-detection capability domain reachable from non-chart contexts → BORROW it and delete ours.
+
+## The diagnosis (why chromatic runs felt unforgiving)
+
+Four stacked factors, all mechanical (not feel, not the player):
+
+1. **First-match window theft.** The old judge picked the FIRST note whose window contained the raw playhead. Builders emit `sus ≈ 0.78–0.85·IOI`, so the previous note's tail swallowed each note's entire early side: every window effectively opened **20–50ms AFTER its own onset** — the attack (the detector's best evidence) was always judged against the *previous* note, a semitone away, >50¢, discarded.
+2. **Zero latency compensation.** Mic capture + analysis means evidence arrives ~80–165ms after the attack (audio-engine's budget). The host subtracts 0.080s before matching; we judged at the raw clock — an on-time player graded ~80ms late on every note.
+3. **The EMA semitone boundary.** `smoothingMs:40` (our own parameter) is a log-domain EMA: a semitone step read **~47¢ on its first frame** — at the ±50¢ gate boundary for exactly chromatic content — and one out-of-window frame **reset the consecutive streak**.
+4. **Density + same-string kill.** Chromatic drills are the densest content and same-string picks kill the prior ring; arpeggios ring across strings through their (late-opening) windows — which is why they felt fine. Bass addendum: written-staccato `sus` caps evidence too, so correctly *damped* bass groove notes were uncreditable while wrongly *ringing* ones scored.
+
+Evidence-budget math (guitar-pedagogy): chromatic 16ths at 100 BPM left 113ms of usable evidence against a streak needing ~120ms — tier 3 was a coin flip, tier 4 structurally impossible. The complaint was the code's prediction.
+
+## Slice 1 — SHIPPED 2026-06-06 (this build)
+
+All in `screen.js` §14; one window table is now the single source of truth both ears read (it replaced six subtly-different copies of the window formula).
+
+| Change | What it does |
+|---|---|
+| `PT_DETECT_LATENCY = 0.080` | Both ears judge at `currentPracticeTime − 0.080` (host's shipped default). Auto-calibration sweep = Slice 3. |
+| `ptBuildWindows` table | Built once per run: per onset-group `matchStart/matchEnd` (parallel candidate bounds, ±100ms pads, ring credit `min(sus,1s)`) + `exclStart/exclEnd` (midpoint-split exclusive bounds). Monotonic cursor; backward seek ≥0.25s re-searches (loop wrap, click-seek). |
+| Parallel candidate matching (YIN) | Every unscored window containing tJudge is a live candidate judged at its OWN pitch; the frame credits its best pitch match. Same-pitch neighbors clamp at the midpoint (the one case pitch can't disambiguate — chugs/pedals can't ring-credit their successor). |
+| Evidence pair rule | Hit = **2 in-window frames ≤150ms apart** (was 2 *consecutive*, reset by any jitter frame). The lock-on sweep still contributes only one frame — anti-false-credit preserved (scoring-e2e negative control green). |
+| `smoothingMs` 40→12 (scoring handle) | Near-raw YIN per frame; kills the semitone-boundary problem. The meter strip re-smooths display-side in `ptOnPitch`; the Tune… panel keeps 40 (display). |
+| Verifier ear | `_ndActiveGroupAt` = the table's midpoint-split OWNER on the shifted clock — holds each target ~80ms past its nominal slot (verify events run 50–170ms behind the string), hands off promptly in dense runs. |
+| `mt` exemption | Muted ghosts excluded from the judged set (host convention; DapperTap bug #2). New `exemptMuted` class in `_ptRunInfo` + a results-modal row. |
+| Bend gate | `bn` notes judged at **±600¢** (host convention: the hit rides presence + timing, never a moving bend target; DapperTap bug #1 half-fix — full target modeling not host practice either). |
+| `_tail` filter | Visual loop-preview copies excluded from the judged universe (they inflated totals and could phantom-credit at the loop seam). |
+| Consistency | `passedTotal` (live + sessionEnd) and gem miss-arming read the same table on the same shifted clock. |
+
+**Guards:** new `smoke-gems` row 6 — window-table exclusive bounds non-overlapping + **an on-time player credits EVERY note of a 160 BPM chromatic 16th run** (the panel's acceptance test; impossible under the old judge). `smoke-scoring-e2e` (real audio, wrong-key negative control) green. Full net 16/16.
+
+**Deliberately NOT loosened:** the ±50¢ pitch gate (an adjacent fret is 100¢); no strictness knob (strictness is curriculum — named tight rungs / the Hardcore recognition axis); gems stay binary (`hit` means one thing — strictness lives in the judge, never the paint).
+
+## Slice 2 — DESIGNED, not built (the fast-idiom honesty layer)
+
+Constants want the characterization probes first (see Probes). Order per the panel:
+
+1. **`tooFast` honesty floor** — per-ear certifiability: a note is per-note-judged iff `min(sus, IOI) ≥ EAR_MIN_RING` (YIN ≈ 0.095–0.10s → per-note honest to ~135 BPM 16ths post-Slice-1 ~160–180; verifier floor unknown until probed). Below: **exempt-but-shown**, a new disclosed class out of the denominator. Emergent win: gallop cells get natural checkpoint judging (long chug judged, short pair exempt) with no special mode.
+2. **Tremolo span credit** — consecutive same-pitch `tr` notes collapse to ONE judged span (host convention); hit = in-tune presence over ~60% of span frames; member gems light together (the UX "ribbon"); denominated as units ("2 tremolo runs rang in tune"), listed with judged rows, never exemptions.
+3. **Gallop/cell anchor judging** — judge the cell's anchor 8th (and djent's chord stabs via the verifier); the muted pair is shown-not-judged; proof language claims the anchor, never per-16th articulation. Requires sustained input presence across the bar (no coasting).
+4. **Disclosure UX** (slopscale-ux ruling): resting-strip pre-run denominator line ("Judging 20 of 24 notes…"), a dwell-gated strip chip during play (`CHORD · not mic-judged`), modal classes stay the durable record. Plus the **timing-tendency line** ("Timing leaned late — about 30ms behind the click") and near-miss aggregate, threshold-gated — the feel→data converter.
+5. **Legato (`ho`/`po`) exemption** — generalize herta's physics globally (no pick transient ≠ no skill; judge the picked frame).
+6. **Bass `speakBudget(f0)`** — f0-derived post-roll extension `clamp(3·period+25, 35, 80)ms`, shifting (never widening) windows for low-register physics.
+
+**Probes before Slice 2 constants:** palm-mute through the verifier comb (PM damps the partials it sums — unprobed); verifier min-ring (if ≤50ms, 200 BPM 16ths become honestly judgeable); low-bass WAV through the verifier (it matches the comb, not the fundamental — may have no 70Hz floor at all, which would dissolve part of the sub-floor exemption).
+
+## Slice 3 / host asks (logged, not built)
+
+- **Auto-calibration sweep** (mirror the host's: maximize matched notes over (chart, detections) at run end, ~40 lines) + a hidden latency setting. Read `av_offset_ms` as a seed at most; **never write it**.
+- **Host asks to carry** (with the standing ≈28Hz `minHz` ask): expose onset/re-strike events from the existing Desktop `detectNotes` path (unlocks per-attack gallop/tremolo credit — the flip for cell judging); a 4th #254 gem value (`exempt` → hollow gem); rest-verification (energy in a forbidden window) for djent kick-lock silence.
+- **Metal tight-rung profiles** (±30ms-class windows on named rungs) — gated on latency calibration landing first; uncalibrated tightening punishes interface latency, not hands.
+- **Phrase-aggregate shred credit** (beyond-physics runs judged as a phrase) — separate design round with learning-design + gamification.
+- New false-credit channel logged (bass finding): a ringing sub-floor string's 2nd harmonic credits its octave target (open-E1 ring credits judged E2). Bounded; revisit with the octave-tolerant comparator.
+
+## Decision log
+
+- 2026-06-06 (Christian): **Slice 1 now**, Slice 2 to spec; release callout **folds into the held v0.7.4 notes** ("scoring got fairer, not easier — your % may jump", now covering the chord-exemption lift + this).
+- Window-model fork (rhythm-meter's exclusive midpoint-split vs the host's parallel windows) resolved by Part-1 rule 1 (host-first): **parallel windows + pitch disambiguation**, midpoint clamps only for same-pitch neighbors and the verifier's one-target owner.
+- Pitch tolerance and gem semantics: unchanged on principle (see Slice 1 "deliberately NOT loosened").
