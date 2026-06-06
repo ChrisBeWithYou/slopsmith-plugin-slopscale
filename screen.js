@@ -3821,10 +3821,44 @@
     return best;
   }
 
-  function shuffleCopy(items) {
+  // ── Deterministic generation RNG (backing-engine step 1) ─────────────────────
+  // ALL randomness in the generation path routes through a per-chart seeded PRNG:
+  // the same cfg always yields a byte-identical chart (golden-testable; guarded by
+  // smoke-backing-engine). Variety comes from CHANGING the cfg (vary[], Refresh,
+  // an explicit cfg.humanSeed), never from hidden dice. Future humanization
+  // (drum/velocity jitter, fill rolls) must draw from this stream too.
+  function hashStringToSeed(str) {            // FNV-1a 32-bit
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+    return h >>> 0;
+  }
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  // The chart's seed: an explicit cfg.humanSeed wins (reproduce/share a roll);
+  // otherwise a stable hash of the generation-relevant cfg identity.
+  function resolveHumanSeed(cfg) {
+    if (Number.isFinite(cfg.humanSeed)) return cfg.humanSeed >>> 0;
+    const m = cfg.meter || {};
+    return hashStringToSeed([
+      cfg.practiceType, cfg.key, cfg.scale, cfg.shape, cfg.fretboardSystem,
+      cfg.bpm, cfg.bars, m.numerator, m.denominator, cfg.subdivision,
+      cfg.progression, cfg.direction, cfg.sequence, cfg.stringSetup,
+      cfg.chromaticPattern, cfg.chordDepth, cfg.chordOverride, cfg.repeatCount,
+    ].join('|'));
+  }
+  function chartRng(cfg) { return mulberry32(resolveHumanSeed(cfg)); }
+
+  function shuffleCopy(items, rand) {
     const out = items.slice();
     for (let i = out.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(rand() * (i + 1));
       [out[i], out[j]] = [out[j], out[i]];
     }
     return out;
@@ -3868,21 +3902,23 @@
     return out.length ? out : positions;
   }
 
-  function directedPath(items, direction, repeatCount) {
+  // `rand` = the chart's seeded PRNG (chartRng(cfg)) — only 'random' draws on it.
+  function directedPath(items, direction, repeatCount, rand) {
     const base = items.slice();
     if (base.length <= 1) return base;
+    const rng = rand || mulberry32(0);   // defensive: never fall back to Math.random
     let phrase;
     switch (direction) {
       case 'ascending': phrase = base; break;
       case 'descending': phrase = base.slice().reverse(); break;
       case 'down_up': phrase = base.slice().reverse().concat(base.slice(1, -1)); break;
-      case 'random': phrase = shuffleCopy(base); break;
+      case 'random': phrase = null; break;            // re-shuffled per repeat below
       case 'up_down':
       default: phrase = base.concat(base.slice(1, -1).reverse()); break;
     }
     const out = [];
     const repeats = Math.max(1, repeatCount || 1);
-    for (let i = 0; i < repeats; i++) out.push(...(direction === 'random' ? shuffleCopy(base) : phrase));
+    for (let i = 0; i < repeats; i++) out.push(...(direction === 'random' ? shuffleCopy(base, rng) : phrase));
     return out;
   }
 
@@ -4419,29 +4455,43 @@
 
   // ── Chord timeline — the single source of "what chord at what bar/beat" ──────
   // Derived ONCE from the cfg (progression × key × scale × chordDepth/override ×
-  // tritoneSub) into a per-bar harmonic skeleton. Both the BACKING (pad + boogie,
-  // below) read this instead of re-deriving the chord inline, so the accompaniment
-  // can never silently disagree with the foreground about the harmony. Exposed as
-  // chart.timeline (generateExercise) for the Jam loop + future play-the-changes
-  // drill routing. Bar-locked today (one entry per measure); the beat-level
-  // expansion (2-per-bar ii–V, anticipation) rides this same structure. See
-  // memory project_cross_instrument_backing_unification.
+  // tritoneSub) into a beat-keyed harmonic skeleton. Both the BACKING (pad +
+  // boogie, below) read this instead of re-deriving the chord inline, so the
+  // accompaniment can never silently disagree with the foreground about the
+  // harmony. Exposed as chart.timeline (generateExercise/generateSession) for the
+  // Jam loop, the seam proof metric, and play-the-changes drill routing.
+  //
+  // Event schema (backing-engine step 1; chair's ruling — beats canonical,
+  // seconds derived):
+  //   startBeat/durBeats = the harmonic SLOT (never pushed; theory labels rn/fn
+  //     describe the slot). cfg.harmonicRhythm '2/bar' packs two progression
+  //     degrees per bar (the real ii–V in one bar); absent/'1/bar' = the
+  //     bar-locked case — unchanged output, nothing regresses.
+  //   startSec/endSec = the SOUNDING window (push applied, pre-swing) — what the
+  //     comp/bass/mirror realize. `push` (beats, optional) is ANTICIPATION: the
+  //     chord sounds early. The compiler emits none; recipe/engine ops set it
+  //     and re-derive via applyTimelinePush below.
+  //   bass (slash/pedal override) + gen:'approach' (engine-generated passing
+  //     chords) ride the same events when steps 2-3 produce them.
+  // See memory project_cross_instrument_backing_unification.
   function compileChordTimeline(cfg, duration) {
     const degrees = progressionDegreesForConfig(cfg);
     const slot = measureSeconds(cfg);
     const beatsPerBar = Math.max(1, cfg.meter.numerator);
+    const perBar = cfg.harmonicRhythm === '2/bar' ? 2 : 1;
+    const evSec = slot / perBar, evBeats = beatsPerBar / perBar;
     const out = [];
-    for (let t = 0, i = 0; t < duration - 0.001; t += slot, i++) {
+    for (let t = 0, i = 0; t < duration - 0.001; t += evSec, i++) {
       const degree = degrees[i % degrees.length];
       const rootPc = chordRootForDegree(cfg, degree);
       const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, degree, cfg.chordOverride, cfg.progression);
       const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj;
       const { cpcs, gpcs } = chordHighlightPcs(rootPc, formula.intervals);
       out.push({
-        bar: i,
+        bar: Math.floor(i / perBar),
         startSec: Number(t.toFixed(6)),
-        endSec: Number(Math.min(duration, t + slot).toFixed(6)),
-        startBeat: i * beatsPerBar, durBeats: beatsPerBar,
+        endSec: Number(Math.min(duration, t + evSec).toFixed(6)),
+        startBeat: i * evBeats, durBeats: evBeats,
         degree, rootPc, quality, intervals: formula.intervals,
         name: chordName(rootPc, quality),
         rn: romanLabel(degree, quality), fn: degreeFunction(degree),
@@ -4449,6 +4499,40 @@
       });
     }
     return out;
+  }
+  // Re-derive the SOUNDING seconds of timeline events that carry `push` (beats of
+  // anticipation): the pushed chord starts early — clamped so it never reaches
+  // back past chart time 0 (the count-in boundary; makeBundle's lead-in shift
+  // happens later) — and the PREVIOUS event stops sounding where the anticipated
+  // chord arrives (anticipation replaces the old chord's tail; that's the device).
+  // Slot fields (startBeat/durBeats) are untouched. Mutates + returns events.
+  function applyTimelinePush(events, cfg, duration) {
+    const beatSec = measureSeconds(cfg) / Math.max(1, cfg.meter.numerator);
+    for (let i = 0; i < events.length; i++) {
+      const ev = events[i];
+      const push = Number(ev.push) || 0;
+      if (push <= 0) continue;
+      const slotStart = ev.startBeat * beatSec;
+      const sounded = Math.max(0, Math.min(slotStart, slotStart - push * beatSec));
+      ev.startSec = Number(sounded.toFixed(6));
+      if (i > 0 && events[i - 1].endSec > ev.startSec) events[i - 1].endSec = ev.startSec;
+      if (ev.endSec > duration) ev.endSec = Number(duration.toFixed(6));
+    }
+    return events;
+  }
+  // Append a compiled timeline into an assembling multi-part chart (key-cycle
+  // rung / bpm-ladder rung / session block), offsetting seconds by tSec and the
+  // slot fields by beatOff/barOff — the 2026-06-02 desync rule applied to the
+  // timeline: every timed array is assembled in the per-part loop, in the
+  // part's OWN config, so the seam proof metric and the Jam loop never judge a
+  // later part against the first part's harmony.
+  function appendTimelineOffset(target, events, tSec, beatOff, barOff) {
+    for (const ev of events) target.push(Object.assign({}, ev, {
+      bar: ev.bar + barOff,
+      startBeat: Number((ev.startBeat + beatOff).toFixed(6)),
+      startSec: Number((ev.startSec + tSec).toFixed(6)),
+      endSec: Number((ev.endSec + tSec).toFixed(6)),
+    }));
   }
   function buildBackingEvents(cfg, duration) {
     if (cfg.backingStyle === 'boogie') return buildBoogieBacking(cfg, duration);
@@ -4501,9 +4585,12 @@
       }
       const bassRoot = pcAtOrAbove(rootPc % 12, bassLow);
       const root0 = bassRoot > bassHigh ? bassRoot - 12 : bassRoot;
-      for (let b = 0; b < beatsPerBar; b++) {
+      // Walk the beats of THIS event's window (not an assumed whole bar) so a
+      // sub-bar harmonic-rhythm event gets its own figure-from-the-root restart.
+      // Bar-locked events span exactly a bar — output unchanged.
+      for (let b = 0; ; b++) {
         const beatT = t + b * beatSec;
-        if (beatT >= duration - 1e-4) break;
+        if (beatT >= c.endSec - 1e-4 || beatT >= duration - 1e-4) break;
         const bassMidi = root0 + BOOGIE[b % BOOGIE.length];
         // Walking bass on the beat (only the bar's downbeat carries the chord name,
         // so the in-tree backing overlay shows one label per bar, not per hit).
@@ -4512,7 +4599,7 @@
         events.push({ t:Number(beatT.toFixed(6)), end:Number(Math.min(duration, beatT + beatSec * 0.9).toFixed(6)), name: b === 0 ? name : '', midis:[bassMidi], role:'bass', cpcs, gpcs });
         // Chord-shell chick on the off-beat (the swung "and").
         const upT = beatT + beatSec * 0.5;
-        if (upT < duration - 1e-4) events.push({ t:Number(upT.toFixed(6)), end:Number(Math.min(duration, upT + beatSec * 0.4).toFixed(6)), name:'', midis:shell, cpcs, gpcs });
+        if (upT < c.endSec - 1e-4 && upT < duration - 1e-4) events.push({ t:Number(upT.toFixed(6)), end:Number(Math.min(duration, upT + beatSec * 0.4).toFixed(6)), name:'', midis:shell, cpcs, gpcs });
       }
     }
     return events;
@@ -4720,6 +4807,7 @@
         notes[above].s = target.s; notes[above].f = target.f + 1; // chromatic upper neighbour
       }
     }
+    const pathRand = chartRng(cfg);   // one seeded stream for the whole build
     for (let bar = 0; bar < totalBars; bar++) {
       const degree = degrees[bar % degrees.length];
       const rootPc = chordRootForDegree(cfg, degree);
@@ -4727,7 +4815,7 @@
       const positions = isPark ? keyParent : chordScalePositions(cfg, rootPc, quality);
       if (!positions || !positions.length) continue;
       const sequenced = applySequencePattern(positions, cfg.sequence);
-      const path = directedPath(sequenced, cfg.direction, cfg.repeatCount);
+      const path = directedPath(sequenced, cfg.direction, cfg.repeatCount, pathRand);
       if (!path.length) continue;
       const barStart = bar * mLen;
       const name = chordName(rootPc, quality), templateId = chordTemplates.length;
@@ -4777,7 +4865,7 @@
     const sequenced = applySequencePattern(positions, cfg.sequence);
     const step = secondsPerDivision(cfg), steps = rhythmSteps(cfg), mLen = measureSeconds(cfg), minDuration = cfg.bars * mLen;
     const avgStep = steps ? steps.reduce((a, b) => a + b, 0) / steps.length : step;
-    const path = directedPath(sequenced, cfg.direction, cfg.repeatCount);
+    const path = directedPath(sequenced, cfg.direction, cfg.repeatCount, chartRng(cfg));
     const rawDuration = Math.max(minDuration, path.length * avgStep);
     const duration = Math.ceil(rawDuration / mLen - 1e-6) * mLen;
     // Cumulative clock so non-uniform rhythms (gallop) work; when `steps` is null
@@ -4919,6 +5007,7 @@
     const isShapeRun = isShapeRunStrict || isShapeRunFollow;
     const shapeRunMode = isShapeRunStrict ? 'ascend' : 'closest';
     const shapeRunAnchors = isShapeRun ? [] : null;
+    const pathRand = chartRng(cfg);   // one seeded stream for the whole build
     let prevRootFret = null;
     let t = 0;
     degrees.forEach(degree => {
@@ -4961,7 +5050,7 @@
       chordTemplates.push(shapeTemplate || templateFromPositions(name, displayPositions, chordCfg, true));
       chords.push({ t:Number(t.toFixed(6)), id:templateId, hd:false, notes:displayPositions.map(p => noteDefaults({ s:p.s, f:p.f, sus:0 })) });
       sections.push({ name, number:templateId + 1, time:Number(t.toFixed(6)) });
-      const path = directedPath(displayPositions, cfg.direction, cfg.repeatCount);
+      const path = directedPath(displayPositions, cfg.direction, cfg.repeatCount, pathRand);
       const chordSlot = Math.max(mLen, path.length * step);
       handShapes.push({ chord_id:templateId, start_time:Number(t.toFixed(6)), end_time:Number((t + chordSlot).toFixed(6)), arp:true });
       for (let i = 0; i < path.length; i++) {
@@ -6433,8 +6522,8 @@
     const startIdx = Math.max(0, order.indexOf(cfg.key));
     const count = Math.max(2, Math.min(12, cfg.keyCycleLength || 4));
     const keys = Array.from({ length: count }, (_, i) => order[(startIdx + i) % order.length]);
-    const notes = [], chords = [], chordTemplates = [], handShapes = [], sections = [], anchors = [], backingEvents = [];
-    let t = 0, tplOffset = 0;
+    const notes = [], chords = [], chordTemplates = [], handShapes = [], sections = [], anchors = [], backingEvents = [], timeline = [];
+    let t = 0, tplOffset = 0, beatOff = 0, barOff = 0;
     for (const key of keys) {
       const kCfg = Object.assign({}, cfg, { key, keyCycle: 'none' });
       const chart = buildSingleChart(kCfg);
@@ -6444,6 +6533,9 @@
       // offset by t (the chart carries it; consumers don't re-build/re-swing).
       const rawBack = buildBackingEvents(kCfg, dur).concat(buildDrumEvents(kCfg, dur, resolveGroove(kCfg)));
       const sw = swingNotesBacking(chart.notes, rawBack, kCfg);
+      // Per-KEY timeline too (same desync rule) — the cycle changes key, so a
+      // single-key timeline would label every rung with the START key's harmony.
+      appendTimelineOffset(timeline, compileChordTimeline(kCfg, dur), t, beatOff, barOff);
       sections.push({ name: key, number: sections.length + 1, time: Number(t.toFixed(6)) });
       sw.notes.forEach(n => notes.push(Object.assign({}, n, { t: Number((n.t + t).toFixed(6)) })));
       chart.chords.forEach(c => chords.push(Object.assign({}, c, { t: Number((c.t + t).toFixed(6)), id: c.id + tplOffset })));
@@ -6452,9 +6544,12 @@
       (chart.anchors || []).forEach(a => anchors.push(Object.assign({}, a, { time: Number((a.time + t).toFixed(6)) })));
       sw.backing.forEach(ev => backingEvents.push(Object.assign({}, ev, { t: Number((ev.t + t).toFixed(6)), end: Number((ev.end + t).toFixed(6)) })));
       tplOffset += chart.chordTemplates.length;
+      const kBar = measureSeconds(kCfg);
+      beatOff += (dur / kBar) * Math.max(1, kCfg.meter.numerator);
+      barOff += Math.round(dur / kBar);
       t += dur;
     }
-    return { notes, chords, chordTemplates, handShapes, sections, anchors, backingEvents, duration: t };
+    return { notes, chords, chordTemplates, handShapes, sections, anchors, backingEvents, timeline, duration: t };
   }
 
   // ===========================================================================
@@ -6471,12 +6566,14 @@
     if (tSec != null) chart = fillBlockToDuration(chart, cfg, tSec);
     const duration = Math.max(chart.duration || 0, cfg.bars * measureSeconds(cfg));
     const anchors = chart.anchors && chart.anchors.length ? chart.anchors : buildAnchors(cfg, duration);
-    // chart.timeline = the shared harmonic skeleton (the single chord source the backing
-    // reads) exposed for the Jam chord-loop + future play-the-changes drill routing.
-    // Skipped for key-cycle charts (they cycle keys, so a single-key timeline would be
-    // wrong) until per-key timelines land — additive, so no consumer breaks when absent.
-    const extra = { beats:buildBeats(cfg, duration), anchors, duration };
-    if (!(cfg.keyCycle && cfg.keyCycle !== 'none')) extra.timeline = compileChordTimeline(cfg, duration);
+    // chart.timeline = the shared harmonic skeleton (the single chord source the
+    // backing reads) exposed for the Jam chord-loop, the seam proof metric, and
+    // play-the-changes drill routing. A multi-part chart (key cycle) carries its
+    // own per-rung-assembled timeline — use it; otherwise compile here.
+    // chart.humanSeed = the resolved generation seed (charts are byte-identical
+    // for the same cfg+seed — guarded by smoke-backing-engine).
+    const extra = { beats:buildBeats(cfg, duration), anchors, duration, humanSeed: resolveHumanSeed(cfg) };
+    extra.timeline = (chart.timeline && chart.timeline.length) ? chart.timeline : compileChordTimeline(cfg, duration);
     return { version:1, session:cfg, chart:Object.assign({}, chart, extra) };
   }
 
@@ -6527,8 +6624,8 @@
   // concatenates the same exercise at stepping tempos with correct beat timing.
   function buildBpmLadderChart(segCfg, ladder) {
     const { bpmStart, bpmTarget, bpmStep, repsPerStep = 1 } = ladder;
-    const notes = [], chords = [], chordTemplates = [], handShapes = [], sections = [], anchors = [], beats = [], backingEvents = [];
-    let t = 0, tplOffset = 0;
+    const notes = [], chords = [], chordTemplates = [], handShapes = [], sections = [], anchors = [], beats = [], backingEvents = [], timeline = [];
+    let t = 0, tplOffset = 0, beatOff = 0, barOff = 0;
     for (let bpm = bpmStart; bpm <= bpmTarget + 0.001; bpm += bpmStep) {
       for (let r = 0; r < repsPerStep; r++) {
         const stepCfg = Object.assign({}, segCfg, { bpm, keyCycle:'none' });
@@ -6539,6 +6636,8 @@
         // rung-local time, then offset by t (the chart carries it; consumers don't re-swing).
         const rawBack = buildBackingEvents(stepCfg, dur).concat(buildDrumEvents(stepCfg, dur, resolveGroove(stepCfg)));
         const sw = swingNotesBacking(chart.notes, rawBack, stepCfg);
+        // Per-RUNG timeline (desync rule) — tempo changes the rung's SECONDS.
+        appendTimelineOffset(timeline, compileChordTimeline(stepCfg, dur), t, beatOff, barOff);
         if (r === 0) sections.push({ name:`${Math.round(bpm)} BPM`, number:sections.length + 1, time:Number(t.toFixed(6)) });
         sw.notes.forEach(n => notes.push(Object.assign({}, n, { t:Number((n.t + t).toFixed(6)) })));
         chart.chords.forEach(c => chords.push(Object.assign({}, c, { t:Number((c.t + t).toFixed(6)), id:c.id + tplOffset })));
@@ -6548,10 +6647,13 @@
         buildBeats(stepCfg, dur).forEach(b => beats.push(Object.assign({}, b, { time:Number((b.time + t).toFixed(6)) })));
         sw.backing.forEach(ev => backingEvents.push(Object.assign({}, ev, { t:Number((ev.t + t).toFixed(6)), end:Number((ev.end + t).toFixed(6)) })));
         tplOffset += (chart.chordTemplates || []).length;
+        const rBar = measureSeconds(stepCfg);
+        beatOff += (dur / rBar) * Math.max(1, stepCfg.meter.numerator);
+        barOff += Math.round(dur / rBar);
         t += dur;
       }
     }
-    return { notes, chords, chordTemplates, handShapes, sections, anchors, beats, backingEvents, duration:t };
+    return { notes, chords, chordTemplates, handShapes, sections, anchors, beats, backingEvents, timeline, duration:t };
   }
 
   // ── Right-sized finite runs (Depth Ladder slice 1) ──────────────────────────
@@ -6659,7 +6761,11 @@
     // targetSec is an exact multiple of cellDur (floating-point safe).
     const reps = Math.max(1, Math.ceil((targetSec - 1e-6) / cellDur));
     if (reps === 1) return chart;
-    const notes = [], chords = [], handShapes = [], anchors = [], sections = [], beats = [], backingEvents = [];
+    const notes = [], chords = [], handShapes = [], anchors = [], sections = [], beats = [], backingEvents = [], timeline = [];
+    // Slot offsets for tiling a timeline-carrying chart (key cycle + targetSec):
+    // beats/bars per cell derived from the cell's wall length on this cfg's grid.
+    const cellBars = cellDur / measureSeconds(segCfg);
+    const cellBeats = cellBars * Math.max(1, segCfg.meter.numerator);
     for (let r = 0; r < reps; r++) {
       const off = r * cellDur;
       (chart.notes || []).forEach(n => notes.push(Object.assign({}, n, { t: Number((n.t + off).toFixed(6)) })));
@@ -6669,11 +6775,13 @@
       if (chart.sections) (chart.sections || []).forEach(s => sections.push(Object.assign({}, s, { number: sections.length + 1, time: Number((s.time + off).toFixed(6)) })));
       if (chart.beats)    (chart.beats || []).forEach(b => beats.push(Object.assign({}, b, { time: Number((b.time + off).toFixed(6)) })));
       if (chart.backingEvents) (chart.backingEvents || []).forEach(ev => backingEvents.push(Object.assign({}, ev, { t: Number((ev.t + off).toFixed(6)), end: Number((ev.end + off).toFixed(6)) })));
+      if (chart.timeline) appendTimelineOffset(timeline, chart.timeline, off, r * cellBeats, Math.round(r * cellBars));
     }
     const out = Object.assign({}, chart, { notes, chords, handShapes, anchors, duration: Number((reps * cellDur).toFixed(6)) });
     if (chart.sections) out.sections = sections;
     if (chart.beats) out.beats = beats;
     if (chart.backingEvents) out.backingEvents = backingEvents;
+    if (chart.timeline) out.timeline = timeline;
     return out;
   }
   // A block's target duration in seconds (Workout). Reads it off the segment, or its
@@ -6745,11 +6853,11 @@
   // Each segment's times are offset by the cumulative duration of prior segments.
   // BPM ladder and key cycle are applied per-segment as configured.
   function buildSessionChart(session) {
-    const notes = [], chords = [], chordTemplates = [], handShapes = [], sections = [], anchors = [], beats = [], backingEvents = [];
+    const notes = [], chords = [], chordTemplates = [], handShapes = [], sections = [], anchors = [], beats = [], backingEvents = [], timeline = [];
     // Per-segment time bounds — drives the session transport (progress bar,
     // segment jump, active-segment highlight, per-segment loop).
     const segmentBounds = [];
-    let t = 0, tplOffset = 0, prevCfg = null;
+    let t = 0, tplOffset = 0, prevCfg = null, beatOff = 0, barOff = 0;
     const breakMode = session.interBlockBreak || 'auto';
 
     for (const rawSeg of (session.segments || [])) {
@@ -6768,6 +6876,10 @@
           buildBeats(segCfg, Math.max(0, brkSec - 1e-4)).forEach(b =>
             beats.push(Object.assign({}, b, { time: Number((b.time + t).toFixed(6)), brk: true })));
           t += brkSec;
+          // The break advances the slot offsets too (in the INCOMING block's
+          // meter — the break IS the incoming block's count-in).
+          beatOff += brkBars * Math.max(1, segCfg.meter.numerator);
+          barOff += brkBars;
         }
       }
       // Determine which builder to use for this segment
@@ -6811,6 +6923,11 @@
       const swung = chart.backingEvents
         ? { notes: chart.notes, backing: chart.backingEvents }
         : swingNotesBacking(chart.notes, buildBackingEvents(segCfg, dur).concat(buildDrumEvents(segCfg, dur, resolveGroove(segCfg))), segCfg);
+      // Per-block TIMELINE on this block's own config (the desync rule applied
+      // to harmony): without it the seam proof metric falls back to judging the
+      // whole Workout against the FIRST block's progression. Ladder / key-cycle
+      // charts already carry their per-rung-assembled timeline — offset as-is.
+      appendTimelineOffset(timeline, (chart.timeline && chart.timeline.length) ? chart.timeline : compileChordTimeline(segCfg, dur), t, beatOff, barOff);
 
       // Segment-level section marker at the top of each segment
       sections.push({ name:segment.name, number:sections.length + 1, time:Number(t.toFixed(6)) });
@@ -6832,10 +6949,13 @@
       swung.backing.forEach(ev => backingEvents.push(Object.assign({}, ev, { t:Number((ev.t + t).toFixed(6)), end:Number((ev.end + t).toFixed(6)) })));
       tplOffset += (chart.chordTemplates || []).length;
       segmentBounds.push({ name:segment.name, kind:segment.kind, role:segment.role, start:Number(t.toFixed(6)), end:Number((t + dur).toFixed(6)) });
+      const blkBar = measureSeconds(segCfg);
+      beatOff += (dur / blkBar) * Math.max(1, segCfg.meter.numerator);
+      barOff += Math.round(dur / blkBar);
       t += dur;
       prevCfg = segCfg;
     }
-    return { notes, chords, chordTemplates, handShapes, sections, anchors, beats, backingEvents, segmentBounds, duration:t };
+    return { notes, chords, chordTemplates, handShapes, sections, anchors, beats, backingEvents, segmentBounds, timeline, duration:t };
   }
 
   // Top-level session generator — parallel to generateExercise() for single exercises.
@@ -13489,6 +13609,6 @@
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
   window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
