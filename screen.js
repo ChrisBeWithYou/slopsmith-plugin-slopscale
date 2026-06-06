@@ -2669,6 +2669,75 @@
   // bundle.getNoteState(note, note.t) and matches notes by (s, f, t), so we judge on
   // that same composite — reference-independent (the highway may normalize our notes).
   const ptKey = (n) => n.s + '|' + n.f + '|' + Math.round((n.t || 0) * 1e4);
+  // ── Verifier-backed scoring (host note_detect timing-free verify API) ───────
+  // When the host exposes window.noteDetect.setVerifyTarget (notedetect #61),
+  // we score against the harmonic-comb VERIFIER instead of the monophonic YIN
+  // createContinuous. The verifier is polyphonic (chords become judgable — no
+  // chord exemption) and distortion-robust, and we score it against the
+  // PLAYER's real tuning via the per-call ctx (openMidis), independent of any
+  // host song. The verifier owns hit SCORING; the YIN handle (if any) stays on
+  // for the live pitch-strip readout + input-presence (_ptHadInput) only.
+  // Doctrine unchanged: the host owns detection DSP, SlopScale owns judgment.
+  let _ndVerifyMode = false;        // verifier is the scoring ear this run
+  let _ndVerifyCtx = null;          // { arrangement, openMidis } — player's real tuning
+  let _ndVerifyActive = [];         // note objects currently pushed as the target
+  let _ndVerifyActiveKey = null;    // group key of the pushed target (dedupe pushes)
+  let _ndVerifyListener = null;     // bound notedetect:verify handler
+  let _ndWeEnabledNoteDetect = false; // did WE enable note_detect? (restore on stop)
+  function ndVerifyAvailable() {
+    return typeof window.noteDetect?.setVerifyTarget === 'function';
+  }
+  // Active group at the playhead: the first judged note whose window contains t,
+  // plus every judged note sharing its strum-group/onset key (so a chord is
+  // pushed and judged as one target). Mirrors ptOnPitch's window + start's _gk.
+  function _ndActiveGroupAt(t) {
+    let active = null;
+    for (const n of _ptNotes) {
+      if (n.t - 0.06 <= t && t <= n.t + (n.sus || 0.24) + 0.06) { active = n; break; }
+    }
+    if (!active) return { key: null, notes: [] };
+    const gk = (active.ch != null) ? ('c' + active.ch) : ('t' + active.t);
+    const notes = _ptNotes.filter(n => ((n.ch != null) ? ('c' + n.ch) : ('t' + n.t)) === gk);
+    return { key: gk + '@' + Math.round((active.t || 0) * 1e4), notes };
+  }
+  // Push (or refresh) the verify target for the current playhead. Cheap: only
+  // re-pushes when the active group changes. Clears the target between notes so
+  // the verifier never scores a stale note against live audio.
+  function ndPushVerifyTarget() {
+    if (!_ndVerifyMode || !ndVerifyAvailable()) return;
+    const { key, notes } = _ndActiveGroupAt(currentPracticeTime);
+    if (key === _ndVerifyActiveKey) return;     // no change → nothing to do
+    _ndVerifyActiveKey = key;
+    _ndVerifyActive = notes;
+    if (!notes.length) { try { window.noteDetect.setVerifyTarget(null); } catch (_) {} return; }
+    // Pass only the flags whose meaning matches the host's: b = bend (SlopScale
+    // `bn` is a magnitude; any non-zero means "this note bends"). We deliberately
+    // do NOT map SlopScale's `mt` (muted) onto the host's `hm` (HARMONIC) — they
+    // are different techniques. Muted-note handling stays SlopScale's own.
+    const tgt = notes.map(n => ({ s: n.s, f: n.f, b: !!n.bn }));
+    try { window.noteDetect.setVerifyTarget(tgt, _ndVerifyCtx); } catch (_) {}
+  }
+  // notedetect:verify fires (every frame the target rings) with { isHit }. On a
+  // hit, credit the whole pushed group into the SAME _ptScored/_ptByKey state
+  // the gem hook + tier gates already read — so chords now score and light.
+  // Note on miss feedback: the verifier only reports HITS (a wrong note emits
+  // nothing), so input-presence (_ptHadInput, which arms miss gems) comes from
+  // the YIN handle's ptOnPitch when the minigames ear is present (the normal
+  // case — it's bundled). In a verifier-ONLY run (no minigames) _ptHadInput
+  // first flips on the opening hit; a zero-hit pass shows no miss gems —
+  // lenient, consistent with SlopScale's "scoring degrades, never blocks".
+  function ndOnVerify(ev) {
+    const d = ev && ev.detail;
+    if (!d || !d.isHit || !_ndVerifyActive.length) return;
+    _ptHadInput = true;
+    for (const n of _ndVerifyActive) _ptScored.add(ptKey(n));
+  }
+  function ndStopVerify() {
+    if (_ndVerifyListener) { window.removeEventListener('notedetect:verify', _ndVerifyListener); _ndVerifyListener = null; }
+    if (_ndVerifyMode) { try { window.noteDetect.setVerifyTarget(null); } catch (_) {} }
+    if (_ndWeEnabledNoteDetect) { try { window.noteDetect.disable?.(); } catch (_) {} _ndWeEnabledNoteDetect = false; }
+    _ndVerifyMode = false; _ndVerifyCtx = null; _ndVerifyActive = []; _ndVerifyActiveKey = null;
+  }
   // Active pathway state — tracks which pathway is showing and which variation
   // index we are on, so Next Variation rotates predictably.
   let activePathwayId = null;
@@ -7264,7 +7333,7 @@
       // scorer is actually running, which is the host's "detect mode active" signal
       // (drives the verdict cull-window + chord-rim). No scorer (no SDK / not playing)
       // → both inert → no gems, unchanged behavior. See ptGetNoteState.
-      getNoteState: function(note){ return ptGetNoteState(note); }, getNoteStateProvider: function(){ return _ptHandle ? ptGetNoteState : null; }
+      getNoteState: function(note){ return ptGetNoteState(note); }, getNoteStateProvider: function(){ return (_ptHandle || _ndVerifyMode) ? ptGetNoteState : null; }
     };
     syncHighwaySettings(bundle);
     if (!c.backingEvents) applySwingToBundle(bundle, cfg);   // sessions are swung per-block at assembly; single exercises swing here
@@ -9158,6 +9227,10 @@
           _ptStreak = { key: null, count: 0 };
         }
       }
+      // Verifier scoring: refresh the harmonic-comb verify target for the
+      // current playhead (cheap — only re-pushes when the active group
+      // changes). No-op unless verifier mode is active.
+      ndPushVerifyTarget();
     }
     drawOnce(); rafId = requestAnimationFrame(tick);
   }
@@ -9800,7 +9873,7 @@
     if (open) {
       const row = $('slopscale-tune-row');
       const extOk = typeof window.tuner?.toggle === 'function';
-      if (row) row.style.display = (ptAvailable() || extOk) ? '' : 'none';
+      if (row) row.style.display = (ptAvailable() || ndVerifyAvailable() || extOk) ? '' : 'none';
       const tuneBtn = $('slopscale-tune-btn');
       if (tuneBtn) tuneBtn.style.display = ptAvailable() ? '' : 'none';
       const ext = $('slopscale-tuner-ext');
@@ -12329,7 +12402,7 @@
   }
 
   function startPitchTracker(bundle) {
-    if (!ptAvailable()) return;
+    if (!ptAvailable() && !ndVerifyAvailable()) return;
     stopPitchTracker();
     const allNotes = [...(bundle.notes || [])].sort((a, b) => a.t - b.t);
     // ── Chord exemption (2026-06-05, the DapperTap report) ────────────────────
@@ -12357,21 +12430,57 @@
     // never relocate the lesson).
     const _opens = bundle.openMidis || [];
     const _audible = (n) => { const m = _opens[n.s]; return m == null || midiToFreq(m + n.f) >= DETECTOR_MIN_HZ; };
-    _ptNotes = allNotes.filter(n => _gCounts.get(_gk(n)) === 1 && _audible(n));
+    // Verifier mode lifts the chord exemption: the harmonic-comb verifier is
+    // polyphonic, so chords/diads become judged (shown AND scored), not exempt.
+    // The sub-floor exemption stays — a mic still can't hear sub-70Hz strings.
+    _ndVerifyMode = ndVerifyAvailable();
+    _ptNotes = allNotes.filter(n => _audible(n) && (_ndVerifyMode || _gCounts.get(_gk(n)) === 1));
     _ptOpenMidis = bundle.openMidis || [];
     _ptScored = new Set();
     _ptByKey = new Map(); for (const n of _ptNotes) _ptByKey.set(ptKey(n), n);   // (s,f,t) → note, for the gem hook
     _ptHadInput = false;
     _ptStreak = { key: null, count: 0 };
-    // Scoring is optional. Guard the host-SDK call: it can throw or return null
-    // when the tracker can't start (no mic, unsupported/secure-context, a host
-    // SDK version mismatch). Playback must run regardless.
-    try {
-      _ptHandle = window.slopsmithMinigames.scoring.createContinuous({ smoothingMs: 40 });
-    } catch (_) { _ptHandle = null; return; }
-    if (!_ptHandle || typeof _ptHandle.on !== 'function') { _ptHandle = null; return; }
-    _ptHandle.on('pitch', ptOnPitch);
-    _ptHandle.on('end', () => { _ptHandle = null; });
+
+    // Verifier-backed scoring (host note_detect timing-free verify, notedetect
+    // #61): score against the PLAYER's real tuning (openMidis), polyphonic +
+    // distortion-robust, independent of any host song. The YIN handle below,
+    // when present, stays on only for the live pitch-strip readout + input
+    // presence — ptOnPitch is display-only while _ndVerifyMode is true.
+    if (_ndVerifyMode) {
+      // Tuning context = the player's REAL instrument. openMidis (absolute open
+      // strings) is authoritative; arrangement comes from the bundle's songInfo
+      // ('Bass'/'Lead', which the host normalizes) and the host infers it from
+      // the pitches if absent. There is no bundle.instrument field.
+      _ndVerifyCtx = {
+        arrangement: (bundle.songInfo && bundle.songInfo.arrangement) || undefined,
+        openMidis: bundle.openMidis || [],
+      };
+      _ndVerifyActive = []; _ndVerifyActiveKey = null;
+      try {
+        if (!window.noteDetect.isEnabled?.()) { window.noteDetect.enable?.(); _ndWeEnabledNoteDetect = true; }
+      } catch (_) {}
+      _ndVerifyListener = ndOnVerify;
+      window.addEventListener('notedetect:verify', _ndVerifyListener);
+      ndPushVerifyTarget();
+    }
+
+    // Live pitch-strip / input-presence ear (host minigames YIN). Optional and
+    // guarded: it can throw or return null (no mic, insecure context, SDK
+    // mismatch). When the verifier is active this is display-only; without the
+    // verifier it is the scorer (the original path). A missing/failed handle
+    // must never abort a verifier run.
+    if (ptAvailable()) {
+      try {
+        _ptHandle = window.slopsmithMinigames.scoring.createContinuous({ smoothingMs: 40 });
+      } catch (_) { _ptHandle = null; }
+      if (_ptHandle && typeof _ptHandle.on === 'function') {
+        _ptHandle.on('pitch', ptOnPitch);
+        _ptHandle.on('end', () => { _ptHandle = null; });
+      } else {
+        _ptHandle = null;
+      }
+    }
+    if (!_ptHandle && !_ndVerifyMode) return;   // no ear at all → nothing to show
     ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: 0, total: 0 });
   }
 
@@ -12403,12 +12512,18 @@
     // frame falsely scored it), so a single frame must never score; any truly
     // held note yields dozens of consecutive frames. Guarded by
     // smoke-scoring-e2e's negative control.
+    // YIN scoring runs only when YIN is the scorer. In verifier mode the
+    // harmonic-comb verifier owns hit scoring (_ptScored is written by
+    // ndOnVerify); ptOnPitch is display-only — the streak/±50¢ gate below would
+    // double-judge (and can't see chords), so skip it.
     const _k = ptKey(activeNote);
-    if (!_ptScored.has(_k) && Math.abs(cents) <= 50) {
-      if (_ptStreak.key === _k) _ptStreak.count++; else _ptStreak = { key: _k, count: 1 };
-      if (_ptStreak.count >= PT_HIT_FRAMES) _ptScored.add(_k);
-    } else if (_ptStreak.key === ptKey(activeNote) && Math.abs(cents) > 50) {
-      _ptStreak = { key: null, count: 0 };   // out-of-tune frame breaks the streak
+    if (!_ndVerifyMode) {
+      if (!_ptScored.has(_k) && Math.abs(cents) <= 50) {
+        if (_ptStreak.key === _k) _ptStreak.count++; else _ptStreak = { key: _k, count: 1 };
+        if (_ptStreak.count >= PT_HIT_FRAMES) _ptScored.add(_k);
+      } else if (_ptStreak.key === ptKey(activeNote) && Math.abs(cents) > 50) {
+        _ptStreak = { key: null, count: 0 };   // out-of-tune frame breaks the streak
+      }
     }
     const noteName = NOTE_NAMES[((expectedMidi % 12) + 12) % 12] + (Math.floor(expectedMidi / 12) - 1);
     ptUpdateMeter({ show: true, active: true, cents, note: noteName, hits: _ptScored.size, total: passedTotal });
@@ -12416,6 +12531,7 @@
 
   function stopPitchTracker() {
     if (_ptHandle) { try { _ptHandle.stop(); } catch (_) {} _ptHandle = null; }
+    ndStopVerify();   // clear the verify target + listener, restore note_detect
     // Clear scoring state so a later silent preview can't read this run's
     // notes/hits and feed stale hit/miss counts to the pathway tier gate.
     _ptNotes = []; _ptScored = new Set(); _ptByKey = new Map(); _ptHadInput = false;
@@ -12431,7 +12547,7 @@
   // need no gate — they're the reward. 'active' = a sustain currently ringing correctly;
   // a short note that's hit stays 'hit' (the strike flare).
   function ptGetNoteState(note) {
-    if (!_ptHandle || !note) return null;
+    if ((!_ptHandle && !_ndVerifyMode) || !note) return null;
     const k = ptKey(note), tn = _ptByKey.get(k);
     if (!tn) return null;                                   // not a judged note (e.g. count-in lead-in)
     const now = currentPracticeTime, end = tn.t + (tn.sus || 0.24);
