@@ -381,10 +381,14 @@
   .slopscale-tp-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
   .slopscale-tp-play { min-height: 34px; min-width: 84px; padding: 0 16px; border-radius: 8px; border: none; background: var(--ss-accent); color: #fff; font-weight: 600; font-size: 13px; cursor: pointer; transition: background 0.15s; }
   .slopscale-tp-play:hover { background: var(--ss-accent-hover); }
-  .slopscale-tp-play.is-playing { background: #b91c1c; }
-  .slopscale-tp-play.is-playing:hover { background: #dc2626; }
+  /* Play/Pause keeps the primary accent in all three states (stopped/running/
+     paused) — the stop-red moved to the dedicated Stop button when the transport
+     split (2026-06-06); a Pause control is not a danger action. */
   .slopscale-tp-btn { min-height: 30px; min-width: 30px; padding: 0 10px; border-radius: 8px; border: none; background: #1e2740; color: #cbd5e1; font-weight: 600; font-size: 12px; cursor: pointer; transition: background 0.15s; }
-  .slopscale-tp-btn:hover { background: #2a3654; }
+  .slopscale-tp-btn:disabled { opacity: 0.35; cursor: default; }
+  .slopscale-tp-stop:not(:disabled) { color: #fca5a5; }
+  .slopscale-tp-stop:not(:disabled):hover { background: var(--ss-stop); color: #fff; }
+  .slopscale-tp-btn:not(:disabled):hover { background: #2a3654; }
   .slopscale-tp-btn.active { background: var(--ss-accent); color: #fff; }
   .slopscale-tp-time { font-family: var(--ss-mono); font-size: 12px; color: #94a3b8; min-width: 84px; text-align: center; }
   .slopscale-tp-sep { width: 1px; align-self: stretch; background: rgba(75,85,99,0.45); margin: 3px 4px; }
@@ -2031,7 +2035,11 @@
           <button type="button" id="slopscale-to-start" class="slopscale-tp-btn" title="Back to start (Home)">⏮</button>
           <button type="button" id="slopscale-prev-seg" class="slopscale-tp-btn slopscale-session-only" title="Previous segment (,)">⏪</button>
           <button type="button" id="slopscale-nudge-back" class="slopscale-tp-btn" title="Nudge back one bar (←)">⟨</button>
-          <button type="button" id="slopscale-play" class="slopscale-tp-play" title="Play / Stop (Space)">▶ Play</button>
+          <!-- DAW transport split (2026-06-06): dedicated Stop left of a Play/Pause
+               toggle (Logic layout). Stop ends the run and returns the playhead to
+               where play began; Pause freezes in place and Play resumes. -->
+          <button type="button" id="slopscale-stop" class="slopscale-tp-btn slopscale-tp-stop" title="Stop — end the run, playhead returns to where play started" disabled>■</button>
+          <button type="button" id="slopscale-play" class="slopscale-tp-play" title="Play / Pause (Space)">▶ Play</button>
           <button type="button" id="slopscale-nudge-fwd" class="slopscale-tp-btn" title="Nudge forward one bar (→)">⟩</button>
           <button type="button" id="slopscale-next-seg" class="slopscale-tp-btn slopscale-session-only" title="Next segment (.)">⏩</button>
           <span class="slopscale-tp-time"><span id="slopscale-time-cur">0:00</span> / <span id="slopscale-time-dur">0:00</span></span>
@@ -2136,7 +2144,7 @@
           <div class="slopscale-cheat-card">
             <div class="slopscale-sheet-head"><span>Keyboard shortcuts</span><button type="button" id="slopscale-cheat-close" class="slopscale-sheet-close" aria-label="Close">✕</button></div>
             <ul class="slopscale-cheat-list">
-              <li><kbd>Space</kbd> Play / Stop</li>
+              <li><kbd>Space</kbd> Play / Pause</li>
               <li><kbd>M</kbd> Mixer</li>
               <li><kbd>P</kbd> Progress</li>
               <li><kbd>[</kbd> Collapse panel</li>

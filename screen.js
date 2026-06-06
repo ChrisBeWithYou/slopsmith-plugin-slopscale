@@ -2501,6 +2501,14 @@
   // chord-shape frames onto the note lane (see attachRenderer + drawOnce).
   let rendererBundle = null;
   let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
+  // PAUSE is a sub-state of playing (playing stays true while paused) so every
+  // "transport break → stopPlayback()" call site keeps working unchanged. The
+  // clock freezes (tick skips the advance), audio + judgment stop, the session
+  // stays open; resume re-anchors from the frozen playhead (the seekTo pattern).
+  // Paused wall-time is excluded from the session duration so XP (time-based)
+  // and the "Practiced m:ss" readout never credit paused time.
+  let paused = false, _pausedAccumMs = 0, _pauseBeganMs = 0;
+  function sessionPausedMs() { return _pausedAccumMs + (paused ? Math.max(0, performance.now() - _pauseBeganMs) : 0); }
   // Chart time where the current/last playback began (Logic-style: Stop returns
   // the playhead here). Unlike playAnchorChartTime, it does NOT drift on loop wrap.
   let playStartChartTime = 0;
@@ -8409,7 +8417,7 @@
     // lock + let an abandoned run flush later as a fake clean pass (dev-ops
     // e2e audit, 2026-06-05; guarded in smoke-renderers' play/stop cycle).
     if (playing) { sessionEnd(); releaseWakeLock(); }
-    playing = false; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } if (renderer && typeof renderer.destroy === 'function') { try { renderer.destroy(); } catch (e) { console.warn('[SlopScale] renderer destroy failed', e); } } renderer = null; syncPlayButton(); }
+    playing = false; paused = false; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } if (renderer && typeof renderer.destroy === 'function') { try { renderer.destroy(); } catch (e) { console.warn('[SlopScale] renderer destroy failed', e); } } renderer = null; syncPlayButton(); }
 
   async function attachRenderer(exercise) {
     const cfg = exercise.session;
@@ -8462,8 +8470,16 @@
   function syncPlayButton() {
     const btn = $('slopscale-play');
     if (!btn) return;
-    btn.classList.toggle('is-playing', !!playing);
-    btn.textContent = playing ? '■ Stop' : '▶ Play';
+    // Three transport states (DAW convention — Stop is its own button now):
+    // stopped → "▶ Play" · running → "⏸ Pause" · paused → "▶ Play" (resume).
+    // The button keeps the primary accent throughout; the danger red lives on
+    // the dedicated Stop button (it was only ever red here because this button
+    // used to BE the stop).
+    btn.classList.toggle('is-playing', !!(playing && !paused));
+    btn.classList.toggle('is-paused', !!(playing && paused));
+    btn.textContent = (playing && !paused) ? '⏸ Pause' : '▶ Play';
+    const stopBtn = $('slopscale-stop');
+    if (stopBtn) stopBtn.disabled = !playing;   // enabled while running OR paused
     updateStartCta();
   }
   // First-run primed START CTA (Pathways mode): names the exercise + a short skill
@@ -8478,7 +8494,7 @@
     const cta = $('slopscale-start-cta'); if (!cta) return;
     const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
     const verb = $('slopscale-start-verb'), name = $('slopscale-start-name'), skill = $('slopscale-start-skill');
-    if (verb) verb.textContent = playing ? '■ STOP' : '▶ START';
+    if (verb) verb.textContent = (playing && !paused) ? '⏸ PAUSE' : (paused ? '▶ RESUME' : '▶ START');
     if (name) name.textContent = pw ? pw.label : 'this exercise';
     if (skill) skill.textContent = pw ? startSkillHook(pw) : '';
     cta.classList.toggle('playing', !!playing);
@@ -9063,7 +9079,7 @@
   // instantly at duration.
   function endFiniteRun() {
     sessionEnd();                 // flush the session → presentSessionSummary (closure)
-    playing = false;
+    playing = false; paused = false;
     currentPracticeTime = playStartChartTime;
     playAnchorChartTime = playStartChartTime;
     stopAudio();
@@ -9083,6 +9099,9 @@
       // tick only runs while playing, so this is the natural place to catch it.
       const screenRoot = $('slopscale-root');
       if (screenRoot && !screenRoot.offsetParent) { stopPlayback(); return; }
+      // Paused: keep the RAF alive (the nav-guard above + redraws stay armed)
+      // but freeze the clock — no advance, no loop wraps, no finite-run end.
+      if (paused) { drawOnce(); rafId = requestAnimationFrame(tick); return; }
       const elapsedMs = Math.max(0, nowMs - playAnchorMs);
       currentPracticeTime = playAnchorChartTime + elapsedMs / 1000;
       const duration = activeBundle.songInfo.duration || 1;
@@ -10345,6 +10364,7 @@
     sessionBegin();
     stopAudio(); syncHighwaySettings(activeBundle);
     playing = true;
+    paused = false; _pausedAccumMs = 0; _pauseBeganMs = 0;
     acquireWakeLock();   // hold the screen awake for the duration of this play
     // With an active A–B loop, playback begins at the loop start — not wherever
     // the playhead happens to sit (DAW cycle behavior; the playhead is just a
@@ -10367,11 +10387,44 @@
   // Stop returns the playhead to where playback last began (Logic Pro behaviour:
   // hit Play to instantly replay the same passage). The ⏮ button jumps to the
   // very start — Logic's "press Stop again to go to the top".
-  function stopPlayback() { sessionEnd(); playing = false; releaseWakeLock(); currentPracticeTime = playStartChartTime; playAnchorChartTime = playStartChartTime; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
-  // Toggle for the primary Play/Stop button. If we don't have a chart yet,
+  function stopPlayback() { sessionEnd(); playing = false; paused = false; releaseWakeLock(); currentPracticeTime = playStartChartTime; playAnchorChartTime = playStartChartTime; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
+  // Pause freezes the run in place: clock + audio + judgment stop, the session
+  // and the pitch-tracker state stay alive, the playhead holds. Resume re-anchors
+  // the clock/audio from the frozen playhead (the seekTo pattern). Wake lock is
+  // released while paused (a paused screen may sleep) and re-acquired on resume.
+  function pausePlayback() {
+    if (!playing || paused) return;
+    paused = true; _pauseBeganMs = performance.now();
+    stopAudio();
+    releaseWakeLock();
+    syncPlayButton(); refreshStatusFromState();
+  }
+  function resumePlayback() {
+    if (!playing || !paused) return;
+    _pausedAccumMs += Math.max(0, performance.now() - _pauseBeganMs);
+    paused = false;
+    acquireWakeLock();
+    playAnchorChartTime = currentPracticeTime;
+    playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
+    scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
+    // Scoring hygiene: frames either side of a pause are not consecutive
+    // evidence of a held note (mirrors the loop-wrap streak reset).
+    _ptStreak = { key: null, count: 0 };
+    syncPlayButton(); refreshStatusFromState();
+  }
+  // Dedicated transport Stop (the button left of Play/Pause). Acts on a running
+  // OR paused run; inert when already stopped (the button is disabled then).
+  function onStop() { if (playing) stopPlayback(); }
+  // Toggle for the primary Play/Pause button. If we don't have a chart yet,
   // generate one first so the very first click always plays something.
   async function onPlayToggle() {
-    if (playing) { stopPlayback(); return; }
+    if (playing && !paused) { pausePlayback(); return; }
+    if (playing && paused) {
+      // Resume inside the click gesture so a context the browser suspended
+      // (e.g. after long inactivity) comes back with the audio.
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+      resumePlayback(); return;
+    }
     // Create/resume the AudioContext inside the click gesture (before any await) so
     // the voice warm-up + playback don't start on a suspended context.
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
@@ -10398,12 +10451,14 @@
     if (!activeBundle) return;
     const dur = activeBundle.songInfo?.duration || 0;
     currentPracticeTime = Math.max(0, Math.min(dur, Number(t) || 0));
-    if (playing) {
+    if (playing && !paused) {
       playAnchorChartTime = currentPracticeTime;
       playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
       stopAudio();
       scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
     } else {
+      // Stopped OR paused: just move the frozen playhead and repaint. A paused
+      // run must stay silent; resume re-anchors from wherever this seek landed.
       drawOnce();
     }
     syncTransportTime();
@@ -10664,7 +10719,7 @@
   function refreshStatusFromState() {
     if (!activeBundle) { showStatus('Ready'); return; }
     const desc = describeCurrentContent();
-    showStatus(playing ? `Playing — ${desc}` : `Ready — ${desc}`);
+    showStatus(playing ? (paused ? `Paused — ${desc}` : `Playing — ${desc}`) : `Ready — ${desc}`);
   }
 
   async function onGenerate() {
@@ -12321,6 +12376,10 @@
   }
 
   function ptOnPitch({ freqHz, confidence }) {
+    // Paused: the handle stays alive (gem states keep painting) but frames are
+    // discarded — a note held across a frozen clock must never accumulate
+    // streak evidence or score against the note sitting under the playhead.
+    if (paused) return;
     const t = currentPracticeTime;
     let activeNote = null, activeIdx = -1;
     for (let i = 0; i < _ptNotes.length; i++) {
@@ -12846,7 +12905,9 @@
 
   function sessionEnd() {
     if (!_activeSession) return;
-    const durationMs = Math.round(performance.now() - _sessionStartMs);
+    // Paused wall-time is not practice time: it must not inflate the
+    // "Practiced m:ss" readout or the time-based XP accrual.
+    const durationMs = Math.round(performance.now() - _sessionStartMs - sessionPausedMs());
     // Discard sub-2s blips (accidental clicks, regenerate-while-playing)
     if (durationMs < 2000) { _activeSession = null; return; }
     const passedTotal = _ptNotes.filter(n => n.t + (n.sus || 0.24) + 0.06 < currentPracticeTime).length;
@@ -13548,6 +13609,7 @@
     advancedToggle?.addEventListener('change', syncAdvancedMode); syncAdvancedMode(); syncChromaticVisibility();
     $('slopscale-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', ev.target.value); if (activeBundle) onGenerate(); });
     $('slopscale-play').addEventListener('click', onPlayToggle);
+    $('slopscale-stop')?.addEventListener('click', onStop);
     // Unified DAW ruler: one canvas handles BOTH scrub and A–B loop.
     //   • Lower track → scrub/seek (drag the playhead through the chart).
     //   • Top strip (loop zone) → loop/cycle: drag empty = paint a new loop,
@@ -14011,7 +14073,8 @@
         if (bEl) { bEl.value = tk.value; writeShareHash(); }
         // Re-schedule from the playhead so the new tone takes effect cleanly
         // (mirrors the per-channel instrument change below; no full regen needed).
-        if (playing) {
+        // Not while paused — a paused run must stay silent; resume re-schedules.
+        if (playing && !paused) {
           playAnchorChartTime = currentPracticeTime;
           playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
           stopAudio();
@@ -14042,7 +14105,7 @@
       mixerSave();
       if (activeBundle) {
         await awaitVoices(activeBundle);
-        if (playing) {
+        if (playing && !paused) {   // paused stays silent; resume re-schedules on the new voice
           playAnchorChartTime = currentPracticeTime;
           playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
           stopAudio();
@@ -14146,7 +14209,7 @@
         ptDodgeOverlays();   // re-measure floating third-party chrome at the new scale
       }, 120);
     });
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) { refreshForHostSettingChange(); if (playing) acquireWakeLock(); } });   // re-acquire the wake lock the browser auto-released on hide
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { refreshForHostSettingChange(); if (playing && !paused) acquireWakeLock(); } });   // re-acquire the wake lock the browser auto-released on hide (not while paused — pause released it on purpose)
     // Flush any in-progress session on page hide / unload so duration is saved
     // even if the user closes the tab or navigates away while the preview plays.
     const onPageHide = () => { if (playing) sessionEnd(); };
@@ -14211,7 +14274,7 @@
     segmentLoopB = bNum;
     // Seek the playhead to A so the next tick wraps cleanly inside the loop.
     currentPracticeTime = aNum;
-    if (playing) {
+    if (playing && !paused) {   // paused stays silent; resume re-anchors from A
       // Re-anchor the play clock and re-schedule audio from A so the listener
       // hears the loop region immediately, not silence until the next wrap.
       // Bounded at B — see the A-B wrap branch in tick() for why.

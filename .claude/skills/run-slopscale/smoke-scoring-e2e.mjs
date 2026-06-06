@@ -113,7 +113,7 @@ try {
   ok(!!pos.meterAcc, "(4) the accuracy readout counts hits", pos.meterAcc || "(no hits counted)");
   // Known display nit (logged, non-gating): hits can momentarily outrun passed-total.
   { const m = /^(\d+)\/(\d+)/.exec(pos.meterAcc || ""); if (m && +m[1] > +m[2]) console.log(`  [WARN] accuracy readout hits>total (${pos.meterAcc}) — known ptOnPitch counting nit (see ROADMAP small slices)`); }
-  await page.click("#slopscale-play").catch(() => {});
+  await page.evaluate(() => document.getElementById("slopscale-stop")?.click());   // dedicated Stop (Play now toggles pause)
   await page.waitForTimeout(200);
 
   // ── NEGATIVE control: key D → expects D3 (~-500¢ from A2) → NO hit. ───────
@@ -135,7 +135,7 @@ try {
   });
   ok(neg.provider, "(5a) scorer also runs in the negative control (so the pass below is meaningful)");
   ok(neg.hit == null, "(5b) the WRONG pitch lights nothing (no pass-everything grader)", neg.hit != null ? `note at t=${neg.hit} wrongly hit` : "");
-  await page.click("#slopscale-play").catch(() => {});
+  await page.evaluate(() => document.getElementById("slopscale-stop")?.click());   // dedicated Stop (Play now toggles pause)
   await page.waitForTimeout(200);
 
   // ── (6) CHORD EXEMPTION through the REAL detector (2026-06-05): a pedal_riff
@@ -183,7 +183,7 @@ try {
   ok(chordRes.singleHit === "hit" || chordRes.singleHit === "active", "(6a) pedal singles still score through the real detector in a chord chart", `state=${chordRes.singleHit}`);
   ok(chordRes.chordLit == null, "(6b) chord members show NO judgment (exempt — shown, not scored)", `lit=${chordRes.chordLit}`);
   ok(!!chordRes.meterAcc, "(6c) accuracy counts the singles (denominator excludes exempt chords)", chordRes.meterAcc || "(no hits counted)");
-  await page.click("#slopscale-play").catch(() => {});
+  await page.evaluate(() => document.getElementById("slopscale-stop")?.click());   // dedicated Stop (Play now toggles pause)
   await page.waitForTimeout(300);
 
   // ── (7) TARGET-AWARE TUNER (Setup → Tune…, 2026-06-06): reuses the running

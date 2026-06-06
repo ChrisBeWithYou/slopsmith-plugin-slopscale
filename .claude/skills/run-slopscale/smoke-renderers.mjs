@@ -143,8 +143,10 @@ async function clockAdvances(page) {
     now = await cur();
     advanced = now !== t0;
   }
-  // Stop so the next renderer starts clean (Play is a toggle).
-  await page.click("#slopscale-play").catch(() => {});
+  // Stop so the next renderer starts clean (Play toggles PAUSE since the 2026-06-06
+  // transport split — the dedicated Stop button is the full-stop path; evaluate-click
+  // so a disabled Stop is a no-op rather than a Playwright actionability timeout).
+  await page.evaluate(() => document.getElementById("slopscale-stop")?.click());
   await page.waitForTimeout(150);
   return { advanced, from: t0, to: now };
 }
@@ -219,6 +221,44 @@ async function run() {
       const pass = fails.length === 0;
       if (!pass) await screenshot(page, `smoke-fail-${r.kind}`);
       results.push({ kind: r.kind, pass, status, canvas, pixels, clock, fails, notes });
+    }
+
+    // ── Transport split semantics (2026-06-06): Play/Pause toggle + dedicated
+    // Stop. Pause freezes the clock in place (no advance, audio stops), Play
+    // resumes from the frozen playhead, Stop ends the run and returns the
+    // playhead to where play began; Stop is disabled when no run is alive.
+    {
+      const tFails = [];
+      const cur = () => page.$eval("#slopscale-time-cur", (e) => e.textContent.trim());
+      await page.evaluate(() => document.getElementById("slopscale-to-start")?.click());
+      await page.waitForTimeout(200);
+      if (!(await page.$eval("#slopscale-stop", (e) => e.disabled))) tFails.push("Stop not disabled while stopped");
+      await page.click("#slopscale-play");                       // start
+      let started = false;
+      for (let i = 0; i < 12 && !started; i++) { await page.waitForTimeout(400); started = (await cur()) !== "0:00"; }
+      if (!started) tFails.push("run never started");
+      const mid = await page.evaluate(() => ({ txt: document.getElementById("slopscale-play").textContent, stopOn: !document.getElementById("slopscale-stop").disabled }));
+      if (!/pause/i.test(mid.txt)) tFails.push(`running button reads "${mid.txt}" (expected Pause)`);
+      if (!mid.stopOn) tFails.push("Stop not enabled while running");
+      await page.click("#slopscale-play");                       // pause
+      await page.waitForTimeout(300);
+      const f1 = await cur();
+      await page.waitForTimeout(1600);                           // > 1s: a running clock must roll a second
+      const f2 = await cur();
+      if (f1 !== f2) tFails.push(`paused clock moved (${f1} -> ${f2})`);
+      const pausedTxt = await page.$eval("#slopscale-play", (e) => e.textContent);
+      if (!/play/i.test(pausedTxt)) tFails.push(`paused button reads "${pausedTxt}" (expected Play)`);
+      await page.click("#slopscale-play");                       // resume
+      let resumed = false;
+      for (let i = 0; i < 12 && !resumed; i++) { await page.waitForTimeout(400); resumed = (await cur()) !== f2; }
+      if (!resumed) tFails.push(`resume did not advance the clock (stuck at ${f2})`);
+      await page.click("#slopscale-stop");                       // dedicated stop
+      await page.waitForTimeout(300);
+      const end = await page.evaluate(() => ({ t: document.getElementById("slopscale-time-cur").textContent.trim(), txt: document.getElementById("slopscale-play").textContent, stopOff: document.getElementById("slopscale-stop").disabled }));
+      if (end.t !== "0:00") tFails.push(`Stop did not return the playhead to the run start (at ${end.t})`);
+      if (!/play/i.test(end.txt)) tFails.push(`stopped button reads "${end.txt}" (expected Play)`);
+      if (!end.stopOff) tFails.push("Stop not disabled after stopping");
+      results.push({ kind: "transport", pass: tFails.length === 0, status: "play/pause + dedicated stop", canvas: null, pixels: "n/a", clock: { from: "0:00", to: end.t }, fails: tFails, notes: [] });
     }
 
     // ── Wake-lock/session teardown pairing (promoted from probe-wakelock-leak,
