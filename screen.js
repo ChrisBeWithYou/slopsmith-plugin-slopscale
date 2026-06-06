@@ -1215,7 +1215,7 @@
     },
     chord_caged_shapes: {
       label:'The Five CAGED Shapes',
-      goal:'The same chord, five ways up the neck — one pass WALKS all five CAGED shapes in order, climbing from the open-position grip toward the 12th fret (each chord box names its shape). E and A are the workhorse movable barres; C, G and D are the partial/anchor grips. Learn the ladder and you stop being trapped at the nut: any chord, any region. The key variations re-walk the same ladder from new frets — that is the proof the SHAPES are what you own, not one set of fret numbers.',
+      goal:'The same chord, five ways up the neck — one pass WALKS all five CAGED shapes in order, climbing from the open-position grip toward the 12th fret (each chord box names its shape). E and A are the workhorse movable barres; C, G and D are the partial/anchor grips — the movable G rings as its standard partial grab, the honest form real players use. Learn the ladder and you stop being trapped at the nut: any chord, any region. The key variations re-walk the same ladder from new frets — that is the proof the SHAPES are what you own, not one set of fret numbers. (Minor keys walk the shapes that exist as real grips — the movable G and C minor forms do not, so the minor ladder is shorter on purpose.)',
       scales:['major','natural_minor'],
       tempoTiers:[60, 80, 100, 120],
       // shapeWalk: bar i is voiced in the i-th CAGED shape low→high (the canonical
@@ -1983,7 +1983,10 @@
       chordTemplates: {
         maj: [{s:1,fOff:0,iv:0,fg:1},{s:2,fOff:2,iv:7,fg:3},{s:3,fOff:2,iv:0,fg:3},{s:4,fOff:2,iv:4,fg:3},{s:5,fOff:0,iv:7,fg:1}],
         min: [{s:1,fOff:0,iv:0,fg:1},{s:2,fOff:2,iv:7,fg:3},{s:3,fOff:2,iv:0,fg:4},{s:4,fOff:1,iv:3,fg:2},{s:5,fOff:0,iv:7,fg:1}],
-        dim: [{s:1,fOff:0,iv:0,fg:1},{s:2,fOff:1,iv:6,fg:2},{s:3,fOff:2,iv:0,fg:4},{s:4,fOff:1,iv:3,fg:3},{s:5,fOff:-1,iv:6,fg:1}]
+        // dim fingering corrected 2026-06-06 (load-guard catch): fg1 spanned
+        // fOff 0 AND -1 (impossible). Now: pinky-side mini-barre fg3 at +1
+        // (s2+s4, s3 arches higher inside — valid), index on the low ♭5.
+        dim: [{s:1,fOff:0,iv:0,fg:2},{s:2,fOff:1,iv:6,fg:3},{s:3,fOff:2,iv:0,fg:4},{s:4,fOff:1,iv:3,fg:3},{s:5,fOff:-1,iv:6,fg:1}]
       }
     },
     G: {
@@ -2011,11 +2014,50 @@
       chordTemplates: {
         maj: [{s:2,fOff:0,iv:0,fg:1},{s:3,fOff:2,iv:7,fg:2},{s:4,fOff:3,iv:0,fg:4},{s:5,fOff:2,iv:4,fg:3}],
         min: [{s:2,fOff:0,iv:0,fg:1},{s:3,fOff:2,iv:7,fg:3},{s:4,fOff:3,iv:0,fg:4},{s:5,fOff:1,iv:3,fg:2}],
-        dim: [{s:2,fOff:0,iv:0,fg:1},{s:3,fOff:1,iv:6,fg:1},{s:4,fOff:3,iv:0,fg:3},{s:5,fOff:1,iv:3,fg:1}]
+        // dim fingering corrected 2026-06-06 (load-guard catch): fg1 spanned
+        // fOff 0 AND +1 (impossible). Now: index on the root, fg2 mini-barre
+        // at +1 (s3+s5, s4 arches higher inside — valid), pinky on the octave.
+        dim: [{s:2,fOff:0,iv:0,fg:1},{s:3,fOff:1,iv:6,fg:2},{s:4,fOff:3,iv:0,fg:4},{s:5,fOff:1,iv:3,fg:2}]
       }
     }
   };
   const CAGED_CYCLE = ['C', 'A', 'G', 'E', 'D']; // cyclic order (C→A→G→E→D→C…)
+  // Startup integrity guard (pedagogy review 2026-06-06; mirrors the
+  // STRUM_GRIPS finger-collision guard): a chord template drawn MOVABLE must be
+  // humanly fingerable — one finger holds ONE fret offset (equal fOffs = a
+  // barre), and a barre may not cross a LOWER fret offset on a string inside
+  // its span (the finger would have to lie through it). Caught the A:dim and
+  // D:dim fg data bugs above on first run. Exclusions, by design:
+  //   G:*  — an open-position shape; the strum lane voices its movable form as
+  //          a PARTIAL (pickStrumGrip) and the walk skips movable G min/dim.
+  //   C:min — no real movable C-minor grip exists (a 5-finger form); excluded
+  //          from the strum lane's movable picks (walk + economy).
+  //   E:dim — the full 6-string movable dim doesn't exist either (the ♭5 sits a
+  //          fret BELOW the would-be barre); real dim comping uses the 4-string
+  //          D/A forms. Excluded from the strum lane's movable picks likewise.
+  (function assertCagedChordTemplatesValid() {
+    const SKIP = new Set(['G:maj', 'G:min', 'G:dim', 'C:min', 'E:dim']);
+    for (const shape of Object.keys(CAGED_SHAPES)) {
+      const tmpls = CAGED_SHAPES[shape].chordTemplates || {};
+      for (const q of Object.keys(tmpls)) {
+        if (SKIP.has(`${shape}:${q}`)) continue;
+        const ent = tmpls[q];
+        const byFg = {};
+        for (const n of ent) { if (!n.fg) continue; (byFg[n.fg] = byFg[n.fg] || []).push(n); }
+        for (const fg of Object.keys(byFg)) {
+          const grp = byFg[fg];
+          const offs = new Set(grp.map(n => n.fOff));
+          if (offs.size > 1) throw new Error(`[SlopScale caged-template] ${shape}:${q} finger ${fg} spans fret offsets ${[...offs].join(',')} (impossible)`);
+          if (grp.length >= 2) {
+            const lo = Math.min.apply(null, grp.map(n => n.s)), hi = Math.max.apply(null, grp.map(n => n.s)), f = grp[0].fOff;
+            for (const n of ent) {
+              if (n.s > lo && n.s < hi && n.fOff < f) throw new Error(`[SlopScale caged-template] ${shape}:${q} barre (finger ${fg} at fOff ${f}) crosses a lower stop on string ${n.s} (impossible)`);
+            }
+          }
+        }
+      }
+    }
+  })();
 
   // 3NPS positions, named by mode. Each position starts on a specific scale
   // degree on the low E string, then places 3 consecutive scale degrees on
@@ -6459,7 +6501,27 @@
         const hi = cagedShapeNotesForChord(cfg, shape, quality, rf + 12);
         if (gripComplete(hi)) { rf += 12; g = hi; }
       }
-      return gripComplete(g) ? { rootFret: rf, gripNotes: g } : null;
+      if (!gripComplete(g)) return null;
+      let partial = false;
+      // Movable G-shape (pedagogy review should-fix): the full movable G-shape
+      // barre is a never-played grip ("rare/uncomfortable" per its own data
+      // comment). MAJOR: drop the high-string root → the standard partial grab
+      // (C: 8-7-5-5-5-x, an E-barre-like 4-finger grip). MINOR/DIM: no real
+      // movable G-form exists. "Movable" = no open string in the grip.
+      if (shape === 'G' && g.every(p => p.f > 0)) {
+        if (cagedShapeQualityKey(quality) !== 'maj') { if (opts.walkGate) return null; }
+        else {
+          const hiS = Math.max.apply(null, g.map(p => p.s));
+          const part = g.filter(p => p.s !== hiS);
+          if (gripComplete(part)) { g = part; partial = true; }
+        }
+      }
+      // Movable C-shape MINOR and movable E-shape DIM are impossible grips (a
+      // barre with a lower fret inside its span) — the walk skips them (an
+      // honest shorter walk beats an unplayable shape); economy excludes them.
+      const qk = cagedShapeQualityKey(quality);
+      if (opts.walkGate && g.every(p => p.f > 0) && ((shape === 'C' && qk === 'min') || (shape === 'E' && qk === 'dim'))) return null;
+      return { rootFret: rf, gripNotes: g, partial };
     };
     const meanFret = (g) => g.reduce((a, p) => a + p.f, 0) / g.length;
     // Economy gates + tie-break (review must-fix #2): movable G-shape (either
@@ -6477,12 +6539,19 @@
       const resolved = resolveGrip(shape, baseFret);
       if (!resolved) continue;
       const { rootFret, gripNotes } = resolved;
-      const template = templateFromShape(name, shape, quality, rootFret, cfg, false) || templateFromPositions(name, gripNotes, cfg, false);
+      // A partial grip must NOT use the full-shape template box (it would draw
+      // strings the player should mute) — fall to position-derived fingering,
+      // keeping the shape vocabulary on the label ("… (G-shape partial)").
+      const template = (resolved.partial ? null : templateFromShape(name, shape, quality, rootFret, cfg, false)) || templateFromPositions(name, gripNotes, cfg, false);
+      if (resolved.partial && template && !/-shape/.test(template.displayName || '')) {
+        template.displayName = `${name} (${CAGED_SHAPES[shape].displayName} partial)`;
+      }
       const cand = { shape, rootFret, gripNotes, template };
       if (opts.fixedShape) { best = cand; break; }
       if (economy) {
         const open = gripNotes.some(p => p.f === 0);
-        if (!open && (shape === 'G' || (shape === 'C' && cagedShapeQualityKey(quality) === 'min'))) continue;
+        const qk2 = cagedShapeQualityKey(quality);
+        if (!open && (shape === 'G' || (shape === 'C' && qk2 === 'min') || (shape === 'E' && qk2 === 'dim'))) continue;
         const prevMean = (opts.prevMeanFret != null && opts.prevMeanFret >= 0) ? opts.prevMeanFret : prevRootFret;
         const d = Math.abs(meanFret(gripNotes) - prevMean);
         if (!best || d < bestDist - 1e-9 || (Math.abs(d - bestDist) <= 1e-9 && ECON_RANK[shape] < ECON_RANK[best.shape])) { best = cand; bestDist = d; }
@@ -6537,12 +6606,15 @@
       const rootPc0 = chordRootForDegree(cfg, deg0);
       const quality0 = chordQualityForDegree(cfg.scale, cfg.chordDepth, deg0, cfg.chordOverride, cfg.progression);
       walkOrder = STRUM_SHAPE_ORDER
-        .map(sh => { const g = pickStrumGrip(cfg, rootPc0, quality0, -1, { fixedShape: sh }); return g ? { sh, lo: Math.min.apply(null, g.gripNotes.map(p => p.f)) } : null; })
+        .map(sh => { const g = pickStrumGrip(cfg, rootPc0, quality0, -1, { fixedShape: sh, walkGate: true }); return g ? { sh, lo: Math.min.apply(null, g.gripNotes.map(p => p.f)) } : null; })
         .filter(Boolean)
         .sort((a, b) => a.lo - b.lo)
         .map(x => x.sh);
       if (!walkOrder.length) walkOrder = null;
     }
+    // Low tempo tiers breathe: 2 bars per shape at ≤80 BPM (10 bars = exactly
+    // one lap), 1 bar per shape above (10 bars = two laps) — pedagogy review.
+    const barsPerShape = cfg.bpm <= 80 ? 2 : 1;
     const pat = STRUM_PATTERNS[cfg.strumPattern] || STRUM_PATTERNS[defaultStrumPattern(cfg)] || STRUM_PATTERNS.folk_pop_ddu_udu;
     // Odd-meter / non-4-beat degrade: if the 4/4-authored grid doesn't fit this bar,
     // fall back to a down-strum on each beat (the chord "limps" with the meter).
@@ -6557,9 +6629,9 @@
       const deg = degrees[bar % degrees.length];
       const rootPc = chordRootForDegree(cfg, deg);
       const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, deg, cfg.chordOverride, cfg.progression);
-      const barShape = walkOrder ? walkOrder[bar % walkOrder.length] : null;
+      const barShape = walkOrder ? walkOrder[Math.floor(bar / barsPerShape) % walkOrder.length] : null;
       const grip = pickStrumGrip(cfg, rootPc, quality, barShape ? -1 : prevRootFret,
-        { fixedShape: barShape || fixedShape, economy: cfg.voicingPosition === 'economy', prevMeanFret });
+        { fixedShape: barShape || fixedShape, walkGate: !!barShape, economy: cfg.voicingPosition === 'economy', prevMeanFret });
       if (!grip || !grip.gripNotes.length) continue;
       // (Walk mode needs no extra labeling — templateFromShape's displayName is
       // already "G (E-shape)", and the chord box prefers displayName.)
