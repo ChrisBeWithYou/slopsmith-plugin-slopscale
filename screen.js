@@ -1813,8 +1813,11 @@
       bpmLadder:{ enabled:false },
       keyCycle:{ enabled:false },
       segments:[
+        // Window at frets 5–8, NOT 1–4 (bass-pedagogy fix-first, 2026-06-06): a
+        // flat four-fret stretch at the nut on a 34" scale is the veto-case
+        // fingering; every bass method runs this drill from the 5th fret.
         { id:'chromatic', name:'Chromatic 1-2-3-4',       kind:'chromatic',
-          config:{ chromaticPattern:'1234', bpm:70, bars:8, direction:'up_down', fretboardSystem:'position', fretMin:1, fretMax:4, meter:'4/4', subdivision:'eighth', stringSetup:'bass_4_standard', keyCycle:'none' } },
+          config:{ chromaticPattern:'1234', bpm:70, bars:8, direction:'up_down', fretboardSystem:'position', fretMin:5, fretMax:8, meter:'4/4', subdivision:'eighth', stringSetup:'bass_4_standard', keyCycle:'none' } },
         { id:'pent',      name:'A minor pentatonic',       kind:'scale',
           config:{ key:'A', scale:'minor_pentatonic', bpm:80, bars:8, meter:'4/4', subdivision:'eighth', direction:'up_down', sequence:'none', fretboardSystem:'position', fretMin:0, fretMax:5, stringSetup:'bass_4_standard', keyCycle:'none' } },
         { id:'arps',      name:'Chord-tone targeting',     kind:'diatonic_arpeggios',
@@ -3978,6 +3981,24 @@
     return baseSetup.tuning.slice();
   }
   function noteDefaults(extra) { return Object.assign({ t:0, s:0, f:0, sus:0, sl:-1, slu:-1, bn:0, ho:false, po:false, hm:false, hp:false, pm:false, mt:false, vb:false, tr:false, ac:false, tp:false }, extra || {}); }
+  // Alternate-picking pkd emission (hand-marks Slice 1; guitar-pedagogy ruling):
+  // strict alternation by NOTE ORDER — string crossings included; the triplet
+  // beat-flip IS the lesson — down first, re-anchored on a down after a rest.
+  // Legato (ho/po) and tapped notes are pick-transparent: no pkd, and they
+  // don't advance the alternation. Muted chugs DO pick (and count). Host wire
+  // ints adopted verbatim: 0 = down, 1 = up (sloppak `pkd`). Display-only data
+  // — nothing ever scores on it (the panel's unanimous constitution).
+  function applyAlternatePicking(notes, cfg) {
+    const beat = (60 / cfg.bpm) * (4 / ((cfg.meter && cfg.meter.denominator) || 4));
+    let next = 0, lastT = null;
+    for (const n of notes) {
+      if (n.ho || n.po || n.tp) continue;
+      if (lastT != null && n.t - lastT >= beat * 1.4) next = 0;   // a real rest → re-anchor down
+      n.pkd = next; next = next ^ 1;
+      lastT = n.t;
+    }
+    return notes;
+  }
   function scalePcs(cfg) { const keyPc = NOTE_ALIASES[cfg.key] ?? 0; return (SCALE_INTERVALS[cfg.scale] || SCALE_INTERVALS.major).map(i => (keyPc + i) % 12); }
   function secondsPerDivision(cfg) { const q = 60 / cfg.bpm; return ({ quarter:q, eighth:q/2, sixteenth:q/4, triplet:q/3, eighth_triplet:q/3, sixteenth_triplet:q/6, gallop:q/2, reverse_gallop:q/2 })[cfg.subdivision] || q/2; }
   // Non-uniform rhythm patterns (genre-framework §2.5). Returns a cycling array of
@@ -4293,15 +4314,20 @@
     return out;
   }
 
-  // Convert a shape's note list (s/f/d/isRoot) into the {s,f,midi,pc} shape
-  // the chart generators expect.
+  // Convert a shape's note list (s/f/d/isRoot/fg) into the {s,f,midi,pc,fg}
+  // shape the chart generators expect. `fg` (fret-hand finger 0–4) rides along
+  // from the validated resolvers — it was silently dropped here until the
+  // 2026-06-06 hand-marks panel found the severed line (the honesty rule:
+  // fingering is emitted ONLY where a validated source provides it).
   function shapeNotesToPositions(cfg, shapeNotes) {
     const opens = openMidisForConfig(cfg);
     const mapped = shapeNotes
       .filter(n => n.s >= 0 && n.s < cfg.stringCount)
       .map(n => {
         const midi = opens[n.s] + n.f;
-        return { s: n.s, f: n.f, midi, pc: midi % 12 };
+        const p = { s: n.s, f: n.f, midi, pc: midi % 12 };
+        if (n.fg != null) p.fg = n.fg;
+        return p;
       })
       .sort((a, b) => a.midi - b.midi || a.s - b.s || a.f - b.f);
     // No-unison guard at the run/seam layer: a pitch must sound only once even
@@ -4330,8 +4356,34 @@
       // instrument `frets` field to STRING_SETUPS and clamp fretMax to it here.
       case 'full_neck': return dedupeUnisons(everyScalePosition(Object.assign({}, cfg, { fretMin:0, fretMax:24 })));
       case 'position':
-      default: return allScalePositions(cfg);
+      default: {
+        const pos = allScalePositions(cfg);
+        // Bass fretting-hand numbering (bass-pedagogy ruling 2026-06-06): the
+        // dual regime — 1-2-4 (Simandl-derived) below an index anchor of fret 5,
+        // one-finger-per-fret above — applied per BOX, never per note. Guitar
+        // position boxes emit NO fingering (honesty rule: no validated source
+        // → omit); bass's rule IS the validated source. Bass must never route
+        // through scaleFingerFor (its G→B nudge is guitar-only).
+        if (String(cfg.stringSetup || '').indexOf('bass') === 0) applyBassFingering(pos);
+        return pos;
+      }
     }
+  }
+  function bassFingerFor(f, anchor) {
+    if (f === 0) return 0;
+    if (anchor >= 5) { const fg = f - anchor + 1; return (fg >= 1 && fg <= 4) ? fg : null; }
+    const off = f - anchor;                       // low position: three ascending frets = 1-2-4
+    return off === 0 ? 1 : off === 1 ? 2 : off === 2 ? 4 : null;   // wider = a shift, not a stretch
+  }
+  function applyBassFingering(positions) {
+    const fretted = positions.filter(p => p.f > 0);
+    if (!fretted.length) return positions;
+    const anchor = Math.min(...fretted.map(p => p.f));
+    for (const p of positions) {
+      const fg = bassFingerFor(p.f, anchor);
+      if (fg != null) p.fg = fg;                  // out-of-regime frets stay unmarked (honest)
+    }
+    return positions;
   }
 
   function buildBeats(cfg, duration) {
@@ -5220,9 +5272,12 @@
     while (t < duration - 0.001) {
       const p = path[i % path.length];
       const sd = steps ? steps[i % steps.length] : step;
-      notes.push(noteDefaults({ t:Number(t.toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, sd * 0.78), ac:i % Math.max(1, cfg.meter.numerator) === 0 }));
+      const nf = { t:Number(t.toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, sd * 0.78), ac:i % Math.max(1, cfg.meter.numerator) === 0 };
+      if (p.fg != null) nf.fg = p.fg;
+      notes.push(noteDefaults(nf));
       t += sd; i++;
     }
+    applyAlternatePicking(notes, cfg);   // scale runs: strict alternate, down on entry
     return { notes, chords:[], chordTemplates:[], handShapes:[], sections:[{ name:`scale-${cfg.fretboardSystem || 'position'}`, number:1, time:0 }], duration };
   }
 
@@ -5336,9 +5391,18 @@
       handShapes.push({ chord_id:templateId, start_time:Number(barStart.toFixed(6)), end_time:Number((barStart + mLen).toFixed(6)), arp:true });
       sections.push({ name, number:templateId + 1, time:Number(barStart.toFixed(6)) });
       const limit = Math.min(Math.floor(mLen / step), path.length);
+      // Sweep pkd is fully directional (metal + guitar-pedagogy rulings):
+      // ascending leg all-down, descending all-up; the apex ho/po turnaround is
+      // pick-transparent. Same-string steps continue the current direction.
+      let sweepDir = 0, prevS = null;
       for (let i = 0; i < limit; i++) {
         const p = path[i];
-        notes.push(noteDefaults({ t:Number((barStart + i * step).toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * 0.6), ac:i === 0, ho:!!p.ho, po:!!p.po }));
+        const nf = { t:Number((barStart + i * step).toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * 0.6), ac:i === 0, ho:!!p.ho, po:!!p.po };
+        if (p.fg != null) nf.fg = p.fg;
+        if (prevS != null) sweepDir = p.s > prevS ? 0 : p.s < prevS ? 1 : sweepDir;
+        if (!p.ho && !p.po) nf.pkd = sweepDir;
+        prevS = p.s;
+        notes.push(noteDefaults(nf));
       }
     }
     return { notes, chords, chordTemplates, handShapes, sections:sections.length ? sections : [{ name:'sweep-arpeggios', number:1, time:0 }], duration };
@@ -5400,7 +5464,9 @@
       handShapes.push({ chord_id:templateId, start_time:Number(t.toFixed(6)), end_time:Number((t + chordSlot).toFixed(6)), arp:true });
       for (let i = 0; i < path.length; i++) {
         const p = path[i];
-        notes.push(noteDefaults({ t:Number((t + i * step).toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * 0.72), ac:i === 0 }));
+        const nf = { t:Number((t + i * step).toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * 0.72), ac:i === 0 };
+        if (p.fg != null) nf.fg = p.fg;   // shape-run arpeggios carry the template's fingering
+        notes.push(noteDefaults(nf));
       }
       t += chordSlot;
     });
@@ -5436,17 +5502,22 @@
     const unit = [];
     for (const s of stringOrder) {
       for (const offset of offsets) {
-        unit.push({ s, f: fretBase + offset });
+        // Chromatic frame fingering (guitar-pedagogy ruling): 1-2-3-4 per
+        // 4-fret frame — the canonical spider; no schools dispute it.
+        unit.push({ s, f: fretBase + offset, fg: (offset >= 0 && offset <= 3) ? offset + 1 : null });
       }
     }
 
     let t = 0, unitIdx = 0;
     while (t < totalTime - 0.001) {
-      const { s, f } = unit[unitIdx % unit.length];
-      notes.push(noteDefaults({ t: Number(t.toFixed(6)), s, f, sus: Math.max(0.04, step * 0.85) }));
+      const { s, f, fg } = unit[unitIdx % unit.length];
+      const nf = { t: Number(t.toFixed(6)), s, f, sus: Math.max(0.04, step * 0.85) };
+      if (fg != null) nf.fg = f === 0 ? 0 : fg;
+      notes.push(noteDefaults(nf));
       t += step;
       unitIdx++;
     }
+    applyAlternatePicking(notes, cfg);   // the chromatic warmup IS the alternate-picking lesson
 
     const duration = Math.max(t, totalTime);
     return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration };
@@ -5748,6 +5819,7 @@
         notes.push(noteDefaults({ t: Number(mt.toFixed(6)), s: pos.s, f: pos.f, sus, tr: true }));
       t = barEnd; posIdx++;
     }
+    applyAlternatePicking(notes, cfg);   // tremolo: strict alternate, never re-anchored mid-span (continuous notes can't trip the rest rule)
     return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration: Math.max(t, totalTime) };
   }
 
