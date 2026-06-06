@@ -181,8 +181,18 @@ try {
     return out;
   });
   ok(chordRes.singleHit === "hit" || chordRes.singleHit === "active", "(6a) pedal singles still score through the real detector in a chord chart", `state=${chordRes.singleHit}`);
-  ok(chordRes.chordLit == null, "(6b) chord members show NO judgment (exempt — shown, not scored)", `lit=${chordRes.chordLit}`);
-  ok(!!chordRes.meterAcc, "(6c) accuracy counts the singles (denominator excludes exempt chords)", chordRes.meterAcc || "(no hits counted)");
+  // Verifier fork (PR #4 + note_detect): when the host exposes the timing-free
+  // harmonic-comb verifier, the chord exemption is LIFTED — chord members are
+  // judged (observed crediting from this suite's real WAV). Without it
+  // (YIN-only host), chords stay exempt: shown, never judged.
+  const verifierMode = await page.evaluate(() => typeof window.noteDetect?.setVerifyTarget === "function");
+  if (verifierMode) {
+    ok(chordRes.chordLit === "hit" || chordRes.chordLit === "active", "(6b·verifier) chord members ARE judged (exemption lifted)", `lit=${chordRes.chordLit}`);
+    ok(!!chordRes.meterAcc, "(6c·verifier) accuracy counts chords in the denominator", chordRes.meterAcc || "(no hits counted)");
+  } else {
+    ok(chordRes.chordLit == null, "(6b) chord members show NO judgment (exempt — shown, not scored)", `lit=${chordRes.chordLit}`);
+    ok(!!chordRes.meterAcc, "(6c) accuracy counts the singles (denominator excludes exempt chords)", chordRes.meterAcc || "(no hits counted)");
+  }
   await page.evaluate(() => document.getElementById("slopscale-stop")?.click());   // dedicated Stop (Play now toggles pause)
   await page.waitForTimeout(300);
 

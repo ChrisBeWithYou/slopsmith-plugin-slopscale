@@ -26,7 +26,7 @@ import { chromium } from "playwright";
 
 const HOST = process.env.SLOPSMITH_HOST || "http://127.0.0.1:8765";
 
-const BENIGN = [
+const BENIGN = [/note detect: mic access denied/i, 
   /failed to set up audio analyser/i,
   /invalidstateerror/i,
   /audiocontext was not allowed to start/i,

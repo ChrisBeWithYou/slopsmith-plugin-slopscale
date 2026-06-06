@@ -42,7 +42,7 @@ const RENDERERS = [
 
 // Console noise that is expected and not a SlopScale fault (see SKILL.md #7 +
 // headless AudioContext autoplay policy).
-const BENIGN = [
+const BENIGN = [/note detect: mic access denied/i, 
   /failed to set up audio analyser/i,
   /invalidstateerror/i,
   /audiocontext was not allowed to start/i,

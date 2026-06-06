@@ -16,7 +16,7 @@ const HOST = process.env.SLOPSMITH_HOST || "http://127.0.0.1:8765";
 let fails = 0;
 const ok = (c, l, d) => { console.log(`  [${c ? "PASS" : "FAIL"}] ${l}${d ? "  " + d : ""}`); if (!c) fails++; };
 // Benign headless noise (autoplay policy, mic-less scoring) — not a gem-path fault.
-const BENIGN = [/audiocontext/i, /failed to set up audio analyser/i, /play\(\) request was interrupted/i, /continuous scoring failed to start/i, /invalidstateerror/i];
+const BENIGN = [/note detect: mic access denied/i, /audiocontext/i, /failed to set up audio analyser/i, /play\(\) request was interrupted/i, /continuous scoring failed to start/i, /invalidstateerror/i];
 const isBenign = (m) => BENIGN.some((re) => re.test(m));
 
 const browser = await chromium.launch({ headless: true });
@@ -47,6 +47,12 @@ try {
   await p.evaluate(() => {
     const c = document.querySelector('[name="countIn"]'); if (c) { c.value = '0'; c.dispatchEvent(new Event('change', { bubbles: true })); }
     window.__fp = null; window.__run = true;
+    // Pin the YIN scoring lane: with the note_detect plugin installed (PR #4
+    // verifier-backed scoring), window.noteDetect would put the run in verifier
+    // mode and make ptOnPitch display-only — the fake pitch events below would
+    // never score. This suite owns the FAKE-YIN gem contract; the verifier lane
+    // is covered with REAL audio in smoke-scoring-e2e.
+    try { delete window.noteDetect; } catch (_) { window.noteDetect = undefined; }
     window.slopsmithMinigames = window.slopsmithMinigames || {}; window.slopsmithMinigames.scoring = window.slopsmithMinigames.scoring || {};
     window.slopsmithMinigames.scoring.createContinuous = () => ({ on: (e, cb) => { if (e === "pitch") window.__fp = cb; }, stop: () => { window.__run = false; }, isRunning: () => window.__run });
   });

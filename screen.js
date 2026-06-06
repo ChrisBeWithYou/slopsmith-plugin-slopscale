@@ -2727,6 +2727,10 @@
   // first flips on the opening hit; a zero-hit pass shows no miss gems —
   // lenient, consistent with SlopScale's "scoring degrades, never blocks".
   function ndOnVerify(ev) {
+    // Paused: the last-pushed target survives the pause (tick stops refreshing
+    // it), so live audio could keep crediting it against a frozen clock —
+    // discard verify events while paused, mirroring ptOnPitch's paused guard.
+    if (paused) return;
     const d = ev && ev.detail;
     if (!d || !d.isHit || !_ndVerifyActive.length) return;
     _ptHadInput = true;
