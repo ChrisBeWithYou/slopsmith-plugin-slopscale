@@ -63,6 +63,15 @@
   // queued on the same AudioContext clock before the previous one ends.
   const SCHED_WINDOW_SECONDS = 10;
   const SCHED_REFILL_AHEAD = 4;
+  // The host detector's hard tracking floor (YIN minHz:70 in the minigames SDK,
+  // verified vs checkout a04050b 2026-06-06): pitches below this are INVISIBLE
+  // to the mic — bass E1 (41 Hz) / A1 (55 Hz), drop-C/B guitar low strings.
+  // Sub-floor expected notes are honest-ungraded (excluded from judgment like
+  // chords — the click is the judge); the tuner octave-folds sub-floor targets
+  // (YIN reports the 2nd harmonic). FLIP TRIGGER: the host exposing minHz on
+  // createContinuous (their yinDetect already accepts it — host-expert watch
+  // item); then run the staged E1 probe and retire these gates where cleared.
+  const DETECTOR_MIN_HZ = 70;
 
   const STRING_SETUPS = {
     guitar_6_standard: { label:'6-string guitar — standard', instrument:'guitar', openMidis:[40,45,50,55,59,64], tuning:[0,0,0,0,0,0] },
@@ -1081,7 +1090,7 @@
       goal:'Same notes, different groove: play an even stream of sixteenths on one note and move WHERE the accent falls — on the beat, then the "e", the "&", the "a". Relocating the accent turns one rhythm into four feels; it\'s the highest-leverage groove skill a drummer owns, and it makes your time feel intentional instead of mechanical. Count out loud and let the accent — not the notes — carry the groove (this is the engine under the bluegrass roll, the funk "one", the tango marcato).',
       scales:['minor_pentatonic'],
       tempoTiers:[55, 70, 85, 100],
-      base:{ practiceType:'rhythm_pulse', pulseAccent:0, scale:'minor_pentatonic', meter:'4/4', subdivision:'sixteenth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      base:{ practiceType:'rhythm_pulse', pulseAccent:0, scale:'minor_pentatonic', anchor:'open_lowest', anchorFret:5, meter:'4/4', subdivision:'sixteenth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', shape:'E' },
       vary:[ { pulseAccent:0 }, { pulseAccent:1 }, { pulseAccent:2 }, { pulseAccent:3 }, { subdivision:'eighth', pulseAccent:1 } ]
     },
     rhy_single_string: {
@@ -1089,7 +1098,7 @@
       goal:'Strip everything away: ONE palm-muted note on a low string, struck in a steady pulse against the click. With no fretting-hand variable, your picking hand IS the metronome — the most direct way to build rock-solid time. Quarters, then eighths, then sixteenths; keep every strike even and relaxed. Then tap a world-rhythm on the same one note — the tresillo (3-3-2), the son clave — and feel its TIME (a single line teaches the time of a feel, not the whole band). Or shift the pulse onto the upbeats for the reggae skank: play only the "&" and trust the empty downbeat — the hardest, most useful time skill is feeling the beat you do NOT play.',
       scales:['minor_pentatonic'],
       tempoTiers:[60, 80, 100, 120],
-      base:{ practiceType:'rhythm_pulse', pulseAccent:0, pulseOffbeat:false, scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      base:{ practiceType:'rhythm_pulse', pulseAccent:0, pulseOffbeat:false, scale:'minor_pentatonic', anchor:'open_lowest', anchorFret:5, meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', shape:'E' },
       vary:[ { subdivision:'quarter' }, { subdivision:'eighth' }, { subdivision:'sixteenth' }, { subdivision:'tresillo' }, { subdivision:'son_clave' }, { subdivision:'quarter', pulseOffbeat:true } ]
     },
     rhy_half_double: {
@@ -1320,28 +1329,28 @@
     // buildCompingExercise; the master/improv rung (A8) awaits its engine.
     pulse_muting: {
       label:'Pulse & Muting',
-      goal:'The foundation under everything: lock to the click and control the mute. A palm-muted low-E pedal chugs the beat while a tight E5 lands on each downbeat — straight feel first. The skill is the metronome relationship and both-hand muting (palm-mute + left-hand dampening), not the notes. Own this and every riff sits in the pocket.',
+      goal:'The foundation under everything: lock to the click and control the mute. A palm-muted pedal on your open lowest string chugs the beat while a tight power chord (root+5th) lands on each downbeat — straight feel first. The skill is the metronome relationship and both-hand muting (palm-mute + left-hand dampening), not the notes. The later steps move the pedal to a FRETTED root — a different mute: your fretting finger owns the note length. Own this and every riff sits in the pocket.',
       scales:['natural_minor','minor_pentatonic'],
       tempoTiers:[50, 65, 80, 95],
-      base:{ practiceType:'pedal_riff', harmonize:false, scale:'natural_minor', key:'E', meter:'4/4', subdivision:'eighth', bpm:60, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'static_i', chordOverride:'5', swing:'straight', fretMin:0, fretMax:5 },
+      base:{ practiceType:'pedal_riff', harmonize:false, scale:'natural_minor', anchor:'open_lowest', anchorFret:0, meter:'4/4', subdivision:'eighth', bpm:60, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'static_i', chordOverride:'5', swing:'straight', fretMin:0, fretMax:5 },
       vary:[
         { progression:'static_i', subdivision:'eighth' },
         { progression:'static_i', subdivision:'sixteenth' },
-        { progression:'static_i', key:'A' },
-        { progression:'static_i', key:'G' },
+        { progression:'static_i', anchorFret:5 },
+        { progression:'static_i', anchorFret:3 },
       ]
     },
     power_chord_comping: {
       label:'Power-Chord Comping',
-      goal:'Power chords as harmony, not metal — root+5th dyads moving through a musical minor progression (i–♭VII–♭VI–♭VII) over a tonic pedal. The skill is changing power-chord shapes cleanly in time and hearing the root motion. Standard tuning; this is the chord vocabulary every rock and pop rhythm part is built from.',
+      goal:'Power chords as harmony, not metal — root+5th dyads moving through a musical minor progression (i–♭VII–♭VI–♭VII) over a tonic pedal. The skill is changing power-chord shapes cleanly in time and hearing the root motion. Works in any tuning — the riff anchors on your lowest string; this is the chord vocabulary every rock and pop rhythm part is built from.',
       scales:['natural_minor','minor_pentatonic','major'],
       tempoTiers:[60, 80, 100, 120],
-      base:{ practiceType:'pedal_riff', harmonize:false, scale:'natural_minor', key:'E', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'i-VII-VI-VII', chordOverride:'5', swing:'straight', fretMin:0, fretMax:7 },
+      base:{ practiceType:'pedal_riff', harmonize:false, scale:'natural_minor', anchor:'open_lowest', anchorFret:0, meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'i-VII-VI-VII', chordOverride:'5', swing:'straight', fretMin:0, fretMax:7 },
       vary:[
         { progression:'i-VII-VI-VII' },
-        { progression:'I-V-vi-IV', scale:'major', key:'G' },
+        { progression:'I-V-vi-IV', scale:'major', anchorFret:3 },
         { progression:'i-VI-III-VII' },
-        { progression:'I-IV-V', scale:'major', key:'A' },
+        { progression:'I-IV-V', scale:'major', anchorFret:5 },
       ]
     },
     major_scale_caged: {
@@ -1387,10 +1396,10 @@
     // ── Metal / heavy-genre pack (genre-framework §3) ────────────────────────
     metalcore_chug: {
       label:'Metalcore Pedal Chug',
-      goal:'The defining heavy riff: a palm-muted low pedal (open/tonic) alternating with power chords that move by semitone (i–♭II–i–♭VII). Lock the pedal chugs to the click, keep the power chords tight and muted. Drop D. Start slow — the groove is in the precision, not the speed.',
+      goal:'The defining heavy riff: a palm-muted pedal on your open lowest string alternating with power chords that move by semitone (i–♭II–i–♭VII). Lock the pedal chugs to the click, keep the power chords tight and muted. Any tuning — the pedal rides whatever your lowest string sounds. Start slow — the groove is in the precision, not the speed.',
       scales:['phrygian','natural_minor'],
       tempoTiers:[80, 100, 120, 140],
-      base:{ practiceType:'pedal_riff', harmonize:false, scale:'phrygian', key:'E', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', progression:'metal_pedal_chromatic', chordOverride:'5', fretMin:0, fretMax:7 },
+      base:{ practiceType:'pedal_riff', harmonize:false, scale:'phrygian', anchor:'open_lowest', anchorFret:0, meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', progression:'metal_pedal_chromatic', chordOverride:'5', fretMin:0, fretMax:7 },
       vary:[
         { progression:'metal_pedal_chromatic', subdivision:'eighth' },
         { progression:'metal_i_bVI_bVII', subdivision:'eighth' },
@@ -1403,7 +1412,7 @@
       goal:'Galloping power chords (eighth + two sixteenths) over a minor/harmonic-minor key — the NWOBHM / power-metal engine. The gallop lives in the picking hand: down on the eighth, down-up on the sixteenths, palm muted. i–♭VI–♭VII root motion.',
       scales:['harmonic_minor','natural_minor'],
       tempoTiers:[90, 120, 150, 180],
-      base:{ practiceType:'pedal_riff', harmonize:false, scale:'harmonic_minor', key:'A', meter:'4/4', subdivision:'gallop', bpm:120, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'metal_i_bVI_bVII', chordOverride:'5', fretMin:0, fretMax:9 },
+      base:{ practiceType:'pedal_riff', harmonize:false, scale:'harmonic_minor', anchor:'open_lowest', anchorFret:5, meter:'4/4', subdivision:'gallop', bpm:120, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'metal_i_bVI_bVII', chordOverride:'5', fretMin:0, fretMax:9 },
       vary:[
         { subdivision:'gallop', progression:'metal_i_bVI_bVII' },
         { subdivision:'reverse_gallop', progression:'metal_i_bVI_bVII' },
@@ -1441,13 +1450,13 @@
       scales:['phrygian','natural_minor'],
       tempoTiers:[70, 90, 110, 130],
       instAgnostic:true,
-      base:{ practiceType:'rhythm_pulse', pulseAccent:0, pulseOffbeat:false, scale:'phrygian', key:'D', meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', audioProfile:'djent', fretMin:0, fretMax:4 },
+      base:{ practiceType:'rhythm_pulse', pulseAccent:0, pulseOffbeat:false, scale:'phrygian', anchor:'open_lowest', anchorFret:0, meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', audioProfile:'djent', fretMin:0, fretMax:4 },
       vary:[
         { subdivision:'eighth' },
         { subdivision:'triplet' },
         { subdivision:'sixteenth' },
         { subdivision:'eighth', pulseOffbeat:true },
-        { subdivision:'sixteenth', stringSetup:'guitar_7_standard', key:'B' },
+        { subdivision:'sixteenth', stringSetup:'guitar_7_standard' },
       ]
     },
     djent_accent_grid: {
@@ -1456,7 +1465,7 @@
       scales:['phrygian'],
       tempoTiers:[55, 70, 85, 100],
       instAgnostic:true,
-      base:{ practiceType:'rhythm_pulse', pulseAccent:0, pulseOffbeat:false, scale:'phrygian', key:'D', meter:'4/4', subdivision:'sixteenth', bpm:55, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', audioProfile:'djent', fretMin:0, fretMax:4 },
+      base:{ practiceType:'rhythm_pulse', pulseAccent:0, pulseOffbeat:false, scale:'phrygian', anchor:'open_lowest', anchorFret:0, meter:'4/4', subdivision:'sixteenth', bpm:55, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', audioProfile:'djent', fretMin:0, fretMax:4 },
       vary:[
         { pulseAccent:0 },
         { pulseAccent:1 },
@@ -1473,9 +1482,10 @@
       goal:'THE djent signature: a palm-muted low pedal with power-chord stabs (root+5th+octave) landing on the starts of an additive grouping — 3+3+2 over a steady count. Count the eighths 1-2-3 / 1-2-3 / 1-2 and let the stabs walk against the grid; the bar snaps them back on the downbeat. The harmony is static — the "progression" IS the grouping. Named honestly: this cell re-locks every bar (an additive grouping, metric superimposition\'s square cousin) — TRUE polymeter, where a riff cell drifts across many bars before realigning, is the summit this ladder builds toward. The 16/8 variation is the longest honest climb: a cell twice as long before it resolves.',
       scales:['phrygian','natural_minor'],
       tempoTiers:[70, 90, 110, 130],
-      base:{ practiceType:'pedal_riff', harmonize:false, scale:'phrygian', key:'B', meter:'8/8:3+3+2', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_7_standard', renderer:'highway_3d', progression:'metal_pedal_chromatic', chordOverride:'5oct', audioProfile:'djent', fretMin:0, fretMax:7 },
-      // key B on the 7-string = the pedal on the OPEN low B (metal-idiom review:
-      // the djent pedal idiom is the open lowest string; was key E = fret 5).
+      base:{ practiceType:'pedal_riff', harmonize:false, scale:'phrygian', anchor:'open_lowest', anchorFret:0, meter:'8/8:3+3+2', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_7_standard', renderer:'highway_3d', progression:'metal_pedal_chromatic', chordOverride:'5oct', audioProfile:'djent', fretMin:0, fretMax:7 },
+      // anchor: the djent pedal idiom IS the open lowest string — whatever the
+      // player's instrument makes it (was key:'B' hand-tuned to the 7-string;
+      // the anchor model derives it for any tuning/string count).
       vary:[
         { meter:'8/8:3+3+2', chordOverride:'5oct' },
         { meter:'16/8:3+3+3+3+2+2', chordOverride:'5oct' },
@@ -1489,13 +1499,13 @@
       scales:['phrygian','natural_minor'],
       tempoTiers:[60, 80, 100, 120],
       instAgnostic:true,
-      base:{ practiceType:'rhythm_pulse', pulseAccent:0, pulseOffbeat:false, scale:'phrygian', key:'D', meter:'4/4', subdivision:'gallop', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', audioProfile:'djent', fretMin:0, fretMax:4 },
+      base:{ practiceType:'rhythm_pulse', pulseAccent:0, pulseOffbeat:false, scale:'phrygian', anchor:'open_lowest', anchorFret:0, meter:'4/4', subdivision:'gallop', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', audioProfile:'djent', fretMin:0, fretMax:4 },
       vary:[
         { subdivision:'gallop' },
         { subdivision:'reverse_gallop' },
         { subdivision:'skip_chug' },
         { subdivision:'snap' },
-        { subdivision:'reverse_gallop', stringSetup:'guitar_7_standard', key:'B' },
+        { subdivision:'reverse_gallop', stringSetup:'guitar_7_standard' },
       ]
     },
     djent_moving_chug: {
@@ -1503,13 +1513,13 @@
       goal:'Move the riff, not just the accent: shift the root+5th+octave stack across the low strings inside a dead-even palm-muted chug — semitone menace first (i–♭II), then the modal i–♭VI–♭VII. The skill is hand independence: the fretting hand jumps, the picking hand never flinches. On drop tunings, fret the low stack with the THUMB OVER the neck — the named technique that frees fingers 1–4 for everything above the pedal. The variations walk the floor down: 7-string B standard → drop A → 8-string F♯. The sixteenth variation sits past the all-downstroke ceiling — alternate-pick it.',
       scales:['phrygian','natural_minor'],
       tempoTiers:[70, 90, 110, 130],
-      base:{ practiceType:'pedal_riff', harmonize:false, scale:'phrygian', key:'B', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_7_standard', renderer:'highway_3d', progression:'metal_pedal_chromatic', chordOverride:'5oct', audioProfile:'djent', fretMin:0, fretMax:7 },
+      base:{ practiceType:'pedal_riff', harmonize:false, scale:'phrygian', anchor:'open_lowest', anchorFret:0, meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_7_standard', renderer:'highway_3d', progression:'metal_pedal_chromatic', chordOverride:'5oct', audioProfile:'djent', fretMin:0, fretMax:7 },
       vary:[
         { progression:'metal_pedal_chromatic' },
         { progression:'metal_i_bVI_bVII' },
         { subdivision:'sixteenth', progression:'metal_pedal_chromatic' },
-        { customOpenMidis:'33,40,45,50,55,59,64', key:'A', progression:'metal_pedal_chromatic' },
-        { stringSetup:'guitar_8_standard', key:'F#', progression:'metal_pedal_chromatic' },
+        { customOpenMidis:'33,40,45,50,55,59,64', progression:'metal_pedal_chromatic' },
+        { stringSetup:'guitar_8_standard', progression:'metal_pedal_chromatic' },
       ]
     },
     // Capstone — the on-ramp to creation (mirror of the Rhythm band's Trade Bars):
@@ -1520,13 +1530,13 @@
       scales:['phrygian','minor_pentatonic'],
       tempoTiers:[70, 85, 100, 120],
       instAgnostic:true,
-      base:{ practiceType:'call_response', scale:'phrygian', key:'D', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', audioProfile:'djent', fretMin:0, fretMax:4 },
+      base:{ practiceType:'call_response', scale:'phrygian', anchor:'open_lowest', anchorFret:0, meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', audioProfile:'djent', fretMin:0, fretMax:4 },
       vary:[
         { subdivision:'eighth' },
         { subdivision:'sixteenth' },
         { subdivision:'reverse_gallop' },
         { meter:'8/8:3+3+2' },
-        { subdivision:'sixteenth', stringSetup:'guitar_7_standard', key:'B' },
+        { subdivision:'sixteenth', stringSetup:'guitar_7_standard' },
       ]
     },
     death_chromatic: {
@@ -1534,7 +1544,7 @@
       goal:'Non-functional, tritone-laced power-chord riffs over the darkest scales (Locrian, diminished, double harmonic). Roots move by semitone and tritone — no key gravity, pure menace. Tremolo-pick at speed; lowest tunings. i–♭II–i–♭v.',
       scales:['locrian','phrygian','diminished','double_harmonic'],
       tempoTiers:[100, 130, 160, 190],
-      base:{ practiceType:'pedal_riff', harmonize:false, tremolo:true, scale:'locrian', key:'B', meter:'4/4', subdivision:'eighth', bpm:120, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_7_standard', renderer:'highway_3d', progression:'metal_death_tritone', chordOverride:'5', fretMin:0, fretMax:9 },
+      base:{ practiceType:'pedal_riff', harmonize:false, tremolo:true, scale:'locrian', anchor:'open_lowest', anchorFret:0, meter:'4/4', subdivision:'eighth', bpm:120, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_7_standard', renderer:'highway_3d', progression:'metal_death_tritone', chordOverride:'5', fretMin:0, fretMax:9 },
       vary:[
         { progression:'metal_death_tritone', scale:'locrian' },
         { progression:'metal_death_tritone', scale:'diminished' },
@@ -2757,6 +2767,9 @@
       // what Travel credits. Empty/0 everywhere outside an adapted rung.
       keyNominal: (data.get('keyNominal') || '').toString() || null,
       tuningOffset: parseInt(data.get('tuningOffset') || '0', 10) || 0,
+      // Anchor-rung station ('open'/'fret N') — set only when the active rung is
+      // anchor:'open_lowest'; Travel credits this token instead of a key name.
+      anchorStation: (data.get('anchorStation') || '').toString() || null,
       key: data.get('key') || 'C',
       scale: data.get('scale') || 'major',
       bpm: Math.max(30, Math.min(260, parseFloat(data.get('bpm') || '100'))),
@@ -3503,6 +3516,25 @@
   // Startup integrity guard (mirrors validateStylePalettes + the no-unison guard):
   // injects each template's id, then enforces the four refresh invariants over every
   // variant of every template — throws on load if an authored template violates one.
+  // Anchor-rung integrity guard (keyless-anchor model 2026-06-06; mirrors the
+  // no-unison / palette / segment guards — throws at load so a mis-authored
+  // rung can never ship): anchor rungs derive their key, so a co-coded `key`
+  // is a contradiction; anchorFret 12+ aliases down an octave (re-author);
+  // anchorFret without the anchor flag is dead data.
+  (function assertAnchorRungsValid() {
+    for (const [id, pw] of Object.entries(PATHWAYS)) {
+      const isAnchor = (pw.base || {}).anchor === 'open_lowest';
+      const variants = [pw.base || {}].concat(pw.vary || []);
+      for (const v of variants) {
+        if (v.anchor != null && v.anchor !== 'open_lowest') throw new Error(`[SlopScale anchor] ${id}: unknown anchor '${v.anchor}'`);
+        if (v.anchorFret != null && (!Number.isInteger(v.anchorFret) || v.anchorFret < 0 || v.anchorFret > 11))
+          throw new Error(`[SlopScale anchor] ${id}: anchorFret ${v.anchorFret} out of range 0-11 (12+ aliases down an octave — re-author)`);
+        if (isAnchor && v.key != null) throw new Error(`[SlopScale anchor] ${id}: 'key' co-coded with anchor:'open_lowest' — the key is DERIVED; author anchorFret instead`);
+        if (!isAnchor && (v.anchor != null || v.anchorFret != null)) throw new Error(`[SlopScale anchor] ${id}: anchor fields without anchor:'open_lowest' in base`);
+      }
+    }
+  })();
+
   (function validateSegmentTemplates() {
     for (const id of Object.keys(SEGMENT_TEMPLATES)) {
       const t = SEGMENT_TEMPLATES[id];
@@ -9744,7 +9776,17 @@
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     // The Tune… row needs the host scoring SDK (the mic detector) — sync its
     // visibility on every open so a host without it never shows a dead button.
-    if (open) { const row = $('slopscale-tune-row'); if (row) row.style.display = ptAvailable() ? '' : 'none'; }
+    // The courtesy button rides the same sync: shown only when the third-party
+    // floating-tuner plugin's public API is present (feature-detect, no dependency).
+    if (open) {
+      const row = $('slopscale-tune-row');
+      const extOk = typeof window.tuner?.toggle === 'function';
+      if (row) row.style.display = (ptAvailable() || extOk) ? '' : 'none';
+      const tuneBtn = $('slopscale-tune-btn');
+      if (tuneBtn) tuneBtn.style.display = ptAvailable() ? '' : 'none';
+      const ext = $('slopscale-tuner-ext');
+      if (ext) ext.style.display = extOk ? '' : 'none';
+    }
   }
   // Header settings menu (⚙) + its prefs: accent theme (live), default XP mode (a
   // stored default — ready for the unbuilt XP store), default count-in (seeds the
@@ -11189,6 +11231,8 @@
     // applyTuningAdaptL1 rewrote this rung).
     setFieldSilent('keyNominal', config.keyNominal || '');
     setFieldSilent('tuningOffset', config.tuningOffset != null ? config.tuningOffset : '');
+    // Anchor-rung station token: anti-leak defaulted the same way.
+    setFieldSilent('anchorStation', config.anchorStation || '');
     // Backing tone is automated: default the profile (anti-leak) + reflect the
     // genre's default brightness onto the slider (the loop below sets the
     // audioProfile field itself from config).
@@ -11394,8 +11438,26 @@
     const note = $('slopscale-pathway-tuning-note');
     if (note) {
       const off = parseInt($('slopscale-tuning-offset')?.value || '0', 10) || 0;
+      const station = $('slopscale-anchor-station')?.value || '';
       const concertKey = document.querySelector('#slopscale-controls [name="key"]')?.value || '';
-      if (pw && off !== 0) {
+      if (pw && station) {
+        // Anchor rung: name the anchor + the derived pitch (keyless ≠ pitch-
+        // anonymous — the player should always know what note they're making).
+        // When the anchor sits below what the mic can track, say so honestly
+        // (the 70 Hz detector floor — graded by ears + the click, never a fail).
+        let subFloor = false;
+        try {
+          const cfgNow = readConfig();
+          const opens = openMidisForConfig(cfgNow);
+          const af = station === 'open' ? 0 : (parseInt(station.replace('fret ', ''), 10) || 0);
+          subFloor = midiToFreq((opens[0] || 40) + af) < DETECTOR_MIN_HZ;
+        } catch (_) {}
+        note.textContent = (station === 'open'
+          ? `Anchored on your open lowest string — that's ${concertKey} on your instrument.`
+          : `Pedal at ${station} of your lowest string — that's ${concertKey} on your instrument.`)
+          + (subFloor ? ' This register sits below what the mic can track — graded by your ears and the click.' : '');
+        note.style.display = '';
+      } else if (pw && off !== 0) {
         const inst = instrumentStoreLoad();
         const preset = inst && (TUNING_PRESETS[`${(STRING_SETUPS[inst.stringSetup] || {}).instrument}_${(STRING_SETUPS[inst.stringSetup] || { openMidis: [] }).openMidis.length}`] || [])
           .find(p => { const m = instrumentStoreMidis(inst); return m && p.midis.length === m.length && p.midis.every((x, i) => x === m[i]); });
@@ -11471,6 +11533,50 @@
     cfg.customOpenMidis = effective.join(',');
   }
 
+  // ── Anchor policy (keyless-anchor model, panel 2026-06-06 — ADOPTED) ────────
+  // Technique/rhythm rungs declare anchor:'open_lowest' + anchorFret instead of
+  // coding a key: "pedal at fret N of YOUR lowest string." cfg.key becomes a
+  // DERIVED value (pc of opens[0]+anchorFret, sharp names) so the core engine,
+  // backing, and detector all receive a concrete concert key with ZERO core
+  // changes — and the round-trip theorem (builders recover the pedal fret from
+  // the key pc) makes the old bug class (key:'E' over drop-D → "open" pedal at
+  // fret 2; key:'A' putting a 5-string bassist at B-string fret 10)
+  // UNREPRESENTABLE. The player's L1 instrument wins wholesale for anchor rungs
+  // (same family): the lesson is the anchor, not the tuning — this also covers
+  // structural tunings (drop-D/BEAD) that the uniform-offset adapt defers.
+  // Keyless ≠ pitch-anonymous: the derived pitch is always displayed.
+  // Returns true when the rung is anchor-class (the L1 transpose adapt is then
+  // skipped — there is no nominal key to transpose).
+  function applyAnchorPolicy(cfg) {
+    if (cfg.anchor !== 'open_lowest') return false;
+    // The player's declared instrument supersedes the rung's coded setup
+    // (same family only — cross-family is the instAgnostic block's job, which
+    // runs before this). Rung-coded L3 CSVs (a 7-string drop-A vary) keep
+    // their own opens: the anchor then derives from THAT low string.
+    if (!cfg.customOpenMidis) {
+      const inst = instrumentStoreLoad();
+      const rungSetup = STRING_SETUPS[cfg.stringSetup || 'guitar_6_standard'];
+      const pSetup = inst && STRING_SETUPS[inst.stringSetup];
+      if (pSetup && rungSetup && pSetup.instrument === rungSetup.instrument) {
+        cfg.stringSetup = inst.stringSetup;
+        if (inst.customOpenMidis) cfg.customOpenMidis = inst.customOpenMidis;
+      }
+    }
+    const setup = STRING_SETUPS[cfg.stringSetup || 'guitar_6_standard'] || STRING_SETUPS.guitar_6_standard;
+    let opens = setup.openMidis;
+    if (cfg.customOpenMidis) {
+      const list = String(cfg.customOpenMidis).split(',').map(s => parseInt(s, 10)).filter(Number.isFinite);
+      if (list.length === setup.openMidis.length) opens = list;
+    }
+    const af = Math.max(0, Math.min(11, parseInt(cfg.anchorFret, 10) || 0));
+    cfg.anchorFret = af;
+    cfg.key = NOTE_NAMES[((opens[0] + af) % 12 + 12) % 12];   // derived concert key
+    // Station token for Travel credit + the goal-card readout ('open'/'fret N')
+    // — fingering-relative, so a retune can never re-credit the same station.
+    cfg.anchorStation = af === 0 ? 'open' : `fret ${af}`;
+    return true;
+  }
+
   function applyPathwayById(id, variationIdx) {
     const isNewPathway = id !== activePathwayId;
     activePathwayId = id;
@@ -11480,6 +11586,7 @@
       // a Custom run's session record doesn't credit a stale nominal key.
       setFieldSilent('keyNominal', '');
       setFieldSilent('tuningOffset', '');
+      setFieldSilent('anchorStation', '');
       // Custom mode hides the goal card via CSS, so no card update needed.
       return;
     }
@@ -11527,9 +11634,10 @@
           if (fs.instrument === 'bass') { tieredConfig.fretboardSystem = 'position'; delete tieredConfig.shape; }
         }
       }
-      // Same-family tuning adapt: the player's saved uniform-offset tuning
-      // transposes the rung (concert key + player opens, identical frets).
-      applyTuningAdaptL1(tieredConfig);
+      // Anchor rungs derive their key from the player's lowest string; keyed
+      // rungs get the same-family uniform-offset transpose (concert key +
+      // player opens, identical frets). Mutually exclusive by design.
+      if (!applyAnchorPolicy(tieredConfig)) applyTuningAdaptL1(tieredConfig);
       if (pw.tempoTiers && pw.tempoTiers[activeTempoTierIdx] != null) {
         tieredConfig.bpm = pw.tempoTiers[activeTempoTierIdx];
       }
@@ -12103,7 +12211,15 @@
     const _gk = (n) => n.ch != null ? ('c' + n.ch) : ('t' + n.t);
     const _gCounts = new Map();
     for (const n of allNotes) { const k = _gk(n); _gCounts.set(k, (_gCounts.get(k) || 0) + 1); }
-    _ptNotes = allNotes.filter(n => _gCounts.get(_gk(n)) === 1);
+    // Sub-floor exemption (70 Hz plan, 2026-06-06): notes whose expected pitch
+    // sits below the detector's tracking floor are honest-ungraded too — the
+    // mic physically cannot hear bass E1/A1 or drop-C/B low strings, so judging
+    // them was a silent zero the player read as their own failure. The click is
+    // the judge for that register (bass-pedagogy ruling: change the judge,
+    // never relocate the lesson).
+    const _opens = bundle.openMidis || [];
+    const _audible = (n) => { const m = _opens[n.s]; return m == null || midiToFreq(m + n.f) >= DETECTOR_MIN_HZ; };
+    _ptNotes = allNotes.filter(n => _gCounts.get(_gk(n)) === 1 && _audible(n));
     _ptOpenMidis = bundle.openMidis || [];
     _ptScored = new Set();
     _ptByKey = new Map(); for (const n of _ptNotes) _ptByKey.set(ptKey(n), n);   // (s,f,t) → note, for the gem hook
@@ -12289,11 +12405,19 @@
     if (!$('slopscale-root')?.offsetParent || playing) { stopTuner(); return; }
     if (!(freqHz > 0) || confidence < 0.55) { tunerPaint(null, 0, false); return; }
     const midiF = 69 + 12 * Math.log2(freqHz / 440);
-    let idx = 0;
-    for (let i = 1; i < _tunerTargets.length; i++) {
-      if (Math.abs(midiF - _tunerTargets[i].midi) < Math.abs(midiF - _tunerTargets[idx].midi)) idx = i;
+    // Nearest target — with an OCTAVE FOLD for sub-floor strings (70 Hz plan):
+    // YIN can't see fundamentals below DETECTOR_MIN_HZ and reports the 2nd
+    // harmonic instead, so a sub-floor target's reference is its octave-up.
+    // Folding ONLY sub-floor targets keeps same-pc string pairs (the two E
+    // strings in standard tuning) unambiguous.
+    let idx = 0, best = Infinity, bestRef = 0;
+    for (let i = 0; i < _tunerTargets.length; i++) {
+      const t = _tunerTargets[i];
+      const ref = midiToFreq(t.midi) < DETECTOR_MIN_HZ ? t.midi + 12 : t.midi;
+      const d = Math.abs(midiF - ref);
+      if (d < best) { best = d; idx = i; bestRef = ref; }
     }
-    const cents = Math.round((midiF - _tunerTargets[idx].midi) * 100);
+    const cents = Math.round((midiF - bestRef) * 100);
     if (Math.abs(cents) > 700) { tunerPaint(null, 0, false); return; }   // nowhere near any string — ignore the frame
     if (_tunerHold.idx === idx && Math.abs(cents) <= TUNER_LOCK_CENTS) _tunerHold.count++;
     else _tunerHold = { idx, count: Math.abs(cents) <= TUNER_LOCK_CENTS ? 1 : 0 };
@@ -12604,7 +12728,10 @@
       bpm = cfg.bpm;
       scale = cfg.scale;
       key   = cfg.key;
-      key_credit = (mode === 'pathway' && cfg.keyNominal) ? cfg.keyNominal : cfg.key;
+      // Anchor rungs credit the STATION ('open'/'fret 5' — fingering identity);
+      // adapted keyed rungs credit the nominal key; everything else the key.
+      key_credit = (mode === 'pathway' && cfg.anchorStation) ? cfg.anchorStation
+                 : (mode === 'pathway' && cfg.keyNominal) ? cfg.keyNominal : cfg.key;
       tuning_offset = (mode === 'pathway' && cfg.tuningOffset) ? cfg.tuningOffset : 0;
       practice_type = cfg.practiceType || cfg.mode || 'scale';
       // Tier = index of highest tempoTier the current BPM meets or exceeds
@@ -13842,6 +13969,13 @@
     // Target-aware tuner: entry in the Setup popover; Done chip on the strip.
     $('slopscale-tune-btn')?.addEventListener('click', () => { toggleSetupPopover(false); startTuner(); });
     $('slopscale-tuner-done')?.addEventListener('click', () => stopTuner());
+    // Courtesy hook for the third-party floating tuner (never touch its DOM —
+    // its own public API only; the click is impossible unless feature-detect
+    // showed the button).
+    $('slopscale-tuner-ext')?.addEventListener('click', () => {
+      toggleSetupPopover(false);
+      try { window.tuner?.toggle?.(); } catch (_) {}
+    });
     $('slopscale-tuning-select')?.addEventListener('change', updateSetupButton);
     document.addEventListener('click', (e) => {
       const pop = $('slopscale-setup-popover'); if (!pop || pop.hidden) return;

@@ -1121,6 +1121,11 @@
                detector) is unavailable — toggleSetupPopover syncs it on open. -->
           <div class="slopscale-tuning-row" id="slopscale-tune-row" style="display:none">
             <button type="button" id="slopscale-tune-btn" class="secondary" title="Tune your strings to the selected tuning — each string locks green when held in tune">Tune…</button>
+            <!-- Courtesy hook (decision deck 2026-06-06): opens the third-party floating
+                 tuner via its public API when that plugin is installed. Coexistence
+                 etiquette for players who live in that tuner — NEVER the retune
+                 hand-off path (it can't be handed a target tuning). Feature-detected. -->
+            <button type="button" id="slopscale-tuner-ext" class="secondary" style="display:none" title="Open the floating tuner plugin you have installed (generic chromatic tuner)">Floating tuner ↗</button>
           </div>
           <!-- This hidden tuning field lives in the header Setup popover, OUTSIDE
                the #slopscale-controls form. The `form=` attribute associates it
@@ -1133,6 +1138,10 @@
                read by readConfig. Display stays concert; Travel credits the nominal key. -->
           <input type="hidden" form="slopscale-controls" name="keyNominal" id="slopscale-key-nominal" value="">
           <input type="hidden" form="slopscale-controls" name="tuningOffset" id="slopscale-tuning-offset" value="">
+          <!-- Anchor-rung station token (keyless-anchor model 2026-06-06):
+               'open' / 'fret N' when the active rung is anchor:'open_lowest' —
+               Travel credits the STATION (fingering-relative), not a key name. -->
+          <input type="hidden" form="slopscale-controls" name="anchorStation" id="slopscale-anchor-station" value="">
         </div>
       </div>
     </div>

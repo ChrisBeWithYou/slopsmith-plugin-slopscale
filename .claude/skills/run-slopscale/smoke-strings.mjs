@@ -152,30 +152,29 @@ try {
   ok(Array.isArray(pw.dropMidis) && pw.dropMidis[0] === 33 && pw.dropKey === "A", "drop-A vary lands customOpenMidis via the form-associated hidden field", JSON.stringify(pw.dropMidis));
   ok(pw.leakMidis === null, "custom tuning does NOT leak into the next pathway selected", JSON.stringify(pw.leakMidis));
 
-  console.log("-- (8) L1 tuning adapt: a D-standard player on an E-coded rung = SAME FRETS, concert −2 (pin-row, tuning panel 2026-06-05) --");
-  // The harmony spec's single assert that pins all three rulings at once:
-  // (a) fret-identical chart (the engine is transposition-covariant — the rung's
-  // fingering pedagogy survives), (b) concert key D with nominal E + offset −2
-  // riding along, (c) the chart opens = the player's physical midis (so the
-  // detector + backing land where the strings actually sound).
+  console.log("-- (8) L1 tuning adapt (KEYED rung): a D-standard player = SAME FRETS, concert −2 (pin-row, tuning panel 2026-06-05) --");
+  // The harmony spec's single assert that pins all three rulings at once, on a
+  // genuinely KEYED (Class C) rung — pent_foundation, coded key A: (a) fret-
+  // identical chart, (b) concert key G with nominal A + offset −2 riding along,
+  // (c) the chart opens = the player's physical midis.
   const adapt = await page.evaluate(() => {
     const S = window.SlopScale;
     const selPathway = (id) => { const sel = document.querySelector("#slopscale-pathway"); sel.value = id; sel.dispatchEvent(new Event("change", { bubbles: true })); };
-    // Baseline: no saved instrument → the rung charts as coded (E standard).
+    // Baseline: no saved instrument → the rung charts as coded (A in E standard).
     localStorage.removeItem("slopscale.instrument");
-    selPathway("pulse_muting");
+    selPathway("pent_foundation");
     const baseCfg = S.readConfig();
     const base = S.generateExercise(baseCfg);
     // Declare D Standard via the real Setup path (tuning select → saves L1).
     const sel = document.querySelector("#slopscale-tuning-select");
     sel.value = "d_standard"; sel.dispatchEvent(new Event("change", { bubbles: true }));
-    selPathway("pulse_muting");   // re-apply the rung → applyTuningAdaptL1 composes
+    selPathway("pent_foundation");   // re-apply the rung → applyTuningAdaptL1 composes
     const cfg = S.readConfig();
     const ex = S.generateExercise(cfg);
     // Self-clean: back to standard + drop the L1 store for later rows/suites.
     sel.value = "standard"; sel.dispatchEvent(new Event("change", { bubbles: true }));
     localStorage.removeItem("slopscale.instrument");
-    selPathway("pulse_muting");
+    selPathway("pent_foundation");
     const frets = (e) => e.chart.notes.map((n) => `${n.s}:${n.f}`).join("|");
     const t0 = (e) => (e.chart.timeline || [])[0] || null;
     return {
@@ -186,11 +185,56 @@ try {
       adaptRootPc: t0(ex) ? t0(ex).rootPc : null,
     };
   });
-  ok(adapt.baseKey === "E" && adapt.key === "D" && adapt.keyNominal === "E" && adapt.off === -2,
-     "(8a) E-coded rung rewrites to concert D (nominal E, offset −2)", `base=${adapt.baseKey} key=${adapt.key} nom=${adapt.keyNominal} off=${adapt.off}`);
+  ok(adapt.baseKey === "A" && adapt.key === "G" && adapt.keyNominal === "A" && adapt.off === -2,
+     "(8a) A-coded rung rewrites to concert G (nominal A, offset −2)", `base=${adapt.baseKey} key=${adapt.key} nom=${adapt.keyNominal} off=${adapt.off}`);
   ok(adapt.noteCount > 0 && adapt.fretsEqual, "(8b) charts are FRET-IDENTICAL (fingering pedagogy preserved)", `notes=${adapt.noteCount}`);
   ok(adapt.midis === "38,43,48,53,57,62", "(8c) chart opens = the player's D-standard midis (detector + audio concert-faithful)", adapt.midis);
   ok(adapt.baseRootPc != null && adapt.adaptRootPc === ((adapt.baseRootPc + 10) % 12), "(8d) chart.timeline (the backing's chord source) roots shift −2 with the player", `rootPc ${adapt.baseRootPc} -> ${adapt.adaptRootPc}`);
+
+  console.log("-- (9) ANCHOR rungs (keyless-anchor model 2026-06-06): the key is DERIVED from the player's lowest string --");
+  // Anchor rungs (pulse_muting, the djent ladder, metalcore_chug…) code NO key:
+  // anchor:'open_lowest' + anchorFret derive it, so the pedal lands at the
+  // authored fret on ANY tuning (the round-trip theorem — the fret-2/fret-10
+  // misfire bug class is unrepresentable).
+  const anchor = await page.evaluate(() => {
+    const S = window.SlopScale;
+    const selPathway = (id) => { const sel = document.querySelector("#slopscale-pathway"); sel.value = id; sel.dispatchEvent(new Event("change", { bubbles: true })); };
+    const out = {};
+    const s0fret = (e) => { const ns = e.chart.notes.filter((n) => n.s === 0); return ns.length ? ns[0].f : -1; };
+    // (a) No L1: pulse_muting derives E from the coded standard setup; pedal OPEN.
+    localStorage.removeItem("slopscale.instrument");
+    selPathway("pulse_muting");
+    let cfg = S.readConfig();
+    out.aKey = cfg.key; out.aStation = cfg.anchorStation; out.aFret = s0fret(S.generateExercise(cfg));
+    // (b) D-standard L1: same rung derives D — the chug stays on the OPEN string.
+    const sel = document.querySelector("#slopscale-tuning-select");
+    sel.value = "d_standard"; sel.dispatchEvent(new Event("change", { bubbles: true }));
+    selPathway("pulse_muting");
+    cfg = S.readConfig();
+    out.bKey = cfg.key; out.bStation = cfg.anchorStation; out.bFret = s0fret(S.generateExercise(cfg));
+    // (c) metalcore_chug (coded drop-D) for a STANDARD-tuning player: the player's
+    // instrument wins — open-E pedal, no silent drop-D assumption (the old
+    // mirror bug: E-standard players got the "open" pedal at fret 2).
+    sel.value = "standard"; sel.dispatchEvent(new Event("change", { bubbles: true }));
+    selPathway("metalcore_chug");
+    cfg = S.readConfig();
+    out.cKey = cfg.key; out.cFret = s0fret(S.generateExercise(cfg)); out.cSetup = cfg.stringSetup;
+    // (d) pulse_muting variation 2 = anchorFret:5 → station 'fret 5', key A (standard).
+    localStorage.removeItem("slopscale.instrument");
+    selPathway("pulse_muting");
+    const next = document.querySelector("#slopscale-shape-next");
+    next.click(); next.click();
+    cfg = S.readConfig();
+    out.dKey = cfg.key; out.dStation = cfg.anchorStation; out.dFret = s0fret(S.generateExercise(cfg));
+    // Self-clean.
+    localStorage.removeItem("slopscale.instrument");
+    selPathway("pulse_muting");
+    return out;
+  });
+  ok(anchor.aKey === "E" && anchor.aStation === "open" && anchor.aFret === 0, "(9a) no L1: derives E, open pedal", JSON.stringify({ k: anchor.aKey, st: anchor.aStation, f: anchor.aFret }));
+  ok(anchor.bKey === "D" && anchor.bStation === "open" && anchor.bFret === 0, "(9b) D-standard L1: derives D — the chug STAYS on the open string", JSON.stringify({ k: anchor.bKey, st: anchor.bStation, f: anchor.bFret }));
+  ok(anchor.cKey === "E" && anchor.cFret === 0 && anchor.cSetup === "guitar_6_standard", "(9c) drop-D-coded rung adapts to the standard player: open-E pedal (mirror-bug fixed)", JSON.stringify({ k: anchor.cKey, f: anchor.cFret, su: anchor.cSetup }));
+  ok(anchor.dKey === "A" && anchor.dStation === "fret 5" && anchor.dFret === 5, "(9d) anchorFret:5 variation: pedal at fret 5, key derives A, station credited", JSON.stringify({ k: anchor.dKey, st: anchor.dStation, f: anchor.dFret }));
 
   ok(pageErrs.length === 0, "no uncaught page errors", pageErrs.join(" | "));
   console.log(`\n${fails === 0 ? "PASS" : "FAIL"}  strings/tuning: ${fails} failure(s)`);

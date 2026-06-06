@@ -198,7 +198,7 @@ Consequence: `screen.js` does **not** call `fetch('/api/plugins/slopscale/temp-s
 
 ## Adding a new pathway
 
-1. Add an entry to `PATHWAYS` in `screen.js` with `label`, `goal`, `scales`, `tempoTiers`, `base` config, and `vary[]`. Optional flags: `instAgnostic:true` makes a pure-time rung ADAPT to the player's current instrument instead of forcing its coded `stringSetup` (the per-pathway form of the Rhythm-band adapt); a `customOpenMidis:'csv'` in base/vary applies a tuning override (it's anti-leak defaulted in `applyPathwayConfig`, so it never persists into the next pathway).
+1. Add an entry to `PATHWAYS` in `screen.js` with `label`, `goal`, `scales`, `tempoTiers`, `base` config, and `vary[]`. Optional flags: `instAgnostic:true` makes a pure-time rung ADAPT to the player's current instrument instead of forcing its coded `stringSetup` (the per-pathway form of the Rhythm-band adapt); a `customOpenMidis:'csv'` in base/vary applies a tuning override (it's anti-leak defaulted in `applyPathwayConfig`, so it never persists into the next pathway). **Technique/rhythm rungs anchored to the low string code NO key:** `anchor:'open_lowest'` + `anchorFret:0–11` in base (vary steps move `anchorFret`) — the key is DERIVED from the player's actual lowest string at apply time (`applyAnchorPolicy`; a startup guard throws on `key` co-coded with `anchor`). Genuinely keyed lessons (CAGED maps, progressions, blues) keep keys.
 2. Add the corresponding `<option>` to the `#slopscale-pathway` select in `screen.html`, and slot the id into its band's `pathways[]` in `PATHWAY_BANDS` (+ a `SKILL_TREE_EDGES` prereq edge for the "Builds on" hint).
 3. No backend changes needed.
 
