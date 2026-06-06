@@ -184,6 +184,34 @@ try {
   ok(chordRes.chordLit == null, "(6b) chord members show NO judgment (exempt — shown, not scored)", `lit=${chordRes.chordLit}`);
   ok(!!chordRes.meterAcc, "(6c) accuracy counts the singles (denominator excludes exempt chords)", chordRes.meterAcc || "(no hits counted)");
   await page.click("#slopscale-play").catch(() => {});
+  await page.waitForTimeout(300);
+
+  // ── (7) TARGET-AWARE TUNER (Setup → Tune…, 2026-06-06): reuses the running
+  // A2 stream — the tuner must name the nearest target (A2), highlight that
+  // chip, and LOCK it tuned after the ±5¢ hold; Done tears down. Promoted from
+  // probe-tuner.mjs (which also covers popover row visibility + play-stops-tuner).
+  await page.evaluate(() => { document.getElementById("slopscale-tune-btn")?.click(); });
+  const tuner = await page.evaluate(async () => {
+    const out = { mode: false, chips: 0, note: "", tunedIdx: -1 };
+    for (let i = 0; i < 60; i++) {
+      const meter = document.getElementById("slopscale-pitch-meter");
+      out.mode = meter.classList.contains("slopscale-pm-tuner") && meter.style.display !== "none";
+      const chips = [...document.querySelectorAll(".slopscale-tuner-chip")];
+      out.chips = chips.length;
+      chips.forEach((c, idx) => { if (c.classList.contains("tuned")) out.tunedIdx = idx; });
+      const n = document.getElementById("slopscale-pitch-note");
+      if (n && n.textContent !== "--") out.note = n.textContent;
+      if (out.tunedIdx >= 0) break;
+      await new Promise((r2) => setTimeout(r2, 100));
+    }
+    document.getElementById("slopscale-tuner-done")?.click();
+    const meter = document.getElementById("slopscale-pitch-meter");
+    out.tornDown = !meter.classList.contains("slopscale-pm-tuner") && meter.style.display === "none";
+    return out;
+  });
+  ok(tuner.mode && tuner.chips === 6, "(7a) tuner mode: strip shown with 6 target chips", `chips=${tuner.chips}`);
+  ok(tuner.note === "A2" && tuner.tunedIdx === 1, "(7b) A2 stream locks the A-string chip tuned (±5¢ hold)", `note=${tuner.note} tuned=${tuner.tunedIdx}`);
+  ok(tuner.tornDown, "(7c) Done tears the tuner down");
 
   // ── error surfaces: NO benign list in this suite — scoring failures ARE the point.
   const scoringFailures = consoleErrs.filter((e) => /continuous scoring failed to start|failed to set up audio analyser/i.test(e));

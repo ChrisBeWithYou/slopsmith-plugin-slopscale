@@ -309,6 +309,7 @@
     text-transform: uppercase; color: #93c5fd;
   }
   .slopscale-pathway-goal-card.modified .pathway-tag { color: #fbbf24; }
+  #slopscale-pathway-tuning-note { margin-top: 6px; font-size: 11px; color: var(--ss-text-muted, #94a3b8); font-style: italic; }
   /* Title is redundant with the highlighted active row — keep the element (JS writes
      it) but don't show it; the caption leads with the goal text. */
   .slopscale-pathway-goal-card .pathway-title { display: none; }
@@ -701,6 +702,16 @@
      fixed-position intruder at runtime and pads the strip clear of it. */
   .slopscale-pm-lbl { font-size: 8.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b; flex-shrink: 0; }
   .slopscale-pm-hit-lbl { padding-left: 12px; border-left: 1px solid rgba(75, 85, 99, 0.55); }
+  /* Tuner mode: chips replace the HIT cluster; in-tune green = --ss-meter (a string
+     in tune is literally "target reached" — design-system §8 sanctioned green). */
+  .slopscale-pitch-meter.slopscale-pm-tuner .slopscale-pm-hit-lbl,
+  .slopscale-pitch-meter.slopscale-pm-tuner #slopscale-pitch-accuracy { display: none; }
+  .slopscale-tuner-chips { display: inline-flex; gap: 6px; padding-left: 12px; border-left: 1px solid rgba(75, 85, 99, 0.55); }
+  .slopscale-tuner-chip { padding: 2px 8px; border-radius: 5px; border: 1px solid #334155; background: #0c1322; color: #94a3b8; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; transition: border-color 0.12s, color 0.12s; }
+  .slopscale-tuner-chip.near { border-color: #60a5fa; color: #e2e8f0; }
+  .slopscale-tuner-chip.tuned { border-color: var(--ss-meter, #22c55e); color: var(--ss-meter, #22c55e); }
+  .slopscale-tuner-done { margin-left: 4px; padding: 2px 10px; border-radius: 5px; border: 1px solid #334155; background: #131c2e; color: #cbd5e1; font-size: 11px; font-weight: 700; cursor: pointer; }
+  .slopscale-tuner-done:hover { background: #1b2742; }
   /* ── The Climb — the SPEED tier ladder, the hero of the pathway pane ───────
      A framed, slightly-elevated card so the one motivational element no longer
      reads as a flat button row with the same weight as the settings below it.
@@ -1104,11 +1115,24 @@
               <button type="button" id="slopscale-save-tuning" class="secondary" title="Save this tuning so it appears in the dropdown next time">+ Save tuning…</button>
             </div>
           </div>
+          <!-- Target-aware tuner entry (UX panel 2026-06-05): tuning IDENTITY lives in
+               this popover, so the tool that gets the physical instrument INTO that
+               tuning lives here too. Hidden when the host scoring SDK (the mic
+               detector) is unavailable — toggleSetupPopover syncs it on open. -->
+          <div class="slopscale-tuning-row" id="slopscale-tune-row" style="display:none">
+            <button type="button" id="slopscale-tune-btn" class="secondary" title="Tune your strings to the selected tuning — each string locks green when held in tune">Tune…</button>
+          </div>
           <!-- This hidden tuning field lives in the header Setup popover, OUTSIDE
                the #slopscale-controls form. The `form=` attribute associates it
                with that form so readConfig's `new FormData(form)` captures it
                (without it, custom tunings never reach the generator). -->
           <input type="hidden" form="slopscale-controls" name="customOpenMidis" id="slopscale-custom-open-midis" value="">
+          <!-- L1 tuning-adapt metadata (uniform-offset rewrite, tuning panel 2026-06-05):
+               the rung's coded (nominal) key + the player-tuning offset in semitones.
+               Written by applyTuningAdaptL1 via applyPathwayConfig (anti-leak defaulted);
+               read by readConfig. Display stays concert; Travel credits the nominal key. -->
+          <input type="hidden" form="slopscale-controls" name="keyNominal" id="slopscale-key-nominal" value="">
+          <input type="hidden" form="slopscale-controls" name="tuningOffset" id="slopscale-tuning-offset" value="">
         </div>
       </div>
     </div>
@@ -1368,6 +1392,10 @@
         <div class="slopscale-pathway-goal-card" id="slopscale-pathway-goal-card">
           <div class="slopscale-goal-head"><span class="pathway-tag" id="slopscale-pathway-tag">Goal</span><span class="pathway-title" id="slopscale-pathway-title">Pentatonic Foundation</span></div>
           <div id="slopscale-pathway-goal">Pick a focused routine. Use Custom for full control.</div>
+          <!-- One calm line when the rung was adapted to the player's saved tuning
+               (uniform offset only — the lossless path adapts silently except for this
+               informative note; see the tuning-panel layered model). -->
+          <div id="slopscale-pathway-tuning-note" style="display:none"></div>
         </div>
       </div>
       <div id="slopscale-skill-tree" class="slopscale-skill-tree slopscale-pathway-only slopscale-tree-shelved"></div>
@@ -2147,6 +2175,10 @@
         <span id="slopscale-pitch-cents" title="Cents off the target (within ±50¢ scores)"></span>
         <span class="slopscale-pm-lbl slopscale-pm-hit-lbl">Hit</span>
         <span id="slopscale-pitch-accuracy" title="Notes hit / notes judged so far" aria-label="Notes hit out of notes judged">--</span>
+        <!-- Tuner mode (Setup → Tune…): per-string target chips replace the HIT
+             counter; a chip locks green after holding within ±5¢. -->
+        <span id="slopscale-tuner-chips" class="slopscale-tuner-chips" style="display:none" role="group" aria-label="String tuning targets, low to high"></span>
+        <button type="button" id="slopscale-tuner-done" class="slopscale-tuner-done" style="display:none" title="Close the tuner">Done</button>
       </div>
     </section>
   </section>

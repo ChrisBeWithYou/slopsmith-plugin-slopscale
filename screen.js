@@ -79,39 +79,48 @@
   // STRING_SETUPS.openMidis). Picking one of these maps to a stringSetup
   // when the midis match a built-in preset; otherwise it's stored as a
   // customOpenMidis override (see readConfig + openMidisForConfig).
+  // `offset:true` = an INTENT tag (tuning panel 2026-06-05, bass-pedagogy
+  // ruling): the player thinks of this tuning as the family standard
+  // TRANSPOSED (Eb/D standard — "everything down a step"), so a coded rung may
+  // adapt to it by uniform key+opens transposition (applyTuningAdaptL1).
+  // Untagged = a STRUCTURAL tuning at concert pitch (drop-X, BEAD, high-C,
+  // DADGAD, open-X): uniform-delta arithmetic alone MISCLASSIFIES these (BEAD
+  // is "a 5-string minus the G", numerically −5; high-C is numerically +5) —
+  // a bassist's B string is a B string, never "E down a fourth". Never
+  // classify by midis math; the tag decides.
   const TUNING_PRESETS = {
     guitar_6: [
-      { id:'standard',     label:'Standard (E A D G B E)',      midis:[40,45,50,55,59,64] },
+      { id:'standard',     label:'Standard (E A D G B E)',      midis:[40,45,50,55,59,64], offset:true },
       { id:'drop_d',       label:'Drop D (D A D G B E)',        midis:[38,45,50,55,59,64] },
       { id:'drop_c',       label:'Drop C (C G C F A D)',        midis:[36,43,48,53,57,62] },
       { id:'drop_b',       label:'Drop B (B F# B E G# C#)',     midis:[35,42,47,52,56,61] },
-      { id:'eb_standard',  label:'Eb Standard (down ½ step)',   midis:[39,44,49,54,58,63] },
-      { id:'d_standard',   label:'D Standard (down 1 step)',    midis:[38,43,48,53,57,62] },
+      { id:'eb_standard',  label:'Eb Standard (down ½ step)',   midis:[39,44,49,54,58,63], offset:true },
+      { id:'d_standard',   label:'D Standard (down 1 step)',    midis:[38,43,48,53,57,62], offset:true },
       { id:'dadgad',       label:'DADGAD',                       midis:[38,45,50,55,57,62] },
       { id:'open_g',       label:'Open G (D G D G B D)',        midis:[38,43,50,55,59,62] },
       { id:'open_d',       label:'Open D (D A D F# A D)',       midis:[38,45,50,54,57,62] },
     ],
     guitar_7: [
-      { id:'standard',     label:'Standard (B E A D G B E)',    midis:[35,40,45,50,55,59,64] },
+      { id:'standard',     label:'Standard (B E A D G B E)',    midis:[35,40,45,50,55,59,64], offset:true },
       { id:'drop_a',       label:'Drop A (A E A D G B E)',      midis:[33,40,45,50,55,59,64] },
     ],
     guitar_8: [
-      { id:'standard',     label:'Standard (F# B E A D G B E)', midis:[30,35,40,45,50,55,59,64] },
+      { id:'standard',     label:'Standard (F# B E A D G B E)', midis:[30,35,40,45,50,55,59,64], offset:true },
       { id:'drop_e',       label:'Drop E (E B E A D G B E)',    midis:[28,35,40,45,50,55,59,64] },
     ],
     bass_4: [
-      { id:'standard',     label:'Standard (E A D G)',          midis:[28,33,38,43] },
+      { id:'standard',     label:'Standard (E A D G)',          midis:[28,33,38,43], offset:true },
       { id:'drop_d',       label:'Drop D (D A D G)',            midis:[26,33,38,43] },
-      { id:'eb_standard',  label:'Eb Standard (down ½ step)',   midis:[27,32,37,42] },
+      { id:'eb_standard',  label:'Eb Standard (down ½ step)',   midis:[27,32,37,42], offset:true },
       { id:'bead',         label:'BEAD (low B)',                midis:[23,28,33,38] },
     ],
     bass_5: [
-      { id:'standard',     label:'Standard low B (B E A D G)',  midis:[23,28,33,38,43] },
+      { id:'standard',     label:'Standard low B (B E A D G)',  midis:[23,28,33,38,43], offset:true },
       { id:'standard_hc',  label:'Standard high C (E A D G C)', midis:[28,33,38,43,48] },
       { id:'drop_a',       label:'Drop A (A E A D G)',          midis:[21,28,33,38,43] },
     ],
     bass_6: [
-      { id:'standard',     label:'Standard (B E A D G C)',      midis:[23,28,33,38,43,48] },
+      { id:'standard',     label:'Standard (B E A D G C)',      midis:[23,28,33,38,43,48], offset:true },
     ],
   };
   // Maps `${family}_${count}_${tuningId}` → stringSetup name when the preset
@@ -2742,6 +2751,12 @@
       // openMidisForConfig prefers it over the stringSetup's defaults.
       customOpenMidis,
       stringCount: setup.openMidis.length,
+      // L1 tuning-adapt metadata (pathway uniform-offset rewrite): the rung's
+      // coded key + the player-tuning offset in semitones. `key` below is the
+      // CONCERT key (what sounds + what the detector expects); keyNominal is
+      // what Travel credits. Empty/0 everywhere outside an adapted rung.
+      keyNominal: (data.get('keyNominal') || '').toString() || null,
+      tuningOffset: parseInt(data.get('tuningOffset') || '0', 10) || 0,
       key: data.get('key') || 'C',
       scale: data.get('scale') || 'major',
       bpm: Math.max(30, Math.min(260, parseFloat(data.get('bpm') || '100'))),
@@ -9727,6 +9742,9 @@
     const open = force != null ? force : pop.hidden;
     pop.hidden = !open;
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    // The Tune… row needs the host scoring SDK (the mic detector) — sync its
+    // visibility on every open so a host without it never shows a dead button.
+    if (open) { const row = $('slopscale-tune-row'); if (row) row.style.display = ptAvailable() ? '' : 'none'; }
   }
   // Header settings menu (⚙) + its prefs: accent theme (live), default XP mode (a
   // stored default — ready for the unbuilt XP store), default count-in (seeds the
@@ -10280,6 +10298,7 @@
 
   function startPlayback() {
     if (!activeBundle) return;
+    stopTuner();  // the practice scorer owns the strip during playback
     sessionEnd(); // flush any in-progress session before starting a new one
     sessionBegin();
     stopAudio(); syncHighwaySettings(activeBundle);
@@ -10754,6 +10773,40 @@
   // Currently-effective tuning, in MIDI. Read by openMidisForConfig when
   // present. Set whenever the user picks a tuning preset or edits a custom
   // string; cleared when the user picks a built-in stringSetup tuning.
+  // ── L1 player-instrument store (tuning Phase 1, panel 2026-06-05) ───────────
+  // The player's PHYSICAL instrument — family, string count, tuning — is a
+  // durable preference with its own home. Pathway selection NEVER writes it
+  // (the layered model: L1 player setup / L2 rung assumptions / L3 variation
+  // overrides — the old bug was all three sharing the form's customOpenMidis
+  // field, so picking any rung wiped the player's D Standard). Saved from the
+  // Setup-popover/user paths only; read by applyTuningAdaptL1 + bind restore.
+  function instrumentStoreSave() {
+    try {
+      const setupEl = document.querySelector('[name="stringSetup"]');
+      const hidden = $('slopscale-custom-open-midis');
+      if (!setupEl || !STRING_SETUPS[setupEl.value]) return;
+      localStorage.setItem('slopscale.instrument', JSON.stringify({
+        stringSetup: setupEl.value,
+        customOpenMidis: (hidden?.value || '').trim(),
+      }));
+    } catch (_) {}
+  }
+  function instrumentStoreLoad() {
+    try {
+      const o = JSON.parse(localStorage.getItem('slopscale.instrument') || 'null');
+      if (!o || !STRING_SETUPS[o.stringSetup]) return null;
+      return { stringSetup: o.stringSetup, customOpenMidis: (o.customOpenMidis || '').trim() };
+    } catch (_) { return null; }
+  }
+  // The player's EFFECTIVE open midis per the L1 store (custom CSV when valid
+  // for the saved setup, else the setup's standard), or null when nothing saved.
+  function instrumentStoreMidis(inst) {
+    if (!inst) return null;
+    const setup = STRING_SETUPS[inst.stringSetup];
+    if (!setup) return null;
+    const list = inst.customOpenMidis ? inst.customOpenMidis.split(',').map(s => parseInt(s, 10)).filter(Number.isFinite) : [];
+    return list.length === setup.openMidis.length ? list : setup.openMidis.slice();
+  }
   function currentFamily() {
     const el = document.querySelector('[name="instrument"]');
     return (el && el.value === 'bass') ? 'bass' : 'guitar';
@@ -10958,6 +11011,7 @@
     const { midis, allValid } = readCustomTuningInputs();
     if (!allValid) return;
     commitCustomTuning(midis);
+    instrumentStoreSave();   // user-driven tuning edit = the player's L1 declaration
     if (commit && activeBundle) onGenerate();
   }
   function onTuningPresetChange() {
@@ -10979,6 +11033,7 @@
           setup.dispatchEvent(new Event('change', { bubbles: true }));
         }
         syncCustomTuningInputs();
+        instrumentStoreSave();
       }
       return;
     }
@@ -10990,6 +11045,7 @@
         commitCustomTuning(midis);
       }
       syncCustomTuningInputs();
+      instrumentStoreSave();
       if (activeBundle) onGenerate();
       return;
     }
@@ -11015,6 +11071,7 @@
       setup.dispatchEvent(new Event('change', { bubbles: true }));
     }
     syncCustomTuningInputs();
+    instrumentStoreSave();   // a preset pick = the player's L1 declaration
   }
   function syncAdvancedMode() {
     const root = $('slopscale-root'), toggle = $('slopscale-advanced-toggle');
@@ -11124,7 +11181,14 @@
     // unless the rung opts in, so a drop-tuned variation never leaks its tuning
     // into the next pathway selected. (readConfig also length-validates the CSV
     // against the stringSetup, so a stale mismatch degrades to standard tuning.)
+    // NOTE this anti-leak clears RUNG-scoped (L3) tunings only — the player's
+    // own tuning lives in the durable L1 store (slopscale.instrument) and is
+    // re-composed per-rung by applyTuningAdaptL1, never stored in this field.
     setFieldSilent('customOpenMidis', config.customOpenMidis || '');
+    // L1 tuning-adapt metadata: anti-leak defaulted like the CSV (set only when
+    // applyTuningAdaptL1 rewrote this rung).
+    setFieldSilent('keyNominal', config.keyNominal || '');
+    setFieldSilent('tuningOffset', config.tuningOffset != null ? config.tuningOffset : '');
     // Backing tone is automated: default the profile (anti-leak) + reflect the
     // genre's default brightness onto the slider (the loop below sets the
     // audioProfile field itself from config).
@@ -11323,6 +11387,28 @@
       if (tag) tag.textContent = modified ? 'Modified' : 'Goal';
       card.classList.toggle('modified', !!modified);
     }
+    // One calm line when this rung was adapted to the player's saved tuning
+    // (the lossless uniform-offset path adapts silently except for this note —
+    // it names the transposition instead of hiding it, the Division-caption
+    // precedent). Reads the hidden adapt fields applyPathwayConfig just wrote.
+    const note = $('slopscale-pathway-tuning-note');
+    if (note) {
+      const off = parseInt($('slopscale-tuning-offset')?.value || '0', 10) || 0;
+      const concertKey = document.querySelector('#slopscale-controls [name="key"]')?.value || '';
+      if (pw && off !== 0) {
+        const inst = instrumentStoreLoad();
+        const preset = inst && (TUNING_PRESETS[`${(STRING_SETUPS[inst.stringSetup] || {}).instrument}_${(STRING_SETUPS[inst.stringSetup] || { openMidis: [] }).openMidis.length}`] || [])
+          .find(p => { const m = instrumentStoreMidis(inst); return m && p.midis.length === m.length && p.midis.every((x, i) => x === m[i]); });
+        const tuningName = preset ? preset.label.replace(/\s*\(.*\)$/, '') : 'your tuning';
+        const steps = Math.abs(off) === 1 ? 'a half step' : Math.abs(off) === 2 ? 'a whole step' : `${Math.abs(off)} semitones`;
+        const dir = off < 0 ? 'down' : 'up';
+        note.textContent = `Charted for your ${tuningName} — same frets, sounds ${steps} ${dir} (key of ${concertKey}).`;
+        note.style.display = '';
+      } else {
+        note.textContent = '';
+        note.style.display = 'none';
+      }
+    }
     updateStartCta();   // keep the primed START CTA's name/skill in sync
   }
 
@@ -11341,11 +11427,59 @@
     updatePathwayGoalCard(activePathwayId, true);
   }
 
+  // ── L1 tuning adapt (Phase 1: uniform offsets only — tuning panel 2026-06-05) ──
+  // The player's physical tuning wins: when their saved tuning is a pure
+  // TRANSPOSE of the rung's coded setup (same family + string count, and the
+  // player's preset carries the `offset` intent tag — Eb/D standard, never the
+  // structural re-stringings like drop-D/BEAD/high-C), rewrite the rung's key
+  // to CONCERT (nominal + δ) and chart on the player's opens. The engine is
+  // transposition-covariant (the harmony spec: shift key + openMidis together
+  // and the frets come out byte-identical), so the rung's fingering pedagogy is
+  // preserved exactly while every label, the detector, and the backing land
+  // where the player's strings actually sound. "Charts follow your hands,
+  // labels follow your sound." keyNominal/tuningOffset ride along for Travel
+  // credit (nominal — prevents retune double-credit) + the goal-card note.
+  // Out of scope here (Phase 2): structural tunings (cross-class decomposition,
+  // retune prompts), rung-coded L3 customOpenMidis (those own the tuning), and
+  // non-pathway modes.
+  function applyTuningAdaptL1(cfg) {
+    if (cfg.customOpenMidis) return;                         // L3 rung override owns the tuning
+    const inst = instrumentStoreLoad();
+    if (!inst) return;
+    const playerSetup = STRING_SETUPS[inst.stringSetup];
+    const rungSetup = STRING_SETUPS[cfg.stringSetup || 'guitar_6_standard'];
+    if (!playerSetup || !rungSetup) return;
+    if (playerSetup.instrument !== rungSetup.instrument) return;        // family adapt is the instAgnostic block's job
+    if (playerSetup.openMidis.length !== rungSetup.openMidis.length) return;
+    const effective = instrumentStoreMidis(inst);
+    if (!effective) return;
+    // The player's tuning must be a tagged OFFSET-kind preset (intent, never
+    // midis arithmetic — see the TUNING_PRESETS tag comment).
+    const fam = `${playerSetup.instrument}_${effective.length}`;
+    const preset = (TUNING_PRESETS[fam] || []).find(p => p.midis.length === effective.length && p.midis.every((m, i) => m === effective[i]));
+    if (!preset || !preset.offset) return;
+    // …and a UNIFORM delta against the rung's coded tuning (a drop-D-coded rung
+    // vs a D-standard player is non-uniform on the low string → Phase 2).
+    const d0 = effective[0] - rungSetup.openMidis[0];
+    if (d0 === 0) return;
+    if (!effective.every((m, i) => m - rungSetup.openMidis[i] === d0)) return;
+    const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+    cfg.keyNominal = cfg.key;
+    cfg.tuningOffset = d0;
+    cfg.tuningLabel = preset.label;
+    cfg.key = NOTE_NAMES[((keyPc + d0) % 12 + 12) % 12];     // sharp names — matches the key <select> options
+    cfg.customOpenMidis = effective.join(',');
+  }
+
   function applyPathwayById(id, variationIdx) {
     const isNewPathway = id !== activePathwayId;
     activePathwayId = id;
     if (id === 'custom') {
       setPathwayModeClass(false);
+      // Leaving the Ladder: the adapt metadata is pathway-scoped — clear it so
+      // a Custom run's session record doesn't credit a stale nominal key.
+      setFieldSilent('keyNominal', '');
+      setFieldSilent('tuningOffset', '');
       // Custom mode hides the goal card via CSS, so no card update needed.
       return;
     }
@@ -11385,9 +11519,17 @@
           // A guitar rung's custom-tuning CSV is meaningless on the other family's
           // string count — drop it with the setup it belonged to.
           delete tieredConfig.customOpenMidis;
+          // …but the PLAYER's own saved tuning survives the family swap
+          // (bass-pedagogy ruling 2026-06-05: the old delete also wiped a BEAD/
+          // drop-D bassist's declared tuning along with the guitar rung's CSV).
+          const inst = instrumentStoreLoad();
+          if (inst && inst.stringSetup === formSetup && inst.customOpenMidis) tieredConfig.customOpenMidis = inst.customOpenMidis;
           if (fs.instrument === 'bass') { tieredConfig.fretboardSystem = 'position'; delete tieredConfig.shape; }
         }
       }
+      // Same-family tuning adapt: the player's saved uniform-offset tuning
+      // transposes the rung (concert key + player opens, identical frets).
+      applyTuningAdaptL1(tieredConfig);
       if (pw.tempoTiers && pw.tempoTiers[activeTempoTierIdx] != null) {
         tieredConfig.bpm = pw.tempoTiers[activeTempoTierIdx];
       }
@@ -12094,6 +12236,103 @@
       else { accEl.textContent = '--'; accEl.style.color = ''; }
     }
   }
+  // ── Target-aware tuner (Setup popover "Tune…" — UX panel 2026-06-05) ────────
+  // Runs the same continuous detector OUTSIDE playback to tune against the
+  // SELECTED tuning: the strip's MIC cluster shows the nearest target string +
+  // cents (so the tuner can say "tune THIS string to THIS note" — something a
+  // generic chromatic tuner can't), and per-string chips lock green after the
+  // pitch holds within ±TUNER_LOCK_CENTS for TUNER_LOCK_FRAMES consecutive
+  // frames (the PT_HIT_FRAMES lesson: the detector's lock-on sweep must never
+  // false-lock a chip). Mic in, nothing out. Stops on Done / Play / screen
+  // leave (self-healing in the pitch callback, mirroring the screen-scoped
+  // AudioContext discipline). This is also the hand-off surface for the
+  // tuning-model retune prompts ("drop your low D to C → Tune…", Phase 2).
+  let _tunerHandle = null, _tunerTargets = [], _tunerHold = { idx: -1, count: 0 }, _tunerLocked = new Set();
+  const TUNER_LOCK_FRAMES = 12;   // ~500ms at the 40ms smoothing cadence
+  const TUNER_LOCK_CENTS = 5;
+
+  function startTuner() {
+    if (!ptAvailable() || playing) return;
+    stopTuner();
+    let opens = null;
+    try { opens = openMidisForConfig(readConfig()); } catch (_) { return; }
+    if (!opens || !opens.length) return;
+    _tunerTargets = opens.map((midi) => ({ midi, name: NOTE_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1) }));
+    _tunerHold = { idx: -1, count: 0 }; _tunerLocked = new Set();
+    // Same guarded SDK call as startPitchTracker — no mic / no SDK degrades to a no-op.
+    try { _tunerHandle = window.slopsmithMinigames.scoring.createContinuous({ smoothingMs: 40 }); } catch (_) { _tunerHandle = null; }
+    if (!_tunerHandle || typeof _tunerHandle.on !== 'function') { _tunerHandle = null; return; }
+    _tunerHandle.on('pitch', tunerOnPitch);
+    _tunerHandle.on('end', () => { _tunerHandle = null; });
+    const meter = $('slopscale-pitch-meter');
+    if (meter) { meter.classList.add('slopscale-pm-tuner'); meter.style.display = 'flex'; }
+    const chips = $('slopscale-tuner-chips'), done = $('slopscale-tuner-done');
+    if (chips) {
+      chips.style.display = 'inline-flex';
+      chips.innerHTML = '';
+      _tunerTargets.forEach((t, i) => {
+        const c = document.createElement('span');
+        c.className = 'slopscale-tuner-chip';
+        c.dataset.idx = String(i);
+        c.textContent = t.name;
+        c.title = `String ${i + 1} (low → high): tune to ${t.name}`;
+        chips.appendChild(c);
+      });
+    }
+    if (done) done.style.display = '';
+    tunerPaint(null, 0, false);
+    ptDodgeOverlays();
+  }
+
+  function tunerOnPitch({ freqHz, confidence }) {
+    // Self-heal: SlopScale backgrounded or playback started → the tuner ends.
+    if (!$('slopscale-root')?.offsetParent || playing) { stopTuner(); return; }
+    if (!(freqHz > 0) || confidence < 0.55) { tunerPaint(null, 0, false); return; }
+    const midiF = 69 + 12 * Math.log2(freqHz / 440);
+    let idx = 0;
+    for (let i = 1; i < _tunerTargets.length; i++) {
+      if (Math.abs(midiF - _tunerTargets[i].midi) < Math.abs(midiF - _tunerTargets[idx].midi)) idx = i;
+    }
+    const cents = Math.round((midiF - _tunerTargets[idx].midi) * 100);
+    if (Math.abs(cents) > 700) { tunerPaint(null, 0, false); return; }   // nowhere near any string — ignore the frame
+    if (_tunerHold.idx === idx && Math.abs(cents) <= TUNER_LOCK_CENTS) _tunerHold.count++;
+    else _tunerHold = { idx, count: Math.abs(cents) <= TUNER_LOCK_CENTS ? 1 : 0 };
+    if (_tunerHold.count >= TUNER_LOCK_FRAMES) _tunerLocked.add(idx);
+    tunerPaint(idx, cents, true);
+  }
+
+  function tunerPaint(idx, cents, active) {
+    const noteEl = $('slopscale-pitch-note'), centsEl = $('slopscale-pitch-cents'), needleEl = $('slopscale-cents-needle');
+    const t = (idx != null && _tunerTargets[idx]) || null;
+    if (noteEl) noteEl.textContent = t ? t.name : '--';
+    const cc = Math.max(-100, Math.min(100, cents || 0));
+    const color = !active ? '#475569'
+      : Math.abs(cents) <= TUNER_LOCK_CENTS ? 'var(--ss-meter, #22c55e)'
+      : Math.abs(cents) <= 25 ? '#eab308' : '#ef4444';
+    if (needleEl) { needleEl.style.left = `${50 + cc / 2}%`; needleEl.style.background = color; }
+    if (centsEl) { centsEl.textContent = active ? `${cents >= 0 ? '+' : ''}${cents}¢` : ''; centsEl.style.color = color; }
+    const chips = $('slopscale-tuner-chips');
+    if (chips) {
+      for (const c of chips.children) {
+        const i = Number(c.dataset.idx);
+        c.classList.toggle('near', !!(active && i === idx));
+        c.classList.toggle('tuned', _tunerLocked.has(i));
+      }
+    }
+  }
+
+  function stopTuner() {
+    if (_tunerHandle) { try { _tunerHandle.stop(); } catch (_) {} _tunerHandle = null; }
+    const meter = $('slopscale-pitch-meter');
+    if (meter && meter.classList.contains('slopscale-pm-tuner')) {
+      meter.classList.remove('slopscale-pm-tuner');
+      meter.style.display = 'none';   // only hide when the TUNER owned the strip — the scorer repaints it on play
+    }
+    const chips = $('slopscale-tuner-chips'), done = $('slopscale-tuner-done');
+    if (chips) { chips.style.display = 'none'; chips.innerHTML = ''; }
+    if (done) done.style.display = 'none';
+    _tunerTargets = []; _tunerHold = { idx: -1, count: 0 }; _tunerLocked = new Set();
+  }
   // ── End pitch tracker ──────────────────────────────────────────────────────
 
   // ── Session logger ─────────────────────────────────────────────────────────
@@ -12316,10 +12555,14 @@
       node.reps = (node.reps || 0) + 1;                       // silent stat — advances NOTHING
       const topTier = (PATHWAYS[pwId].tempoTiers || []).length - 1;
       const speedCleared = topTier >= 0 && (pathwayTiersLoad()[pwId] || { highest_tier:-1 }).highest_tier >= topTier;
-      if (speedCleared && session.bpm_tier === topTier && runIsClean(session) && session.key && !node.keysCleared.includes(session.key)) {
-        node.keysCleared.push(session.key);                   // binary false→true per distinct key — no double-credit, tier held
-        emitProgress('depth', pwId, { axis:'travel', key: session.key });
-        out.travelKey = session.key;
+      // Travel credits the NOMINAL key (the rung's coded key) when the run was
+      // tuning-adapted — fingering identity, so a player who retunes and replays
+      // the same shapes can't re-credit them under a new concert name.
+      const creditKey = session.key_credit || session.key;
+      if (speedCleared && session.bpm_tier === topTier && runIsClean(session) && creditKey && !node.keysCleared.includes(creditKey)) {
+        node.keysCleared.push(creditKey);                     // binary false→true per distinct key — no double-credit, tier held
+        emitProgress('depth', pwId, { axis:'travel', key: creditKey });
+        out.travelKey = creditKey;
         // The Travel RUNG fills once portability is proven (a 2nd distinct key) — a
         // one-time flip, never a keys-N/12 grind bar.
         if (!node.depth.travel && node.keysCleared.length >= 2) {
@@ -12336,6 +12579,12 @@
   function sessionBegin() {
     const isSessionMode = $('slopscale-root')?.classList.contains('slopscale-session-mode');
     let mode, pathway_id, bpm, bpm_tier, scale, key, practice_type;
+    // Tuning-adapt credit fields (panel 2026-06-05): `key` stays CONCERT (what
+    // sounded — display honesty); key_credit = the rung's nominal key (what
+    // Travel credits — a retune + replay of the same fingering must not
+    // double-credit); tuning_offset logged so a stricter distinctness rule
+    // stays possible later without data loss (learning-design's hedge).
+    let key_credit = null, tuning_offset = 0;
 
     if (isSessionMode) {
       mode = 'session';
@@ -12344,6 +12593,7 @@
       const firstSeg = activeBundle?.session?.segments?.[0]?.config;
       scale = firstSeg?.scale || null;
       key   = firstSeg?.key   || null;
+      key_credit = key;
       practice_type = 'session';
     } else {
       const cfg = activeBundle?.session || readConfig();
@@ -12354,6 +12604,8 @@
       bpm = cfg.bpm;
       scale = cfg.scale;
       key   = cfg.key;
+      key_credit = (mode === 'pathway' && cfg.keyNominal) ? cfg.keyNominal : cfg.key;
+      tuning_offset = (mode === 'pathway' && cfg.tuningOffset) ? cfg.tuningOffset : 0;
       practice_type = cfg.practiceType || cfg.mode || 'scale';
       // Tier = index of highest tempoTier the current BPM meets or exceeds
       bpm_tier = null;
@@ -12367,7 +12619,7 @@
     _activeSession = {
       id: `${now}-${Math.random().toString(36).slice(2, 7)}`,
       date: localDateStr(),
-      ts: now, mode, pathway_id, bpm, bpm_tier, scale, key, practice_type,
+      ts: now, mode, pathway_id, bpm, bpm_tier, scale, key, key_credit, tuning_offset, practice_type,
       // content_ms = the exercise's MUSIC length (bars × measureSeconds), for the
       // proof-loop settling-tax (did the run HOLD, vs bail in the first phrase). NOT
       // songInfo.duration — that's inflated by the count-in lead + the lookahead tail,
@@ -13027,6 +13279,10 @@
     });
     setup?.addEventListener('change', () => {
       syncStringSetupControls(); syncInstrumentClass(); syncStringCountChips(); syncTuningOptions();
+      // User-driven setup change = the player's L1 instrument declaration.
+      // (Pathway writes go through setFieldSilent — no 'change' — so a rung's
+      // coded setup never overwrites the player's durable store.)
+      instrumentStoreSave();
       // A string-count/tuning change reshapes the generated pattern (different
       // string count, different open pitches) — regenerate so the displayed
       // chart + audio actually reflect it. Mirrors the instrument/tuning-select
@@ -13050,15 +13306,24 @@
     // into the dropdown. Async; the dropdown is repainted by the fetch
     // callback so users see saved entries the moment the request lands.
     loadSavedTunings();
-    // Restore the last-used family before first sync, so reload lands on
-    // bass-instrument state immediately (renderer fallback, shape selector
-    // hidden, etc.) rather than guitar-then-bass flicker.
+    // Restore the player's saved instrument (the L1 store: setup + tuning)
+    // before first sync, so reload lands on their declared physical instrument
+    // — D Standard survives a restart, not just the family. Falls back to the
+    // legacy family-only key for stores written before Phase 1.
     try {
-      const saved = localStorage.getItem('slopscale.instrumentFamily');
-      if (saved === 'bass' || saved === 'guitar') {
-        if (instrument && instrument.value !== saved) {
-          instrument.value = saved;
-          if (setup) setup.value = saved === 'bass' ? 'bass_4_standard' : 'guitar_6_standard';
+      const inst = instrumentStoreLoad();
+      if (inst) {
+        if (setup) setup.value = inst.stringSetup;
+        if (instrument) instrument.value = STRING_SETUPS[inst.stringSetup].instrument;
+        const hidden = $('slopscale-custom-open-midis');
+        if (hidden) hidden.value = inst.customOpenMidis || '';
+      } else {
+        const saved = localStorage.getItem('slopscale.instrumentFamily');
+        if (saved === 'bass' || saved === 'guitar') {
+          if (instrument && instrument.value !== saved) {
+            instrument.value = saved;
+            if (setup) setup.value = saved === 'bass' ? 'bass_4_standard' : 'guitar_6_standard';
+          }
         }
       }
     } catch (_) {}
@@ -13574,6 +13839,9 @@
     $('slopscale-mixer-dim')?.addEventListener('change', (ev) => { mixerBackingDim = ev.target.checked; applyMixer(); mixerSave(); });
     // Header Setup popover: toggle on the button, close on outside click, label tracks tuning.
     $('slopscale-setup-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSetupPopover(); });
+    // Target-aware tuner: entry in the Setup popover; Done chip on the strip.
+    $('slopscale-tune-btn')?.addEventListener('click', () => { toggleSetupPopover(false); startTuner(); });
+    $('slopscale-tuner-done')?.addEventListener('click', () => stopTuner());
     $('slopscale-tuning-select')?.addEventListener('change', updateSetupButton);
     document.addEventListener('click', (e) => {
       const pop = $('slopscale-setup-popover'); if (!pop || pop.hidden) return;

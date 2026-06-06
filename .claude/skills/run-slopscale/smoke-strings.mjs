@@ -152,6 +152,46 @@ try {
   ok(Array.isArray(pw.dropMidis) && pw.dropMidis[0] === 33 && pw.dropKey === "A", "drop-A vary lands customOpenMidis via the form-associated hidden field", JSON.stringify(pw.dropMidis));
   ok(pw.leakMidis === null, "custom tuning does NOT leak into the next pathway selected", JSON.stringify(pw.leakMidis));
 
+  console.log("-- (8) L1 tuning adapt: a D-standard player on an E-coded rung = SAME FRETS, concert −2 (pin-row, tuning panel 2026-06-05) --");
+  // The harmony spec's single assert that pins all three rulings at once:
+  // (a) fret-identical chart (the engine is transposition-covariant — the rung's
+  // fingering pedagogy survives), (b) concert key D with nominal E + offset −2
+  // riding along, (c) the chart opens = the player's physical midis (so the
+  // detector + backing land where the strings actually sound).
+  const adapt = await page.evaluate(() => {
+    const S = window.SlopScale;
+    const selPathway = (id) => { const sel = document.querySelector("#slopscale-pathway"); sel.value = id; sel.dispatchEvent(new Event("change", { bubbles: true })); };
+    // Baseline: no saved instrument → the rung charts as coded (E standard).
+    localStorage.removeItem("slopscale.instrument");
+    selPathway("pulse_muting");
+    const baseCfg = S.readConfig();
+    const base = S.generateExercise(baseCfg);
+    // Declare D Standard via the real Setup path (tuning select → saves L1).
+    const sel = document.querySelector("#slopscale-tuning-select");
+    sel.value = "d_standard"; sel.dispatchEvent(new Event("change", { bubbles: true }));
+    selPathway("pulse_muting");   // re-apply the rung → applyTuningAdaptL1 composes
+    const cfg = S.readConfig();
+    const ex = S.generateExercise(cfg);
+    // Self-clean: back to standard + drop the L1 store for later rows/suites.
+    sel.value = "standard"; sel.dispatchEvent(new Event("change", { bubbles: true }));
+    localStorage.removeItem("slopscale.instrument");
+    selPathway("pulse_muting");
+    const frets = (e) => e.chart.notes.map((n) => `${n.s}:${n.f}`).join("|");
+    const t0 = (e) => (e.chart.timeline || [])[0] || null;
+    return {
+      baseKey: baseCfg.key, key: cfg.key, keyNominal: cfg.keyNominal, off: cfg.tuningOffset,
+      fretsEqual: frets(base) === frets(ex), noteCount: ex.chart.notes.length,
+      midis: (cfg.customOpenMidis || []).join(","),
+      baseRootPc: t0(base) ? t0(base).rootPc : null,
+      adaptRootPc: t0(ex) ? t0(ex).rootPc : null,
+    };
+  });
+  ok(adapt.baseKey === "E" && adapt.key === "D" && adapt.keyNominal === "E" && adapt.off === -2,
+     "(8a) E-coded rung rewrites to concert D (nominal E, offset −2)", `base=${adapt.baseKey} key=${adapt.key} nom=${adapt.keyNominal} off=${adapt.off}`);
+  ok(adapt.noteCount > 0 && adapt.fretsEqual, "(8b) charts are FRET-IDENTICAL (fingering pedagogy preserved)", `notes=${adapt.noteCount}`);
+  ok(adapt.midis === "38,43,48,53,57,62", "(8c) chart opens = the player's D-standard midis (detector + audio concert-faithful)", adapt.midis);
+  ok(adapt.baseRootPc != null && adapt.adaptRootPc === ((adapt.baseRootPc + 10) % 12), "(8d) chart.timeline (the backing's chord source) roots shift −2 with the player", `rootPc ${adapt.baseRootPc} -> ${adapt.adaptRootPc}`);
+
   ok(pageErrs.length === 0, "no uncaught page errors", pageErrs.join(" | "));
   console.log(`\n${fails === 0 ? "PASS" : "FAIL"}  strings/tuning: ${fails} failure(s)`);
   process.exit(fails ? 1 : 0);
