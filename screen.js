@@ -1215,11 +1215,16 @@
     },
     chord_caged_shapes: {
       label:'The Five CAGED Shapes',
-      goal:'The same chord, five ways up the neck. Voice a progression through each CAGED shape — E and A are the workhorse movable barres; C, G and D are the partial/anchor grips — so you stop being trapped at the nut and can play any chord in any region. A movable shape is just the barre-chord skeleton of the scale you already know.',
+      goal:'The same chord, five ways up the neck — one pass WALKS all five CAGED shapes in order, climbing from the open-position grip toward the 12th fret (each chord box names its shape). E and A are the workhorse movable barres; C, G and D are the partial/anchor grips. Learn the ladder and you stop being trapped at the nut: any chord, any region. The key variations re-walk the same ladder from new frets — that is the proof the SHAPES are what you own, not one set of fret numbers.',
       scales:['major','natural_minor'],
       tempoTiers:[60, 80, 100, 120],
-      base:{ practiceType:'strum_comp', scale:'major', chordDepth:'triad', chordOverride:'auto', progression:'I-IV-V', strumPattern:'folk_pop_ddu_udu', voicingPosition:'movable', shape:'E', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G' },
-      vary:[ { shape:'E' }, { shape:'A' }, { shape:'D' }, { shape:'G' }, { shape:'C' } ]
+      // shapeWalk: bar i is voiced in the i-th CAGED shape low→high (the canonical
+      // stack — in G: G→E→D→C→A); static_i keeps it "the SAME chord five ways".
+      // fretboardSystem 'position' (not 'caged') so the variation stepper walks
+      // the key vary[] instead of hijacking the shape select (the walk owns the
+      // shapes). 10 bars = two full laps of the five shapes.
+      base:{ practiceType:'strum_comp', scale:'major', chordDepth:'triad', chordOverride:'auto', progression:'static_i', strumPattern:'folk_pop_ddu_udu', voicingPosition:'movable', shapeWalk:true, meter:'4/4', subdivision:'eighth', bpm:80, bars:10, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G' },
+      vary:[ { key:'G' }, { key:'C' }, { key:'A' }, { key:'D' }, { key:'E' } ]
     },
     chord_barre_changes: {
       label:'Barre Chords',
@@ -1234,8 +1239,13 @@
       goal:'Comp a full progression — four-chord songs, ii–V–I — keeping the changes in time across positions. The skill is voice-economy: finding the nearest grip for each chord so your hand barely moves, the lazy-in-the-best-way rhythm-guitar feel that lets you comp a whole song without thinking about it.',
       scales:['major','natural_minor'],
       tempoTiers:[80, 105, 125, 150],
-      base:{ practiceType:'strum_comp', scale:'major', chordDepth:'triad', chordOverride:'auto', progression:'I-V-vi-IV', strumPattern:'folk_pop_ddu_udu', voicingPosition:'movable', shape:'E', meter:'4/4', subdivision:'eighth', bpm:105, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G' },
-      vary:[ { progression:'I-V-vi-IV' }, { progression:'vi-IV-I-V', key:'C' }, { progression:'I-vi-IV-V', key:'C' }, { progression:'ii-V-I', key:'C', shape:'A' }, { progression:'I-IV-V', key:'E' } ]
+      // voicingPosition 'economy' = the goal's actual promise: from the second
+      // chord on, pick the grip NEAREST the previous one across ALL five shapes
+      // ("your hand barely moves"). The old config forced a fixed E-shape, which
+      // marched barres up the neck — the OPPOSITE of voice economy (dogfood
+      // catch 2026-06-06).
+      base:{ practiceType:'strum_comp', scale:'major', chordDepth:'triad', chordOverride:'auto', progression:'I-V-vi-IV', strumPattern:'folk_pop_ddu_udu', voicingPosition:'economy', meter:'4/4', subdivision:'eighth', bpm:105, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G' },
+      vary:[ { progression:'I-V-vi-IV' }, { progression:'vi-IV-I-V', key:'C' }, { progression:'I-vi-IV-V', key:'C' }, { progression:'ii-V-I', key:'C' }, { progression:'I-IV-V', key:'E' } ]
     },
     // ── CHORDS ladder, Phase B (the STRUM_GRIPS extended-grip tier) ─────────────
     // Unlocked by the STRUM_GRIPS movable 7th/9th/11th/13th table (§ above): real
@@ -2833,6 +2843,9 @@
       // rung silently fell back to open mode (degenerate F/B voicings).
       voicingPosition: advancedMode ? (data.get('voicingPosition') || 'open') : 'open',
       strumPattern: data.get('strumPattern') || '',
+      // Shape WALK (The Five CAGED Shapes): bar i voiced in the i-th CAGED shape
+      // low→high — see buildStrumCompExercise. Pathway-driven hidden field.
+      shapeWalk: advancedMode && String(data.get('shapeWalk') || '') === 'true',
       renderer: data.get('renderer') || localStorage.getItem('slopscale.renderer') || 'highway_3d',
       instrument: setup.instrument,
       stringSetup,
@@ -3943,6 +3956,18 @@
       const above = options.filter(f => f > prevRootFret);
       if (above.length) return Math.min.apply(null, above);
       // Ran out of neck — fall back to closest as a safety net
+    }
+    if (mode === 'nearest_low') {
+      // Fixed-shape / economy comping: prefer the playable low-position octave —
+      // nearest among candidates ≤ fret 12 (barre-lesson territory); go higher
+      // only when no low candidate exists. Without this an A-shape I–IV–V in G
+      // walked G→C→D to frets 10→15→17 (nearest-anchor overshoot into the dusty
+      // end of the neck; caught dogfooding the Chords ladder 2026-06-06).
+      const low = options.filter(f => f <= 12);
+      const pool = low.length ? low : options;
+      let bf = pool[0], bd = Math.abs(pool[0] - prevRootFret);
+      for (const f of pool) { const d = Math.abs(f - prevRootFret); if (d < bd) { bf = f; bd = d; } }
+      return bf;
     }
     let best = options[0], bestDist = Math.abs(options[0] - prevRootFret);
     for (let i = 1; i < options.length; i++) {
@@ -6410,16 +6435,57 @@
     }
     const name = chordName(rootPc, quality);
     const shapes = opts.fixedShape ? [opts.fixedShape] : STRUM_SHAPE_ORDER;
-    let best = null;
+    // Voice-economy mode ('economy', the Comping-the-Changes promise): from the
+    // second chord on, pick the grip NEAREST the previous one across ALL five
+    // shapes — the "hand barely moves" comping skill. The first chord (no prev)
+    // falls through to open scoring for a natural starting grip.
+    const economy = !opts.fixedShape && opts.economy && prevRootFret != null && prevRootFret >= 0;
+    // Triad-completeness (guitar-pedagogy review 2026-06-06, must-fix #1): a
+    // strummable grip must sound ≥3 DISTINCT pitch classes including the root.
+    // Low rootFrets drop template notes below fret 0 (key A's C-shape at
+    // rootFret 0 collapses to a dyad), which made the five-shape walk a
+    // FOUR-shape walk in keys A/E and emitted 2-note dyad "chords" in F/B.
+    // Incomplete at the low octave → retry one octave up before skipping.
+    const gripComplete = (g) => {
+      if (!g || g.length < 3) return false;
+      const pcs = new Set(g.map(p => ((p.pc - rootPc) % 12 + 12) % 12));
+      return pcs.has(0) && pcs.size >= 3;
+    };
+    const resolveGrip = (shape, baseFret) => {
+      let rf = baseFret, g = cagedShapeNotesForChord(cfg, shape, quality, rf);
+      if (!gripComplete(g) && rf + 12 <= 20) {
+        const hi = cagedShapeNotesForChord(cfg, shape, quality, rf + 12);
+        if (gripComplete(hi)) { rf += 12; g = hi; }
+      }
+      return gripComplete(g) ? { rootFret: rf, gripNotes: g } : null;
+    };
+    const meanFret = (g) => g.reduce((a, p) => a + p.f, 0) / g.length;
+    // Economy gates + tie-break (review must-fix #2): movable G-shape (either
+    // quality) and movable C-shape MINOR are real-world non-grips (the movable
+    // C-minor needs five fingers); "movable" = no open string in the grip.
+    // Hand distance = |mean grip fret − previous mean| — C/G shapes sit BELOW
+    // their root fret, so root-fret distance systematically picked the hard
+    // forms. Distance ties break toward the workhorse barres E>A>D>G>C.
+    const ECON_RANK = { E: 0, A: 1, D: 2, G: 3, C: 4 };
+    let best = null, bestDist = Infinity;
     for (const shape of shapes) {
-      const anchorPrev = opts.fixedShape ? prevRootFret : -1;   // open mode: each chord finds its lowest grip
-      const rootFret = pickShapeRootFret(cfg, shape, rootPc, anchorPrev, 'nearest');
-      if (rootFret == null) continue;
-      const gripNotes = cagedShapeNotesForChord(cfg, shape, quality, rootFret);
-      if (!gripNotes || gripNotes.length < 3) continue;
+      const anchorPrev = (opts.fixedShape || economy) ? prevRootFret : -1;   // open mode: each chord finds its lowest grip
+      const baseFret = pickShapeRootFret(cfg, shape, rootPc, anchorPrev, 'nearest_low');
+      if (baseFret == null) continue;
+      const resolved = resolveGrip(shape, baseFret);
+      if (!resolved) continue;
+      const { rootFret, gripNotes } = resolved;
       const template = templateFromShape(name, shape, quality, rootFret, cfg, false) || templateFromPositions(name, gripNotes, cfg, false);
       const cand = { shape, rootFret, gripNotes, template };
       if (opts.fixedShape) { best = cand; break; }
+      if (economy) {
+        const open = gripNotes.some(p => p.f === 0);
+        if (!open && (shape === 'G' || (shape === 'C' && cagedShapeQualityKey(quality) === 'min'))) continue;
+        const prevMean = (opts.prevMeanFret != null && opts.prevMeanFret >= 0) ? opts.prevMeanFret : prevRootFret;
+        const d = Math.abs(meanFret(gripNotes) - prevMean);
+        if (!best || d < bestDist - 1e-9 || (Math.abs(d - bestDist) <= 1e-9 && ECON_RANK[shape] < ECON_RANK[best.shape])) { best = cand; bestDist = d; }
+        continue;
+      }
       // open mode: prefer the most open grip (most fret-0 strings, then lowest top fret)
       const score = c => c.gripNotes.filter(p => p.f === 0).length * 100 - Math.max.apply(null, c.gripNotes.map(p => p.f));
       if (!best || score(cand) > score(best)) best = cand;
@@ -6456,6 +6522,25 @@
     const beatUnit = mLen / beatsPerBar;
     const degrees = progressionDegreesForConfig(cfg);
     const fixedShape = (cfg.voicingPosition === 'movable' && cfg.shape && CAGED_SHAPES[cfg.shape]) ? cfg.shape : null;
+    // Shape WALK ("The Five CAGED Shapes" rung): voice bar i's chord in the i-th
+    // CAGED shape, ordered low→high by each shape's natural lowest grip for the
+    // first chord — for any key this reproduces the canonical CAGED stack
+    // climbing the neck (G: G→E→D→C→A). Each chord box is renamed with its
+    // shape so the player learns the vocabulary, not just the grip. Overrides
+    // fixedShape per bar; pairs naturally with a static_i progression ("the
+    // same chord, five ways up the neck").
+    let walkOrder = null;
+    if (cfg.shapeWalk) {
+      const deg0 = degrees[0];
+      const rootPc0 = chordRootForDegree(cfg, deg0);
+      const quality0 = chordQualityForDegree(cfg.scale, cfg.chordDepth, deg0, cfg.chordOverride, cfg.progression);
+      walkOrder = STRUM_SHAPE_ORDER
+        .map(sh => { const g = pickStrumGrip(cfg, rootPc0, quality0, -1, { fixedShape: sh }); return g ? { sh, lo: Math.min.apply(null, g.gripNotes.map(p => p.f)) } : null; })
+        .filter(Boolean)
+        .sort((a, b) => a.lo - b.lo)
+        .map(x => x.sh);
+      if (!walkOrder.length) walkOrder = null;
+    }
     const pat = STRUM_PATTERNS[cfg.strumPattern] || STRUM_PATTERNS[defaultStrumPattern(cfg)] || STRUM_PATTERNS.folk_pop_ddu_udu;
     // Odd-meter / non-4-beat degrade: if the 4/4-authored grid doesn't fit this bar,
     // fall back to a down-strum on each beat (the chord "limps" with the meter).
@@ -6465,14 +6550,19 @@
 
     const notes = [], chords = [], chordTemplates = [], handShapes = [];
     const sections = [{ name:`Strum — ${cfg.key}`, number:1, time:0 }];
-    let templateId = 0, prevRootFret = -1;
+    let templateId = 0, prevRootFret = -1, prevMeanFret = -1;   // mean grip fret feeds economy hand-distance
     for (let bar = 0, t = 0; t < totalTime - 0.001; bar++, t += mLen) {
       const deg = degrees[bar % degrees.length];
       const rootPc = chordRootForDegree(cfg, deg);
       const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, deg, cfg.chordOverride, cfg.progression);
-      const grip = pickStrumGrip(cfg, rootPc, quality, prevRootFret, { fixedShape });
+      const barShape = walkOrder ? walkOrder[bar % walkOrder.length] : null;
+      const grip = pickStrumGrip(cfg, rootPc, quality, barShape ? -1 : prevRootFret,
+        { fixedShape: barShape || fixedShape, economy: cfg.voicingPosition === 'economy', prevMeanFret });
       if (!grip || !grip.gripNotes.length) continue;
+      // (Walk mode needs no extra labeling — templateFromShape's displayName is
+      // already "G (E-shape)", and the chord box prefers displayName.)
       prevRootFret = grip.rootFret;
+      prevMeanFret = grip.gripNotes.reduce((a, p) => a + p.f, 0) / grip.gripNotes.length;
       // Chord box: the full grip (so the chord-box renderers draw x/o + fingering).
       const id = templateId++;
       chordTemplates.push(grip.template || templateFromPositions(chordName(rootPc, quality), grip.gripNotes, cfg, false));
@@ -11365,6 +11455,9 @@
     // Reggae-skank pulse flag is specialized → default OFF unless the rung opts in,
     // so a skank variation's offbeat never leaks into the next rung selected.
     setFieldSilent('pulseOffbeat', config.pulseOffbeat ? 'true' : '');
+    // Shape-walk flag (The Five CAGED Shapes) is specialized → default OFF unless
+    // the rung opts in, so the walk never leaks into the next chord rung selected.
+    setFieldSilent('shapeWalk', config.shapeWalk ? 'true' : '');
     // Custom tuning override (drop-A djent etc.) is specialized → default EMPTY
     // unless the rung opts in, so a drop-tuned variation never leaks its tuning
     // into the next pathway selected. (readConfig also length-validates the CSV
@@ -12486,6 +12579,7 @@
     }
     if (!_ptHandle && !_ndVerifyMode) return;   // no ear at all → nothing to show
     ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: 0, total: 0 });
+    syncStripTuneBtn();   // the scorer owns the strip — hide the idle Tune… button
   }
 
   function ptOnPitch({ freqHz, confidence }) {
@@ -12540,7 +12634,10 @@
     // notes/hits and feed stale hit/miss counts to the pathway tier gate.
     _ptNotes = []; _ptScored = new Set(); _ptByKey = new Map(); _ptHadInput = false;
     _ptStreak = { key: null, count: 0 };
+    // Return to the resting state instead of hiding — the strip stays a
+    // standing affordance between runs (hidden only on detector-less hosts).
     ptUpdateMeter({ show: false });
+    ptShowIdleStrip();
   }
 
   // #254 per-note gem hook — the per-note judgment the host highway lights on the gem
@@ -12614,6 +12711,26 @@
       else { accEl.textContent = '--'; accEl.style.color = ''; }
     }
   }
+  // Resting-state strip (2026-06-06, discoverability ask): the mic-monitor /
+  // scoring strip and the Tune… affordance stay VISIBLE whenever the host has a
+  // detection surface — not only mid-run — so a player knows the scorer and the
+  // tuner exist before ever pressing Play. INERT: no mic is opened until Play
+  // (the scorer) or Tune… (the tuner); this is display-only chrome. On a
+  // detector-less host the strip stays hidden (never show dead UI).
+  function ptShowIdleStrip() {
+    if (!ptAvailable() && !ndVerifyAvailable()) return;
+    if (playing || _tunerHandle) return;   // a live owner is already painting the strip
+    ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: 0, total: 0 });
+    syncStripTuneBtn();
+  }
+  // The strip's own Tune… button: idle-only (the scorer owns the strip during a
+  // run, incl. paused; the tuner shows Done instead), and only when the YIN ear
+  // exists (the tuner needs the mic detector specifically — the verifier can't
+  // drive per-string cents).
+  function syncStripTuneBtn() {
+    const btn = $('slopscale-strip-tune');
+    if (btn) btn.style.display = (!playing && !_tunerHandle && ptAvailable()) ? '' : 'none';
+  }
   // ── Target-aware tuner (Setup popover "Tune…" — UX panel 2026-06-05) ────────
   // Runs the same continuous detector OUTSIDE playback to tune against the
   // SELECTED tuning: the strip's MIC cluster shows the nearest target string +
@@ -12642,6 +12759,7 @@
     if (!_tunerHandle || typeof _tunerHandle.on !== 'function') { _tunerHandle = null; return; }
     _tunerHandle.on('pitch', tunerOnPitch);
     _tunerHandle.on('end', () => { _tunerHandle = null; });
+    syncStripTuneBtn();   // the tuner owns the strip — Done replaces the idle Tune…
     const meter = $('slopscale-pitch-meter');
     if (meter) { meter.classList.add('slopscale-pm-tuner'); meter.style.display = 'flex'; }
     const chips = $('slopscale-tuner-chips'), done = $('slopscale-tuner-done');
@@ -12712,12 +12830,14 @@
     const meter = $('slopscale-pitch-meter');
     if (meter && meter.classList.contains('slopscale-pm-tuner')) {
       meter.classList.remove('slopscale-pm-tuner');
-      meter.style.display = 'none';   // only hide when the TUNER owned the strip — the scorer repaints it on play
     }
     const chips = $('slopscale-tuner-chips'), done = $('slopscale-tuner-done');
     if (chips) { chips.style.display = 'none'; chips.innerHTML = ''; }
     if (done) done.style.display = 'none';
     _tunerTargets = []; _tunerHold = { idx: -1, count: 0 }; _tunerLocked = new Set();
+    // Done returns the strip to its RESTING state (visible, inert, Tune… shown)
+    // rather than hiding it — self-gated: a starting scorer repaints it anyway.
+    ptShowIdleStrip();
   }
   // ── End pitch tracker ──────────────────────────────────────────────────────
 
@@ -14238,6 +14358,11 @@
     $('slopscale-setup-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSetupPopover(); });
     // Target-aware tuner: entry in the Setup popover; Done chip on the strip.
     $('slopscale-tune-btn')?.addEventListener('click', () => { toggleSetupPopover(false); startTuner(); });
+    $('slopscale-strip-tune')?.addEventListener('click', () => startTuner());
+    // Show the resting-state strip on load; the delayed retry covers plugin
+    // load order (the minigames / note_detect surfaces may register after us).
+    ptShowIdleStrip();
+    setTimeout(ptShowIdleStrip, 2000);
     $('slopscale-tuner-done')?.addEventListener('click', () => stopTuner());
     // Courtesy hook for the third-party floating tuner (never touch its DOM —
     // its own public API only; the click is impossible unless feature-detect

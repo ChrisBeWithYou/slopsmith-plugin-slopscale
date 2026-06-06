@@ -215,13 +215,22 @@ try {
       await new Promise((r2) => setTimeout(r2, 100));
     }
     document.getElementById("slopscale-tuner-done")?.click();
+    // Resting-state strip (2026-06-06): Done no longer HIDES the strip — it
+    // returns it to the idle state (visible, no tuner mode, chips cleared,
+    // the idle Tune… button back). Torn down = tuner mode gone + chips gone +
+    // the strip still standing as the discoverable affordance.
     const meter = document.getElementById("slopscale-pitch-meter");
-    out.tornDown = !meter.classList.contains("slopscale-pm-tuner") && meter.style.display === "none";
+    const chipsAfter = document.getElementById("slopscale-tuner-chips");
+    const stripTune = document.getElementById("slopscale-strip-tune");
+    out.tornDown = !meter.classList.contains("slopscale-pm-tuner")
+      && (!chipsAfter || chipsAfter.style.display === "none")
+      && meter.style.display !== "none"
+      && (!stripTune || stripTune.style.display !== "none");
     return out;
   });
   ok(tuner.mode && tuner.chips === 6, "(7a) tuner mode: strip shown with 6 target chips", `chips=${tuner.chips}`);
   ok(tuner.note === "A2" && tuner.tunedIdx === 1, "(7b) A2 stream locks the A-string chip tuned (±5¢ hold)", `note=${tuner.note} tuned=${tuner.tunedIdx}`);
-  ok(tuner.tornDown, "(7c) Done tears the tuner down");
+  ok(tuner.tornDown, "(7c) Done returns the strip to its resting state (tuner gone, strip + Tune… standing)");
 
   // ── error surfaces: NO benign list in this suite — scoring failures ARE the point.
   const scoringFailures = consoleErrs.filter((e) => /continuous scoring failed to start|failed to set up audio analyser/i.test(e));

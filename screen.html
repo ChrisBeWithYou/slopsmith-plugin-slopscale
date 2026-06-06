@@ -1554,6 +1554,10 @@
              drops them, so a movable-barre rung silently runs in open mode. -->
         <input type="hidden" name="voicingPosition" id="slopscale-voicing-position" value="open">
         <input type="hidden" name="strumPattern" id="slopscale-strum-pattern" value="">
+        <!-- Shape WALK (The Five CAGED Shapes rung): bar i voiced in the i-th CAGED
+             shape, ordered low→high up the neck. Pathway-driven, anti-leak
+             defaulted off in applyPathwayConfig like the fields above. -->
+        <input type="hidden" name="shapeWalk" id="slopscale-shape-walk" value="">
         <!-- Rhythm-pulse accent slot (0–3): the Accent-Displacement axis for the
              single-string pulse drill. Pathway-driven hidden field (see readConfig /
              buildRhythmPulseExercise); same setFieldSilent→readConfig contract as above. -->
@@ -2196,6 +2200,12 @@
         <span id="slopscale-pitch-cents" title="Cents off the target (within ±50¢ scores)"></span>
         <span class="slopscale-pm-lbl slopscale-pm-hit-lbl">Hit</span>
         <span id="slopscale-pitch-accuracy" title="Notes hit / notes judged so far" aria-label="Notes hit out of notes judged">--</span>
+        <!-- Resting-state Tune… (2026-06-06): the strip is now a standing
+             affordance (visible between runs when a detector exists), and this
+             button is the always-discoverable way into the tuner — the Setup
+             popover's Tune… row remains as the second entrance. Idle-only:
+             hidden while the scorer or the tuner owns the strip. -->
+        <button type="button" id="slopscale-strip-tune" class="slopscale-tuner-done" style="display:none" title="Tune your strings to the selected tuning — each string locks green when held in tune">Tune…</button>
         <!-- Tuner mode (Setup → Tune…): per-string target chips replace the HIT
              counter; a chip locks green after holding within ±5¢. -->
         <span id="slopscale-tuner-chips" class="slopscale-tuner-chips" style="display:none" role="group" aria-label="String tuning targets, low to high"></span>

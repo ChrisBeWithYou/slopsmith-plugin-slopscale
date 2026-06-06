@@ -276,9 +276,10 @@ async function run() {
           setMeter(meterStr);
           const cfg = Object.assign(S.readConfig(), base, patch);
           cfg.mode = cfg.practiceType;
-          const notes = (S.generateExercise(cfg).chart || {}).notes || [];
+          const chart = S.generateExercise(cfg).chart || {};
+          const notes = chart.notes || [];
           const m = cfg.meter, barSec = m.numerator * (60 / cfg.bpm) * (4 / m.denominator);
-          return Object.assign({ label, notes: notes.length }, judge(notes, barSec));
+          return Object.assign({ label, notes: notes.length }, judge(notes, barSec, chart));
         } catch (e) { return { label, ok: false, fatal: [`threw: ${e.message}`], warn: [], notes: 0 }; }
       };
       const rows = [];
@@ -304,10 +305,36 @@ async function run() {
           const stabs = Object.values(byT).filter((c) => c >= 2).length;
           return { ok: stabs === 3, fatal: stabs === 3 ? [] : [`stabs in bar 1 = ${stabs}, expected 3`], warn: [] };
         }));
+      // strum_comp chord-rung semantics (2026-06-06 dogfood fixes — see the
+      // shape-walk/economy/nearest_low changes in pickStrumGrip et al.).
+      rows.push(run("strum_comp shapeWalk: five distinct CAGED shapes climbing the neck", "4/4",
+        { practiceType: "strum_comp", stringSetup: "guitar_6_standard", key: "G", scale: "major", subdivision: "eighth",
+          progression: "static_i", chordDepth: "triad", chordOverride: "auto", voicingPosition: "movable", shapeWalk: true, bars: 10, fretboardSystem: "position" },
+        (notes, barSec, chart) => {
+          const tags = (chart.chordTemplates || []).map((t) => ((t.displayName || "").match(/\(([A-G])-shape\)/i) || [])[1]).filter(Boolean);
+          const mins = (chart.chords || []).map((c) => Math.min(...c.notes.map((n) => n.f)));
+          const five = new Set(tags.slice(0, 5)).size === 5;
+          const climb = mins.slice(0, 5).every((m2, i) => i === 0 || m2 >= mins[i - 1]);
+          const fatal = [];
+          if (!five) fatal.push(`first lap shapes = ${tags.slice(0, 5).join("→")} (expected 5 distinct)`);
+          if (!climb) fatal.push(`grip frets not climbing: ${mins.slice(0, 5).join(",")}`);
+          return { ok: five && climb, fatal, warn: [] };
+        }));
+      rows.push(run("strum_comp economy: nearest-grip comping (bounded jumps, ≤ fret 12)", "4/4",
+        { practiceType: "strum_comp", stringSetup: "guitar_6_standard", key: "G", scale: "major", subdivision: "eighth",
+          progression: "I-V-vi-IV", chordDepth: "triad", chordOverride: "auto", voicingPosition: "economy", shapeWalk: false, bars: 8, fretboardSystem: "position" },
+        (notes, barSec, chart) => {
+          const mins = (chart.chords || []).map((c) => Math.min(...c.notes.map((n) => n.f)));
+          const jumps = mins.slice(1).map((m2, i) => Math.abs(m2 - mins[i]));
+          const fatal = [];
+          if (Math.max(...jumps) > 5) fatal.push(`grip jump > 5 frets (${jumps.join(",")}) — not voice economy`);
+          if (Math.max(...mins) > 12) fatal.push(`grip above fret 12 (${mins.join(",")}) — nearest_low broken`);
+          return { ok: fatal.length === 0, fatal, warn: [] };
+        }));
       setMeter("4/4");
       return rows;
     });
-    sections.push({ name: "engine semantics (3)", rows: p5 });
+    sections.push({ name: "engine semantics (5)", rows: p5 });
   } finally {
     await browser.close();
   }
