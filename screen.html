@@ -2026,6 +2026,13 @@
           <span class="slopscale-fb-toggle-label">Fretboard view</span>
           <button type="button" id="slopscale-fretboard-toggle" class="slopscale-pill-toggle" role="switch" aria-checked="true" aria-label="Toggle fretboard view"><span class="slopscale-pill-knob"></span></button>
         </span>
+        <!-- Hand-marks toggle (hand-marks Slice 1): suggested fret-hand fingers +
+             pick strokes, where the drill provides them. ONE switch, default ON,
+             persisted, never auto-flipped (content scales at emission, not here). -->
+        <span id="slopscale-handmarks-toggle-wrap" class="slopscale-fb-toggle-wrap">
+          <span class="slopscale-fb-toggle-label" title="Show suggested fret-hand fingers and pick strokes when the drill provides them">Fingering</span>
+          <button type="button" id="slopscale-handmarks-toggle" class="slopscale-pill-toggle" role="switch" aria-checked="true" aria-label="Toggle fingering and pick-stroke marks"><span class="slopscale-pill-knob"></span></button>
+        </span>
         <!-- Keep-looping toggle — by default a drill plays a right-sized, FINITE run
              then ends (with the session-summary card). Flip this on to loop the drill
              forever for open practice. Hidden in Jam (always endless) and Workout

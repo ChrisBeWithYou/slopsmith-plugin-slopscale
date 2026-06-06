@@ -2707,6 +2707,11 @@
   let currentRenderTheme = (typeof localStorage !== 'undefined' && localStorage.getItem('slopscale.renderTheme')) || 'light';
   if (currentRenderTheme !== 'light' && currentRenderTheme !== 'dark') currentRenderTheme = 'light';
   function getRenderTheme() { return RENDER_THEMES[currentRenderTheme] || RENDER_THEMES.light; }
+  // Hand-marks display switch (hand-marks Slice 1; UX ruling): ONE toggle,
+  // default ON, persisted, never auto-flipped — beginner/advanced scaling
+  // happens at EMISSION (the pedagogy lane), not by flipping the player's
+  // switch. Read per-frame by the Tab renderer + fretboard strip.
+  function handMarksOn() { try { return localStorage.getItem('slopscale.showHandMarks') !== 'off'; } catch (_) { return true; } }
   function setRenderTheme(name) {
     if (name !== 'light' && name !== 'dark') return;
     currentRenderTheme = name;
@@ -8151,6 +8156,57 @@
       ctx.fillStyle = t.dim; ctx.font = 'italic 600 12px "Cambria","Georgia",serif';
       ctx.fillText(bundle.songInfo?.title || 'SlopScale', 12, 18);
     }
+    // Hand-marks lanes (hand-marks Slice 1; UX engraving spec): pick strokes in
+    // a FIXED lane above the staff (⊓ down / ∨ up, canvas strokes, mono ink),
+    // fret-hand fingers in a fixed lane below (subordinate gray; fg 0 omitted in
+    // tab — the fret digit 0 already says open). MANDATORY simile decimation:
+    // at dense spacing, strokes thin to phrase starts + alternation BREAKS (the
+    // economy/sweep event — exactly the information); fingers thin to shifts
+    // and string crossings. Published fast passages are engraved the same way.
+    function drawHandMarks(bundle, now, nStr, top, gap) {
+      if (!handMarksOn()) return;
+      const win = [];
+      for (const n of bundle.notes || []) { const dt = n.t - now; if (dt >= -BEHIND && dt <= AHEAD) win.push(n); }
+      if (!win.length) return;
+      win.sort((a, b) => a.t - b.t);
+      const pxPerSec = (W - LEFT_PAD - RIGHT_PAD) / (AHEAD + BEHIND);
+      const beat = chartBeatSeconds(bundle) || 0.5;
+      const picked = win.filter(n => n.pkd === 0 || n.pkd === 1);
+      if (picked.length) {
+        const spacing = picked.length > 1 ? ((picked[picked.length - 1].t - picked[0].t) / (picked.length - 1)) * pxPerSec : 99;
+        const yPick = top - gap * 1.35;
+        ctx.strokeStyle = t.ink; ctx.lineWidth = 1.25;
+        let prevPkd = null, prevT = null;
+        for (const n of picked) {
+          const breaksAlt = prevPkd != null && n.pkd === prevPkd;
+          const phraseStart = prevT == null || (n.t - prevT) >= beat * 1.4;
+          if (spacing < 18 && !breaksAlt && !phraseStart) { prevPkd = n.pkd; prevT = n.t; continue; }
+          const x = xForDt(n.t - now);
+          ctx.beginPath();
+          if (n.pkd === 0) { // downstroke: the staple ⊓
+            ctx.moveTo(x - 3.5, yPick + 3); ctx.lineTo(x - 3.5, yPick - 3); ctx.lineTo(x + 3.5, yPick - 3); ctx.lineTo(x + 3.5, yPick + 3);
+          } else {           // upstroke: the chevron ∨
+            ctx.moveTo(x - 3.5, yPick - 3); ctx.lineTo(x, yPick + 3.5); ctx.lineTo(x + 3.5, yPick - 3);
+          }
+          ctx.stroke();
+          prevPkd = n.pkd; prevT = n.t;
+        }
+      }
+      const fingered = win.filter(n => n.fg != null && n.fg > 0 && !n.mt);
+      if (fingered.length) {
+        const spacingF = fingered.length > 1 ? ((fingered[fingered.length - 1].t - fingered[0].t) / (fingered.length - 1)) * pxPerSec : 99;
+        const yFing = top + (nStr - 1) * gap + gap * 0.85;
+        ctx.fillStyle = t.inkSoft || t.dim; ctx.font = '600 9px "Cambria","Georgia",serif'; ctx.textAlign = 'center';
+        let prevS = null, prevF = null;
+        for (const n of fingered) {
+          const crossing = prevS != null && (n.s !== prevS || Math.abs(n.f - prevF) > 4);
+          if (spacingF < 12 && prevS != null && !crossing) { prevS = n.s; prevF = n.f; continue; }
+          ctx.fillText(String(n.fg), xForDt(n.t - now), yFing);
+          prevS = n.s; prevF = n.f;
+        }
+        ctx.textAlign = 'left';
+      }
+    }
     function draw(bundle) {
       if (!ctx || !bundle) return;
       resize();
@@ -8170,6 +8226,7 @@
       drawBarLines(bundle, now, nStr, top, gap);
       drawHopoPairs(now, nStr, top, gap);
       drawNotes(bundle, now, nStr, top, gap);
+      drawHandMarks(bundle, now, nStr, top, gap);
       drawSectionMarkers(bundle, now, top, gap, nStr);
       drawPlayhead(top, gap, nStr);
     }
@@ -8902,7 +8959,7 @@
       if (n.f < lo) lo = n.f;
       if (n.f > hi) hi = n.f;
       const k = n.s + ':' + n.f;
-      if (!seen.has(k)) { seen.add(k); fbPattern.push({ s: n.s, f: n.f }); }
+      if (!seen.has(k)) { seen.add(k); fbPattern.push({ s: n.s, f: n.f, fg: n.fg }); }   // fg rides for the finger-in-dot (first note wins — fingering is shape-stable)
     }
     if (!isFinite(lo)) { lo = 0; hi = 12; }
     lo = Math.max(0, lo - 1); hi = Math.min(24, hi + 1);
@@ -9094,10 +9151,21 @@
     for (let f = lo + 1; f <= hi; f++) ctx.fillText(String(f), xLine(f - 0.5), rowY(0) + 4);
 
     // The whole exercise pattern as hollow circles — shows the shape at a glance.
+    // Finger-in-the-dot (hand-marks Slice 1; UX ruling): the HOLLOW pattern dots
+    // carry the fret-hand finger digit — chord-diagram convention (a diagram
+    // dot's digit IS the finger). The LIVE dot keeps its fret digit unchanged.
+    // Legibility gate: digits render only at ≥28px per fret.
+    const fingersOn = handMarksOn() && (xLine(lo + 1) - xLine(lo)) >= 28;
     for (const p of fbPattern) {
       if (p.s < 0 || p.s >= nStrings) continue;
       ctx.strokeStyle = STRING_COLORS[p.s % STRING_COLORS.length]; ctx.lineWidth = 1.8; ctx.globalAlpha = 0.85;
       ctx.beginPath(); ctx.arc(xNote(p.f), rowY(p.s), 7, 0, 6.2832); ctx.stroke();
+      if (fingersOn && p.fg >= 1) {
+        ctx.globalAlpha = 0.75; ctx.fillStyle = STRING_COLORS[p.s % STRING_COLORS.length];
+        ctx.font = '700 8px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(p.fg), xNote(p.f), rowY(p.s));
+        ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+      }
       ctx.globalAlpha = 1;
     }
     // Jam target-highlight: light the current chord's chord/guide/scale tones within
@@ -14784,6 +14852,18 @@
     document.querySelectorAll('.slopscale-view-btn').forEach(btn => {
       btn.addEventListener('click', () => onViewSwitch(btn.dataset.renderer));
     });
+    // Hand-marks pill (hand-marks Slice 1): default ON, persisted, never
+    // auto-flipped. Renderers + the strip read handMarksOn() per frame, so a
+    // flip shows on the next draw with no re-attach.
+    const hmToggle = $('slopscale-handmarks-toggle');
+    if (hmToggle) {
+      hmToggle.setAttribute('aria-checked', String(handMarksOn()));
+      hmToggle.addEventListener('click', () => {
+        const next = !handMarksOn();
+        try { localStorage.setItem('slopscale.showHandMarks', next ? 'on' : 'off'); } catch (_) {}
+        hmToggle.setAttribute('aria-checked', String(next));
+      });
+    }
     const fbToggle = $('slopscale-fretboard-toggle');
     if (fbToggle) fbToggle.addEventListener('click', () => {
       fretboardOn = !fretboardOn;
