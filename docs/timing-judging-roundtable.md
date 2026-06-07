@@ -74,6 +74,24 @@ Still logged, not built:
 - **Phrase-aggregate shred credit** (beyond-physics runs judged as a phrase) — separate design round with learning-design + gamification.
 - New false-credit channel logged (bass finding): a ringing sub-floor string's 2nd harmonic credits its octave target (open-E1 ring credits judged E2). Bounded; revisit with the octave-tolerant comparator.
 
+## Addendum — the FEEL panel (2026-06-06/07, nine lanes) + the build
+
+Christian's post-Slice-3 dogfood: "scoring still feels a bit too strict, and it's not visually clear when I hit a note." Nine-lane round (the original seven minus rhythm-meter/metal, plus gamification, learning-design, sound-design, market-analyst). Per-lane rulings in agent memories. The market lane's thesis bound it: **the two complaints are one** — invisible successes make a fair judge feel arbitrary.
+
+**The source finding (audio-engine):** YIN confidence is BIMODAL — a fresh detection is always > 0.85 by construction (CMND < 0.15); every frame ≤ 0.85 is a stale fade re-emitting the previous pitch. And the HOST commits a hit on ONE clean frame — no pair rule exists in any host path; the SDK's "lock-on sweep" was the old 40ms EMA gliding, which died with smoothingMs 12. Our evidence pair was stricter than anything we were mirroring.
+
+**Built (Christian's deck: single-frame · gained-only counter · full scope):**
+- **Single-frame commit** at conf > `PT_CONF_FRESH` 0.85 (fades never score; 0.55 stays input-presence/display only). The pair deleted. Arbiter: the real-audio wrong-key negative control stayed green; `fired=1` proven in-suite.
+- **Hit paint on every surface** (UX spec): Tab = inverted-ink chip ("the ink commits") / miss = dim digit; Notation = snug ink ring (never fill) / miss = faded head+stem; 2D fallback = bright outline / dim + host-miss-red rim; strip = near-white ring on the live dot, **no miss paint ever** (honesty surface). Paint on credit, never optimistic; exempt notes stay plain; all surfaces read the same `ptGetNoteState` the highway gems do.
+- **Jam gate:** `ptGetNoteState` returns null on Jam runs — the mirror never judges, on any surface including the borrowed highway's gems.
+- **Gained-only live tally:** "Hit 12" in meter green; the `12/15 (N%)` traffic-light (red < 60% mid-run — three lanes independently named it THE strictness experience) deleted; denominators live pre-run + post-run.
+- **Under-mirrors fixed:** chord groups get the host's ±150ms clean window (chordTimingHitThreshold); written-staccato tooFast now classifies on the STABLE span (ring − speakBudget — the bass coin-flip band moves to honest exemption); floors re-derived for single-frame certifiability (YIN 85→45ms; verifier 50ms unchanged).
+- **`PT_MIN_JUDGED` = 8** into runIsClean + advancePathwayTier (sparse evidence = lenient self-confirm advance, disclosed in the modal: "too few to grade; cleared on completion").
+
+**Refused (constitution holds):** any cents-gate widening (incl. for vibrato — the +150¢ ask contains the adjacent fret); in-run near-miss/timing-quality paint (post-run only); streaks/combos/multipliers; audio hit feedback (sound-design veto — masks the articulation the player must learn to hear); optimistic pre-credit paint; live %/grade colors.
+
+**Queued from the panel:** the `notedetect:hit/miss` event dispatch (free host miss-markers + ±ms/±¢ labels on the borrowed highway); gamification's clean-bar ruler stamp; guitar-ped's vibrato evidence case (largely dissolved by single-frame — re-check in dogfood); bass verifier sub-floor un-dissolve (gated on an E2-vs-E1 octave negative probe).
+
 ## Decision log
 
 - 2026-06-06 (Christian): **Slice 1 now**, Slice 2 to spec; release callout **folds into the held v0.7.4 notes** ("scoring got fairer, not easier — your % may jump", now covering the chord-exemption lift + this).
