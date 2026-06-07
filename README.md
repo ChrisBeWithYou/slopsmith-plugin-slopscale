@@ -79,6 +79,17 @@ The **Ladder** picker grew from a handful of routines into **~80**, grouped into
 - **The Rhythm ladder grows** — the gallop family (gallop / reverse / skip / snap) as one-note cells, accent displacement, the single-string pulse (tresillo and clave ride it), half/double-time, the reggae skank, and a **Trade Bars** make-your-own-groove capstone. The pure-time rungs adapt to bass automatically.
 - **The screen stays awake** during playback — no more display sleep mid-drill.
 
+### Scoring you can trust — and a band that actually comps <sub><i>(new in v0.7.4)</i></sub>
+
+- **Chords score for real.** With the note_detect plugin installed, a polyphonic verifier judges chords and double-stops — the project's first external contribution (thanks, byrongamatos). Without it, chords are honestly *shown, not judged*. Either way, the silent ~33% accuracy cap on chord drills is gone.
+- **Timing judging rebuilt to be fair.** Per-note windows that mirror Slopsmith's own grader, mic-latency compensation that **self-calibrates to your setup**, and a hit commits on one clean detection. Muted ghost notes aren't misses (the mute IS the technique), bends aren't judged at the unbent pitch, and what can't be fairly judged — too-fast bursts, slurred notes, pitches below the mic's floor — is **disclosed and excluded**, never counted against you.
+- **Strictness is a dial you own.** SlopScale now inherits the host tuner's timing sliders (Clean Timing / chord window) — loosen once in note_detect's settings and every drill follows. Pitch stays ±50 cents: the judge got *correct*, not lenient.
+- **See every hit.** Hit paint on Tab, notation, the 2D highway, and the fretboard strip; the 3D Highway shows its native hit/miss marks with ±ms / ±¢ labels. The end-of-run card leads with the verdict, shows rung progress inline, explains *how the run was judged* in plain language, and keeps a standing **"Best here"** target with challenge CTAs ("Take it to 88 ▸").
+- **A real transport.** Dedicated Stop beside Play/Pause (Space) — pause freezes the clock in place. The LCD tempo is click-to-edit, and between runs the pitch strip stays live with a **target-aware tuner** (per-string chips that lock green).
+- **Hands on the chart.** Optional pick-stroke (⊓ / ∨) and fingering marks on Tab, notation, and the strip — driven by per-genre stroke *policies* (alternate, economy, gypsy rest-stroke, bluegrass, metal's all-downstrokes-until-170-BPM wall); bass gets honest i–m plucking letters with rakes and slap/pop. One quiet form cue per rung — and flipping the marks **off** is how you prove a rung clean.
+- **Your tuning is law.** Your instrument and tuning are a durable setting; technique rungs anchor to *your* lowest string and derive the key from it — drop-A players stop getting standard-tuning homework.
+- **The backing band learned to comp — and hired a bassist.** Re-articulated comp cells replace the held pad (a Charleston under swing, offbeat stabs under a shuffle), chords voice-lead like a comper's hand, and a real bass lane lands the root on beat 1 with the kick — a **generated walking bass** under jazz, the boogie bass in its true octave. On bass, *you* are the bassist: the backing mutes its own. And long Workouts no longer freeze at Play.
+
 ## Highlights
 
 - **Jam is a mirror, not a judge** — play along over a live backing band while the fretboard strip lights up the chord/guide tones to reach for. No score, no rank — a sandbox to *apply* what you drilled, not a track to mimic
