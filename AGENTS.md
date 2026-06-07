@@ -25,7 +25,7 @@ Keep this file in Parts rather than letting one sprawl; it loads every session, 
 
 ## What this is
 
-**SlopScale** is a **Slopsmith plugin** — it is not a standalone app. It generates guitar/bass scale, arpeggio, and sweep-arpeggio practice routines and plays them back inside the plugin (contained playback — see "Contained playback" below). Install by dropping the repo into Slopsmith's `plugins/` directory and restarting; the plugin then appears in the Slopsmith navigation as "SlopScale".
+**SlopScale** is a **Slopsmith plugin** — it is not a standalone app. It generates guitar/bass practice routines (scales, arpeggios, chords, rhythm/technique drills, timed workouts, jam backing) and plays them back inside the plugin (contained playback — see "Contained playback" below). Install by dropping the repo into Slopsmith's `plugins/` directory and restarting; the plugin then appears in the Slopsmith navigation as "SlopScale".
 
 The plugin has no build step. There is no `package.json`, no compiler, no bundler. All files are served directly by Slopsmith's FastAPI host.
 
@@ -80,7 +80,7 @@ Promoted from patterns in past-session feedback — the things Christian kept ha
 | `docs/ui-session.md` | Session UI design notes. |
 | `docs/design-system.md` | GUI style guide (tokens, hierarchy, primary-action parity, theme-safe color rules) — **read before any GUI change**. |
 | `docs/session-2026-05-26-shape-system.md` | Shape-system unification session log. |
-| `docs/backing-engine-roundtable.md` / `triad-mastery-ladder.md` / `proof-loop-slice.md` / `rhythm-ladder-roundtable.md` | Charette/spec docs for in-flight initiatives (backing-engine rebuild, triad-mastery pathway, proof-loop slice, rhythm/time ladder) — see `ROADMAP.md` + project memory for status. |
+| `docs/backing-engine-roundtable.md` / `triad-mastery-ladder.md` / `proof-loop-slice.md` / `rhythm-ladder-roundtable.md` / `timing-judging-roundtable.md` / `hand-marks-roundtable.md` | Charette/spec docs for in-flight initiatives (backing-engine rebuild, triad-mastery pathway, proof-loop slice, rhythm/time ladder, timing-judging rework, hand-marks/fingering display) — see `ROADMAP.md` + project memory for status. |
 | `docs/sources/` | Source PDFs — reference material only. |
 | `README.md` | User-facing feature list + install steps. |
 | `ROADMAP.md` | Phase plan; **read at session start**. Authoritative for "what's shipped vs planned". |
@@ -167,7 +167,7 @@ In **Jam** (`isJamMode`) the overview becomes the **chord loop** — function-ti
 
 ### Code map (screen.js + routes.py)
 
-`screen.js` is **one IIFE, ~14,200 lines** — it loads as a classic `<script>` (no `type="module"`), so it **cannot use `import`/`export`; keep it one file.** Sections are marked with `§N` banner comments and indexed in a **table-of-contents header at the top of the file** (the canonical §1–§15 order) — **grep `§` or read that header to navigate before editing.**
+`screen.js` is **one IIFE, ~15,300 lines** — it loads as a classic `<script>` (no `type="module"`), so it **cannot use `import`/`export`; keep it one file.** Sections are marked with `§N` banner comments and indexed in a **table-of-contents header at the top of the file** (the canonical §1–§15 order) — **grep `§` or read that header to navigate before editing.**
 
 `routes.py` registers FastAPI routes under `/api/plugins/slopscale/…` (status, preset + tuning CRUD, the dormant `POST /temp-sloppak` chart builder, and the self-hosted `/wafont` `/ir` `/nam` audio-asset routes). **Storage is DB-backed** (the shared Slopsmith meta-DB via `context["meta_db"]` → tables `slopscale_presets` + `slopscale_tunings`), not flat files.
 
