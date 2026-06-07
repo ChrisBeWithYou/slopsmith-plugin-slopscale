@@ -2956,6 +2956,37 @@
     }
     _ptWin = wins;
   }
+  // ── Borrowed-highway judgment events (feel-panel reconciliation 2026-06-07) ─
+  // The host 3D highway renders its native hit flare / miss mark + the
+  // "↑ +Nms" / "♯ +N¢" label sprites from window CustomEvents
+  // (notedetect:hit / notedetect:miss — normalizer hw:5620, listener hw:5669).
+  // Dispatching them from OUR judge gets that rendering free. The panel's
+  // binding conditions: HIGHWAY-ONLY (our own surfaces keep the quiet
+  // grammar); dispatch = TRUTH (evidence-backed judged outcomes only — exempt
+  // notes are never in the window table; Jam never dispatches; misses need
+  // _ptHadInput, mirroring the gem gate); label FIELDS are gated by the
+  // host's own showTimingErrors/showPitchErrors (read-only from
+  // localStorage['slopsmith_notedetect'], absent = true — the
+  // inherit-never-write doctrine): omitting a field yields the red mark with
+  // no label (the host labels iff state truthy ≠ 'OK' + finite error).
+  let _ptLabelGates = { timing: true, pitch: true };
+  function ndLabelGates() {
+    try {
+      const s = JSON.parse(localStorage.getItem('slopsmith_notedetect') || '{}');
+      return { timing: s.showTimingErrors !== false, pitch: s.showPitchErrors !== false };
+    } catch (_) { return { timing: true, pitch: true }; }
+  }
+  function ptDispatchJudgment(type, w, info) {
+    if (_ptJamRun) return;   // the mirror never judges — no events in Jam
+    for (const n of w.notes) {
+      const detail = { note: { s: n.s, f: n.f }, noteTime: n.t };
+      if (info) {
+        if (info.timingState && _ptLabelGates.timing) { detail.timingState = info.timingState; detail.timingError = info.timingError; }
+        if (info.pitchState && _ptLabelGates.pitch) { detail.pitchState = info.pitchState; detail.pitchError = info.pitchError; }
+      }
+      try { window.dispatchEvent(new CustomEvent('notedetect:' + type, { detail, bubbles: true })); } catch (_) {}
+    }
+  }
   // Credit a window ONCE: gems light per member key; the accuracy counters are
   // unit-denominated (a span = 1; a chord = its member count, matching the
   // denominator's prefix sums).
@@ -2964,6 +2995,7 @@
     w.credited = true;
     _ptScoredUnits += w.span ? 1 : w.notes.length;
     for (const n of w.notes) _ptScored.add(ptKey(n));
+    ptDispatchJudgment('hit', w, null);   // the host hit flare (label-free)
   }
   // End-of-span evaluation: a tremolo span is a hit when in-tune presence
   // covered ≥ PT_SPAN_RATIO of its 100ms buckets (the "rang in tune over the
@@ -2977,7 +3009,19 @@
   function ptWinSeek(tJudge) {   // advance (or re-search) the cursor; returns it
     if (tJudge < _ptWinLastT - 0.25) _ptWinLo = 0;
     _ptWinLastT = tJudge;
-    while (_ptWinLo < _ptWin.length && _ptWin[_ptWinLo].matchEnd <= tJudge) _ptWinLo++;
+    while (_ptWinLo < _ptWin.length && _ptWin[_ptWinLo].matchEnd <= tJudge) {
+      // Window expired un-credited = the miss MOMENT: dispatch the host miss
+      // event once (flag guards the loop-wrap re-walk), with whatever
+      // diagnostic the judge actually witnessed (in-window wrong-pitch →
+      // SHARP/FLAT; in-pitch near-window → EARLY/LATE; nothing → mark-only).
+      // _ptHadInput mirrors the gem miss gate (an idle mic never reds out).
+      const w = _ptWin[_ptWinLo];
+      if (!w.credited && !w.missDispatched && _ptHadInput) {
+        w.missDispatched = true;
+        ptDispatchJudgment('miss', w, w.missInfo || null);
+      }
+      _ptWinLo++;
+    }
     return _ptWinLo;
   }
   function ptWinPassedCount(tJudge) {   // notes whose candidate window fully passed (the denominator)
@@ -3241,6 +3285,12 @@
       // '' = the builder's default (alternate on scale/chromatic/tremolo, none
       // elsewhere). See applyStrokePolicy.
       strokePolicy: (data.get('strokePolicy') || '').toString(),
+      // Backing engine step 3: the comp cell + density (authored-only —
+      // pathway base/vary or a palette; no player stepper yet) and the
+      // pad-vs-comp A/B dev flag (shell-side read; core never touches storage).
+      backingComp: (data.get('backingComp') || '').toString(),
+      backingDensity: data.get('backingDensity') !== null && data.get('backingDensity') !== '' ? Math.max(0, Math.min(3, parseInt(data.get('backingDensity'), 10) || 0)) : undefined,
+      backingPadDev: (() => { try { return localStorage.getItem('slopscale.backingPad') === 'pad'; } catch (_) { return false; } })(),
       // Herta accent slot (0–3) + walk flag: pathway-driven hidden fields. These
       // were UNPLUMBED until hand-marks Slice 2 (the pick_herta vary steps wrote
       // to a nonexistent field → the accent ladder was silently inert in the UI;
@@ -5312,8 +5362,88 @@
       endSec: Number((ev.endSec + tSec).toFixed(6)),
     }));
   }
+  // ── COMP_GROOVES — backing comp cells (backing engine step 3, Build-plan v2 #3) ──
+  // The pad-killer: a declared cell re-articulates the comp lane on the shared
+  // STRUM_PATTERNS grid schema (authored in 4/4; div × 4 × bars steps) instead
+  // of one sustained pad per chord. A step is '.' (rest/ring) or an object
+  // { t: target, a: artic, acc?: 1 } — target picks WHAT of the voicing sounds,
+  // artic HOW (per-hit length + velocity = mix 7a; zero extra audio nodes —
+  // the scheduler already plays midis for a duration at a volume).
+  // UNDECLARED = the legacy coalesced pad, unchanged (genre cells ship vetted,
+  // per the locked plan: jazz is the pilot, boogie's stabs the proof shape).
+  // Every cell carries a player-facing label (the future goal-card line).
+  const COMP_ARTIC = { stab: 0.45, chug: 0.22, sus: 1.0, ring: 0 };   // hit length ×step (ring = to the chord's end)
+  const COMP_VEL = { accent: 1.0, normal: 0.78, ghost: 0.45 };        // sound-design velocity tiers
+  const COMP_GROOVES = {
+    vamp_half:   { div: 1, bars: 1, label: 'half-note vamp',
+      grid: [{ t: 'chord', a: 'sus', acc: 1 }, '.', { t: 'chord', a: 'sus' }, '.'] },
+    four_comp:   { div: 1, bars: 1, label: 'four-to-the-bar comp',
+      grid: [{ t: 'shell', a: 'stab', acc: 1 }, { t: 'shell', a: 'stab' }, { t: 'shell', a: 'stab', acc: 1 }, { t: 'shell', a: 'stab' }] },
+    charleston:  { div: 2, bars: 1, label: 'Charleston comp',
+      grid: [{ t: 'shell', a: 'stab', acc: 1 }, '.', '.', { t: 'shell', a: 'sus' }, '.', '.', '.', '.'] },
+    rock_chug:   { div: 2, bars: 1, label: 'eighth chug',
+      grid: [{ t: 'chord', a: 'chug', acc: 1 }, { t: 'chord', a: 'chug' }, { t: 'chord', a: 'chug' }, { t: 'chord', a: 'chug' },
+             { t: 'chord', a: 'ring', acc: 1 }, '.', { t: 'chord', a: 'chug' }, { t: 'chord', a: 'chug' }] },
+    pop_push:    { div: 2, bars: 1, label: 'pushed pop comp',
+      grid: [{ t: 'chord', a: 'stab', acc: 1 }, '.', '.', { t: 'chord', a: 'sus' }, '.', '.', { t: 'chord', a: 'stab' }, '.'] },
+    boogie_stab: { div: 2, bars: 1, label: 'offbeat shuffle stabs',
+      grid: ['.', { t: 'shell', a: 'stab', acc: 1 }, '.', { t: 'shell', a: 'stab' }, '.', { t: 'shell', a: 'stab', acc: 1 }, '.', { t: 'shell', a: 'stab' }] },
+  };
+  // Startup integrity guard (mirrors validateStrumPatterns): grid shape, known
+  // targets/artics, a label on every cell (player-facing from day one).
+  (function validateCompGrooves() {
+    const TGT = new Set(['chord', 'shell', 'root5', 'pedal', 'top']);
+    for (const id of Object.keys(COMP_GROOVES)) {
+      const c = COMP_GROOVES[id];
+      const expect = (c.bars || 1) * 4 * c.div;
+      if (c.grid.length !== expect) throw new Error(`[SlopScale comp-groove] ${id} grid has ${c.grid.length} steps, expected ${expect}`);
+      if (!c.label) throw new Error(`[SlopScale comp-groove] ${id} has no player-facing label`);
+      for (const s of c.grid) {
+        if (s === '.') continue;
+        if (!s || typeof s !== 'object' || !TGT.has(s.t) || COMP_ARTIC[s.a] == null) throw new Error(`[SlopScale comp-groove] ${id} has a bad step ${JSON.stringify(s)}`);
+      }
+    }
+  })();
+  // Which cell (if any) drives the comp for this cfg. Authored wins; density 1
+  // is the vamp; the jazz pilot rides the swing feel; everything else stays the
+  // legacy pad until its genre cell is vetted (step 6 recipes).
+  function compCellForConfig(cfg) {
+    if (cfg.backingPadDev) return null;                 // the pad-vs-comp A/B dev flag (read shell-side in readConfig — core stays localStorage-free)
+    if (cfg.backingDensity === 0) return null;          // density 0 = click only (handled upstream)
+    if (cfg.backingComp && COMP_GROOVES[cfg.backingComp]) return cfg.backingComp;
+    if (cfg.backingDensity === 1) return 'vamp_half';
+    if ((cfg.swing && cfg.swing !== 'straight') && cfg.backingStyle !== 'boogie') return 'charleston';   // the jazz pilot
+    return null;
+  }
+  // Resolve a cell step's TARGET into midis from the chord's voiced stack.
+  function compTargetMidis(step, midis, c) {
+    if (step.t === 'chord') return midis;
+    if (step.t === 'top')   return midis.slice(-1);
+    if (step.t === 'pedal') return [pcAtOrAbove(c.rootPc % 12, 40)];
+    if (step.t === 'root5') {
+      const r = pcAtOrAbove(c.rootPc % 12, 48);
+      return [r, r + 7];
+    }
+    // shell: guide tones (3rd + 7th) + the 9 colour — the boogie shell rule;
+    // falls back to the full voicing when there's no clear 3rd/7th.
+    const iv = c.intervals.map(i => ((i % 12) + 12) % 12);
+    const third = iv.includes(4) ? 4 : iv.includes(3) ? 3 : null;
+    const sev = iv.includes(10) ? 10 : iv.includes(11) ? 11 : null;
+    if (third == null || sev == null) return midis;
+    const out = []; let cur = 58;
+    for (const x of [third, sev, 14]) {
+      let m = pcAtOrAbove((c.rootPc + x) % 12, cur);
+      if (m > 72) m -= 12;
+      out.push(m); cur = m + 2;
+    }
+    return out.sort((a, b) => a - b);
+  }
   function buildBackingEvents(cfg, duration) {
+    if (cfg.backingDensity === 0) return [];            // click-only density: no comp, no bass
     if (cfg.backingStyle === 'boogie') return buildBoogieBacking(cfg, duration);
+    // Player-is-the-comp (L&D's lane-suppression rule): a strum_comp drill IS
+    // the comp — backing harmony would double the player's own strums.
+    if ((cfg.practiceType || cfg.mode) === 'strum_comp') return [];
     const events = [];
     // Voice-lead chord-to-chord (step 2): thread prevVoicing through the loop.
     // Block/rung scoping is free — sessions and ladders call buildBackingEvents
@@ -5322,6 +5452,9 @@
     // when the comp has drifted > a 4th from the register centre — a comper
     // resets at the top of the form, never mid-form.
     const cycleLen = Math.max(1, (progressionDegreesForConfig(cfg) || []).length);
+    const cellId = compCellForConfig(cfg);
+    const cell = cellId ? COMP_GROOVES[cellId] : null;
+    const beatSec = (60 / cfg.bpm) * (4 / cfg.meter.denominator);
     let prevVoicing = null, evIdx = 0;
     for (const c of compileChordTimeline(cfg, duration)) {
       if (evIdx % cycleLen === 0 && prevVoicing && Math.abs((prevVoicing[1] ?? 55) - 55) > 5) prevVoicing = null;
@@ -5330,8 +5463,40 @@
         : voiceBackingChord(c.rootPc, c.intervals, cfg.instrument);
       prevVoicing = midis;
       evIdx++;
-      // Coalesce consecutive identical chords into one sustained event so the pad
-      // doesn't hard re-attack every bar (the "pumping" on held harmony).
+      if (cell) {
+        // The COMP_GROOVES path (the pad-kill): step the cell grid across this
+        // chord event's sounding window — every strike is its own short event
+        // with artic-derived length + a velocity tier; the chord's name/pcs
+        // ride only the first hit per event (one overlay label per change).
+        const stepSec = beatSec / cell.div;
+        const cellSteps = cell.grid.length;
+        let first = true;
+        for (let k = 0; ; k++) {
+          const t0 = c.startSec + k * stepSec;
+          if (t0 >= c.endSec - 1e-4 || t0 >= duration - 1e-4) break;
+          const step = cell.grid[k % cellSteps];
+          if (step === '.' || !step) continue;
+          const frac = COMP_ARTIC[step.a];
+          const end = step.a === 'ring' ? c.endSec
+            : step.a === 'sus' ? Math.min(c.endSec, (() => {   // sus holds to the NEXT strike (or the chord's end)
+                for (let j = k + 1; ; j++) {
+                  const tj = c.startSec + j * stepSec;
+                  if (tj >= c.endSec - 1e-4) return c.endSec;
+                  if (cell.grid[j % cellSteps] !== '.') return tj;
+                }
+              })())
+            : Math.min(c.endSec, t0 + Math.max(0.06, stepSec * frac));
+          const ev = { t: +t0.toFixed(6), end: +end.toFixed(6), name: c.name,
+                       midis: compTargetMidis(step, midis, c),
+                       vel: step.acc ? COMP_VEL.accent : step.a === 'chug' ? COMP_VEL.ghost : COMP_VEL.normal,
+                       comp: cellId };
+          if (first) { ev.cpcs = c.cpcs; ev.gpcs = c.gpcs; ev.rn = c.rn; ev.fn = c.fn; first = false; }
+          events.push(ev);
+        }
+        continue;
+      }
+      // Legacy pad: coalesce consecutive identical chords into one sustained
+      // event so the pad doesn't hard re-attack every bar (the "pumping").
       const prev = events[events.length - 1];
       if (prev && prev.name === c.name && prev.midis.length === midis.length && prev.midis.every((m, k) => m === midis[k])) {
         prev.end = c.endSec;
@@ -8048,6 +8213,8 @@
         const cl = Math.max(0, c.duration - lead);
         const src = c.backingEvents
           ? c.backingEvents
+          // backingDensity 0 = click only (step 3): no comp, no bass, no drums.
+          : cfg.backingDensity === 0 ? []
           : buildBackingEvents(cfg, cl).concat(buildDrumEvents(cfg, cl, resolveGroove(cfg)));
         return lead ? src.map(ev => Object.assign({}, ev, { t:+(ev.t + lead).toFixed(6), end:+(ev.end + lead).toFixed(6) })) : src;
       })(),
@@ -10220,6 +10387,11 @@
       // Settle tremolo spans whose end has passed (both ears; cheap — pops at
       // most the front of a short time-sorted list).
       ptFinalizeSpans(currentPracticeTime - ptLatency());
+      // Advance the window cursor at frame rate, detector-independent: expiry
+      // is where the miss EVENT dispatches (the borrowed-highway marks) and
+      // the passed denominator grows — neither may stall if the detector's
+      // frame stream goes quiet mid-run.
+      ptWinSeek(currentPracticeTime - ptLatency());
       // Dwell chip: name the exempt class under the playhead (disclosure UX).
       ptUpdateJudgeChip(currentPracticeTime);
     }
@@ -10289,8 +10461,36 @@
         const shelf = ctx.createBiquadFilter();
         shelf.type = 'highshelf'; shelf.frequency.value = 8000; shelf.gain.value = -3;
         g.connect(comp); comp.connect(shelf); shelf.connect(groupOut);
+      } else if (name === 'harmony' || name === 'bass') {
+        // Mix 7b (step 3.5; sound-design): register-carve + pan + one shared
+        // short reverb send — persistent per-bus nodes only, zero assets.
+        // The carve keeps the comp out of the bass's lane and BOTH out of the
+        // player's note band; the tiny pan opens the mono stack into a room.
+        const carve = ctx.createBiquadFilter();
+        if (name === 'harmony') { carve.type = 'highpass'; carve.frequency.value = 180; carve.Q.value = 0.5; }
+        else { carve.type = 'lowpass'; carve.frequency.value = 2200; carve.Q.value = 0.5; }
+        let chainOut = carve;
+        if (typeof ctx.createStereoPanner === 'function') {
+          const pan = ctx.createStereoPanner();
+          pan.pan.value = name === 'harmony' ? 0.18 : -0.06;
+          carve.connect(pan); chainOut = pan;
+        }
+        g.connect(carve); chainOut.connect(groupOut);
+        // Shared reverb send (built once, zero-asset noise-decay IR, post-carve
+        // pre-pan so the room stays centered).
+        if (!bus.reverb) {
+          const conv = ctx.createConvolver();
+          const len = Math.floor(ctx.sampleRate * 0.9), ir = ctx.createBuffer(2, len, ctx.sampleRate);
+          for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.4); }
+          conv.buffer = ir;
+          const wet = ctx.createGain(); wet.gain.value = 0.12;
+          conv.connect(wet); wet.connect(bus.backingGroup);
+          bus.reverb = conv;
+        }
+        const send = ctx.createGain(); send.gain.value = name === 'harmony' ? 0.18 : 0.07;
+        carve.connect(send); send.connect(bus.reverb);
       } else {
-        g.connect(groupOut);
+        g.connect(groupOut);   // click / notes stay DRY and centered (the time reference)
       }
       bus.tracks[name] = g;
     }
@@ -11620,19 +11820,22 @@
       const start = Math.max(ev.t, startFrom), end = Math.min(ev.end, duration);
       const when = base + (start - startFrom), d = Math.max(0.2, end - start);
       schedEnd = Math.max(schedEnd, when + d);
+      // Velocity tier (mix 7a, step 3): COMP_GROOVES hits carry vel
+      // (accent 1.0 / normal 0.78 / ghost 0.45); pad/legacy events have none (=1).
+      const vel = ev.vel || 1;
       if (ev.role === 'bass') {
         // Backing bass line — a real bass voice on its own bus, not the harmony pad.
         for (const m of (ev.midis || [])) {
-          if (bassPreset && wafPlayer) wafVoice(bassPreset, 'bass', when, m, d, harmProfile.bass.level * WAF_VOICE_VOL.bass);
-          else schedulePluckedString(ctx, when, midiToFreq(m), d, 'bass', harmProfile.bass.level, 0);
+          if (bassPreset && wafPlayer) wafVoice(bassPreset, 'bass', when, m, d, harmProfile.bass.level * WAF_VOICE_VOL.bass * vel);
+          else schedulePluckedString(ctx, when, midiToFreq(m), d, 'bass', harmProfile.bass.level * vel, 0);
         }
       } else if (harmPreset && wafPlayer) {
         // Scale per-voice level by 1/√(chord size) so a dense comp doesn't sum hot
         // into the limiter (anti-clip; matches the synth pad's density-scaling).
         const hn = (ev.midis || []).length, hScale = 1 / Math.sqrt(Math.max(1, hn));
-        for (const m of (ev.midis || [])) wafVoice(harmPreset, 'harmony', when, m, d, harmProfile.harmony.level * WAF_VOICE_VOL.harmony * hScale);
+        for (const m of (ev.midis || [])) wafVoice(harmPreset, 'harmony', when, m, d, harmProfile.harmony.level * WAF_VOICE_VOL.harmony * hScale * vel);
       } else {
-        scheduleHarmonyPad(ctx, when, ev.midis || [], d, instrument, harmProfile.harmony.tone, { bright: harmProfile.brightness, level: harmProfile.harmony.level });
+        scheduleHarmonyPad(ctx, when, ev.midis || [], d, instrument, harmProfile.harmony.tone, { bright: harmProfile.brightness, level: harmProfile.harmony.level * vel });
       }
     }
     // Drums (Phase D) — role:'drums' events on their own kit + drum sub-bus. The
@@ -12699,6 +12902,10 @@
     // Herta accent/walk: anti-leak defaulted like the other rung-scoped flags.
     setFieldSilent('hertaAccent', config.hertaAccent != null ? config.hertaAccent : '0');
     setFieldSilent('hertaWalk', config.hertaWalk ? 'true' : '');
+    // Backing comp cell + density (step 3): anti-leak defaulted — a rung's
+    // authored comp/density never rides into the next pathway selected.
+    setFieldSilent('backingComp', config.backingComp || '');
+    setFieldSilent('backingDensity', config.backingDensity != null ? config.backingDensity : '');
     // Custom tuning override (drop-A djent etc.) is specialized → default EMPTY
     // unless the rung opts in, so a drop-tuned variation never leaks its tuning
     // into the next pathway selected. (readConfig also length-validates the CSV
@@ -13039,6 +13246,20 @@
       if (pw && pathwayId) { try { cue = formCueForRung(pathwayId, activeTempoTierIdx, readConfig()); } catch (_) {} }
       if (cue) { cueEl.textContent = 'Form · ' + cue; cueEl.style.display = ''; }
       else { cueEl.textContent = ''; cueEl.style.display = 'none'; }
+    }
+    // Backing primitive naming (step 3, L&D): when a comp cell drives the
+    // backing, name it — the player should know the grammar they're hearing.
+    const bk = $('slopscale-pathway-backing-note');
+    if (bk) {
+      let bkLabel = null;
+      try {
+        const cfgB = readConfig();
+        const cid = compCellForConfig(cfgB);
+        if (cid && COMP_GROOVES[cid]) bkLabel = COMP_GROOVES[cid].label;
+        else if (cfgB.backingDensity === 0) bkLabel = 'click only';
+      } catch (_) {}
+      if (bkLabel && pw) { bk.textContent = 'Backing · ' + bkLabel; bk.style.display = ''; }
+      else { bk.textContent = ''; bk.style.display = 'none'; }
     }
     // Clean-rung proving affordance (the player-opted supports-off run — the
     // Clean depth rung's first concrete mechanic): offered once the Speed climb
@@ -13889,6 +14110,7 @@
     const _base = allNotes.filter(n => _audible(n) && !n.mt && (_ndVerifyMode || _gCounts.get(_gk(n)) === 1));
     _ptOpenMidis = bundle.openMidis || [];
     _ptJamRun = isJamMode();   // the mirror rule: gems/paint never judge a Jam run
+    _ptLabelGates = ndLabelGates();   // the host's own label toggles (inherit-never-write), read per run
     // ── Slice 2: the fast-idiom honesty classes (docs/timing-judging-roundtable.md) ──
     // (a) LEGATO: ho/po notes have no pick transient — the PICKED note that
     //     opens the slur is judged; the slurred notes are shown, never judged
@@ -14080,9 +14302,17 @@
         if (!w.span && _ptScored.has(ptKey(n))) continue;   // one-shot per key (spans accumulate until finalized)
         const om = _ptOpenMidis[n.s];
         if (om == null) continue;
-        const c = Math.abs(1200 * Math.log2(freqHz / midiToFreq(om + n.f)));
+        const signed = 1200 * Math.log2(freqHz / midiToFreq(om + n.f));
+        const c = Math.abs(signed);
         const tol = n.bn ? PT_BEND_CENTS : 50;
         if (c <= tol && c < bestAbs) { best = w; bestAbs = c; }
+        else if (c > tol && c < 950 && !w.credited) {
+          // A fresh in-window frame at the WRONG pitch: remember the witnessed
+          // direction for the host miss label (SHARP/FLAT ±N¢) at expiry.
+          // Capped under an octave — a ±1200¢ frame is a detector octave-flip
+          // artifact, not "you played sharp".
+          w.missInfo = { pitchState: signed > 0 ? 'SHARP' : 'FLAT', pitchError: Math.round(signed) };
+        }
       }
       if (best) {
         if (best.span) {
@@ -14109,7 +14339,13 @@
           if (gap <= 0 || gap > 0.25) continue;
           const n = w.notes[0]; const om = _ptOpenMidis[n.s];
           if (om == null) continue;
-          if (Math.abs(1200 * Math.log2(freqHz / midiToFreq(om + n.f))) <= 50) { _ptNearMiss++; break; }
+          if (Math.abs(1200 * Math.log2(freqHz / midiToFreq(om + n.f))) <= 50) {
+            _ptNearMiss++;
+            // In-pitch but outside the window: the witnessed timing direction
+            // for the host miss label (↑/↓ ±Nms) at expiry.
+            w.missInfo = { timingState: tJudge < w.matchStart ? 'EARLY' : 'LATE', timingError: Math.round((tJudge - w.t) * 1000) };
+            break;
+          }
         }
       }
     }

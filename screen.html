@@ -312,6 +312,7 @@
   #slopscale-pathway-tuning-note { margin-top: 6px; font-size: 11px; color: var(--ss-text-muted, #94a3b8); font-style: italic; }
   /* Form cue (hand-marks Slice 2): same quiet one-liner family as the tuning note. */
   #slopscale-pathway-form-cue { margin-top: 6px; font-size: 11px; color: var(--ss-text-muted, #94a3b8); font-style: italic; }
+  #slopscale-pathway-backing-note { margin-top: 6px; font-size: 11px; color: var(--ss-text-muted, #94a3b8); font-style: italic; }
   /* Clean-rung proving affordance: a quiet text-button, not a CTA (the run is
      the player's call; never competes with START). */
   #slopscale-prove-clean {
@@ -1484,6 +1485,8 @@
           <!-- Form cue (hand-marks Slice 2): ONE quiet pre-run ergonomics sentence,
                resolved per rung/tier/instrument (formCueForRung). Never mid-run. -->
           <div id="slopscale-pathway-form-cue" style="display:none"></div>
+          <!-- Backing primitive line (backing step 3): names the active comp cell. -->
+          <div id="slopscale-pathway-backing-note" style="display:none"></div>
           <!-- Clean-rung proving affordance: the player-opted supports-off run.
                Shown once the Speed climb clears; clicking flips the Fingering
                pill OFF (the player opted — the toggle is never auto-flipped). -->
@@ -1652,6 +1655,11 @@
              silently inert in the UI. Same setFieldSilent→readConfig contract. -->
         <input type="hidden" name="hertaAccent" id="slopscale-herta-accent" value="0">
         <input type="hidden" name="hertaWalk" id="slopscale-herta-walk" value="">
+        <!-- Backing engine step 3: the comp CELL (COMP_GROOVES id; empty = legacy
+             pad / style default) and density 0–3 (authored-only). Pathway-driven
+             hidden fields, anti-leak defaulted in applyPathwayConfig. -->
+        <input type="hidden" name="backingComp" id="slopscale-backing-comp" value="">
+        <input type="hidden" name="backingDensity" id="slopscale-backing-density" value="">
 
         <!-- Backing comp style + feel. Hidden / pathway-driven for now (a blues
              pathway opts into boogie+shuffle); default values preserve the held-pad,

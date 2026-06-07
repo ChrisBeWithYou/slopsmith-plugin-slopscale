@@ -296,6 +296,59 @@ try {
   ok(c8.octEst != null && Math.abs(c8.octEst - 80) <= 12, "(8c) octave-tolerant matching (2nd-harmonic readings still calibrate)", `est=${c8.octEst}ms`);
   ok(c8.latencyNow >= 0 && c8.latencyNow <= 250, "(8d) the live anchor stays in the 0–250ms clamp", `anchor=${c8.latencyNow}ms`);
 
+  // (9) BORROWED-HIGHWAY JUDGMENT EVENTS (feel-panel reconciliation 2026-06-07):
+  // our judge dispatches the host's notedetect:hit / notedetect:miss window
+  // events so the borrowed highway renders its native marks + ±ms/±¢ labels.
+  // Contract: hit on credit (label-free); miss at window expiry with the
+  // WITNESSED diagnostic (a wrong-pitch fresh frame in-window → SHARP/FLAT);
+  // payload {note:{s,f}, noteTime} matches the bundle note; misses need input.
+  await p.evaluate(() => {
+    const set = (name, v) => { const el = document.querySelector(`#slopscale-controls [name="${name}"]`); if (el) { if (el.type === "checkbox") el.checked = !!v; else el.value = String(v); el.dispatchEvent(new Event("change", { bubbles: true })); } };
+    set("practiceType", "scale"); set("stringSetup", "guitar_6_standard"); set("fretboardSystem", "position");
+    set("key", "A"); set("scale", "minor_pentatonic"); set("fretMin", "0"); set("fretMax", "7");
+    set("meter", "4/4"); set("subdivision", "quarter"); set("bpm", "120"); set("bars", "2"); set("countIn", "0");
+    window.__ndEvents = [];
+    window.__ndCap = (ev) => window.__ndEvents.push({ type: ev.type, d: ev.detail });
+    window.addEventListener("notedetect:hit", window.__ndCap);
+    window.addEventListener("notedetect:miss", window.__ndCap);
+  });
+  await p.click("#slopscale-play");
+  const c9 = await p.evaluate(async () => {
+    const dbg = globalThis.__ss_debug;
+    const b = window.SlopScale.makeBundle(window.SlopScale.generateExercise(window.SlopScale.readConfig()));
+    const om = b.openMidis || [];
+    const notes = b.notes.filter((n) => !n._tail).sort((a, b2) => a.t - b2.t);
+    const freqOf = (n) => 440 * Math.pow(2, ((om[n.s] || 0) + n.f - 69) / 12);
+    // hit note[0] correctly; play note[1] a tritone SHARP (wrong, in-window);
+    // give note[2] nothing. Then let their windows expire.
+    const deadline = performance.now() + 6000;
+    while (performance.now() < deadline) {
+      const tj = dbg.ptPracticeTime() - 0.08;
+      if (tj > notes[2].t + 1.2) break;
+      if (window.__fp) {
+        if (Math.abs(tj - notes[0].t) < 0.05) window.__fp({ freqHz: freqOf(notes[0]), confidence: 0.95 });
+        else if (Math.abs(tj - notes[1].t) < 0.05) window.__fp({ freqHz: freqOf(notes[1]) * Math.pow(2, 6 / 12), confidence: 0.95 });
+      }
+      await new Promise((r2) => setTimeout(r2, 15));
+    }
+    window.removeEventListener("notedetect:hit", window.__ndCap);
+    window.removeEventListener("notedetect:miss", window.__ndCap);
+    const evs = window.__ndEvents;
+    const hit0 = evs.find((e) => e.type === "notedetect:hit" && Math.abs(e.d.noteTime - notes[0].t) < 0.01);
+    const miss1 = evs.find((e) => e.type === "notedetect:miss" && Math.abs(e.d.noteTime - notes[1].t) < 0.01);
+    const miss2 = evs.find((e) => e.type === "notedetect:miss" && Math.abs(e.d.noteTime - notes[2].t) < 0.01);
+    return {
+      n: evs.length,
+      hit0: hit0 ? { s: hit0.d.note.s === notes[0].s, f: hit0.d.note.f === notes[0].f, noLabel: hit0.d.timingState == null && hit0.d.pitchState == null } : null,
+      miss1: miss1 ? { pitchState: miss1.d.pitchState, err: miss1.d.pitchError } : null,
+      miss2: miss2 ? { bare: miss2.d.timingState == null && miss2.d.pitchState == null } : null,
+    };
+  });
+  ok(c9.hit0 && c9.hit0.s && c9.hit0.f && c9.hit0.noLabel, "(9a) credit dispatches notedetect:hit with matching {s,f,noteTime}, label-free", JSON.stringify(c9.hit0));
+  ok(c9.miss1 && c9.miss1.pitchState === "SHARP" && c9.miss1.err > 60, "(9b) a witnessed wrong-pitch miss carries the SHARP ±¢ label", JSON.stringify(c9.miss1));
+  ok(c9.miss2 && c9.miss2.bare, "(9c) an unplayed note's miss dispatches mark-only (no fabricated diagnostics)", JSON.stringify(c9.miss2));
+  await p.click("#slopscale-play").catch(() => {});
+
   ok(errs.length === 0, "no page errors from the gem path", errs.join(" | "));
 
   console.log(`\n${fails === 0 ? "PASS" : "FAIL"}  gems: ${fails} failure(s)`);

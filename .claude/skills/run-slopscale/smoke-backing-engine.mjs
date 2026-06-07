@@ -241,6 +241,53 @@ try {
   ok(m1.rockMixo, "rock palette carries mixolydian_rock", "");
   ok(m1.jazzSoWhat, "jazz palette carries so_what", "");
 
+  // ── (6b) COMP_GROOVES (step 3): the pad-kill, density, suppression ──────────
+  step("COMP_GROOVES (step 3)");
+  const c3 = await page.evaluate(() => {
+    const S = window.SlopScale;
+    const base = Object.assign(S.readConfig(), {
+      practiceType: "scale", mode: "scale", shapeNotes: null, fretboardSystem: "position",
+      key: "C", scale: "major", stringSetup: "guitar_6_standard", bpm: 100, bars: 4,
+      progression: "I-V-vi-IV", meter: { numerator: 4, denominator: 4, grouping: [4] },
+      backingStyle: "pad", swing: "straight", backingComp: "", backingDensity: undefined, backingPadDev: false,
+    });
+    const gen = (over) => S.makeBundle(S.generateExercise(Object.assign({}, base, over)));
+    const harm = (b) => (b.backingEvents || []).filter((e) => e.role !== "drums" && e.role !== "bass");
+    const out = {};
+    // (a) undeclared cfg keeps the legacy coalesced pad
+    const pad = harm(gen({}));
+    out.padCount = pad.length; out.padHasVel = pad.some((e) => e.vel != null);
+    // (b) a declared cell re-articulates: many short velocity-tiered hits
+    const comp = harm(gen({ backingComp: "four_comp" }));
+    out.compCount = comp.length;
+    out.compVels = [...new Set(comp.map((e) => e.vel))].sort().join(",");
+    out.compShort = comp.every((e) => e.end - e.t < 1.5);
+    out.compLabeled = comp.filter((e) => e.cpcs).length;
+    // (c) the jazz pilot: swung non-boogie cfg auto-picks the Charleston
+    const jazz = harm(gen({ swing: "swing_8", backingComp: "" }));
+    out.jazzComp = jazz.some((e) => e.comp === "charleston");
+    // (d) density 1 = the half-note vamp; density 0 = click only
+    const vamp = harm(gen({ backingDensity: 1 }));
+    out.vampComp = vamp.length > 0 && vamp.every((e) => e.comp === "vamp_half");
+    out.density0 = (gen({ backingDensity: 0 }).backingEvents || []).length;
+    // (e) player-is-the-comp: strum_comp suppresses the comp lane
+    const sc = gen({ practiceType: "strum_comp", mode: "strum_comp", chordDepth: "triad", chordOverride: "auto", voicingPosition: "open", subdivision: "eighth" });
+    out.scComp = (sc.backingEvents || []).filter((e) => e.role !== "drums").length;
+    // (f) the A/B dev flag forces the pad even with a cell declared
+    const dev = harm(gen({ backingComp: "four_comp", backingPadDev: true }));
+    out.devPad = dev.length === pad.length && dev.every((e) => e.vel == null);
+    return out;
+  });
+  ok(c3.padCount > 0 && !c3.padHasVel, "undeclared cfg keeps the legacy coalesced pad", `events=${c3.padCount}`);
+  ok(c3.compCount >= c3.padCount * 3 && c3.compShort, "a declared cell re-articulates the comp (the pad-kill)", `hits=${c3.compCount} vs pad=${c3.padCount}`);
+  ok(c3.compVels.includes("0.78") && c3.compVels.includes("1"), "hits carry the sound-design velocity tiers", `vels=${c3.compVels}`);
+  ok(c3.compLabeled > 0, "chord-change labels survive re-articulation (one labeled hit per change)", `labeled=${c3.compLabeled}`);
+  ok(c3.jazzComp, "the jazz pilot: swung cfg auto-picks the Charleston cell");
+  ok(c3.vampComp, "backingDensity 1 = the half-note vamp");
+  ok(c3.density0 === 0, "backingDensity 0 = click only (no backing events at all)", `events=${c3.density0}`);
+  ok(c3.scComp === 0, "player-is-the-comp: strum_comp suppresses the comp lane", `comp=${c3.scComp}`);
+  ok(c3.devPad, "the pad-vs-comp A/B dev flag forces the legacy pad");
+
   // ── (7) scheduler ceiling: a Woodshed Play stays windowed ───────────────────
   step("scheduler ceiling");
   await page.click("#slopscale-mode-session");
