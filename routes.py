@@ -58,6 +58,10 @@ def _presets_path(context: dict) -> Path:
     return _data_dir(context) / "presets.json"
 
 
+def _tunings_path(context: dict) -> Path:
+    return _data_dir(context) / "tunings.json"
+
+
 # ── DB-backed storage (presets + tunings) ────────────────────────────────────
 #
 # Plugins get a shared MetaDB instance via `context["meta_db"]`, which exposes
@@ -99,10 +103,12 @@ def _ensure_tables(meta_db) -> None:
 
 
 def _migrate_presets_from_json(meta_db, presets_path: Path) -> None:
-    """One-time migration: if the DB has no presets but the legacy JSON file
-    does, copy them in. Idempotent — subsequent calls are no-ops because the
-    DB is no longer empty. We don't delete the JSON file; it sits as a
-    breadcrumb in case the migration needs auditing."""
+    """Seed-when-empty: if the DB has no presets but the JSON file does, copy
+    them in. Idempotent — subsequent calls are no-ops because the DB is no
+    longer empty. The file is both the legacy (pre-DB) store and the live
+    export mirror written by _snapshot_presets; this read-back is how a host
+    settings-bundle import restores SlopScale state on a fresh install (the
+    bundle restores the file, we seed the DB from it at next load)."""
     if not presets_path.exists():
         return
     try:
@@ -125,6 +131,13 @@ def _migrate_presets_from_json(meta_db, presets_path: Path) -> None:
         for p in presets:
             if not isinstance(p, dict) or "id" not in p or "name" not in p:
                 continue
+            # Mirror snapshots carry created_at; preserve it so list order
+            # (created_at DESC) survives an export/import round-trip. The
+            # pre-DB legacy file lacks it — fall back to "now".
+            try:
+                created = float(p.get("created_at") or now)
+            except (TypeError, ValueError):
+                created = now
             meta_db.conn.execute(
                 "INSERT OR REPLACE INTO slopscale_presets "
                 "(id, name, kind, config_json, created_at) "
@@ -134,7 +147,63 @@ def _migrate_presets_from_json(meta_db, presets_path: Path) -> None:
                     str(p.get("name"))[:160],
                     str(p.get("kind") or "exercise")[:64],
                     json.dumps(p.get("config") or {}, ensure_ascii=False),
-                    now,
+                    created,
+                ),
+            )
+        meta_db.conn.commit()
+
+
+def _migrate_tunings_from_json(meta_db, tunings_path: Path) -> None:
+    """Tunings counterpart of _migrate_presets_from_json: seed-when-empty
+    from the export mirror written by _snapshot_tunings. Rows are validated
+    like save_tuning (family, midis/string_count agreement, MIDI range) but
+    bad rows are skipped silently — migration must never raise."""
+    if not tunings_path.exists():
+        return
+    try:
+        existing = meta_db.conn.execute(
+            "SELECT COUNT(*) FROM slopscale_tunings"
+        ).fetchone()[0]
+    except Exception:
+        return
+    if existing:
+        return
+    try:
+        data = json.loads(tunings_path.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    tunings = data.get("tunings", []) if isinstance(data, dict) else []
+    if not isinstance(tunings, list) or not tunings:
+        return
+    now = time.time()
+    with meta_db._lock:
+        for t in tunings:
+            if not isinstance(t, dict) or not t.get("name"):
+                continue
+            if t.get("family") not in ("guitar", "bass"):
+                continue
+            midis = t.get("midis")
+            count = t.get("string_count")
+            if not isinstance(midis, list) or not isinstance(count, int):
+                continue
+            if len(midis) != count or any(
+                not isinstance(m, int) or m < 0 or m > 127 for m in midis
+            ):
+                continue
+            try:
+                created = float(t.get("created_at") or now)
+            except (TypeError, ValueError):
+                created = now
+            meta_db.conn.execute(
+                "INSERT OR IGNORE INTO slopscale_tunings "
+                "(name, family, string_count, midis_csv, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    str(t["name"])[:160],
+                    t["family"],
+                    count,
+                    ",".join(str(int(m)) for m in midis),
+                    created,
                 ),
             )
         meta_db.conn.commit()
@@ -163,6 +232,55 @@ def _atomic_write_json(path: Path, data: Any) -> None:
             tmp_path.unlink()
         except OSError:
             pass
+
+
+# ── Settings-export mirrors ──────────────────────────────────────────────────
+#
+# The DB is the source of truth, but the shared meta-DB (web_library.db) is a
+# rebuildable cache the host's settings export deliberately never includes —
+# so DB-only state would silently vanish from user backups. After every
+# mutation we mirror the table to the JSON file declared in plugin.json's
+# `settings.server_files`; the host bundles it on export, restores it on
+# import, and the seed-when-empty _migrate_* readers above pull it back into
+# the DB at next load. Best-effort: a disk error never fails the API request.
+
+def _snapshot_presets(meta_db, path: Path) -> None:
+    try:
+        rows = meta_db.conn.execute(
+            "SELECT id, name, kind, config_json, created_at "
+            "FROM slopscale_presets ORDER BY created_at DESC"
+        ).fetchall()
+        presets = []
+        for r in rows:
+            try:
+                cfg = json.loads(r[3]) if r[3] else {}
+            except Exception:
+                cfg = {}
+            presets.append({"id": r[0], "name": r[1], "kind": r[2],
+                            "config": cfg, "created_at": r[4]})
+        _atomic_write_json(path, {"version": SCHEMA_VERSION, "presets": presets})
+    except Exception:
+        pass
+
+
+def _snapshot_tunings(meta_db, path: Path) -> None:
+    try:
+        rows = meta_db.conn.execute(
+            "SELECT id, name, family, string_count, midis_csv, created_at "
+            "FROM slopscale_tunings ORDER BY family, string_count, name"
+        ).fetchall()
+        tunings = []
+        for r in rows:
+            try:
+                midis = [int(x) for x in (r[4] or "").split(",") if x.strip()]
+            except Exception:
+                midis = []
+            tunings.append({"id": r[0], "name": r[1], "family": r[2],
+                            "string_count": r[3], "midis": midis,
+                            "created_at": r[5]})
+        _atomic_write_json(path, {"version": SCHEMA_VERSION, "tunings": tunings})
+    except Exception:
+        pass
 
 
 def _model_dump(model: Any) -> dict[str, Any]:
@@ -524,10 +642,17 @@ def _cleanup_temp_root(temp_root: Path) -> None:
 def setup(app: FastAPI, context: dict) -> None:
     data_dir = _data_dir(context)
     presets_path = _presets_path(context)
+    tunings_path = _tunings_path(context)
     meta_db = context.get("meta_db")
     if meta_db is not None:
         _ensure_tables(meta_db)
         _migrate_presets_from_json(meta_db, presets_path)
+        _migrate_tunings_from_json(meta_db, tunings_path)
+        # Refresh the export mirrors at startup so state saved before the
+        # mirror existed (or while it was broken) is exportable immediately,
+        # not only after the next save.
+        _snapshot_presets(meta_db, presets_path)
+        _snapshot_tunings(meta_db, tunings_path)
 
     @app.get(f"/api/plugins/{PLUGIN_ID}/status")
     def status():
@@ -617,6 +742,7 @@ def setup(app: FastAPI, context: dict) -> None:
                  json.dumps(payload.config, ensure_ascii=False), time.time()),
             )
             meta_db.conn.commit()
+        _snapshot_presets(meta_db, presets_path)
         return {"ok": True, "preset": _model_dump(payload), "updated": bool(existing)}
 
     @app.delete(f"/api/plugins/{PLUGIN_ID}/presets/{{preset_id}}")
@@ -630,6 +756,7 @@ def setup(app: FastAPI, context: dict) -> None:
             meta_db.conn.commit()
         if cur.rowcount == 0:
             raise HTTPException(404, "Preset not found.")
+        _snapshot_presets(meta_db, presets_path)
         return {"ok": True, "deleted": preset_id}
 
     # ── Saved tunings ────────────────────────────────────────────────────
@@ -687,6 +814,7 @@ def setup(app: FastAPI, context: dict) -> None:
                 )
                 tuning_id = cur.lastrowid
             meta_db.conn.commit()
+        _snapshot_tunings(meta_db, tunings_path)
         return {"ok": True, "id": tuning_id, "updated": bool(existing)}
 
     @app.delete(f"/api/plugins/{PLUGIN_ID}/tunings/{{tuning_id}}")
@@ -700,6 +828,7 @@ def setup(app: FastAPI, context: dict) -> None:
             meta_db.conn.commit()
         if cur.rowcount == 0:
             raise HTTPException(404, "Tuning not found.")
+        _snapshot_tunings(meta_db, tunings_path)
         return {"ok": True, "deleted": tuning_id}
 
     @app.post(f"/api/plugins/{PLUGIN_ID}/temp-sloppak")

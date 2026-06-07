@@ -11,7 +11,8 @@
   "settings": {
     "html": "settings.html",
     "server_files": [
-      "plugin_data/slopscale/presets.json"
+      "plugin_data/slopscale/presets.json",
+      "plugin_data/slopscale/tunings.json"
     ]
   },
   "routes": "routes.py"
