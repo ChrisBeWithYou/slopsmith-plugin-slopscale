@@ -42,9 +42,18 @@ All in `screen.js` §14; one window table is now the single source of truth both
 
 **Deliberately NOT loosened:** the ±50¢ pitch gate (an adjacent fret is 100¢); no strictness knob (strictness is curriculum — named tight rungs / the Hardcore recognition axis); gems stay binary (`hit` means one thing — strictness lives in the judge, never the paint).
 
-## Slice 2 — DESIGNED, not built (the fast-idiom honesty layer)
+## Slice 2 — BUILT 2026-06-06 (session #13; the fast-idiom honesty layer)
 
-Constants want the characterization probes first (see Probes). Order per the panel:
+**Probes ran first** (`probe-verifier-envelope.mjs` — gated bursts/PM/low-bass WAVs driven straight into `setVerifyTarget`, wrong-pitch negative control clean): verifier **min-ring ≈ 50ms** (94% @ 50ms, 100% ≥ 100ms, degrades @ 35ms → 200 BPM 16ths honestly judgeable); **palm-mute SURVIVES the comb** (100% — no PM exemption needed); the verifier has **NO 70Hz floor** (E1 + B0 100% — the sub-floor exemption dissolves in verifier mode; YIN keeps it).
+
+**Build record** (all `screen.js` §14; guarded by `smoke-gems` rows 6d + 7a–7d):
+- `PT_MIN_RING_YIN = 0.085` / `PT_MIN_RING_VERIFIER = 0.050` — the tooFast floor uses an **effective ring**: written-staccato (`sus < 0.7·IOI` — the damping is the lesson) rings `sus`; legato-ish runs (builders emit cosmetic `sus ≈ 0.78·IOI` but the string rings to the next attack) ring `IOI`; the last note rings into silence (always certifiable). Without the split, chart sus would self-exempt every fast run incl. the 160-BPM acceptance (caught by row 6d).
+- Tremolo spans: consecutive same-pitch `tr` → ONE merged window (`tr@n`, ring uncapped), 100ms presence buckets, credit at ≥60% on end-of-span (`ptFinalizeSpans`, both ears), members light together, **one unit** in both numerator and denominator (`_ptScoredUnits` replaces `_ptScored.size` everywhere).
+- `ho`/`po` exemption global (judge the picked opener; herta's physics generalized).
+- `ptSpeakBudget(f0) = clamp(3·period+25, 35, 80)ms` extends every window's post-roll (clamped at the midpoint — never stolen from the neighbor).
+- Disclosure: results-modal rows (too-fast w/ floor, slurred, tremolo-units), **timing-tendency line** (median first-evidence dev, gated ≥8 samples & |lean| ≥ 30ms) + near-miss aggregate (in-pitch ≤250ms off-window, gated ≥4), the resting-strip **pre-run denominator line** ("Judging 184 of 512 notes — 328 slurred shown unjudged", consistency-guarded against the live classifier by row 7a3), and the **dwell chip** (merged ≥0.5s exempt runs named under the playhead; muted ghosts skipped — flicker + they're the player's own mute).
+
+Original design (constants confirmed/adjusted by the probes):
 
 1. **`tooFast` honesty floor** — per-ear certifiability: a note is per-note-judged iff `min(sus, IOI) ≥ EAR_MIN_RING` (YIN ≈ 0.095–0.10s → per-note honest to ~135 BPM 16ths post-Slice-1 ~160–180; verifier floor unknown until probed). Below: **exempt-but-shown**, a new disclosed class out of the denominator. Emergent win: gallop cells get natural checkpoint judging (long chug judged, short pair exempt) with no special mode.
 2. **Tremolo span credit** — consecutive same-pitch `tr` notes collapse to ONE judged span (host convention); hit = in-tune presence over ~60% of span frames; member gems light together (the UX "ribbon"); denominated as units ("2 tremolo runs rang in tune"), listed with judged rows, never exemptions.
@@ -55,11 +64,13 @@ Constants want the characterization probes first (see Probes). Order per the pan
 
 **Probes before Slice 2 constants:** palm-mute through the verifier comb (PM damps the partials it sums — unprobed); verifier min-ring (if ≤50ms, 200 BPM 16ths become honestly judgeable); low-bass WAV through the verifier (it matches the comb, not the fundamental — may have no 70Hz floor at all, which would dissolve part of the sub-floor exemption).
 
-## Slice 3 / host asks (logged, not built)
+## Slice 3 — calibration BUILT 2026-06-06 (session #13); the rest stays logged
 
-- **Auto-calibration sweep** (mirror the host's: maximize matched notes over (chart, detections) at run end, ~40 lines) + a hidden latency setting. Read `av_offset_ms` as a seed at most; **never write it**.
+**Built:** `ptCalibrateOffsetMs` — a faithful mirror of the host's `_ndCalibrateOffsetMs` (note_detect screen.js:708; same objective: sweep ±250ms @ 10ms over offset-free detections, maximize matched notes with octave-tolerant ±50¢, refine by mean residual, ≥12 matches or null). SlopScale logs `{bt: raw practice time, m: float MIDI}` per confident frame (bounded 6000); at sessionEnd the sweep's estimate (−offset = +latency) EMA-blends (0.7/0.3) into the **hidden anchor** `slopscale.latencyMs` (clamp 0–250ms, **±8ms dead-band** so noise — and a small consistent player-lean — is never absorbed into the anchor; the timing-tendency line stays honest). `ptLatency()` now anchors every judge-clock site (8 sites; `PT_DETECT_LATENCY` remains the default). No UI; disclosed in the verbose Ear row + Copy diagnostics ("latency anchor Nms · this run measured Nms over N notes"). **No host seed:** `av_offset_ms` lives in note_detect's plugin settings store (not readable cross-plugin) — the sweep self-corrects from the 80ms default within a few runs; nothing host-side is ever written. Guards: smoke-gems row 8 (recovers a known 120ms offset; sparse→null; octave-tolerant; clamp held live).
+
+Still logged, not built:
 - **Host asks to carry** (with the standing ≈28Hz `minHz` ask): expose onset/re-strike events from the existing Desktop `detectNotes` path (unlocks per-attack gallop/tremolo credit — the flip for cell judging); a 4th #254 gem value (`exempt` → hollow gem); rest-verification (energy in a forbidden window) for djent kick-lock silence.
-- **Metal tight-rung profiles** (±30ms-class windows on named rungs) — gated on latency calibration landing first; uncalibrated tightening punishes interface latency, not hands.
+- **Metal tight-rung profiles** (±30ms-class windows on named rungs) — calibration is now BUILT but gate on it being **dogfood-validated on real hardware** before tightening; uncalibrated tightening punishes interface latency, not hands.
 - **Phrase-aggregate shred credit** (beyond-physics runs judged as a phrase) — separate design round with learning-design + gamification.
 - New false-credit channel logged (bass finding): a ringing sub-floor string's 2nd harmonic credits its octave target (open-E1 ring credits judged E2). Bounded; revisit with the octave-tolerant comparator.
 
