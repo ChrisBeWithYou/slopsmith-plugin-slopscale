@@ -775,6 +775,12 @@
      in tune is literally "target reached" — design-system §8 sanctioned green). */
   .slopscale-pitch-meter.slopscale-pm-tuner .slopscale-pm-hit-lbl,
   .slopscale-pitch-meter.slopscale-pm-tuner #slopscale-pitch-accuracy { display: none; }
+  /* Judge disclosure (timing Slice 2): the idle denominator line + the in-play
+     dwell chip — quiet meter-family typography, never accent-colored. */
+  #slopscale-judge-note { font-size: 11px; color: #64748b; margin-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #slopscale-judge-chip { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: #94a3b8; border: 1px solid rgba(148,163,184,0.4); border-radius: 4px; padding: 1px 6px; margin-left: 8px; white-space: nowrap; }
+  .slopscale-pitch-meter.slopscale-pm-tuner #slopscale-judge-note,
+  .slopscale-pitch-meter.slopscale-pm-tuner #slopscale-judge-chip { display: none !important; }
   .slopscale-tuner-chips { display: inline-flex; gap: 6px; padding-left: 12px; border-left: 1px solid rgba(75, 85, 99, 0.55); }
   .slopscale-tuner-chip { padding: 2px 8px; border-radius: 5px; border: 1px solid #334155; background: #0c1322; color: #94a3b8; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; transition: border-color 0.12s, color 0.12s; }
   .slopscale-tuner-chip.near { border-color: #60a5fa; color: #e2e8f0; }
@@ -2299,6 +2305,13 @@
         <span id="slopscale-pitch-cents" title="Cents off the target (within ±50¢ scores)"></span>
         <span class="slopscale-pm-lbl slopscale-pm-hit-lbl">Hit</span>
         <span id="slopscale-pitch-accuracy" title="Notes hit / notes judged so far" aria-label="Notes hit out of notes judged">--</span>
+        <!-- Pre-run judge disclosure (timing Slice 2): the denominator line —
+             what the NEXT run will judge and why the rest is shown-not-judged.
+             Idle-only (hidden during play + tuner). -->
+        <span id="slopscale-judge-note" style="display:none"></span>
+        <!-- Dwell chip (timing Slice 2): names the exempt class under the
+             playhead when the run dwells on shown-not-judged content. -->
+        <span id="slopscale-judge-chip" style="display:none"></span>
         <!-- Resting-state Tune… (2026-06-06): the strip is now a standing
              affordance (visible between runs when a detector exists), and this
              button is the always-discoverable way into the tuner — the Setup

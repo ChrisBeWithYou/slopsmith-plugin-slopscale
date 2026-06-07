@@ -2767,6 +2767,8 @@
   // Pitch tracker state — wraps slopsmithMinigames.scoring.createContinuous (no registration required)
   let _ptHandle = null, _ptNotes = [], _ptOpenMidis = [], _ptScored = new Set(), _ptByKey = new Map(), _ptHadInput = false;
   let _ptRunInfo = null;        // results-modal diagnostics: judged universe + exemptions + which ear (set per run)
+  let _ptSpanCount = 0;         // tremolo spans this run (unit-denominated)
+  let _ptExempt = null;         // Slice-2 class counts { legato, fast, spanNotes, floorMs } (set per run)
   let _deliberateStop = false;  // true only across an explicit Stop / finite-run end — gates the results modal
   // ── Timing model (2026-06-06 seven-lane panel; MIRRORS the host's grader) ──
   // The host's note_detect judges with PARALLEL per-note candidate windows
@@ -2777,7 +2779,68 @@
   // active note + a 2-CONSECUTIVE-frame streak on the raw clock — judged every
   // attack against the PREVIOUS note in continuous runs (the chromatic
   // "unforgiving" complaint). See docs/timing-judging-roundtable.md.
-  const PT_DETECT_LATENCY = 0.080;  // judge at currentPracticeTime − this (host's shipped default)
+  const PT_DETECT_LATENCY = 0.080;  // the DEFAULT anchor (host's shipped default) — see ptLatency()
+  // ── Slice 3: A/V latency auto-calibration (mirrors the host's sweep) ───────
+  // The judge clock's anchor is a HIDDEN per-device setting, refined at the end
+  // of each scored run by the host-mirror offset sweep (maximize matched notes
+  // over the run's offset-free detections, refine by mean residual — the
+  // host's `_ndCalibrateOffsetMs` objective, note_detect screen.js:708).
+  // EMA-blended (0.7 old / 0.3 new), clamped 0–250ms, persisted
+  // `slopscale.latencyMs`. No UI (the roundtable's "hidden latency setting");
+  // disclosed in the verbose diagnostics. The host's own av_offset_ms lives in
+  // its plugin settings store (not readable cross-plugin) — no seed, the sweep
+  // self-corrects from the default within a few runs. NEVER written host-side.
+  let _ptLatencyS = (() => {
+    try {
+      const v = parseInt(localStorage.getItem('slopscale.latencyMs') || '', 10);
+      if (Number.isFinite(v)) return Math.max(0, Math.min(250, v)) / 1000;
+    } catch (_) {}
+    return PT_DETECT_LATENCY;
+  })();
+  function ptLatency() { return _ptLatencyS; }
+  const PT_CAL_MAX = 6000;          // offset-free detection log cap (~4 min at meter cadence)
+  let _ptCalLog = [];               // [{ bt: RAW practice time, m: float MIDI }] — reset per run
+  // Cents to the NEAREST OCTAVE of the expected midi (host-mirror: octave-
+  // tolerant matching keeps the sweep robust to 2nd-harmonic readings).
+  function ptNearestOctaveCents(m, em) {
+    const c = (m - em) * 100;
+    return c - 1200 * Math.round(c / 1200);
+  }
+  // The host-mirror sweep, pure: detections {bt, m} (bt RAW — our log carries
+  // no latency subtraction, so the best offset ≈ −latency), single-pitch
+  // windows from the run's table. Returns { offsetMs, matched, total } | null.
+  function ptCalibrateOffsetMs(detections, windows, opts) {
+    opts = opts || {};
+    const loMs = opts.loMs != null ? opts.loMs : -250, hiMs = opts.hiMs != null ? opts.hiMs : 250;
+    const stepMs = opts.stepMs || 10, minMatched = opts.minMatched != null ? opts.minMatched : 12;
+    const winS = opts.winS || 0.15, tolCents = opts.tolCents || 50;
+    if (!Array.isArray(detections) || detections.length < minMatched) return null;
+    const exp = [];
+    for (const w of (windows || [])) {
+      if (w.span || !w.notes || w.notes.length !== 1) continue;   // single-pitch evidence only
+      const n = w.notes[0], om = _ptOpenMidis[n.s];
+      if (om != null) exp.push({ t: w.t, em: om + n.f });
+    }
+    if (exp.length < minMatched) return null;
+    const dets = detections.slice().sort((a, b) => a.bt - b.bt);
+    let best = null;
+    for (let ms = loMs; ms <= hiMs; ms += stepMs) {
+      const off = ms / 1000;
+      let matched = 0, residSum = 0;
+      for (const note of exp) {
+        for (let i = 0; i < dets.length; i++) {
+          const dt = dets[i].bt + off - note.t;
+          if (dt < -winS) continue;
+          if (dt > winS) break;                  // dets sorted by bt → past the window
+          if (Math.abs(ptNearestOctaveCents(dets[i].m, note.em)) <= tolCents) { matched++; residSum += dt; break; }
+        }
+      }
+      if (!best || matched > best.matched) best = { ms, matched, resid: matched ? residSum / matched : 0 };
+    }
+    if (!best || best.matched < minMatched) return null;
+    const refinedMs = Math.round(best.ms - best.resid * 1000);   // center matches in their windows
+    return { offsetMs: Math.max(-1000, Math.min(1000, refinedMs)), matched: best.matched, total: exp.length };
+  }
   const PT_WIN_EARLY = 0.100;       // candidate window opens this early (host: early-strict ±100ms)
   const PT_WIN_LATE  = 0.100;       // late pad past the ring end
   const PT_RING_CAP  = 1.0;         // ring credit rides the sustain, capped (host: min(sus, 1s))
@@ -2788,6 +2851,31 @@
                                     // boundary-jitter frame no longer resets earned evidence.
   const PT_BEND_CENTS = 600;        // bn notes: lenient pitch gate (host convention — the hit rides
                                     // presence + timing, never a moving bend target)
+  // ── Slice 2: the fast-idiom honesty layer (docs/timing-judging-roundtable.md;
+  //    constants characterized by probe-verifier-envelope 2026-06-06) ──────────
+  const PT_MIN_RING_YIN = 0.085;      // per-note certifiability floor, YIN ear. Panel
+                                      // bracket: "post-Slice-1 honest to ~160–180 BPM
+                                      // 16ths" → the floor sits below the 160-BPM-16th
+                                      // IOI (93.75ms), keeping the Slice-1 acceptance
+                                      // run per-note judged; a 180-BPM gallop doublet
+                                      // (83ms) falls below = checkpoint judging emerges.
+  const PT_MIN_RING_VERIFIER = 0.050; // MEASURED: the harmonic comb confirms 94% of
+                                      // 50ms gated bursts (100% ≥100ms, degrades at
+                                      // 35ms) → 200 BPM 16ths honestly judgeable in
+                                      // verifier mode. Same probe: palm-mute SURVIVES
+                                      // the comb (100%), and the verifier has NO 70Hz
+                                      // floor (E1 + B0 100%) — the sub-floor exemption
+                                      // dissolves in verifier mode (YIN keeps it).
+  const PT_SPAN_BUCKET = 0.100;       // tremolo-span presence bucket (s)
+  const PT_SPAN_RATIO = 0.6;          // span hit = rung buckets / total ≥ this
+  // f0-derived post-roll speak budget (bass-pedagogy ruling: a low string's
+  // usable evidence arrives late — SHIFT the evidence slot for physics, never
+  // widen the timing tolerance as forgiveness). clamp(3·period+25, 35, 80)ms:
+  // D2≈66ms, A2≈52ms, ≥G3≈35–40ms — drop-tuned guitar gets bass physics
+  // automatically; a bassist high on the G string doesn't.
+  function ptSpeakBudget(f0) {
+    return Math.min(0.080, Math.max(0.035, 3 / f0 + 0.025));
+  }
   // Per-note identity key for the #254 gem hook: the host highway calls
   // bundle.getNoteState(note, note.t) and matches notes by (s, f, t), so we judge on
   // that same composite — reference-independent (the highway may normalize our notes).
@@ -2801,23 +2889,40 @@
   // verifier's one-target-at-a-time owner and the passed denominator. The cursor
   // is monotonic; a backward seek ≥ 0.25s (loop wrap, overview click-seek)
   // re-searches from the top — mirrors the host's backward-seek note reopen.
-  let _ptWin = [];                 // [{ key, t, susEff, matchStart, matchEnd, exclStart, exclEnd, notes[], pcs, lastEvidMs }]
+  let _ptWin = [];                 // [{ key, t, susEff, matchStart, matchEnd, exclStart, exclEnd, notes[], pcs, lastEvidMs, credited, span? }]
   let _ptWinByKey = new Map();     // ptKey(note) → window entry (gem miss-arming)
   let _ptWinLo = 0;                // monotonic cursor: first entry with matchEnd > tJudge
   let _ptWinLastT = -Infinity;
-  let _ptWinPassedNotes = [];      // prefix sums of notes.length → passed denominator is O(1)
+  let _ptWinPassedNotes = [];      // prefix sums of UNITS (span = 1, else notes.length) → passed denominator is O(1)
+  let _ptScoredUnits = 0;          // unit-denominated hits (a tremolo span = 1 unit; a chord = its member count)
+  let _ptSpanPending = [];         // span windows awaiting end-of-span evaluation (time-sorted)
+  let _ptDevs = [];                // first-evidence deviations vs onset (s) — the timing-tendency aggregate
+  let _ptNearMiss = 0;             // in-pitch frames just OUTSIDE their window (the near-miss aggregate)
   let _ptMeterEma = { key: null, cents: NaN };  // display-only cents smoothing (scoring uses raw frames)
   function ptBuildWindows(notes, gk) {
     _ptWin = []; _ptWinByKey = new Map(); _ptWinLo = 0; _ptWinLastT = -Infinity; _ptWinPassedNotes = [];
+    _ptScoredUnits = 0; _ptSpanPending = []; _ptDevs = []; _ptNearMiss = 0; _ptCalLog = [];
     _ptMeterEma = { key: null, cents: NaN };
     const groups = new Map();
     for (const n of notes) { const k = gk(n); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(n); }
     const wins = [...groups.entries()].map(([key, gn]) => {
       const t = Math.min(...gn.map(n => n.t));
-      const susEff = Math.min(PT_RING_CAP, Math.max(...gn.map(n => n.sus || 0.24)));
+      // A tremolo SPAN (key 'tr@…', built by the Slice-2 classifier): one judged
+      // unit covering the whole same-pitch run — its ring is the span itself,
+      // never capped (host convention: tr = ONE judged note).
+      const span = key.indexOf('tr@') === 0;
+      const ringEnd = Math.max(...gn.map(n => n.t + (n.sus || 0.24)));
+      const susEff = span ? (ringEnd - t) : Math.min(PT_RING_CAP, Math.max(...gn.map(n => n.sus || 0.24)));
       const pcs = new Set(gn.map(n => (_ptOpenMidis[n.s] ?? 0) + n.f));
-      return { key, t, susEff, matchStart: t - PT_WIN_EARLY, matchEnd: t + susEff + PT_WIN_LATE,
-               exclStart: t - PT_WIN_EARLY, exclEnd: t + susEff + PT_WIN_LATE, notes: gn, pcs, lastEvidMs: -Infinity };
+      // f0-derived speak budget: extend the POST-roll so a late-speaking low
+      // note's evidence lands in its own slot (clamped to the neighbor by the
+      // midpoint pass below — never stolen from the next note).
+      const budget = ptSpeakBudget(midiToFreq(Math.min(...pcs)));
+      const w = { key, t, susEff, matchStart: t - PT_WIN_EARLY, matchEnd: t + susEff + PT_WIN_LATE + budget,
+               exclStart: t - PT_WIN_EARLY, exclEnd: t + susEff + PT_WIN_LATE + budget, notes: gn, pcs,
+               lastEvidMs: -Infinity, credited: false };
+      if (span) { w.span = true; w.spanEnd = ringEnd; w.bktN = Math.max(1, Math.ceil((ringEnd - t) / PT_SPAN_BUCKET)); w.bkts = new Set(); }
+      return w;
     }).sort((a, b) => a.t - b.t);
     for (let i = 0; i + 1 < wins.length; i++) {
       const a = wins[i], b = wins[i + 1], mid = (a.t + b.t) / 2;
@@ -2826,8 +2931,31 @@
       if (share) { a.matchEnd = Math.min(a.matchEnd, mid); b.matchStart = Math.max(b.matchStart, mid); }
     }
     let acc = 0;
-    for (const w of wins) { acc += w.notes.length; _ptWinPassedNotes.push(acc); for (const n of w.notes) _ptWinByKey.set(ptKey(n), w); }
+    for (const w of wins) {
+      acc += w.span ? 1 : w.notes.length;   // a span is ONE unit in the denominator
+      _ptWinPassedNotes.push(acc);
+      for (const n of w.notes) _ptWinByKey.set(ptKey(n), w);
+      if (w.span) _ptSpanPending.push(w);
+    }
     _ptWin = wins;
+  }
+  // Credit a window ONCE: gems light per member key; the accuracy counters are
+  // unit-denominated (a span = 1; a chord = its member count, matching the
+  // denominator's prefix sums).
+  function ptCreditWindow(w) {
+    if (w.credited) return;
+    w.credited = true;
+    _ptScoredUnits += w.span ? 1 : w.notes.length;
+    for (const n of w.notes) _ptScored.add(ptKey(n));
+  }
+  // End-of-span evaluation: a tremolo span is a hit when in-tune presence
+  // covered ≥ PT_SPAN_RATIO of its 100ms buckets (the "rang in tune over the
+  // run" rule) — evaluated once the span has fully passed on the judge clock.
+  function ptFinalizeSpans(tJudge) {
+    while (_ptSpanPending.length && tJudge > _ptSpanPending[0].spanEnd + 0.05) {
+      const w = _ptSpanPending.shift();
+      if (!w.credited && w.bkts.size / w.bktN >= PT_SPAN_RATIO) ptCreditWindow(w);
+    }
   }
   function ptWinSeek(tJudge) {   // advance (or re-search) the cursor; returns it
     if (tJudge < _ptWinLastT - 0.25) _ptWinLo = 0;
@@ -2860,6 +2988,7 @@
   let _ndVerifyCtx = null;          // { arrangement, openMidis } — player's real tuning
   let _ndVerifyActive = [];         // note objects currently pushed as the target
   let _ndVerifyActiveKey = null;    // group key of the pushed target (dedupe pushes)
+  let _ndVerifyActiveWin = null;    // the pushed target's WINDOW (span buckets + unit credit)
   let _ndVerifyListener = null;     // bound notedetect:verify handler
   let _ndWeEnabledNoteDetect = false; // did WE enable note_detect? (restore on stop)
   function ndVerifyAvailable() {
@@ -2871,19 +3000,20 @@
   // target through that arrival instead of swapping at the nominal boundary —
   // and midpoint-split exclusive bounds hand off promptly in dense runs.
   function _ndActiveGroupAt(t) {
-    const w = ptWinOwnerAt(t - PT_DETECT_LATENCY);
-    if (!w) return { key: null, notes: [] };
-    return { key: w.key + '@' + Math.round((w.t || 0) * 1e4), notes: w.notes };
+    const w = ptWinOwnerAt(t - ptLatency());
+    if (!w) return { key: null, notes: [], win: null };
+    return { key: w.key + '@' + Math.round((w.t || 0) * 1e4), notes: w.notes, win: w };
   }
   // Push (or refresh) the verify target for the current playhead. Cheap: only
   // re-pushes when the active group changes. Clears the target between notes so
   // the verifier never scores a stale note against live audio.
   function ndPushVerifyTarget() {
     if (!_ndVerifyMode || !ndVerifyAvailable()) return;
-    const { key, notes } = _ndActiveGroupAt(currentPracticeTime);
+    const { key, notes, win } = _ndActiveGroupAt(currentPracticeTime);
     if (key === _ndVerifyActiveKey) return;     // no change → nothing to do
     _ndVerifyActiveKey = key;
     _ndVerifyActive = notes;
+    _ndVerifyActiveWin = win;
     if (!notes.length) { try { window.noteDetect.setVerifyTarget(null); } catch (_) {} return; }
     // Pass only the flags whose meaning matches the host's: b = bend (SlopScale
     // `bn` is a magnitude; any non-zero means "this note bends"). We deliberately
@@ -2909,13 +3039,25 @@
     const d = ev && ev.detail;
     if (!d || !d.isHit || !_ndVerifyActive.length) return;
     _ptHadInput = true;
-    for (const n of _ndVerifyActive) _ptScored.add(ptKey(n));
+    const w = _ndVerifyActiveWin;
+    if (!w) return;
+    if (w.span) {
+      // Tremolo span: a verify hit marks its presence bucket; the credit
+      // decision waits for end-of-span (ptFinalizeSpans).
+      const bi = Math.floor((currentPracticeTime - ptLatency() - w.t) / PT_SPAN_BUCKET);
+      if (bi >= 0 && bi < w.bktN) w.bkts.add(bi);
+    } else {
+      // Timing tendency: first evidence for this window, relative to its onset
+      // on the judge clock (the feel→data converter — disclosure only).
+      if (!w.credited) _ptDevs.push(currentPracticeTime - ptLatency() - w.t);
+      ptCreditWindow(w);
+    }
   }
   function ndStopVerify() {
     if (_ndVerifyListener) { window.removeEventListener('notedetect:verify', _ndVerifyListener); _ndVerifyListener = null; }
     if (_ndVerifyMode) { try { window.noteDetect.setVerifyTarget(null); } catch (_) {} }
     if (_ndWeEnabledNoteDetect) { try { window.noteDetect.disable?.(); } catch (_) {} _ndWeEnabledNoteDetect = false; }
-    _ndVerifyMode = false; _ndVerifyCtx = null; _ndVerifyActive = []; _ndVerifyActiveKey = null;
+    _ndVerifyMode = false; _ndVerifyCtx = null; _ndVerifyActive = []; _ndVerifyActiveKey = null; _ndVerifyActiveWin = null;
   }
   // Active pathway state — tracks which pathway is showing and which variation
   // index we are on, so Next Variation rotates predictably.
@@ -10010,6 +10152,11 @@
       // current playhead (cheap — only re-pushes when the active group
       // changes). No-op unless verifier mode is active.
       ndPushVerifyTarget();
+      // Settle tremolo spans whose end has passed (both ears; cheap — pops at
+      // most the front of a short time-sorted list).
+      ptFinalizeSpans(currentPracticeTime - ptLatency());
+      // Dwell chip: name the exempt class under the playhead (disclosure UX).
+      ptUpdateJudgeChip(currentPracticeTime);
     }
     drawOnce(); rafId = requestAnimationFrame(tick);
   }
@@ -10726,13 +10873,25 @@
         if (info.exemptChords) rows.push(`<span class="slopscale-results-exrow">· <strong>${info.exemptChords}</strong> chord notes — this ear hears one note at a time${devTail('(mono detector)')}</span>`);
         if (info.exemptSubFloor) rows.push(`<span class="slopscale-results-exrow">· <strong>${info.exemptSubFloor}</strong> notes too low for the mic to hear — play them with the click; they never count against you${devTail('(&lt; 70 Hz floor)')}</span>`);
         if (info.exemptMuted) rows.push(`<span class="slopscale-results-exrow">· <strong>${info.exemptMuted}</strong> muted ghost notes — a good mute has no pitch to judge${devTail('(mt, pitch-exempt)')}</span>`);
+        if (info.exemptFast) rows.push(`<span class="slopscale-results-exrow">· <strong>${info.exemptFast}</strong> notes too fast for this ear to certify one-by-one — play them; the judged notes around them carry the proof${devTail(`(ring &lt; ${info.floorMs}ms floor)`)}</span>`);
+        if (info.exemptLegato) rows.push(`<span class="slopscale-results-exrow">· <strong>${info.exemptLegato}</strong> slurred notes — the pick that starts each slur is judged; the slur itself has no attack to time${devTail('(ho/po, pick-frame judged)')}</span>`);
       } else {
         rows.push(`Every note judged: <strong>${info.judged}</strong> of <strong>${info.total}</strong>`);
       }
+      if (info.tremoloSpans) rows.push(`<span class="slopscale-results-exrow">· <strong>${info.tremoloSpans}</strong> tremolo run${info.tremoloSpans === 1 ? '' : 's'} (${info.tremoloNotes} notes) judged as whole runs — in tune over the run is the skill${devTail(`(tr spans, ≥${Math.round(PT_SPAN_RATIO * 100)}% presence)`)}</span>`);
       const earPlayer = String(info.ear || '').indexOf('verifier') === 0
         ? 'chord-aware verifier · single-note for the display meter'
         : 'single-note (the mic hears one pitch at a time)';
-      rows.push(`Ear: <strong>${earPlayer}</strong>${devTail(`(${info.ear})`)}`);
+      rows.push(`Ear: <strong>${earPlayer}</strong>${devTail(`(${info.ear} · latency anchor ${info.latencyMs != null ? info.latencyMs : Math.round(PT_DETECT_LATENCY * 1000)}ms${info.calMs != null ? `, this run measured ${info.calMs}ms over ${info.calMatched} notes` : ''})`)}`);
+      // Timing tendency + near-miss (Slice 2, the feel→data converter) —
+      // threshold-gated so a centered run says nothing: ≥8 samples and a lean
+      // of ≥30ms, or ≥4 near-misses. Descriptive, never scored.
+      if (info.leanN >= 8 && Math.abs(info.leanMs) >= 30) {
+        rows.push(`Timing leaned <strong>${info.leanMs > 0 ? 'late' : 'early'}</strong> — about ${Math.abs(info.leanMs)}ms ${info.leanMs > 0 ? 'behind' : 'ahead of'} the click${devTail(`(median dev ${info.leanMs}ms, n=${info.leanN})`)}`);
+      }
+      if (info.nearMiss >= 4) {
+        rows.push(`<strong>${info.nearMiss}</strong> right-pitch moments landed just outside their timing window — closer than the score shows${devTail('(in-pitch ≤250ms off-window frames)')}`);
+      }
     }
     let detailsOpen = false; try { detailsOpen = localStorage.getItem('slopscale.resultsDetails') === 'open'; } catch (_) {}
 
@@ -10849,6 +11008,11 @@
         info && info.exemptChords ? `exempt chords: ${info.exemptChords} (mono detector)` : '',
         info && info.exemptSubFloor ? `exempt sub-floor: ${info.exemptSubFloor} (< 70 Hz)` : '',
         info && info.exemptMuted ? `exempt muted: ${info.exemptMuted} (mt)` : '',
+        info && info.exemptFast ? `exempt too-fast: ${info.exemptFast} (ring < ${info.floorMs}ms floor)` : '',
+        info && info.exemptLegato ? `exempt legato: ${info.exemptLegato} (ho/po)` : '',
+        info && info.tremoloSpans ? `tremolo spans: ${info.tremoloSpans} (${info.tremoloNotes} notes, >=${Math.round(PT_SPAN_RATIO * 100)}% presence)` : '',
+        info && info.leanN ? `timing lean: ${info.leanMs}ms median (n=${info.leanN}) · near-miss frames: ${info.nearMiss}` : '',
+        info && info.latencyMs != null ? `latency anchor: ${info.latencyMs}ms (auto-calibrated${info.calMs != null ? `; this run ${info.calMs}ms over ${info.calMatched} notes` : ''})` : '',
         info ? `ear: ${info.ear}` : '',
         `bpm ${s.bpm} · practiced ${dur}`,
       ].filter(Boolean).join('\n');
@@ -13652,12 +13816,82 @@
     // Muted ghosts (mt) are never judged — the HOST's own convention (note_detect
     // skips mt in matchNotes/checkMisses/engine push): correct muting must not
     // read as a miss (the DapperTap mt bug, fixed the host's way).
-    _ptNotes = allNotes.filter(n => _audible(n) && !n.mt && (_ndVerifyMode || _gCounts.get(_gk(n)) === 1));
+    const _base = allNotes.filter(n => _audible(n) && !n.mt && (_ndVerifyMode || _gCounts.get(_gk(n)) === 1));
     _ptOpenMidis = bundle.openMidis || [];
+    // ── Slice 2: the fast-idiom honesty classes (docs/timing-judging-roundtable.md) ──
+    // (a) LEGATO: ho/po notes have no pick transient — the PICKED note that
+    //     opens the slur is judged; the slurred notes are shown, never judged
+    //     (herta's physics generalized globally).
+    // (b) TREMOLO SPANS: consecutive same-pitch tr notes collapse to ONE judged
+    //     unit covering the run (host convention: tr = one judged note); credit
+    //     = in-tune presence over ≥60% of the span; member gems light together.
+    // (c) tooFast: per-ear certifiability — per-note judged iff
+    //     min(sus, IOI) ≥ the ear's min-ring floor (YIN 85ms; verifier 50ms,
+    //     probe-measured). Below: exempt-but-shown, out of the denominator.
+    //     Emergent: gallop cells get checkpoint judging (the long 8th judged,
+    //     the fast doublet exempt) with no special mode.
+    // IOI is measured to the next SOUNDED onset over the whole base set —
+    // legato and exempt notes still end the previous note's usable ring.
+    const _floor = _ndVerifyMode ? PT_MIN_RING_VERIFIER : PT_MIN_RING_YIN;
+    const _onsets = [...new Set(_base.map(n => n.t))].sort((a, b) => a - b);
+    const _nextOnset = new Map();
+    for (let i = 0; i < _onsets.length; i++) _nextOnset.set(_onsets[i], i + 1 < _onsets.length ? _onsets[i + 1] : Infinity);
+    const _spanKeyByNote = new Map();
+    { // span detection: same (s,f), tr-flagged, gap ≤ 0.35s, ≥2 members
+      let run = [], spanId = 0;
+      const flush = () => { if (run.length >= 2) { const k = 'tr@' + (spanId++); for (const n of run) _spanKeyByNote.set(ptKey(n), k); } run = []; };
+      for (const n of _base) {
+        if (!n.tr || n.ho || n.po) { flush(); continue; }
+        const prev = run[run.length - 1];
+        if (prev && (n.s !== prev.s || n.f !== prev.f || n.t - prev.t > 0.35)) flush();
+        run.push(n);
+      }
+      flush();
+      _ptSpanCount = spanId;
+    }
+    const _legato = (n) => (n.ho || n.po) && !_spanKeyByNote.has(ptKey(n));
+    // Effective ring: written-STACCATO (sus meaningfully shorter than the IOI —
+    // the damping is the lesson, the player's string really stops at sus) caps
+    // the ring at sus; legato-ish runs (builders emit sus≈0.78·IOI but the
+    // player's string rings into the next same-string attack) ring ≈ IOI.
+    // Without this split the builders' cosmetic sus would exempt every fast
+    // run via its own chart data (incl. the 160-BPM acceptance run).
+    const _effRing = (n) => {
+      const ioi = _nextOnset.get(n.t) - n.t;
+      if (!isFinite(ioi)) return Infinity;   // the chart's last note rings into silence — always certifiable
+      const sus = n.sus || 0.24;
+      return sus < 0.7 * ioi ? sus : ioi;
+    };
+    const _tooFast = (n) => !_legato(n) && !_spanKeyByNote.has(ptKey(n)) && _effRing(n) < _floor;
+    _ptNotes = _base.filter(n => !_legato(n) && !_tooFast(n));
     _ptScored = new Set();
     _ptByKey = new Map(); for (const n of _ptNotes) _ptByKey.set(ptKey(n), n);   // (s,f,t) → note, for the gem hook
     _ptHadInput = false;
-    ptBuildWindows(_ptNotes, _gk);   // the one window table both ears read
+    // Group key: span members share their span's key (one window per span);
+    // everything else keeps the chord/onset grouping.
+    const _gkS = (n) => _spanKeyByNote.get(ptKey(n)) || _gk(n);
+    ptBuildWindows(_ptNotes, _gkS);   // the one window table both ears read
+    _ptExempt = { legato: _base.filter(_legato).length, fast: _base.filter(_tooFast).length,
+                  spanNotes: _spanKeyByNote.size, floorMs: Math.round(_floor * 1000) };
+    // Dwell-chip intervals (disclosure UX): merged runs of shown-not-judged
+    // content, labelled by class. Muted ghosts are skipped (interleaved with
+    // judged notes — a chip would flicker, and the ghost is the player's own
+    // mute, not a system limit).
+    _ptExemptIv = []; _ptChipIdx = 0; _ptChipLastT = -Infinity;
+    for (const n of allNotes) {
+      let label = null;
+      if (!_audible(n)) label = 'LOW NOTE · click is the judge';
+      else if (n.mt) continue;
+      else if (!_ndVerifyMode && _gCounts.get(_gk(n)) > 1) label = 'CHORD · not mic-judged';
+      else if (_legato(n)) label = 'SLUR · the pick note is judged';
+      else if (_tooFast(n)) label = 'FAST RUN · checkpoint-judged';
+      if (!label) continue;
+      const t1 = n.t + Math.max(0.15, n.sus || 0.24);
+      const prev = _ptExemptIv[_ptExemptIv.length - 1];
+      if (prev && prev.label === label && n.t - prev.t1 <= 0.25) prev.t1 = Math.max(prev.t1, t1);
+      else _ptExemptIv.push({ t0: n.t, t1, label });
+    }
+    const _jn = $('slopscale-judge-note'); if (_jn) _jn.style.display = 'none';   // the idle line yields to the live strip
 
     // Verifier-backed scoring (host note_detect timing-free verify, notedetect
     // #61): score against the PLAYER's real tuning (openMidis), polyphonic +
@@ -13708,10 +13942,17 @@
     // scoring. Read by sessionEnd → showResultsModal.
     _ptRunInfo = {
       total: allNotes.length,
-      judged: _ptNotes.length,
+      // Judged UNITS: per-note judged + each tremolo span as one unit.
+      judged: _ptNotes.length - (_ptExempt ? _ptExempt.spanNotes : 0) + _ptSpanCount,
       exemptSubFloor: allNotes.filter(n => !_audible(n)).length,
       exemptMuted: allNotes.filter(n => _audible(n) && n.mt).length,
       exemptChords: allNotes.filter(n => _audible(n) && !n.mt && !_ndVerifyMode && _gCounts.get(_gk(n)) > 1).length,
+      // Slice-2 honesty classes (disclosed, never silently dropped).
+      exemptLegato: _ptExempt ? _ptExempt.legato : 0,
+      exemptFast: _ptExempt ? _ptExempt.fast : 0,
+      floorMs: _ptExempt ? _ptExempt.floorMs : 0,
+      tremoloSpans: _ptSpanCount,
+      tremoloNotes: _ptExempt ? _ptExempt.spanNotes : 0,
       ear: _ndVerifyMode ? (_ptHandle ? 'verifier (note_detect) · YIN on display' : 'verifier (note_detect)') : 'YIN mic (minigames)',
     };
     ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: 0, total: 0 });
@@ -13727,11 +13968,11 @@
     // for an attack at t ARRIVES ~80ms later. The host's grader subtracts the
     // same offset before matching; we judged at the raw clock until 2026-06-06,
     // grading an on-time player ~80ms late on every note.
-    const tJudge = currentPracticeTime - PT_DETECT_LATENCY;
+    const tJudge = currentPracticeTime - ptLatency();
     const passedTotal = ptWinPassedCount(tJudge);
     if (confidence >= 0.55) _ptHadInput = true;   // real input seen → misses may now light (anti "sea of red")
     if (confidence < 0.55) {
-      ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: _ptScored.size, total: passedTotal });
+      ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: _ptScoredUnits, total: passedTotal });
       return;
     }
     // PARALLEL candidate matching (host-mirror): every unscored window containing
@@ -13744,14 +13985,18 @@
     // YIN scoring runs only when YIN is the scorer — in verifier mode ptOnPitch
     // is display-only (ndOnVerify owns _ptScored; double-judging would also
     // re-admit the chord asymmetry).
+    // Calibration log (Slice 3): every confident frame, offset-FREE (raw
+    // practice time + float MIDI) — the host-mirror sweep consumes it at run
+    // end. Bounded; recording stops at the cap, never wraps.
+    if (_ptCalLog.length < PT_CAL_MAX) _ptCalLog.push({ bt: currentPracticeTime, m: 69 + 12 * Math.log2(freqHz / 440) });
     if (!_ndVerifyMode) {
       let best = null, bestAbs = Infinity;
       for (let i = _ptWinLo; i < _ptWin.length; i++) {
         const w = _ptWin[i];
         if (w.matchStart > tJudge) break;
         if (tJudge >= w.matchEnd) continue;
-        const n = w.notes[0];                    // YIN-judged groups are singletons (chords are the verifier's)
-        if (_ptScored.has(ptKey(n))) continue;   // one-shot per key
+        const n = w.notes[0];                    // YIN-judged groups are single-pitch (chords are the verifier's; a span is one pitch)
+        if (!w.span && _ptScored.has(ptKey(n))) continue;   // one-shot per key (spans accumulate until finalized)
         const om = _ptOpenMidis[n.s];
         if (om == null) continue;
         const c = Math.abs(1200 * Math.log2(freqHz / midiToFreq(om + n.f)));
@@ -13759,11 +14004,36 @@
         if (c <= tol && c < bestAbs) { best = w; bestAbs = c; }
       }
       if (best) {
-        const nowMs = performance.now();
-        if (nowMs - best.lastEvidMs <= PT_EVID_PAIR_MS) {
-          for (const n of best.notes) _ptScored.add(ptKey(n));
+        if (best.span) {
+          // Tremolo span: an in-tune frame marks its 100ms presence bucket;
+          // credit waits for end-of-span (ptFinalizeSpans).
+          const bi = Math.floor((tJudge - best.t) / PT_SPAN_BUCKET);
+          if (bi >= 0 && bi < best.bktN) best.bkts.add(bi);
         } else {
-          best.lastEvidMs = nowMs;   // first evidence frame — armed, awaiting its pair
+          const nowMs = performance.now();
+          if (nowMs - best.lastEvidMs <= PT_EVID_PAIR_MS) {
+            ptCreditWindow(best);
+          } else {
+            best.lastEvidMs = nowMs;   // first evidence frame — armed, awaiting its pair
+            // Timing tendency: evidence arrival vs onset on the judge clock
+            // (PT_DETECT_LATENCY already removes the nominal capture delay, so
+            // on-time play centers near 0). Disclosure only — never scored.
+            _ptDevs.push(tJudge - best.t);
+          }
+        }
+      } else {
+        // Near-miss aggregate: a confident in-pitch frame that lands just
+        // OUTSIDE its note's window (≤250ms off either edge) — the "I played
+        // it, why no credit" feel, converted to a disclosed number.
+        for (let i = Math.max(0, _ptWinLo - 1); i < _ptWin.length; i++) {
+          const w = _ptWin[i];
+          if (w.matchStart > tJudge + 0.25) break;
+          if (w.credited || w.span) continue;
+          const gap = tJudge < w.matchStart ? w.matchStart - tJudge : (tJudge >= w.matchEnd ? tJudge - w.matchEnd : 0);
+          if (gap <= 0 || gap > 0.25) continue;
+          const n = w.notes[0]; const om = _ptOpenMidis[n.s];
+          if (om == null) continue;
+          if (Math.abs(1200 * Math.log2(freqHz / midiToFreq(om + n.f))) <= 50) { _ptNearMiss++; break; }
         }
       }
     }
@@ -13772,7 +14042,7 @@
     // handle now runs near-raw (smoothingMs 12).
     const own = ptWinOwnerAt(tJudge);
     if (!own) {
-      ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: _ptScored.size, total: passedTotal });
+      ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: _ptScoredUnits, total: passedTotal });
       return;
     }
     const n0 = own.notes[0];
@@ -13783,7 +14053,7 @@
     if (_ptMeterEma.key !== own.key || !isFinite(_ptMeterEma.cents)) _ptMeterEma = { key: own.key, cents };
     else _ptMeterEma.cents += 0.45 * (cents - _ptMeterEma.cents);
     const noteName = NOTE_NAMES[((expectedMidi % 12) + 12) % 12] + (Math.floor(expectedMidi / 12) - 1);
-    ptUpdateMeter({ show: true, active: true, cents: Math.round(_ptMeterEma.cents), note: noteName, hits: _ptScored.size, total: passedTotal });
+    ptUpdateMeter({ show: true, active: true, cents: Math.round(_ptMeterEma.cents), note: noteName, hits: _ptScoredUnits, total: passedTotal });
   }
 
   function stopPitchTracker() {
@@ -13793,6 +14063,9 @@
     // notes/hits and feed stale hit/miss counts to the pathway tier gate.
     _ptNotes = []; _ptScored = new Set(); _ptByKey = new Map(); _ptHadInput = false;
     _ptWin = []; _ptWinByKey = new Map(); _ptWinLo = 0; _ptWinLastT = -Infinity; _ptWinPassedNotes = [];
+    _ptScoredUnits = 0; _ptSpanPending = []; _ptDevs = []; _ptNearMiss = 0; _ptSpanCount = 0; _ptExempt = null;
+    _ptExemptIv = []; _ptChipIdx = 0; _ptChipLastT = -Infinity; _ptCalLog = [];
+    { const jc = $('slopscale-judge-chip'); if (jc) jc.style.display = 'none'; }
     _ptMeterEma = { key: null, cents: NaN };
     // Return to the resting state instead of hiding — the strip stays a
     // standing affordance between runs (hidden only on detector-less hosts).
@@ -13819,7 +14092,7 @@
     if (_ptHadInput) {
       const w = _ptWinByKey.get(k);
       const missAt = (w ? w.matchEnd : end + 0.06) + 0.10;   // candidate window + display grace
-      if (now - PT_DETECT_LATENCY > missAt) return 'miss';   // window passed on the JUDGE clock, never hit
+      if (now - ptLatency() > missAt) return 'miss';   // window passed on the JUDGE clock, never hit
     }
     return null;                                            // not yet judged — don't pre-color
   }
@@ -13881,11 +14154,93 @@
   // tuner exist before ever pressing Play. INERT: no mic is opened until Play
   // (the scorer) or Tune… (the tuner); this is display-only chrome. On a
   // detector-less host the strip stays hidden (never show dead UI).
+  // Pre-run judge preview (Slice-2 disclosure UX): the SAME classification
+  // startPitchTracker applies, counts only — drives the resting strip's
+  // "Judging N of M notes" line so the denominator is visible BEFORE play.
+  // Kept consistent with the live classifier by a smoke-gems row (preview
+  // judged === run-info judged on the same bundle).
+  function ptPreviewJudgeCounts(bundle) {
+    const all = ((bundle && bundle.notes) || []).filter(n => !n._tail);
+    if (!all.length) return null;
+    const opens = bundle.openMidis || [];
+    const verify = ndVerifyAvailable();
+    const gk = (n) => n.ch != null ? ('c' + n.ch) : ('t' + n.t);
+    const gc = new Map(); for (const n of all) gc.set(gk(n), (gc.get(gk(n)) || 0) + 1);
+    const audible = (n) => { const m = opens[n.s]; return m == null || midiToFreq(m + n.f) >= DETECTOR_MIN_HZ; };
+    const base = all.filter(n => audible(n) && !n.mt && (verify || gc.get(gk(n)) === 1)).sort((a, b) => a.t - b.t);
+    const floor = verify ? PT_MIN_RING_VERIFIER : PT_MIN_RING_YIN;
+    const onsets = [...new Set(base.map(n => n.t))].sort((a, b) => a - b);
+    const nxt = new Map(); for (let i = 0; i < onsets.length; i++) nxt.set(onsets[i], i + 1 < onsets.length ? onsets[i + 1] : Infinity);
+    const spanKeys = new Set(); let spans = 0;
+    { let run = [];
+      const flush = () => { if (run.length >= 2) { spans++; for (const n of run) spanKeys.add(ptKey(n)); } run = []; };
+      for (const n of base) {
+        if (!n.tr || n.ho || n.po) { flush(); continue; }
+        const prev = run[run.length - 1];
+        if (prev && (n.s !== prev.s || n.f !== prev.f || n.t - prev.t > 0.35)) flush();
+        run.push(n);
+      } flush(); }
+    let legato = 0, fast = 0, judged = 0;
+    for (const n of base) {
+      if (spanKeys.has(ptKey(n))) continue;
+      if (n.ho || n.po) { legato++; continue; }
+      // Effective ring (mirrors the live classifier): written-staccato caps at
+      // sus; legato-ish runs ring ≈ IOI (the string rings to the next attack);
+      // the last note rings into silence — always certifiable.
+      const ioi = nxt.get(n.t) - n.t, sus = n.sus || 0.24;
+      if (isFinite(ioi) && (sus < 0.7 * ioi ? sus : ioi) < floor) { fast++; continue; }
+      judged++;
+    }
+    return {
+      total: all.length, judged: judged + spans, spans, legato, fast,
+      muted: all.filter(n => audible(n) && n.mt).length,
+      chords: all.filter(n => audible(n) && !n.mt && !verify && gc.get(gk(n)) > 1).length,
+      subFloor: all.filter(n => !audible(n)).length,
+    };
+  }
   function ptShowIdleStrip() {
     if (!ptAvailable() && !ndVerifyAvailable()) return;
     if (playing || _tunerHandle) return;   // a live owner is already painting the strip
     ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: 0, total: 0 });
+    // The pre-run denominator line ("Judging 20 of 24 notes — …") — disclosure
+    // BEFORE play, so the player never discovers an exemption from the score.
+    const jn = $('slopscale-judge-note');
+    if (jn) {
+      const p = activeBundle ? ptPreviewJudgeCounts(activeBundle) : null;
+      if (p && p.judged < p.total) {
+        const why = [];
+        if (p.chords) why.push(`${p.chords} chord notes`);
+        if (p.subFloor) why.push(`${p.subFloor} below the mic`);
+        if (p.muted) why.push(`${p.muted} muted`);
+        if (p.fast) why.push(`${p.fast} too fast to certify`);
+        if (p.legato) why.push(`${p.legato} slurred`);
+        jn.textContent = `Judging ${p.judged} of ${p.total} notes — ${why.join(' · ')} shown unjudged`;
+        jn.style.display = '';
+      } else if (p) {
+        jn.textContent = `Judging all ${p.judged} notes`;
+        jn.style.display = '';
+      } else { jn.style.display = 'none'; }
+    }
+    const jc = $('slopscale-judge-chip'); if (jc) jc.style.display = 'none';
     syncStripTuneBtn();
+  }
+  // Dwell chip (Slice-2 disclosure): while the playhead sits on a MERGED run of
+  // shown-not-judged content ≥0.5s long, name the class on the strip. Built
+  // per run by startPitchTracker; advanced by tick.
+  let _ptExemptIv = [], _ptChipIdx = 0, _ptChipLastT = -Infinity;
+  function ptUpdateJudgeChip(now) {
+    const el = $('slopscale-judge-chip'); if (!el) return;
+    if (now < _ptChipLastT - 0.25) _ptChipIdx = 0;   // loop wrap / seek-back
+    _ptChipLastT = now;
+    while (_ptChipIdx < _ptExemptIv.length && _ptExemptIv[_ptChipIdx].t1 < now) _ptChipIdx++;
+    let label = null;
+    for (let i = _ptChipIdx; i < _ptExemptIv.length; i++) {
+      const iv = _ptExemptIv[i];
+      if (iv.t0 > now) break;
+      if (now <= iv.t1 && (iv.t1 - iv.t0) >= 0.5) { label = iv.label; break; }   // dwell-gated by content length
+    }
+    if (label) { if (el.textContent !== label) el.textContent = label; el.style.display = ''; }
+    else if (el.style.display !== 'none') el.style.display = 'none';
   }
   // The strip's own Tune… button: idle-only (the scorer owns the strip during a
   // run, incl. paused; the tuner shows Done instead), and only when the YIN ear
@@ -14330,10 +14685,42 @@
     const durationMs = Math.round(performance.now() - _sessionStartMs - sessionPausedMs());
     // Discard sub-2s blips (accidental clicks, regenerate-while-playing)
     if (durationMs < 2000) { _activeSession = null; return; }
-    const passedTotal = ptWinPassedCount(currentPracticeTime - PT_DETECT_LATENCY);
+    // Settle any tremolo span whose end has passed, then count in UNITS
+    // (a span = 1; a chord = its member count — matching the denominator).
+    ptFinalizeSpans(currentPracticeTime - ptLatency());
+    const passedTotal = ptWinPassedCount(currentPracticeTime - ptLatency());
     _activeSession.duration_ms = durationMs;
-    _activeSession.hit_count   = _ptScored.size;
-    _activeSession.miss_count  = Math.max(0, passedTotal - _ptScored.size);
+    _activeSession.hit_count   = _ptScoredUnits;
+    _activeSession.miss_count  = Math.max(0, passedTotal - _ptScoredUnits);
+    // Timing-tendency + near-miss disclosure (Slice 2): stash the aggregates on
+    // the run info BEFORE the modal reads it. Threshold-gating happens at
+    // display (≥8 samples, |lean| ≥ 30ms) — the data is recorded regardless.
+    if (_ptRunInfo) {
+      const devs = _ptDevs.slice().sort((a, b) => a - b);
+      _ptRunInfo.leanMs = devs.length ? Math.round(devs[Math.floor(devs.length / 2)] * 1000) : null;
+      _ptRunInfo.leanN = devs.length;
+      _ptRunInfo.nearMiss = _ptNearMiss;
+      // Slice 3: A/V auto-calibration — the host-mirror sweep over this run's
+      // offset-free detections refines the hidden latency anchor for FUTURE
+      // runs (this run's scores are already settled). EMA keeps one weird run
+      // from yanking the anchor; the clamp keeps a garbage estimate sane.
+      const cal = ptCalibrateOffsetMs(_ptCalLog, _ptWin);
+      if (cal) {
+        const estMs = Math.max(0, Math.min(250, -cal.offsetMs));   // detections lag the chart → −offset = +latency
+        const prevMs = Math.round(_ptLatencyS * 1000);
+        // Dead-band: within ±8ms of the current anchor is measurement noise —
+        // don't chase it (also keeps a small consistent player-lean from being
+        // slowly absorbed into the anchor; the tendency line stays honest).
+        if (Math.abs(estMs - prevMs) >= 8) {
+          const nextMs = Math.round(prevMs * 0.7 + estMs * 0.3);
+          _ptLatencyS = nextMs / 1000;
+          try { localStorage.setItem('slopscale.latencyMs', String(nextMs)); } catch (_) {}
+        }
+        _ptRunInfo.calMs = estMs; _ptRunInfo.calMatched = cal.matched; _ptRunInfo.latencyMs = Math.round(_ptLatencyS * 1000);
+      } else {
+        _ptRunInfo.latencyMs = Math.round(_ptLatencyS * 1000);
+      }
+    }
     // End-of-run redesign (2026-06-06 three-lane panel): read PRIOR store state
     // before advancePathwayTier mutates it, so first-clear/fastest deltas are real.
     const _pw = _activeSession.mode === 'pathway' ? _activeSession.pathway_id : null;
@@ -15853,6 +16240,6 @@
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
   window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, ptPracticeTime: () => currentPracticeTime, ptWindows: () => _ptWin };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, ptPracticeTime: () => currentPracticeTime, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
