@@ -62,17 +62,27 @@ try {
   const h = await p.evaluate(async () => {
     const bundle = window.SlopScale.makeBundle(window.SlopScale.generateExercise(window.SlopScale.readConfig()));
     const om = bundle.openMidis || [], n0 = bundle.notes[0], midi = (om[n0.s] || 0) + n0.f, freq = 440 * Math.pow(2, (midi - 69) / 12);
-    let st = null, fired = 0, provActive = false;
+    let st = null, fired = 0, provActive = false, fadeCredited = false;
+    // Fade-frame rejection (feel panel 2026-06-06): conf ≤ 0.85 = a stale YIN
+    // fade re-emitting the previous pitch — it must NEVER score, even in-pitch
+    // in-window. Fire a burst of fades first and assert nothing lights.
+    for (let i = 0; i < 25 && !window.__fp; i++) await new Promise(r2 => setTimeout(r2, 20));
+    if (window.__fp) {
+      for (let i = 0; i < 4; i++) { window.__fp({ freqHz: freq, confidence: 0.70 }); await new Promise(r2 => setTimeout(r2, 20)); }
+      const x0 = bundle.getNoteState(n0); if (x0 === "hit" || x0 === "active") fadeCredited = true;
+    }
     for (let i = 0; i < 60; i++) {
       if (bundle.getNoteStateProvider() !== null) provActive = true;   // scorer startup is async — poll, don't snapshot once
       if (window.__fp) { window.__fp({ freqHz: freq, confidence: 0.95 }); fired++; }
       const x = bundle.getNoteState(n0); if (x === "hit" || x === "active") { st = x; break; }
       await new Promise(r2 => setTimeout(r2, 20));
     }
-    return { provActive, fired, st };
+    return { provActive, fired, st, fadeCredited };
   });
   ok(h.provActive, "getNoteStateProvider() !== null while the scorer runs (the host's detect-mode signal)");
+  ok(!h.fadeCredited, "fade frames (conf ≤ 0.85) never score — even in-pitch in-window");
   ok(h.st === "hit" || h.st === "active", "a CORRECT pitch lights note[0] (hit/active)", `state=${h.st} fired=${h.fired}`);
+  ok(h.fired === 1, "ONE fresh lock commits the hit (the host's single-frame rule)", `fired=${h.fired}`);
   await p.click("#slopscale-play").catch(() => {});
 
   // (5) CHORD EXEMPTION (2026-06-05, the DapperTap report): the host detector is

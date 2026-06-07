@@ -2769,6 +2769,7 @@
   let _ptRunInfo = null;        // results-modal diagnostics: judged universe + exemptions + which ear (set per run)
   let _ptSpanCount = 0;         // tremolo spans this run (unit-denominated)
   let _ptExempt = null;         // Slice-2 class counts { legato, fast, spanNotes, floorMs } (set per run)
+  let _ptJamRun = false;        // Jam run: scorer may run for the meter, but no note ever paints judged
   let _deliberateStop = false;  // true only across an explicit Stop / finite-run end — gates the results modal
   // ── Timing model (2026-06-06 seven-lane panel; MIRRORS the host's grader) ──
   // The host's note_detect judges with PARALLEL per-note candidate windows
@@ -2844,21 +2845,32 @@
   const PT_WIN_EARLY = 0.100;       // candidate window opens this early (host: early-strict ±100ms)
   const PT_WIN_LATE  = 0.100;       // late pad past the ring end
   const PT_RING_CAP  = 1.0;         // ring credit rides the sustain, capped (host: min(sus, 1s))
-  const PT_EVID_PAIR_MS = 150;      // two in-window frames ≤ this apart = a hit. The anti-sweep
-                                    // guard: the detector's lock-on sweep crosses a ±50¢ window in
-                                    // a SINGLE frame (measured +4023¢ → +485¢ → −285¢), so one frame
-                                    // never scores — but unlike the old consecutive-streak rule, a
-                                    // boundary-jitter frame no longer resets earned evidence.
+  // Evidence rule (2026-06-06 feel panel, audio-engine source finding): the
+  // HOST commits a hit on ONE clean frame — no pair rule exists in any host
+  // path. And YIN confidence is BIMODAL by construction: a FRESH detection is
+  // always > 0.85 (CMND < 0.15 at the accepted dip); every frame ≤ 0.85 is a
+  // stale FADE re-emitting the previous pitch (×0.85/frame). So scoring
+  // credits a single fresh frame; fades never score (they carry old pitch).
+  // The old 2-frame pair guarded the 40ms-EMA lock-on sweep — that sweep died
+  // with smoothingMs 12 (raw frames don't glide); the scoring-e2e wrong-key
+  // negative control is the standing arbiter that single-frame stays honest.
+  const PT_CONF_FRESH = 0.85;       // scoring evidence: fresh YIN locks only
+  const PT_CONF_INPUT = 0.55;       // input-presence + meter display floor
   const PT_BEND_CENTS = 600;        // bn notes: lenient pitch gate (host convention — the hit rides
                                     // presence + timing, never a moving bend target)
   // ── Slice 2: the fast-idiom honesty layer (docs/timing-judging-roundtable.md;
   //    constants characterized by probe-verifier-envelope 2026-06-06) ──────────
-  const PT_MIN_RING_YIN = 0.085;      // per-note certifiability floor, YIN ear. Panel
-                                      // bracket: "post-Slice-1 honest to ~160–180 BPM
-                                      // 16ths" → the floor sits below the 160-BPM-16th
-                                      // IOI (93.75ms), keeping the Slice-1 acceptance
-                                      // run per-note judged; a 180-BPM gallop doublet
-                                      // (83ms) falls below = checkpoint judging emerges.
+  const PT_MIN_RING_YIN = 0.045;      // per-note certifiability floor, YIN ear. Under
+                                      // the single-frame commit (feel panel 2026-06-06)
+                                      // a note is certifiable once its usable span
+                                      // covers ≥1 fresh frame at the ~40ms detector
+                                      // cadence (+ margin). Written-staccato spans are
+                                      // measured net of the speak budget (the string
+                                      // starts from mute); legato-ish runs ring ≈ IOI
+                                      // (continuous energy re-locks fast — no speak
+                                      // debit). A 180-BPM gallop doublet (~83ms ring,
+                                      // staccato-cut) still exempts = checkpoint
+                                      // judging preserved.
   const PT_MIN_RING_VERIFIER = 0.050; // MEASURED: the harmonic comb confirms 94% of
                                       // 50ms gated bursts (100% ≥100ms, degrades at
                                       // 35ms) → 200 BPM 16ths honestly judgeable in
@@ -2889,7 +2901,7 @@
   // verifier's one-target-at-a-time owner and the passed denominator. The cursor
   // is monotonic; a backward seek ≥ 0.25s (loop wrap, overview click-seek)
   // re-searches from the top — mirrors the host's backward-seek note reopen.
-  let _ptWin = [];                 // [{ key, t, susEff, matchStart, matchEnd, exclStart, exclEnd, notes[], pcs, lastEvidMs, credited, span? }]
+  let _ptWin = [];                 // [{ key, t, susEff, matchStart, matchEnd, exclStart, exclEnd, notes[], pcs, credited, span? }]
   let _ptWinByKey = new Map();     // ptKey(note) → window entry (gem miss-arming)
   let _ptWinLo = 0;                // monotonic cursor: first entry with matchEnd > tJudge
   let _ptWinLastT = -Infinity;
@@ -2918,9 +2930,14 @@
       // note's evidence lands in its own slot (clamped to the neighbor by the
       // midpoint pass below — never stolen from the next note).
       const budget = ptSpeakBudget(midiToFreq(Math.min(...pcs)));
-      const w = { key, t, susEff, matchStart: t - PT_WIN_EARLY, matchEnd: t + susEff + PT_WIN_LATE + budget,
-               exclStart: t - PT_WIN_EARLY, exclEnd: t + susEff + PT_WIN_LATE + budget, notes: gn, pcs,
-               lastEvidMs: -Infinity, credited: false };
+      // Chord groups get the host's ±150ms clean window (chordTimingHitThreshold
+      // — strum spread + FFT smear + anticipation; note_detect :1440), singles
+      // keep the ±100ms early-strict pad. Chords are judged only in verifier
+      // mode, so this widens nothing on the YIN path.
+      const early = gn.length > 1 ? 0.150 : PT_WIN_EARLY;
+      const w = { key, t, susEff, matchStart: t - early, matchEnd: t + susEff + PT_WIN_LATE + budget,
+               exclStart: t - early, exclEnd: t + susEff + PT_WIN_LATE + budget, notes: gn, pcs,
+               credited: false };
       if (span) { w.span = true; w.spanEnd = ringEnd; w.bktN = Math.max(1, Math.ceil((ringEnd - t) / PT_SPAN_BUCKET)); w.bkts = new Set(); }
       return w;
     }).sort((a, b) => a.t - b.t);
@@ -8240,23 +8257,29 @@
         const x = xForDt(dt);
         const y = laneY(n.s, nStr, inverted);
         const col = STRING_COLORS[n.s] || '#94a3b8';
+        // Hit paint (2026-06-06 feel panel — the host highway's grammar
+        // translated): hit/active = bright outline; miss = dimmed tile with
+        // the host-miss red rim; unjudged/exempt = plain.
+        const st = bundle.getNoteState ? bundle.getNoteState(n) : null;
+        const dimmed = st === 'miss';
+        if (dimmed) ctx.globalAlpha = 0.45;
 
         // sustain bar
         if ((n.sus || 0) > 0) {
           const x2 = xForDt(dt + n.sus);
           ctx.strokeStyle = col;
-          ctx.globalAlpha = 0.4;
+          ctx.globalAlpha = dimmed ? 0.2 : (st === 'hit' || st === 'active') ? 0.85 : 0.4;
           ctx.lineWidth = 9;
           ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(Math.min(W - RIGHT_PAD, x2), y); ctx.stroke();
-          ctx.globalAlpha = 1;
+          ctx.globalAlpha = dimmed ? 0.45 : 1;
         }
 
         // accent halo
         if (n.ac) {
           ctx.fillStyle = col;
-          ctx.globalAlpha = 0.18;
+          ctx.globalAlpha = dimmed ? 0.08 : 0.18;
           ctx.beginPath(); ctx.arc(x, y, 22, 0, Math.PI * 2); ctx.fill();
-          ctx.globalAlpha = 1;
+          ctx.globalAlpha = dimmed ? 0.45 : 1;
         }
 
         // dead note: hollow X instead of fret-number tile
@@ -8269,14 +8292,17 @@
           // note tile
           ctx.fillStyle = col;
           ctx.beginPath(); ctx.roundRect(x - 17, y - 13, 34, 26, 7); ctx.fill();
-          ctx.strokeStyle = n.ac ? '#f8fafc' : 'rgba(248,250,252,0.5)';
-          ctx.lineWidth = n.ac ? 3 : 1.2;
+          ctx.strokeStyle = (st === 'hit' || st === 'active') ? '#f8fafc'
+            : dimmed ? '#ff0066'
+            : n.ac ? '#f8fafc' : 'rgba(248,250,252,0.5)';
+          ctx.lineWidth = (st === 'hit' || st === 'active') ? 3 : n.ac ? 3 : dimmed ? 2 : 1.2;
           ctx.stroke();
           ctx.fillStyle = '#020617';
           ctx.font = '800 14px system-ui';
           ctx.textAlign = 'center';
           ctx.fillText(String(n.f), x, y + 5);
         }
+        if (dimmed) ctx.globalAlpha = 1;
 
         // palm mute under-bracket
         if (n.pm) {
@@ -8492,10 +8518,29 @@
         // "Erase" the string line behind the fret number so the digit reads cleanly.
         ctx.font = `700 ${fontSize}px ui-monospace,"Consolas","Courier New",monospace`;
         const tw = ctx.measureText(fretText).width;
-        ctx.fillStyle = t.bg; ctx.fillRect(x - tw/2 - 2, y - fontSize/2 - 1, tw + 4, fontSize + 2);
-        ctx.fillStyle = t.ink; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        // Hit paint ("the ink commits" — 2026-06-06 feel panel, UX spec): a
+        // credited note's erase-box becomes a FILLED ink chip with the digit
+        // knocked out in bg (inverted video — the strongest mono-ink signal,
+        // theme-free); a missed note's ink fades to dim ("the ink didn't
+        // take"). Exempt/unjudged notes draw plain — silence never reads as a
+        // miss. State comes from the same hook the highway gems read; it is
+        // null outside a scored run and always null in Jam (mirror rule).
+        const st = bundle.getNoteState ? bundle.getNoteState(n) : null;
+        if (st === 'hit' || st === 'active') {
+          ctx.fillStyle = t.ink;
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(x - tw/2 - 3, y - fontSize/2 - 2, tw + 6, fontSize + 4, 3);
+          else ctx.rect(x - tw/2 - 3, y - fontSize/2 - 2, tw + 6, fontSize + 4);
+          ctx.fill();
+          ctx.fillStyle = t.bg;
+        } else {
+          ctx.fillStyle = t.bg; ctx.fillRect(x - tw/2 - 2, y - fontSize/2 - 1, tw + 4, fontSize + 2);
+          ctx.fillStyle = st === 'miss' ? (t.inkSoft || t.dim) : t.ink;
+        }
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(fretText, x, y);
         ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+        ctx.fillStyle = t.ink;
 
         // Sustain tie — dashed line continuing on the string for the duration.
         if ((n.sus || 0) > 0 && !n.mt) {
@@ -8956,11 +9001,23 @@
         const y = stepToY(step, bottomY, ls);
         const nv = quantize(n.sus || beatDur);
         const up = step < 4;
+        // Hit paint (2026-06-06 feel panel, UX spec): a credited note gets a
+        // snug ink RING around its head (never a fill — fill changes duration
+        // semantics); a missed note's head/stem fade. Unjudged stays plain.
+        const st = bundle.getNoteState ? bundle.getNoteState(n) : null;
+        const dimmed = st === 'miss';
+        if (dimmed) ctx.globalAlpha = 0.35;
         ledgerLines(x, step, bottomY, ls);
         const acc = noteAccidental(midi, ksAlter);
         if (acc) drawAccidental(x, y, acc, ls);
         noteHead(x, y, nv, ls);
         if (nv.hasStem && !bk.has(`${n.t.toFixed(4)}|${n.s}`)) noteStemAndFlag(x, y, up, nv, ls);
+        if (dimmed) ctx.globalAlpha = 1;
+        if (st === 'hit' || st === 'active') {
+          ctx.strokeStyle = t.ink; ctx.lineWidth = 2.2;
+          ctx.beginPath(); ctx.ellipse(x, y, ls * 0.95, ls * 0.8, 0, 0, Math.PI * 2); ctx.stroke();
+          ctx.lineWidth = 1;
+        }
       }
     }
 
@@ -9537,7 +9594,7 @@
       if (n.t <= t + win && end >= t - win) {
         let alpha = 1;
         if (n.sus > 0 && t > n.t) alpha = Math.max(0.3, 1 - (t - n.t) / n.sus * 0.7);
-        out.push({ s: n.s, f: n.f, alpha });
+        out.push({ s: n.s, f: n.f, alpha, n });   // n rides for the hit-paint state lookup
       }
     }
     return out;
@@ -9751,6 +9808,15 @@
       ctx.globalAlpha = n.alpha; ctx.beginPath(); ctx.arc(x, y, 7, 0, 6.2832); ctx.fill();
       ctx.fillStyle = '#000'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(String(n.f), x, y);
+      // Hit paint (2026-06-06 feel panel): a CREDITED note adds a bright
+      // near-white ring around its live dot — reward-only; the strip is the
+      // honesty surface, so a miss paints NOTHING here, ever. ptGetNoteState
+      // self-guards (null without a scorer, always null in Jam).
+      const st = n.n ? ptGetNoteState(n.n) : null;
+      if (st === 'hit' || st === 'active') {
+        ctx.globalAlpha = 1; ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.arc(x, y, 10.5, 0, 6.2832); ctx.stroke();
+      }
       ctx.globalAlpha = 1;
     }
   }
@@ -10142,10 +10208,9 @@
           const contentLen = duration - (activeBundle.leadIn || 0);
           playAnchorChartTime -= contentLen;
           currentPracticeTime -= contentLen;
-          // Scoring hygiene across the wrap is inherent now: the window cursor
-          // re-searches on the backward clock jump (ptWinSeek), and armed
-          // evidence can't pair across it — the PT_EVID_PAIR_MS (150ms) gate
-          // rejects frames a whole pass apart in wall time.
+          // Scoring hygiene across the wrap is inherent: the window cursor
+          // re-searches on the backward clock jump (ptWinSeek), and credit is
+          // one-shot per window key — a prior pass can't re-credit this one.
         }
       }
       // Verifier scoring: refresh the harmonic-comb verify target for the
@@ -10891,6 +10956,12 @@
       }
       if (info.nearMiss >= 4) {
         rows.push(`<strong>${info.nearMiss}</strong> right-pitch moments landed just outside their timing window — closer than the score shows${devTail('(in-pitch ≤250ms off-window frames)')}`);
+      }
+      // Sparse-evidence disclosure (L&D ruling): below the grading floor the
+      // run advances on completion, and we say so — sparse evidence is no
+      // evidence, never a verdict either way.
+      if (judged && r.judgedPassed < 8) {
+        rows.push(`Only <strong>${r.judgedPassed}</strong> notes were mic-judged this run — too few to grade; cleared on completion${devTail('(< PT_MIN_JUDGED=8 → lenient path)')}`);
       }
     }
     let detailsOpen = false; try { detailsOpen = localStorage.getItem('slopscale.resultsDetails') === 'open'; } catch (_) {}
@@ -11730,8 +11801,7 @@
     playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
     scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
     // Scoring hygiene across a pause is inherent: paused frames are discarded
-    // in ptOnPitch, and armed evidence can't pair across the gap — the
-    // PT_EVID_PAIR_MS (150ms) gate rejects frames a pause apart in wall time.
+    // in ptOnPitch, so nothing scores against a frozen clock.
     syncPlayButton(); refreshStatusFromState();
   }
   // Dedicated transport Stop (the button left of Play/Pause). Acts on a running
@@ -13818,6 +13888,7 @@
     // read as a miss (the DapperTap mt bug, fixed the host's way).
     const _base = allNotes.filter(n => _audible(n) && !n.mt && (_ndVerifyMode || _gCounts.get(_gk(n)) === 1));
     _ptOpenMidis = bundle.openMidis || [];
+    _ptJamRun = isJamMode();   // the mirror rule: gems/paint never judge a Jam run
     // ── Slice 2: the fast-idiom honesty classes (docs/timing-judging-roundtable.md) ──
     // (a) LEGATO: ho/po notes have no pick transient — the PICKED note that
     //     opens the slur is judged; the slurred notes are shown, never judged
@@ -13860,7 +13931,15 @@
       const ioi = _nextOnset.get(n.t) - n.t;
       if (!isFinite(ioi)) return Infinity;   // the chart's last note rings into silence — always certifiable
       const sus = n.sus || 0.24;
-      return sus < 0.7 * ioi ? sus : ioi;
+      if (sus < 0.7 * ioi) {
+        // Written-staccato: the string starts from MUTE and is damped at sus —
+        // the usable span is the ring net of the speak budget (bass ruling:
+        // first creditable frame ≈ attack + speak; classify on the STABLE span,
+        // never judge a structurally uncreditable note).
+        const om = _ptOpenMidis[n.s];
+        return sus - ptSpeakBudget(midiToFreq((om ?? 40) + n.f));
+      }
+      return ioi;   // legato-ish run: continuous string energy re-locks fast — no speak debit
     };
     const _tooFast = (n) => !_legato(n) && !_spanKeyByNote.has(ptKey(n)) && _effRing(n) < _floor;
     _ptNotes = _base.filter(n => !_legato(n) && !_tooFast(n));
@@ -13970,18 +14049,20 @@
     // grading an on-time player ~80ms late on every note.
     const tJudge = currentPracticeTime - ptLatency();
     const passedTotal = ptWinPassedCount(tJudge);
-    if (confidence >= 0.55) _ptHadInput = true;   // real input seen → misses may now light (anti "sea of red")
-    if (confidence < 0.55) {
+    if (confidence >= PT_CONF_INPUT) _ptHadInput = true;   // real input seen → misses may now light (anti "sea of red")
+    if (confidence < PT_CONF_INPUT) {
       ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: _ptScoredUnits, total: passedTotal });
       return;
     }
+    // Fresh-lock gate: only frames the detector locked THIS frame may score
+    // (≤0.85 = a fade re-emitting the previous pitch — display-only).
+    const fresh = confidence > PT_CONF_FRESH;
     // PARALLEL candidate matching (host-mirror): every unscored window containing
     // tJudge is a live candidate, each judged at its OWN pitch; the frame credits
     // its best pitch match. This replaces the serialized first-match rule that
     // judged every attack against the PREVIOUS note's window in continuous runs.
-    // Evidence rule: two in-window frames ≤ PT_EVID_PAIR_MS apart (the lock-on
-    // sweep contributes exactly one — guarded by smoke-scoring-e2e's negative
-    // control); a boundary-jitter frame no longer resets earned evidence.
+    // Evidence rule: ONE fresh in-window in-pitch lock (the host's commit rule;
+    // fades never score) — guarded by smoke-scoring-e2e's negative control.
     // YIN scoring runs only when YIN is the scorer — in verifier mode ptOnPitch
     // is display-only (ndOnVerify owns _ptScored; double-judging would also
     // re-admit the chord asymmetry).
@@ -13989,7 +14070,7 @@
     // practice time + float MIDI) — the host-mirror sweep consumes it at run
     // end. Bounded; recording stops at the cap, never wraps.
     if (_ptCalLog.length < PT_CAL_MAX) _ptCalLog.push({ bt: currentPracticeTime, m: 69 + 12 * Math.log2(freqHz / 440) });
-    if (!_ndVerifyMode) {
+    if (!_ndVerifyMode && fresh) {
       let best = null, bestAbs = Infinity;
       for (let i = _ptWinLo; i < _ptWin.length; i++) {
         const w = _ptWin[i];
@@ -14005,24 +14086,19 @@
       }
       if (best) {
         if (best.span) {
-          // Tremolo span: an in-tune frame marks its 100ms presence bucket;
-          // credit waits for end-of-span (ptFinalizeSpans).
+          // Tremolo span: a fresh in-tune frame marks its 100ms presence
+          // bucket; credit waits for end-of-span (ptFinalizeSpans).
           const bi = Math.floor((tJudge - best.t) / PT_SPAN_BUCKET);
           if (bi >= 0 && bi < best.bktN) best.bkts.add(bi);
         } else {
-          const nowMs = performance.now();
-          if (nowMs - best.lastEvidMs <= PT_EVID_PAIR_MS) {
-            ptCreditWindow(best);
-          } else {
-            best.lastEvidMs = nowMs;   // first evidence frame — armed, awaiting its pair
-            // Timing tendency: evidence arrival vs onset on the judge clock
-            // (PT_DETECT_LATENCY already removes the nominal capture delay, so
-            // on-time play centers near 0). Disclosure only — never scored.
-            _ptDevs.push(tJudge - best.t);
-          }
+          // Single-frame commit (the host's rule): one fresh in-window
+          // in-pitch lock credits the note. Timing tendency records the
+          // crediting frame's arrival vs onset (disclosure only).
+          if (!best.credited) _ptDevs.push(tJudge - best.t);
+          ptCreditWindow(best);
         }
       } else {
-        // Near-miss aggregate: a confident in-pitch frame that lands just
+        // Near-miss aggregate: a fresh in-pitch frame that lands just
         // OUTSIDE its note's window (≤250ms off either edge) — the "I played
         // it, why no credit" feel, converted to a disclosed number.
         for (let i = Math.max(0, _ptWinLo - 1); i < _ptWin.length; i++) {
@@ -14064,7 +14140,7 @@
     _ptNotes = []; _ptScored = new Set(); _ptByKey = new Map(); _ptHadInput = false;
     _ptWin = []; _ptWinByKey = new Map(); _ptWinLo = 0; _ptWinLastT = -Infinity; _ptWinPassedNotes = [];
     _ptScoredUnits = 0; _ptSpanPending = []; _ptDevs = []; _ptNearMiss = 0; _ptSpanCount = 0; _ptExempt = null;
-    _ptExemptIv = []; _ptChipIdx = 0; _ptChipLastT = -Infinity; _ptCalLog = [];
+    _ptExemptIv = []; _ptChipIdx = 0; _ptChipLastT = -Infinity; _ptCalLog = []; _ptJamRun = false;
     { const jc = $('slopscale-judge-chip'); if (jc) jc.style.display = 'none'; }
     _ptMeterEma = { key: null, cents: NaN };
     // Return to the resting state instead of hiding — the strip stays a
@@ -14082,6 +14158,8 @@
   // a short note that's hit stays 'hit' (the strike flare).
   function ptGetNoteState(note) {
     if ((!_ptHandle && !_ndVerifyMode) || !note) return null;
+    if (_ptJamRun) return null;   // Jam is a MIRROR, never a judge — no hit/miss paint on any surface
+
     const k = ptKey(note), tn = _ptByKey.get(k);
     if (!tn) return null;                                   // not a judged note (e.g. count-in lead-in)
     const now = currentPracticeTime, end = tn.t + (tn.sus || 0.24);
@@ -14144,8 +14222,13 @@
     if (needleEl) { needleEl.style.left = `${50 + cc / 2}%`; needleEl.style.background = color; }
     if (centsEl) { centsEl.textContent = active ? `${cents >= 0 ? '+' : ''}${cents}¢` : ''; centsEl.style.color = color; }
     if (accEl) {
-      if (total > 0) { const p = Math.round(hits / total * 100); accEl.textContent = `${hits}/${total} (${p}%)`; accEl.style.color = p >= 80 ? '#22c55e' : p >= 60 ? '#eab308' : '#ef4444'; }
-      else { accEl.textContent = '--'; accEl.style.color = ''; }
+      // Gained-only live tally (2026-06-06 feel panel — gamification + L&D +
+      // market converged): a count that only goes UP, in meter green. The old
+      // `12/15 (80%)` traffic-light WAS the "feels too strict" experience —
+      // a running verdict, red below 60%, mid-run. The denominator lives
+      // pre-run ("Judging N of M") and post-run (the modal owns verdicts).
+      if (hits > 0) { accEl.textContent = String(hits); accEl.style.color = '#22c55e'; }
+      else { accEl.textContent = total > 0 ? '0' : '--'; accEl.style.color = ''; }
     }
   }
   // Resting-state strip (2026-06-06, discoverability ask): the mic-monitor /
@@ -14184,11 +14267,14 @@
     for (const n of base) {
       if (spanKeys.has(ptKey(n))) continue;
       if (n.ho || n.po) { legato++; continue; }
-      // Effective ring (mirrors the live classifier): written-staccato caps at
-      // sus; legato-ish runs ring ≈ IOI (the string rings to the next attack);
-      // the last note rings into silence — always certifiable.
+      // Effective ring (mirrors the live classifier): written-staccato spans
+      // are net of the speak budget (string starts from mute); legato-ish runs
+      // ring ≈ IOI; the last note rings into silence — always certifiable.
       const ioi = nxt.get(n.t) - n.t, sus = n.sus || 0.24;
-      if (isFinite(ioi) && (sus < 0.7 * ioi ? sus : ioi) < floor) { fast++; continue; }
+      const ring = !isFinite(ioi) ? Infinity
+        : sus < 0.7 * ioi ? sus - ptSpeakBudget(midiToFreq((opens[n.s] ?? 40) + n.f))
+        : ioi;
+      if (ring < floor) { fast++; continue; }
       judged++;
     }
     return {
@@ -14481,7 +14567,9 @@
   }
   function advancePathwayTier(session) {
     const total = (session.hit_count || 0) + (session.miss_count || 0);
-    const accurate = total === 0 || (session.hit_count || 0) / total >= 0.65;
+    // Below PT_MIN_JUDGED the evidence can't grade — lenient self-confirm,
+    // same as mic-less (the modal discloses the sparse-evidence advance).
+    const accurate = total < PT_MIN_JUDGED || (session.hit_count || 0) / total >= 0.65;
     if (!accurate) return null;
     if (session.mode === 'pathway' && session.pathway_id && PATHWAYS[session.pathway_id]) {
       // Proof-loop settling-tax (flagged, pilot only): clear only on a run that HELD
@@ -14551,9 +14639,14 @@
   // hit); when scoring is ABSENT it's lenient/self-confirm true — matching
   // advancePathwayTier, so the rung still advances where the host has no pitch input
   // (the player owns the gate; consistent with gained-only/never-gates).
+  // PT_MIN_JUDGED (L&D ruling, 2026-06-06 feel panel): below 8 judged units the
+  // evidence is too sparse to GRADE — degrade to the same lenient self-confirm
+  // path as mic-less (sparse evidence = no evidence, not weak evidence); the
+  // results modal discloses it. One constant, every gate consumer.
+  const PT_MIN_JUDGED = 8;
   function runIsClean(session) {
     const total = (session.hit_count || 0) + (session.miss_count || 0);
-    return total === 0 || (session.hit_count || 0) / total >= 0.65;
+    return total < PT_MIN_JUDGED || (session.hit_count || 0) / total >= 0.65;
   }
   // XP difficulty multiplier — gently weights the tempo tier, never penalizes easy
   // play (floor 1.0). The time base means a maxed exercise keeps earning for PLAYING.
