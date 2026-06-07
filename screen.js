@@ -4199,7 +4199,7 @@
         await loadScriptOnce('slopscale-waf-player', WAF_PLAYER_URL);
         if (typeof WebAudioFontPlayer === 'undefined') throw new Error('WebAudioFontPlayer missing');
         if (!wafPlayer) wafPlayer = new WebAudioFontPlayer();
-        const ctx = audioCtx || (audioCtx = new (window.AudioContext || window.webkitAudioContext)());
+        const ctx = ensureAudioCtx();
         if (!window[varName]) await loadScriptOnce('slopscale-waf-' + key, url);
         const preset = window[varName];
         if (!preset) throw new Error('preset var missing');
@@ -10788,6 +10788,153 @@
     return bn === 0.5 ? '½' : bn === 1 ? 'full' : bn === 1.5 ? '1½' : '2';
   }
 
+  // ── Host output-device follow ──────────────────────────────────────────────
+  // The desktop host's JUCE Audio Engine routes the MAIN GAME's audio to the
+  // user-selected output device, but plugin Web Audio plays to the OS DEFAULT
+  // sink — so a player monitoring a non-default interface hears the base game
+  // while SlopScale is silent (real user report, Arch Linux + Focusrite,
+  // 2026-06-07; Christian's ruling: "should follow main game"). Follow the
+  // host's choice (inherit-never-write): read the device NAME the Audio Engine
+  // panel exposes (live `slopsmithDesktop.audio.getCurrentDevice()` when the
+  // engine is running, else its `localStorage['slopsmith-audio-device']`
+  // snapshot mirror), match it against Chromium's audiooutput labels (our
+  // scorer's mic grant is what exposes output labels), and steer the one shared
+  // audioCtx there via AudioContext.setSinkId. Web hosts / engine stopped /
+  // no match ⇒ default sink — exactly today's behavior. Matching is heuristic
+  // by necessity: JUCE (ALSA/WASAPI) and Chromium (PulseAudio/PipeWire) name
+  // the same hardware differently, but vendor/product tokens ("scarlett",
+  // "2i2") usually survive both. When we CAN'T follow a configured device we
+  // say so (status-line suffix + one console.warn) — the silent failure was
+  // the actual bug. Never blocks or breaks playback.
+  let _sinkResolved = Object.create(null); // device name → matched deviceId (successes only)
+  const _sinkWarned = Object.create(null); // device name → true (one warn per name)
+  let _sinkAppliedId = null;               // sinkId currently applied to audioCtx
+  let _sinkMismatch = '';                  // non-empty: host is on a device we couldn't follow
+  // Informative-token filter: generic audio/driver words that appear in device
+  // names on one side but not the other. "default"/"pulse"-style JUCE entries
+  // normalize to zero tokens → treated as the default sink (correct: same device).
+  const SINK_STOPWORDS = new Set(['audio', 'usb', 'alsa', 'wasapi', 'asio', 'jack', 'pulse', 'pulseaudio',
+    'pipewire', 'analog', 'analogue', 'stereo', 'mono', 'speakers', 'speaker', 'headphones', 'headphone',
+    'output', 'out', 'device', 'default', 'sound', 'card', 'interface', 'hw', 'plughw', 'front', 'direct',
+    'hardware', 'conversions', 'digital', 'hdmi', 'displayport', 'mapper', 'driver', 'high', 'definition']);
+  function sinkTokens(s) {
+    return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ')
+      .filter((t) => t && !SINK_STOPWORDS.has(t));
+  }
+  // Pure matcher (unit-testable via __ss_debug): JUCE device name → one of the
+  // browser's audiooutput devices, or null. Exact → substring → token-overlap
+  // (≥0.5 of the JUCE name's informative tokens, unique winner). Any ambiguity
+  // (sibling outputs like "Line 1/2" vs "Line 3/4") bails to default.
+  function pickSinkMatch(name, outs) {
+    const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const nNorm = norm(name);
+    if (!nNorm) return null;
+    const labeled = (outs || []).map((d) => ({ d, norm: norm(d.label) })).filter((x) => x.norm);
+    let hits = labeled.filter((x) => x.norm === nNorm);
+    if (!hits.length) hits = labeled.filter((x) => x.norm.includes(nNorm) || nNorm.includes(x.norm));
+    if (!hits.length) {
+      const nTok = sinkTokens(name);
+      if (!nTok.length) return null;
+      const scored = labeled
+        .map((x) => { const lTok = new Set(sinkTokens(x.d.label)); return { x, ov: nTok.filter((t) => lTok.has(t)).length / nTok.length }; })
+        .filter((s) => s.ov >= 0.5)
+        .sort((a, b) => b.ov - a.ov);
+      if (scored.length === 1 || (scored.length > 1 && scored[0].ov > scored[1].ov)) hits = [scored[0].x];
+    }
+    if (hits.length !== 1) return null;
+    return { deviceId: hits[0].d.deviceId, label: hits[0].d.label };
+  }
+  async function resolveSinkId(name) {
+    if (_sinkResolved[name]) return _sinkResolved[name];
+    let devices;
+    try { devices = await navigator.mediaDevices.enumerateDevices(); } catch (_) { return null; }
+    const hit = pickSinkMatch(name, devices.filter((d) => d.kind === 'audiooutput'));
+    // Success-only cache: pre-mic-grant the labels are empty (no match) and the
+    // grant arrives with the first scored run — a cached failure would poison
+    // the Play-time retry.
+    if (hit) { _sinkResolved[name] = hit.deviceId; return hit.deviceId; }
+    return null;
+  }
+  async function applyHostSink() {
+    try {
+      const ctx = audioCtx;
+      if (!ctx || typeof ctx.setSinkId !== 'function') return; // webkit/no-support: silently skip
+      // Only follow while the host engine is actually RUNNING — when it's
+      // stopped the main game itself plays HTML5 → OS default, and following
+      // the saved device would make us diverge from it.
+      const bridge = window.slopsmithDesktop && window.slopsmithDesktop.audio;
+      let name = null;
+      if (bridge && typeof bridge.isAudioRunning === 'function') {
+        let running = false;
+        try { running = !!(await bridge.isAudioRunning()); } catch (_) {}
+        if (running) {
+          if (typeof bridge.getCurrentDevice === 'function') {
+            try { const cur = await bridge.getCurrentDevice(); if (cur && typeof cur.output === 'string' && cur.output.trim()) name = cur.output.trim(); } catch (_) {}
+          }
+          if (!name) { // panel snapshot mirror — same shape, saved-state fallback
+            try { const snap = JSON.parse(localStorage.getItem('slopsmith-audio-device') || 'null'); if (snap && typeof snap.output === 'string' && snap.output.trim()) name = snap.output.trim(); } catch (_) {}
+          }
+        }
+      }
+      if (!name || !sinkTokens(name).length) { // no engine / web host / "default"-class device
+        _sinkMismatch = '';
+        if (_sinkAppliedId) { _sinkAppliedId = null; await ctx.setSinkId(''); }
+        return;
+      }
+      const id = await resolveSinkId(name);
+      if (!id) {
+        if (_sinkAppliedId) { _sinkAppliedId = null; try { await ctx.setSinkId(''); } catch (_) {} }
+        _sinkMismatch = `audio on system default — host engine is on “${name}”`;
+        if (!_sinkWarned[name]) {
+          _sinkWarned[name] = true;
+          console.warn(`[SlopScale] The host audio engine outputs to "${name}" but no matching browser output device was found; SlopScale is playing to the system default output.`);
+        }
+        refreshStatusFromState();
+        return;
+      }
+      if (id === _sinkAppliedId) { _sinkMismatch = ''; return; }
+      // setSinkId on a running ctx preserves currentTime + scheduled sources
+      // (brief device-swap gap, no time-base reset) — but outputLatency can
+      // jump with the sink, and the timing-window anchor bundles it. Nudge the
+      // anchor by the measured delta when it's material (>20ms); smaller
+      // shifts the per-run auto-cal absorbs.
+      const before = Number(ctx.outputLatency) || 0;
+      await ctx.setSinkId(id);
+      _sinkAppliedId = id; _sinkMismatch = '';
+      const deltaMs = Math.round(((Number(ctx.outputLatency) || 0) - before) * 1000);
+      if (Math.abs(deltaMs) > 20) {
+        const nextMs = Math.max(0, Math.min(250, Math.round(_ptLatencyS * 1000) + deltaMs));
+        _ptLatencyS = nextMs / 1000;
+        try { localStorage.setItem('slopscale.latencyMs', String(nextMs)); } catch (_) {}
+      }
+      refreshStatusFromState();
+    } catch (e) {
+      console.warn('[SlopScale] output-device follow failed (playing to default):', e);
+    }
+  }
+  // Hot-plug: device labels/ids change → drop the resolution cache and re-apply
+  // immediately (an unplugged sink must fall back to default, not go silent).
+  try {
+    if (navigator.mediaDevices && typeof navigator.mediaDevices.addEventListener === 'function') {
+      navigator.mediaDevices.addEventListener('devicechange', () => {
+        _sinkResolved = Object.create(null);
+        if (audioCtx) applyHostSink();
+      });
+    }
+  } catch (_) {}
+  // The one creation seam for the shared playback AudioContext (replaces the
+  // former four inline `new AudioContext()` sites). Creation stays SYNCHRONOUS
+  // — callers rely on it inside the click gesture — with the sink steer kicked
+  // off fire-and-forget; onPlayToggle additionally awaits it (bounded) so the
+  // first scheduled notes land on the right device.
+  function ensureAudioCtx() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      applyHostSink();
+    }
+    return audioCtx;
+  }
+
   // ── Audio output bus (master + per-track) ─────────────────────────────────
   // Every voice routes through a per-track GainNode → a shared master → a safety
   // limiter → destination, instead of connecting straight to the output. This is
@@ -12150,7 +12297,7 @@
     // all audio is off if this pass covers the lead-in.
     const wantCountIn = lead > 0 && (fromTime || 0) < lead - 1e-4;
     if (!audio.notes && !audio.metronome && !audio.harmony && !wantCountIn) return;
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    ensureAudioCtx();
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
     const ctx = audioCtx, base = ctx.currentTime + (Number.isFinite(delaySeconds) ? delaySeconds : AUDIO_LOOKAHEAD_SECONDS), startFrom = fromTime || 0;
     // Use the bundle's own openMidis so note frequencies always match what was
@@ -12404,8 +12551,12 @@
     }
     // Create/resume the AudioContext inside the click gesture (before any await) so
     // the voice warm-up + playback don't start on a suspended context.
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    ensureAudioCtx();
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    // Bounded wait for the host output-device steer so the run's first notes
+    // land on the right sink (150ms cap — routing never delays Play noticeably,
+    // and a slow/failed steer just starts on the default sink).
+    await Promise.race([applyHostSink(), new Promise((r) => setTimeout(r, 150))]);
     // In session mode, Play builds + starts the selected session if one isn't
     // already loaded; otherwise it replays the built session from the playhead.
     if ($('slopscale-root')?.classList.contains('slopscale-session-mode')) {
@@ -12697,9 +12848,13 @@
     } catch { return ''; }
   }
   function refreshStatusFromState() {
-    if (!activeBundle) { showStatus('Ready'); return; }
+    // Output-device honesty: when the host engine is on a device we couldn't
+    // follow, say so right where the player is looking (the silent failure was
+    // the actual bug — Arch + Focusrite report, 2026-06-07).
+    const sinkNote = _sinkMismatch ? ` · ⚠ ${_sinkMismatch}` : '';
+    if (!activeBundle) { showStatus(`Ready${sinkNote}`); return; }
     const desc = describeCurrentContent();
-    showStatus(playing ? (paused ? `Paused — ${desc}` : `Playing — ${desc}`) : `Ready — ${desc}`);
+    showStatus(playing ? (paused ? `Paused — ${desc}${sinkNote}` : `Playing — ${desc}${sinkNote}`) : `Ready — ${desc}${sinkNote}`);
   }
 
   async function onGenerate() {
@@ -15905,7 +16060,7 @@
     // (before any await). Without this, new AudioContext() created inside the
     // async continuation below may start in 'suspended' state on some hosts,
     // causing notes scheduled with the frozen currentTime to fire in the past.
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    ensureAudioCtx();
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
     // Sessions follow the user's form string-setup ONLY within the same
     // instrument family: a 7-string player gets a guitar session in 7-string,
@@ -16956,6 +17111,6 @@
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
   window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, ptPracticeTime: () => currentPracticeTime, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, ptPracticeTime: () => currentPracticeTime, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch }) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();

@@ -18,6 +18,14 @@
 //
 // So this guard is TARGET-AWARE: on the SDK-having checkout it asserts a real, scorer-usable
 // context while SlopScale is visible; on the SDK-less bundled target it asserts the stub.
+//
+// (3) host output-device FOLLOW (2026-06-07, Arch+Focusrite report): the shared audioCtx
+//     follows the desktop host's JUCE Audio Engine output device (ensureAudioCtx seam →
+//     applyHostSink → setSinkId), with a pure name matcher (pickSinkMatch) and a visible
+//     mismatch fallback. Rows here: web-host no-op (no bridge → default sink, no mismatch),
+//     the matcher's exact/cross-naming/ambiguity/default-class semantics, and a faked
+//     desktop bridge at Play → playback still runs + the honest ⚠ mismatch is surfaced
+//     (headless has no matching output device, so the can't-follow path is what's exercised).
 import { chromium } from "playwright";
 
 const HOST = process.env.SLOPSMITH_HOST || "http://127.0.0.1:8765";
@@ -32,7 +40,9 @@ async function ensureHost() {
 const browser = await chromium.launch({ headless: true });
 try {
   await ensureHost();
-  const page = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await ctx.addInitScript(() => { globalThis.__SS_HARNESS__ = true; });  // sink rows read __ss_debug
+  const page = await ctx.newPage();
   page.on("pageerror", e => console.error("[page error]", e.message));
   await page.goto(`${HOST}/`, { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#plugin-slopscale", { state: "attached", timeout: 20000 });
@@ -86,6 +96,81 @@ try {
     return { decode };
   });
   ok(hidden.decode === "function", "REAL AudioContext (decodeAudioData present) when SlopScale is backgrounded — host stem loader works", `decodeAudioData=${hidden.decode}`);
+
+  // ── (3) Host output-device follow ──────────────────────────────────────────
+
+  // 3a. Web-host no-op: no slopsmithDesktop bridge on this target → the sink
+  //     follow must leave the ctx on the default sink with no mismatch claim
+  //     (byte-identical to pre-feature behavior).
+  const noop = await page.evaluate(() => {
+    const dbg = globalThis.__ss_debug;
+    return {
+      hasMatcher: typeof dbg?.pickSinkMatch === "function",
+      hasApply: typeof dbg?.applyHostSink === "function",
+      state: dbg?.sinkState ? dbg.sinkState() : null,
+      bridge: !!window.slopsmithDesktop,
+    };
+  });
+  ok(noop.hasMatcher && noop.hasApply, "sink follow: seam + matcher exposed on __ss_debug", `matcher=${noop.hasMatcher} apply=${noop.hasApply}`);
+  ok(!noop.bridge && noop.state && noop.state.appliedId === null && noop.state.mismatch === "",
+    "sink follow: web host (no bridge) is a clean no-op — default sink, no mismatch",
+    `appliedId=${noop.state?.appliedId} mismatch=${JSON.stringify(noop.state?.mismatch)}`);
+
+  // 3b. The pure matcher's semantics (the unit-testable piece — canned
+  //     JUCE-name vs Chromium-label pairs, incl. the Linux cross-naming case).
+  const match = await page.evaluate(() => {
+    const m = globalThis.__ss_debug.pickSinkMatch;
+    const outs = (pairs) => pairs.map(([deviceId, label]) => ({ deviceId, label, kind: "audiooutput" }));
+    return {
+      exact: m("Scarlett 2i2 USB", outs([["a", "Speakers"], ["b", "Scarlett 2i2 USB"]]))?.deviceId,
+      // JUCE-ALSA name vs PipeWire-style label: vendor/product tokens survive both
+      cross: m("Scarlett 2i2 USB Analog Stereo", outs([["a", "Built-in Audio Analog Stereo"], ["b", "Focusrite Scarlett 2i2 USB Audio"]]))?.deviceId,
+      // sibling outputs with equal claim → ambiguity bails to default
+      ambiguous: m("Scarlett 2i2", outs([["a", "Scarlett 2i2 Line 1/2"], ["b", "Scarlett 2i2 Line 3/4"]])),
+      // "default"-class device names: zero informative tokens → applyHostSink's
+      // sinkTokens gate treats them as the default sink (never reaches matching)
+      defaultTokens: globalThis.__ss_debug.sinkTokens("Speakers (High Definition Audio Device)").length,
+      defaultName: m("default", outs([["a", "Built-in Audio Analog Stereo"], ["b", "Focusrite Scarlett 2i2 USB Audio"]])),
+      unrelated: m("Komplete Audio 6", outs([["a", "Built-in Audio Analog Stereo"], ["b", "Focusrite Scarlett 2i2 USB Audio"]])),
+    };
+  });
+  ok(match.exact === "b", "matcher: exact label match wins", `got=${match.exact}`);
+  ok(match.cross === "b", "matcher: JUCE-ALSA vs PipeWire cross-naming resolves via vendor tokens", `got=${match.cross}`);
+  ok(match.ambiguous === null, "matcher: sibling-output ambiguity bails to default", `got=${JSON.stringify(match.ambiguous)}`);
+  ok(match.defaultTokens === 0 && match.defaultName === null, "matcher: default-class names (all stopwords) → default sink", `tokens=${match.defaultTokens} m(default)=${JSON.stringify(match.defaultName)}`);
+  ok(match.unrelated === null, "matcher: unrelated device never false-positives", `got=${JSON.stringify(match.unrelated)}`);
+
+  // 3c. Faked desktop bridge at Play: playback must still run, and since headless
+  //     Chromium has no matching output device, the honest can't-follow path fires
+  //     (mismatch set + ⚠ in the status line). Routing must never block Play.
+  //     NOTE: a real STOP first — the earlier rows leave the transport PAUSED
+  //     (play-click #2 pauses since the transport split), and the resume branch
+  //     deliberately doesn't re-run the sink steer; the per-run application
+  //     happens on a fresh start.
+  await page.evaluate(() => {
+    window.slopsmithDesktop = { audio: {
+      isAudioRunning: async () => true,
+      getCurrentDevice: async () => ({ inputType: "ALSA", outputType: "ALSA", input: "", output: "Phantom Interface QX-7" }),
+    } };
+    const stop = document.getElementById("slopscale-stop");
+    if (stop && !stop.disabled) stop.click();
+  });
+  await page.waitForTimeout(200);
+  await page.click("#slopscale-play");
+  await page.waitForTimeout(250);
+  const t0 = await page.evaluate(() => globalThis.__ss_debug.ptPracticeTime());
+  await page.waitForTimeout(600);
+  const fake = await page.evaluate(() => ({
+    t: globalThis.__ss_debug.ptPracticeTime(),
+    state: globalThis.__ss_debug.sinkState(),
+    status: document.getElementById("slopscale-status")?.textContent || "",
+  }));
+  ok(fake.t > t0, "fake bridge: playback clock still advances (sink follow never blocks Play)", `t0=${t0.toFixed(3)} t1=${fake.t.toFixed(3)}`);
+  ok(fake.state.appliedId === null && fake.state.mismatch.includes("Phantom Interface QX-7"),
+    "fake bridge: unmatchable device → default sink + honest mismatch state", `state=${JSON.stringify(fake.state)}`);
+  ok(fake.status.includes("⚠"), "fake bridge: status line surfaces the ⚠ output mismatch", `status=${JSON.stringify(fake.status)}`);
+  await page.click("#slopscale-play"); // stop
+  await page.evaluate(() => { delete window.slopsmithDesktop; });
 
   console.log(`\n${fails === 0 ? "PASS" : "FAIL"}  audiocontext-sharing: ${fails} failure(s)  [SDK ${hasSDK ? "present" : "absent"}]`);
   process.exit(fails ? 1 : 0);
