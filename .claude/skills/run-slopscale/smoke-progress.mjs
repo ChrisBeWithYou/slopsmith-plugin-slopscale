@@ -73,6 +73,25 @@ function runProgressInPage() {
   const rDirty = S.advanceDepthLadder(sess("A", { hit_count: 50, miss_count: 50 }));   // 50% < 65%
   ok("unclean run earns no Travel credit", (!rDirty || rDirty.travelKey === null), JSON.stringify(rDirty));
 
+  // ── CLEAN rung (hand-marks Slice 2): the player-opted supports-off run ──────
+  // Credit needs marks OFF at sessionBegin (session.hand_marks_on === false)
+  // AND still off at credit time (the live pill state) — plus the same bar as
+  // Travel (Speed cleared, top tier, clean). One-time flip.
+  localStorage.setItem("slopscale.pathway_tiers", JSON.stringify({ pent_foundation: { highest_tier: 3 } }));
+  localStorage.setItem("slopscale.progress", JSON.stringify({ mode: "casual", xp: 0, byNode: {} }));
+  const hmPrev = localStorage.getItem("slopscale.showHandMarks");
+  localStorage.setItem("slopscale.showHandMarks", "on");
+  const rOn = S.advanceDepthLadder(sess("A", { hand_marks_on: true }));
+  ok("no Clean credit while marks are on", !rOn || !rOn.cleanRung, JSON.stringify(rOn));
+  localStorage.setItem("slopscale.showHandMarks", "off");
+  const rClean = S.advanceDepthLadder(sess("E", { hand_marks_on: false }));
+  const rClean2 = S.advanceDepthLadder(sess("E", { hand_marks_on: false }));
+  const pClean = S.progressLoad();
+  ok("supports-off clean run credits the Clean rung ONCE",
+    rClean && rClean.cleanRung === true && (!rClean2 || !rClean2.cleanRung) && !!(((pClean.byNode.pent_foundation || {}).depth || {}).clean),
+    JSON.stringify({ rClean, rClean2 }));
+  if (hmPrev == null) localStorage.removeItem("slopscale.showHandMarks"); else localStorage.setItem("slopscale.showHandMarks", hmPrev);
+
   // ── Off mode collapses the layer (no xp/depth/return) ──────────────────────
   S.progressSetMode("off");
   const xpBefore = S.progressLoad().xp;

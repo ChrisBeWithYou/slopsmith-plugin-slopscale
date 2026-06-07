@@ -361,8 +361,12 @@
   // here from the old hardcoded rhythmSteps lookup.
   const RHYTHM_CELLS = {
     // Per-beat gallop family (the Gallop & Snap rung; metal-idiom lane).
-    gallop:         { beats:[0.5, 0.25, 0.25], label:'Gallop (♪ ♬)' },           // NWOBHM/power
-    reverse_gallop: { beats:[0.25, 0.25, 0.5], label:'Reverse gallop (♬ ♪)' },   // thrash/death
+    // `strokes` (optional, hand-marks Slice 2): the cell's DEFINITIVE pick
+    // pattern (guitar-pedagogy ruling: gallop default D-DU, reverse DU-D;
+    // all-down is a named variant, not the default). Consumed by
+    // applyStrokePolicy when stroke emission is active; display-only.
+    gallop:         { beats:[0.5, 0.25, 0.25], strokes:['d','d','u'], label:'Gallop (♪ ♬)' },           // NWOBHM/power
+    reverse_gallop: { beats:[0.25, 0.25, 0.5], strokes:['d','u','d'], label:'Reverse gallop (♬ ♪)' },   // thrash/death
     skip_chug:      { beats:[0.75, 0.25],      label:'Skip / dotted (♩. ♬)' },   // thrash skip
     snap:           { beats:[0.25, 0.75],      label:'Snap (♬ ♩.)' },            // front-weighted pickup
     // World-rhythm cells (tap on one note = "the TIME of the feel"). Bar-commensurate.
@@ -381,6 +385,10 @@
       if (beats.some(b => !(b > 0))) throw new Error(`[SlopScale rhythm-cell] ${name} has a non-positive step`);
       const sum = beats.reduce((a, b) => a + b, 0);
       if (Math.abs(sum - Math.round(sum)) > 1e-6) throw new Error(`[SlopScale rhythm-cell] ${name} sums to ${sum} beats — must be a whole number of beats (it would phase against the bar)`);
+      const strokes = RHYTHM_CELLS[name].strokes;
+      if (strokes != null && (!Array.isArray(strokes) || strokes.length !== beats.length || strokes.some(s => s !== 'd' && s !== 'u'))) {
+        throw new Error(`[SlopScale rhythm-cell] ${name} strokes must be a d/u array matching beats (${beats.length})`);
+      }
     }
   })();
   // Default chord-scale for "mode of the moment". These follow the codebase's
@@ -542,7 +550,7 @@
     { id:'concept_fretboard', label:'Fretboard', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the pentatonic box and the CAGED major scale. Stop thinking in one box: connect the shapes, shift positions, learn the 3NPS system, and map the whole neck.', pathways:['fb_one_box','fb_caged_links','fb_position_shifts','fb_3nps','fb_whole_neck'] },
     { id:'concept_expression', label:'Expression', kind:'style', family:'Concepts', buildsOn:'Builds on Core Beginner — a fretted note and a target pitch. Make the note SING: vibrato width first, then bends that land dead in tune (half → whole → mixed).', pathways:['exp_vibrato','exp_bend_half','exp_bend_whole','exp_bend_mixed'] },
     { id:'concept_rhythm', label:'Rhythm', kind:'style', family:'Concepts', buildsOn:'Builds on Core — a steady pulse and the pentatonic box. Own TIME itself, easy→mastery: the grid (subdivisions, the 16th pocket) → the feel (swing, syncopation, the gallop, moving the accent) → the pulse frame (one-note pulse, half/double-time, odd meters) → two pulses at once (over the barline) → trade bars and make your own groove. World rhythms (tresillo, clave) ride the one-note pulse. Instrument-agnostic — works on guitar or bass.', pathways:['rhy_subdivision','rhy_sixteenth','rhy_swing','rhy_displacement','rhy_gallop_snap','rhy_accent_displace','rhy_single_string','rhy_half_double','rhy_odd_meter','rhy_over_barline','rhy_trade_bars'] },
-    { id:'concept_picking', label:'Picking', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the chromatic warmup and one-finger-per-fret sync. The pick-hand engine: tremolo, alternate across strings, string skipping, hybrid picking.', pathways:['pick_tremolo','pick_alternate','pick_string_skip','pick_hybrid','pick_herta'] },
+    { id:'concept_picking', label:'Picking', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the chromatic warmup and one-finger-per-fret sync. The pick-hand engine: tremolo, alternate across strings, economy crossings, string skipping, hybrid picking.', pathways:['pick_tremolo','pick_alternate','pick_economy','pick_string_skip','pick_hybrid','pick_herta'] },
     { id:'concept_legato', label:'Legato', kind:'style', family:'Concepts', buildsOn:'Builds on Core — clean fretting and a scale shape. The fretting-hand engine: hammer-ons/pull-offs, 3NPS legato runs, then two-hand tapping.', pathways:['leg_hopo','leg_runs','leg_tapping'] },
     // Bass family — the first bass-NATIVE ladder (cross-instrument parity). Its pathways
     // are bass_4_standard; the instrument-aware picker filter (isHiddenNode) hides them on
@@ -569,7 +577,7 @@
       goal:'One finger per fret — 1-2-3-4 across all six strings. Builds fretting-hand synchronization, finger independence, and positional awareness. The universal warmup every method teaches. Start slow; speed comes from clean reps, not rushed ones.',
       scales:[],
       tempoTiers:[60, 80, 100, 120],
-      base:{ practiceType:'chromatic', chromaticPattern:'1234', meter:'4/4', subdivision:'sixteenth', bpm:60, bars:8, direction:'up_down', advancedMode:false, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:1, fretMax:4 },
+      base:{ practiceType:'chromatic', chromaticPattern:'1234', strokePolicy:'alternate', meter:'4/4', subdivision:'sixteenth', bpm:60, bars:8, direction:'up_down', advancedMode:false, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:1, fretMax:4 },
       vary:[
         { chromaticPattern:'1234', fretMin:1, fretMax:4 },
         { chromaticPattern:'4321', fretMin:1, fretMax:4 },
@@ -1135,8 +1143,28 @@
       goal:'Strict alternate picking through a scale — down-up-down-up across string changes. The hard part is the crossing: keeping the pattern unbroken as the pick moves to a new string. This is the picking discipline that makes scale runs clean at speed.',
       scales:['major','natural_minor','minor_pentatonic'],
       tempoTiers:[65, 90, 115, 140],
-      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'sixteenth', bpm:85, bars:8, direction:'up_down', sequence:'fours', advancedMode:true, fretboardSystem:'3nps', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', shape:1 },
+      base:{ practiceType:'scale', strokePolicy:'alternate', scale:'major', meter:'4/4', subdivision:'sixteenth', bpm:85, bars:8, direction:'up_down', sequence:'fours', advancedMode:true, fretboardSystem:'3nps', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', shape:1 },
       vary:[ { sequence:'fours' }, { sequence:'none' }, { shape:2 }, { sequence:'triplets', subdivision:'triplet' }, { shape:3 } ]
+    },
+    // Economy crossings (hand-marks Slice 2; the Picking band's crossing-strategy
+    // gap — L&D's named rung). The strokePolicy field drives the pkd marks: the
+    // economy school's crossing continues the pick's travel direction (the mini
+    // sweep), contrasted against strict alternate (whose crossings split into
+    // outside/inside). 3NPS makes the crossings land predictably. "Built for the
+    // economy school" — shown, never judged (stroke direction is undetectable).
+    pick_economy: {
+      label:'Economy Crossings',
+      goal:'Two ways across the strings — and when to use each. Strict alternate picking makes every string change a coin flip: sometimes the pick travels OUTSIDE the two strings (the easy crossing), sometimes it gets trapped INSIDE them (the hard one — name it and you can finally practice it). Economy picking removes the flip: crossing to a new string, the pick keeps moving the SAME direction — two downs in a row ascending, two ups descending — a mini sweep through the crossing. Three-notes-per-string makes every crossing land on the same stroke, so each rep drills the same move. Run the economy steps, then the alternate contrast step, and feel the difference: alternate keeps the metronomic hand, economy glides. Neither school is "correct" — the skill is owning the crossing instead of being surprised by it.',
+      scales:['major','natural_minor','dorian'],
+      tempoTiers:[60, 85, 110, 135],
+      base:{ practiceType:'scale', strokePolicy:'economy', scale:'major', meter:'4/4', subdivision:'sixteenth', bpm:75, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'3nps', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', shape:1 },
+      vary:[
+        { strokePolicy:'economy', direction:'ascending' },    // every crossing = down-down
+        { strokePolicy:'economy', direction:'descending' },   // every crossing = up-up
+        { strokePolicy:'economy', direction:'up_down' },      // the turn: both crossings in one run
+        { strokePolicy:'alternate', direction:'up_down' },    // contrast: the outside/inside coin-flip
+        { strokePolicy:'economy', shape:2 },
+      ]
     },
     pick_string_skip: {
       label:'String Skipping',
@@ -1460,7 +1488,7 @@
       scales:['phrygian','natural_minor'],
       tempoTiers:[70, 90, 110, 130],
       instAgnostic:true,
-      base:{ practiceType:'rhythm_pulse', pulseAccent:0, pulseOffbeat:false, scale:'phrygian', anchor:'open_lowest', anchorFret:0, meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', audioProfile:'djent', fretMin:0, fretMax:4 },
+      base:{ practiceType:'rhythm_pulse', pulseAccent:0, pulseOffbeat:false, strokePolicy:'metal', scale:'phrygian', anchor:'open_lowest', anchorFret:0, meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', audioProfile:'djent', fretMin:0, fretMax:4 },
       vary:[
         { subdivision:'eighth' },
         { subdivision:'triplet' },
@@ -2548,6 +2576,24 @@
       console.assert(od.length === 0,
         `[SlopScale no-unison] Open key=${k} ${sc} doubles a pitch`, od);
     }
+    // Finger-collision guard over the authored CAGED chord templates
+    // (hand-marks Slice 3 — mirrors assertStrumGripsValid's byFinger check;
+    // the double-booked-finger class shipped twice in grip data before the
+    // guard existed): one finger may barre many strings at ONE fret offset,
+    // never sit on two different offsets. fg is display-only, so the pitch
+    // checks above can't catch it — but a chord box drawing an impossible
+    // fingering misteaches.
+    for (const shapeKey of Object.keys(CAGED_SHAPES)) {
+      const cts = CAGED_SHAPES[shapeKey].chordTemplates || {};
+      for (const quality of Object.keys(cts)) {
+        const byFinger = {};
+        for (const n of cts[quality]) { if (!n.fg) continue; (byFinger[n.fg] = byFinger[n.fg] || new Set()).add(n.fOff); }
+        for (const fg of Object.keys(byFinger)) {
+          console.assert(byFinger[fg].size <= 1,
+            `[SlopScale chord-template] ${shapeKey}/${quality} finger ${fg} spans ${byFinger[fg].size} fret offsets (impossible)`);
+        }
+      }
+    }
   })();
 
   let renderer = null, activeBundle = null, rafId = null, lastExercise = null;
@@ -3032,6 +3078,16 @@
       // Reggae-skank flag: shift the single-string pulse onto the upbeats (the "&").
       // Pathway-driven hidden field. See buildRhythmPulseExercise.
       pulseOffbeat: data.get('pulseOffbeat') === 'on' || data.get('pulseOffbeat') === 'true',
+      // Stroke-policy school (hand-marks Slice 2): pathway-driven hidden field;
+      // '' = the builder's default (alternate on scale/chromatic/tremolo, none
+      // elsewhere). See applyStrokePolicy.
+      strokePolicy: (data.get('strokePolicy') || '').toString(),
+      // Herta accent slot (0–3) + walk flag: pathway-driven hidden fields. These
+      // were UNPLUMBED until hand-marks Slice 2 (the pick_herta vary steps wrote
+      // to a nonexistent field → the accent ladder was silently inert in the UI;
+      // smoke-herta drove cfg directly so it never saw the gap).
+      hertaAccent: Math.max(0, Math.min(3, parseInt(data.get('hertaAccent') || '0', 10) || 0)),
+      hertaWalk: data.get('hertaWalk') === 'on' || data.get('hertaWalk') === 'true',
       audio: { notes: data.get('audioNotes') === 'on', metronome: data.get('audioMetronome') === 'on', harmony: data.get('audioHarmony') === 'on', profile: data.get('audioProfile') || '', brightness: Math.max(0, Math.min(1, parseFloat(data.get('brightness')))) }
     };
   }
@@ -4004,6 +4060,168 @@
     }
     return notes;
   }
+  // ── Stroke-policy engine (hand-marks Slice 2) ──────────────────────────────
+  // Picking SCHOOLS are per-genre PURE FUNCTIONS declared per rung
+  // (cfg.strokePolicy, a pathway-driven hidden field) — never a universal
+  // default, never silently legislated (roundtable constitution: schools that
+  // legitimately differ ship as policies/flags; display-only, nothing ever
+  // scores on pkd). Builders pass a fallback where Slice 1 already alternated.
+  //   alternate — strict by note order (applyAlternatePicking above, verbatim)
+  //   economy   — alternate within a string; a string CROSSING continues the
+  //               travel direction (ascend ⇒ another down, descend ⇒ another
+  //               up): the mini-sweep through the crossing
+  //   gypsy     — every string change ⇒ downstroke (the strict rest-stroke
+  //               school); upstrokes exist only as same-string fill
+  //               (invariant: a pkd:1 note is on the previous picked string)
+  //   bluegrass — position-derived, not order-derived: on-beat ⇒ down,
+  //               off-beat ⇒ up on the eighth grid (slurs transparent);
+  //               cfg.crosspick flips to the d-d-u crosspick roll
+  //   metal     — alternate + forced DOWN on accents/stabs; palm-muted
+  //               eighth-or-coarser chugs are ALL-DOWN up to
+  //               DOWNPICK_CEILING_BPM — ABOVE the ceiling the policy itself
+  //               flips to alternate (the per-tier flip IS the lesson: the
+  //               wall where real players switch — L&D/metal rulings)
+  const DOWNPICK_CEILING_BPM = 170;
+  function applyEconomyPicking(notes, cfg) {
+    const beat = (60 / cfg.bpm) * (4 / ((cfg.meter && cfg.meter.denominator) || 4));
+    let prev = null, prevStroke = 0;
+    for (const n of notes) {
+      if (n.ho || n.po || n.tp) continue;
+      if (prev == null || n.t - prev.t >= beat * 1.4) n.pkd = 0;        // entry / rest → down
+      else if (n.s === prev.s) n.pkd = prevStroke ^ 1;                  // same string: alternate
+      else n.pkd = n.s > prev.s ? 0 : 1;                                // crossing continues travel (s=0 lowest)
+      prevStroke = n.pkd; prev = n;
+    }
+    return notes;
+  }
+  function applyGypsyPicking(notes, cfg) {
+    const beat = (60 / cfg.bpm) * (4 / ((cfg.meter && cfg.meter.denominator) || 4));
+    let prev = null, prevStroke = 0;
+    for (const n of notes) {
+      if (n.ho || n.po || n.tp) continue;
+      if (prev == null || n.t - prev.t >= beat * 1.4 || n.s !== prev.s) n.pkd = 0;  // entry, rest, ANY string change → down
+      else n.pkd = prevStroke ^ 1;                                                  // same-string fill alternates
+      prevStroke = n.pkd; prev = n;
+    }
+    return notes;
+  }
+  function applyBluegrassPicking(notes, cfg) {
+    if (cfg.crosspick) {            // the d-d-u crosspick roll, by picked-note order
+      let i = 0;
+      for (const n of notes) { if (n.ho || n.po || n.tp) continue; n.pkd = (i % 3) === 2 ? 1 : 0; i++; }
+      return notes;
+    }
+    const half = (60 / cfg.bpm) / 2;   // the eighth grid bluegrass lives on
+    for (const n of notes) {
+      if (n.ho || n.po || n.tp) continue;
+      n.pkd = (Math.round(n.t / half) % 2) ? 1 : 0;   // on-beat down, off-beat up
+    }
+    return notes;
+  }
+  function applyMetalPicking(notes, cfg) {
+    const beat = (60 / cfg.bpm) * (4 / ((cfg.meter && cfg.meter.denominator) || 4));
+    const eighthOrCoarser = secondsPerDivision(cfg) >= (60 / cfg.bpm) / 2 - 1e-6;
+    const chugAllDown = eighthOrCoarser && cfg.bpm <= DOWNPICK_CEILING_BPM;
+    let next = 0, lastT = null;
+    for (const n of notes) {
+      if (n.ho || n.po || n.tp) continue;
+      if (lastT != null && n.t - lastT >= beat * 1.4) next = 0;
+      if (chugAllDown && n.pm) { n.pkd = 0; next = 1; }   // the all-down chug (≤ ceiling)
+      else if (n.ac) { n.pkd = 0; next = 1; }             // accents/stabs force a down
+      else { n.pkd = next; next = next ^ 1; }
+      lastT = n.t;
+    }
+    return notes;
+  }
+  // Bass fingerstyle plucking — host `rh` enum verbatim (0=p,1=i,2=m,3=a,4=c).
+  // The bass-pedagogy ruling: strict i-m parity by sequence order, GHOSTS COUNT
+  // (the 16th motor never stops — mt notes are plucked and advance parity);
+  // legato/tapped transparent; rest re-anchors on i. The RAKE is encoded
+  // IMPLICITLY (no new field): on a descending adjacent-string crossing in a
+  // 16th run the same finger continues through (max 2 strings) — display-side
+  // decimation keeps exactly these parity BREAKS visible. Tier-gated by the
+  // 16th feel itself (walking quarters and beginner 8th rungs never rake).
+  function applyBassPlucking(notes, cfg) {
+    const beat = (60 / cfg.bpm) * (4 / ((cfg.meter && cfg.meter.denominator) || 4));
+    const sixteenth = secondsPerDivision(cfg) <= (60 / cfg.bpm) / 4 + 1e-6;
+    let next = 1, lastT = null, prev = null, rakeRun = 0;
+    for (const n of notes) {
+      if (n.ho || n.po || n.tp) continue;
+      if (lastT != null && n.t - lastT >= beat * 1.4) { next = 1; rakeRun = 0; }
+      if (sixteenth && prev && prev.rh != null && lastT != null && n.s === prev.s - 1 && rakeRun < 1 && (n.t - lastT) < beat) {
+        n.rh = prev.rh; rakeRun++;                       // the rake: same finger continues down
+      } else { n.rh = next; rakeRun = 0; }
+      next = n.rh === 1 ? 2 : 1;
+      prev = n; lastT = n.t;
+    }
+    return notes;
+  }
+  function isBassCfg(cfg) {
+    // stringSetup is the authoritative cfg token; cfg.instrument is data DERIVED
+    // from it at readConfig time and can go stale when a caller patches
+    // stringSetup onto an existing cfg — so the setup wins.
+    return ((STRING_SETUPS[cfg.stringSetup] || {}).instrument || cfg.instrument) === 'bass';
+  }
+  // A rhythm cell's `strokes` array is the DEFINITIVE pick pattern for that
+  // device (gallop D-DU etc.) — it wins over any policy when stroke emission
+  // is active. Returns true if it applied.
+  function applyCellStrokes(notes, cfg) {
+    const cell = RHYTHM_CELLS[cfg.subdivision];
+    if (!cell || !cell.strokes || !cell.strokes.length) return false;
+    let i = 0;
+    for (const n of notes) {
+      if (n.ho || n.po || n.tp) continue;
+      n.pkd = cell.strokes[i % cell.strokes.length] === 'u' ? 1 : 0; i++;
+    }
+    return true;
+  }
+  function applyStrokePolicy(notes, cfg, fallback) {
+    const declared = !!cfg.strokePolicy;
+    // Bass default school is FINGERSTYLE (bass-pedagogy veto: "pick arrows by
+    // default on fingerstyle rungs") — an undeclared bass run gets rh i-m
+    // parity instead of pick strokes; a rung that DECLARES a pick school
+    // (djent pick-bass) keeps pkd. The 'bass_parity' fallback token marks
+    // builders ruled for bass-but-not-guitar emission (arpeggio runs).
+    if (!declared && isBassCfg(cfg)) {
+      return fallback ? applyBassPlucking(notes, cfg) : notes;
+    }
+    const policy = cfg.strokePolicy || (fallback === 'bass_parity' ? '' : fallback);
+    if (!policy) return notes;   // omitted/none → player's choice (no marks)
+    if (applyCellStrokes(notes, cfg)) return notes;   // a cell's strokes are definitive (gallop D-DU)
+    if (policy === 'alternate') return applyAlternatePicking(notes, cfg);
+    if (policy === 'economy')   return applyEconomyPicking(notes, cfg);
+    if (policy === 'gypsy')     return applyGypsyPicking(notes, cfg);
+    if (policy === 'bluegrass') return applyBluegrassPicking(notes, cfg);
+    if (policy === 'metal')     return applyMetalPicking(notes, cfg);
+    return notes;
+  }
+  // Startup guard (no-unison pattern; the roundtable's per-policy asserts): run
+  // each school over a tiny synthetic crossing run and throw if its defining
+  // invariant breaks — a silently wrong stroke mark teaches a wrong habit,
+  // worse than no mark at all.
+  (function strokePolicyGuard() {
+    const mk = (extra) => [
+      { t: 0.00, s: 0, f: 5 }, { t: 0.25, s: 0, f: 7 }, { t: 0.50, s: 1, f: 5 },
+      { t: 0.75, s: 1, f: 7 }, { t: 1.00, s: 0, f: 7 }, { t: 1.25, s: 0, f: 5 },
+    ].map(n => Object.assign(n, extra || {}));
+    const cfg = { bpm: 120, meter: { numerator: 4, denominator: 4 }, subdivision: 'eighth' };
+    const eco = applyEconomyPicking(mk(), cfg);
+    if (eco[2].pkd !== 0 || eco[4].pkd !== 1) throw new Error('[SlopScale stroke-policy] economy crossing must continue the travel direction');
+    const gy = applyGypsyPicking(mk(), cfg);
+    for (let i = 1; i < gy.length; i++) if (gy[i].pkd === 1 && gy[i].s !== gy[i - 1].s) throw new Error('[SlopScale stroke-policy] gypsy upstroke off the previous string');
+    const mt = applyMetalPicking(mk({ pm: true }), cfg);
+    if (mt.some(n => n.pkd !== 0)) throw new Error('[SlopScale stroke-policy] metal palm-muted eighths under the ceiling must be all-down');
+    const mtHi = applyMetalPicking(mk({ pm: true }), Object.assign({}, cfg, { bpm: 200 }));
+    if (!mtHi.some(n => n.pkd === 1)) throw new Error('[SlopScale stroke-policy] metal above the ceiling must flip to alternate');
+    // Bass plucking: ghosts COUNT in parity; a descending adjacent-string 16th
+    // crossing rakes (same finger) instead of alternating.
+    const bp = applyBassPlucking([
+      { t: 0.00, s: 1, f: 5 }, { t: 0.25, s: 1, f: 7 },
+      { t: 0.50, s: 1, f: 5, mt: true }, { t: 0.75, s: 0, f: 5 },
+    ], { bpm: 120, meter: { numerator: 4, denominator: 4 }, subdivision: 'sixteenth' });
+    if (bp[2].rh !== 1) throw new Error('[SlopScale stroke-policy] bass ghost must count in i-m parity');
+    if (bp[3].rh !== bp[2].rh) throw new Error('[SlopScale stroke-policy] bass descending adjacent-string 16th crossing must rake (same finger)');
+  })();
   function scalePcs(cfg) { const keyPc = NOTE_ALIASES[cfg.key] ?? 0; return (SCALE_INTERVALS[cfg.scale] || SCALE_INTERVALS.major).map(i => (keyPc + i) % 12); }
   function secondsPerDivision(cfg) { const q = 60 / cfg.bpm; return ({ quarter:q, eighth:q/2, sixteenth:q/4, triplet:q/3, eighth_triplet:q/3, sixteenth_triplet:q/6, gallop:q/2, reverse_gallop:q/2 })[cfg.subdivision] || q/2; }
   // Non-uniform rhythm patterns (genre-framework §2.5). Returns a cycling array of
@@ -4635,12 +4853,24 @@
       if (!p || p.s < 0 || p.s >= cfg.stringCount) continue;
       if (frets[p.s] === -1 || p.f < frets[p.s]) frets[p.s] = p.f;
     }
-    const distinctFrets = [...new Set(frets.filter(f => f > 0))].sort((a, b) => a - b);
-    const fretToFinger = new Map();
-    distinctFrets.forEach((f, idx) => fretToFinger.set(f, Math.min(4, idx + 1)));
-    for (let s = 0; s < cfg.stringCount; s++) {
-      if (frets[s] === -1) continue;
-      fingers[s] = frets[s] === 0 ? 0 : fretToFinger.get(frets[s]);
+    // Heuristic fingering, pedagogy-passed (hand-marks Slice 3; the honesty
+    // rule): fingers are emitted only when the diagram is actually GRIPPABLE —
+    // a fretted span of ≤4 frets (one hand). Within that, finger = fret OFFSET
+    // from the lowest fretted fret (one-finger-per-fret): a same-fret row
+    // shares one finger (the barre — legal) and a finger can never land on two
+    // different frets (the double-booked class the strum-grip guard polices).
+    // The old distinct-fret RANK mis-fingered barres (a root-5 power grip got
+    // index+middle instead of index+ring) and "fingered" arpeggio tone
+    // collections spanning 7+ frets as if one hand could grip them — a wrong
+    // digit misteaches; omission is honest (the run's per-note fg carries the
+    // real fingering).
+    const fretted = frets.filter(f => f > 0);
+    if (fretted.length && Math.max.apply(null, fretted) - Math.min.apply(null, fretted) <= 3) {
+      const minF = Math.min.apply(null, fretted);
+      for (let s = 0; s < cfg.stringCount; s++) {
+        if (frets[s] === -1) continue;
+        fingers[s] = frets[s] === 0 ? 0 : Math.min(4, frets[s] - minF + 1);
+      }
     }
     return { name, displayName:name, arp:!!arp, fingers, frets };
   }
@@ -5282,7 +5512,7 @@
       notes.push(noteDefaults(nf));
       t += sd; i++;
     }
-    applyAlternatePicking(notes, cfg);   // scale runs: strict alternate, down on entry
+    applyStrokePolicy(notes, cfg, 'alternate');   // scale runs default strict alternate; a rung may declare a school (economy/gypsy/…)
     return { notes, chords:[], chordTemplates:[], handShapes:[], sections:[{ name:`scale-${cfg.fretboardSystem || 'position'}`, number:1, time:0 }], duration };
   }
 
@@ -5399,17 +5629,22 @@
       // Sweep pkd is fully directional (metal + guitar-pedagogy rulings):
       // ascending leg all-down, descending all-up; the apex ho/po turnaround is
       // pick-transparent. Same-string steps continue the current direction.
+      // GUITAR ONLY (hand-marks Slice 2; bass-pedagogy veto: guitar sweep pick
+      // logic never ships on bass) — bass gets i-m parity with implicit rakes
+      // below: the "raked broken arpeggio" adaptation.
+      const sweepPick = !isBassCfg(cfg);
       let sweepDir = 0, prevS = null;
       for (let i = 0; i < limit; i++) {
         const p = path[i];
         const nf = { t:Number((barStart + i * step).toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * 0.6), ac:i === 0, ho:!!p.ho, po:!!p.po };
         if (p.fg != null) nf.fg = p.fg;
         if (prevS != null) sweepDir = p.s > prevS ? 0 : p.s < prevS ? 1 : sweepDir;
-        if (!p.ho && !p.po) nf.pkd = sweepDir;
+        if (sweepPick && !p.ho && !p.po) nf.pkd = sweepDir;
         prevS = p.s;
         notes.push(noteDefaults(nf));
       }
     }
+    applyStrokePolicy(notes, cfg, 'bass_parity');   // bass sweeps: i-m parity + the implicit rake (no-op on guitar — pkd already set inline)
     return { notes, chords, chordTemplates, handShapes, sections:sections.length ? sections : [{ name:'sweep-arpeggios', number:1, time:0 }], duration };
   }
 
@@ -5475,6 +5710,7 @@
       }
       t += chordSlot;
     });
+    applyStrokePolicy(notes, cfg, 'bass_parity');   // bass arpeggio runs: strict i-m parity (guitar: player's choice)
     const result = { notes, chords, chordTemplates, handShapes, sections:sections.length ? sections : [{ name:'arpeggios', number:1, time:0 }], duration:Math.max(t, cfg.bars * mLen) };
     if (shapeRunAnchors) result.anchors = shapeRunAnchors;
     return result;
@@ -5522,7 +5758,7 @@
       t += step;
       unitIdx++;
     }
-    applyAlternatePicking(notes, cfg);   // the chromatic warmup IS the alternate-picking lesson
+    applyStrokePolicy(notes, cfg, 'alternate');   // the chromatic warmup IS the alternate-picking lesson
 
     const duration = Math.max(t, totalTime);
     return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration };
@@ -5824,7 +6060,7 @@
         notes.push(noteDefaults({ t: Number(mt.toFixed(6)), s: pos.s, f: pos.f, sus, tr: true }));
       t = barEnd; posIdx++;
     }
-    applyAlternatePicking(notes, cfg);   // tremolo: strict alternate, never re-anchored mid-span (continuous notes can't trip the rest rule)
+    applyStrokePolicy(notes, cfg, 'alternate');   // tremolo: strict alternate, never re-anchored mid-span (continuous notes can't trip the rest rule)
     return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration: Math.max(t, totalTime) };
   }
 
@@ -5912,6 +6148,10 @@
       notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: 0, f: rootFret, sus, pm: true, ac: isAccent }));
       t += stepsLen ? steps[idx % stepsLen] : step; idx++;
     }
+    // No fallback: pulse rungs mark strokes only when the rung declares a school
+    // (djent_chug_lock declares 'metal' — all-down chugs that flip to alternate
+    // past the downpick ceiling, the wall its goal-card teaches).
+    applyStrokePolicy(notes, cfg);
     return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration: Math.max(t, totalTime) };
   }
 
@@ -6142,7 +6382,9 @@
     const seq = orientSeq(events, cfg.direction);
     const step = secondsPerDivision(cfg), totalTime = cfg.bars * measureSeconds(cfg);
     const sus = Math.max(0.05, step * 0.88);
-    return fillNotesFromSeq(seq, { step, totalTime, sus, name: `Inversions — ${cfg.key} ${quality}` });
+    const ex = fillNotesFromSeq(seq, { step, totalTime, sus, name: `Inversions — ${cfg.key} ${quality}` });
+    applyStrokePolicy(ex.notes, cfg, 'bass_parity');   // bass: strict i-m parity (guitar: player's choice)
+    return ex;
   }
 
   function buildWalkingBassExercise(cfg) {
@@ -6204,6 +6446,7 @@
       t += mLen;
     }
     if (!notes.length) throw new Error('No walking bass notes generated.');
+    applyStrokePolicy(notes, cfg, 'bass_parity');   // bass: strict i-m parity (quarters never rake)
     return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration: Math.max(t, totalTime) };
   }
 
@@ -6854,6 +7097,7 @@
       t = barEnd; bar++;
     }
     if (!notes.length) throw new Error('No right-hand technique notes generated.');
+    applyStrokePolicy(notes, cfg, 'bass_parity');   // bass rung 0: the i-m assignment IS the drill
     return { notes, chords:[], chordTemplates:[], handShapes:[], sections, duration:totalTime };
   }
 
@@ -6879,6 +7123,7 @@
       t += mLen; bar++;
     }
     if (!notes.length) throw new Error('No root-fifth-octave notes generated.');
+    applyStrokePolicy(notes, cfg, 'bass_parity');   // bass: strict i-m parity
     return { notes, chords:[], chordTemplates:[], handShapes:[], sections, duration:totalTime };
   }
 
@@ -6891,6 +7136,9 @@
     const step = secondsPerDivision(cfg), mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
     const degrees = progressionDegreesForConfig(cfg);
     const notes = [], sections = [{ name:`Octave groove — ${cfg.key}`, number:1, time:0 }];
+    // Bass plucking is assigned BY STRING/role, not parity (bass-pedagogy
+    // ruling): index on the low root, middle on the octave pop. Display-only.
+    const bassRh = isBassCfg(cfg);
     let prevMidi = 33, t = 0, bar = 0;
     while (t < totalTime - 0.001) {
       const grip = bassRootGrip(cfg, chordRootForDegree(cfg, degrees[bar % degrees.length]), prevMidi);
@@ -6900,7 +7148,9 @@
         for (let tt = t; tt < barEnd - 0.001; tt += step, i++) {
           const isRoot = (i % 2 === 0);
           const p = isRoot ? grip.root : grip.octave;
-          notes.push(noteDefaults({ t:Number(tt.toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * (isRoot ? 0.45 : 0.70)), ac:!isRoot, noSwing:true }));
+          const nf = { t:Number(tt.toFixed(6)), s:p.s, f:p.f, sus:Math.max(0.04, step * (isRoot ? 0.45 : 0.70)), ac:!isRoot, noSwing:true };
+          if (bassRh) nf.rh = isRoot ? 1 : 2;
+          notes.push(noteDefaults(nf));
         }
         prevMidi = grip.root.midi;
       }
@@ -6947,6 +7197,7 @@
       t = barEnd; bar++;
     }
     if (!notes.length) throw new Error('No dead-note groove notes generated.');
+    applyStrokePolicy(notes, cfg, 'bass_parity');   // bass: i-m parity, GHOSTS COUNT (the 16th motor)
     return { notes, chords:[], chordTemplates:[], handShapes:[], sections, duration:totalTime };
   }
 
@@ -6970,16 +7221,20 @@
       const barEnd = Math.min(totalTime, t + mLen);
       if (grip) {
         let i = 0;
+        // Slap-vs-pop is REGION-derived (bass-pedagogy ruling: no new field):
+        // thumb hits + dead-thumb ghosts on the low root = rh 0 (p, the thumb);
+        // pops hooked under the high octave = rh 1. Bass-only, display-only.
+        const bassRh = isBassCfg(cfg);
         for (let tt = t; tt < barEnd - 0.001; tt += sixteenth, i++) {
           const T = Number(tt.toFixed(6));
           if (map16) {
-            if (THUMB.has(i))      notes.push(noteDefaults({ t:T, s:grip.root.s,   f:grip.root.f,   sus:realSus,  ac:ACCENT.has(i), noSwing:true }));
-            else if (POP.has(i))   notes.push(noteDefaults({ t:T, s:grip.octave.s, f:grip.octave.f, sus:realSus,  ac:ACCENT.has(i), noSwing:true }));
-            else if (GHOST.has(i)) notes.push(noteDefaults({ t:T, s:grip.root.s,   f:grip.root.f,   sus:ghostSus, mt:true,          noSwing:true }));
+            if (THUMB.has(i))      notes.push(noteDefaults(Object.assign({ t:T, s:grip.root.s,   f:grip.root.f,   sus:realSus,  ac:ACCENT.has(i), noSwing:true }, bassRh ? { rh:0 } : null)));
+            else if (POP.has(i))   notes.push(noteDefaults(Object.assign({ t:T, s:grip.octave.s, f:grip.octave.f, sus:realSus,  ac:ACCENT.has(i), noSwing:true }, bassRh ? { rh:1 } : null)));
+            else if (GHOST.has(i)) notes.push(noteDefaults(Object.assign({ t:T, s:grip.root.s,   f:grip.root.f,   sus:ghostSus, mt:true,          noSwing:true }, bassRh ? { rh:0 } : null)));
             // else rest
           } else if (i % 2 === 0) {
             const p = (i % 4 === 0) ? grip.root : grip.octave;
-            notes.push(noteDefaults({ t:T, s:p.s, f:p.f, sus:realSus, ac:(i % 4 === 0), noSwing:true }));
+            notes.push(noteDefaults(Object.assign({ t:T, s:p.s, f:p.f, sus:realSus, ac:(i % 4 === 0), noSwing:true }, bassRh ? { rh:(i % 4 === 0) ? 0 : 1 } : null)));
           }
         }
         prevMidi = grip.root.midi;
@@ -7716,6 +7971,13 @@
         const x2 = xForDt(Math.min(AHEAD, aEnd - now));
         ctx.fillStyle = 'rgba(96,165,250,0.04)';
         ctx.fillRect(x1, TOP_PAD - 6, Math.max(2, x2 - x1), H - TOP_PAD - BOTTOM_PAD + 12);
+        // Seam label "→ Nfr" (hand-marks Slice 2; UX ruling: the only addition
+        // this surface gets — the zone geometry already telegraphs the shift,
+        // the label names the destination). First zone isn't a shift.
+        if (handMarksOn() && i > 0 && a.fret != null) {
+          ctx.fillStyle = 'rgba(148,163,184,0.75)'; ctx.font = '600 10px system-ui'; ctx.textAlign = 'left';
+          ctx.fillText('→ ' + a.fret + 'fr', x1 + 4, TOP_PAD + 8);
+        }
       }
     }
 
@@ -8171,25 +8433,36 @@
       win.sort((a, b) => a.t - b.t);
       const pxPerSec = (W - LEFT_PAD - RIGHT_PAD) / (AHEAD + BEHIND);
       const beat = chartBeatSeconds(bundle) || 0.5;
-      const picked = win.filter(n => n.pkd === 0 || n.pkd === 1);
+      // Stroke lane: pick glyphs (⊓/∨) AND/OR pluck-finger letters (p-i-m-a-c,
+      // the bass/classical convention — hand-marks Slice 2). Exclusive per note
+      // (the pkd/rh guard); the decimation "break" generalizes: for pkd a
+      // repeated stroke = the economy/sweep event, for rh a repeated finger =
+      // the RAKE — both are exactly the information, so both stay visible.
+      const picked = win.filter(n => n.pkd === 0 || n.pkd === 1 || n.rh != null);
       if (picked.length) {
         const spacing = picked.length > 1 ? ((picked[picked.length - 1].t - picked[0].t) / (picked.length - 1)) * pxPerSec : 99;
         const yPick = top - gap * 1.35;
         ctx.strokeStyle = t.ink; ctx.lineWidth = 1.25;
-        let prevPkd = null, prevT = null;
+        let prevMark = null, prevT = null;
         for (const n of picked) {
-          const breaksAlt = prevPkd != null && n.pkd === prevPkd;
+          const mark = n.pkd != null ? 'k' + n.pkd : 'r' + n.rh;
+          const breaksAlt = prevMark != null && mark === prevMark;
           const phraseStart = prevT == null || (n.t - prevT) >= beat * 1.4;
-          if (spacing < 18 && !breaksAlt && !phraseStart) { prevPkd = n.pkd; prevT = n.t; continue; }
+          if (spacing < 18 && !breaksAlt && !phraseStart) { prevMark = mark; prevT = n.t; continue; }
           const x = xForDt(n.t - now);
-          ctx.beginPath();
-          if (n.pkd === 0) { // downstroke: the staple ⊓
-            ctx.moveTo(x - 3.5, yPick + 3); ctx.lineTo(x - 3.5, yPick - 3); ctx.lineTo(x + 3.5, yPick - 3); ctx.lineTo(x + 3.5, yPick + 3);
-          } else {           // upstroke: the chevron ∨
-            ctx.moveTo(x - 3.5, yPick - 3); ctx.lineTo(x, yPick + 3.5); ctx.lineTo(x + 3.5, yPick - 3);
+          if (n.rh != null) {
+            ctx.fillStyle = t.ink; ctx.font = 'italic 600 10px "Cambria","Georgia",serif'; ctx.textAlign = 'center';
+            ctx.fillText('pimac'[n.rh] || '?', x, yPick + 3.5); ctx.textAlign = 'left';
+          } else {
+            ctx.beginPath();
+            if (n.pkd === 0) { // downstroke: the staple ⊓
+              ctx.moveTo(x - 3.5, yPick + 3); ctx.lineTo(x - 3.5, yPick - 3); ctx.lineTo(x + 3.5, yPick - 3); ctx.lineTo(x + 3.5, yPick + 3);
+            } else {           // upstroke: the chevron ∨
+              ctx.moveTo(x - 3.5, yPick - 3); ctx.lineTo(x, yPick + 3.5); ctx.lineTo(x + 3.5, yPick - 3);
+            }
+            ctx.stroke();
           }
-          ctx.stroke();
-          prevPkd = n.pkd; prevT = n.t;
+          prevMark = mark; prevT = n.t;
         }
       }
       const fingered = win.filter(n => n.fg != null && n.fg > 0 && !n.mt);
@@ -8549,6 +8822,86 @@
       }
     }
 
+    // ── Hand marks (hand-marks Slice-1 tail; UX engraving spec ruling #2) ──
+    // The fg numeral sits on the side OPPOSITE the stem (ls·1.3 from the head
+    // center — the collision-driven placement engraving allows; clears beams).
+    // Unlike tab, fg 0 IS drawn (classical open-string convention; there is no
+    // fret digit here to say "open"). Pick strokes reuse the Tab renderer's
+    // fixed-lane idiom above the staff (staffTop − ls·2.5), lifting locally
+    // when a high ledger head enters the lane. Same MANDATORY simile
+    // decimation as tab: dense strokes thin to phrase starts + alternation
+    // BREAKS; dense fingers thin to shifts/string crossings.
+    function drawNotationHandMarks(bundle, now, bottomY, ls, openMidis) {
+      if (!handMarksOn()) return;
+      const win = [];
+      for (const n of bundle.notes || []) { const dt = n.t - now; if (dt >= -BEHIND && dt <= AHEAD) win.push(n); }
+      if (!win.length) return;
+      win.sort((a, b) => a.t - b.t);
+      const pxPerSec = (W - contentLeft - RIGHT_PAD) / (AHEAD + BEHIND);
+      const beat = chartBeatSeconds(bundle) || 0.5;
+      const staffTop = bottomY - ls * 4;
+      // Stroke lane: pick glyphs (⊓/∨) and/or pluck-finger letters (p-i-m-a-c —
+      // standard notation convention for the plucking hand). Same generalized
+      // decimation as tab: a repeated mark (economy crossing / rake) is the
+      // information and stays visible.
+      const picked = win.filter(n => n.pkd === 0 || n.pkd === 1 || n.rh != null);
+      if (picked.length) {
+        const spacing = picked.length > 1 ? ((picked[picked.length - 1].t - picked[0].t) / (picked.length - 1)) * pxPerSec : 99;
+        const yLane = staffTop - ls * 2.5;
+        ctx.strokeStyle = t.ink; ctx.lineWidth = 1.25;
+        let prevMark = null, prevT = null;
+        for (const n of picked) {
+          const mark = n.pkd != null ? 'k' + n.pkd : 'r' + n.rh;
+          const breaksAlt = prevMark != null && mark === prevMark;
+          const phraseStart = prevT == null || (n.t - prevT) >= beat * 1.4;
+          if (spacing < 18 && !breaksAlt && !phraseStart) { prevMark = mark; prevT = n.t; continue; }
+          const x = xForDt(n.t - now);
+          // Lift locally if a high ledger head reaches into the lane — and
+          // clear the fg numeral too when one sits on the above side (stem-down
+          // heads put the numeral above; engraving order is digit nearest the
+          // head, stroke glyph above it).
+          const step = midiToStep((openMidis?.[n.s] ?? 40) + n.f);
+          const headY = stepToY(step, bottomY, ls);
+          const fgAbove = n.fg != null && !n.mt && step >= 4;
+          const yPick = Math.min(yLane, headY - (fgAbove ? ls * 2.3 : ls * 1.2));
+          if (n.rh != null) {
+            ctx.fillStyle = t.ink; ctx.font = `italic 600 ${Math.max(9, Math.round(ls))}px "Cambria","Georgia",serif`; ctx.textAlign = 'center';
+            ctx.fillText('pimac'[n.rh] || '?', x, yPick + 3.5); ctx.textAlign = 'left';
+          } else {
+            ctx.beginPath();
+            if (n.pkd === 0) { // downstroke: the staple ⊓
+              ctx.moveTo(x - 3.5, yPick + 3); ctx.lineTo(x - 3.5, yPick - 3); ctx.lineTo(x + 3.5, yPick - 3); ctx.lineTo(x + 3.5, yPick + 3);
+            } else {           // upstroke: the chevron ∨
+              ctx.moveTo(x - 3.5, yPick - 3); ctx.lineTo(x, yPick + 3.5); ctx.lineTo(x + 3.5, yPick - 3);
+            }
+            ctx.stroke();
+          }
+          prevMark = mark; prevT = n.t;
+        }
+      }
+      const fingered = win.filter(n => n.fg != null && !n.mt);
+      if (fingered.length) {
+        const spacingF = fingered.length > 1 ? ((fingered[fingered.length - 1].t - fingered[0].t) / (fingered.length - 1)) * pxPerSec : 99;
+        ctx.fillStyle = t.inkSoft || t.dim;
+        ctx.font = `600 ${Math.max(8, Math.round(ls * 0.9))}px "Cambria","Georgia",serif`;
+        ctx.textAlign = 'center';
+        let prevS = null, prevF = null;
+        for (const n of fingered) {
+          const crossing = prevS != null && (n.s !== prevS || Math.abs(n.f - prevF) > 4);
+          if (spacingF < 12 && prevS != null && !crossing) { prevS = n.s; prevF = n.f; continue; }
+          const x = xForDt(n.t - now);
+          const step = midiToStep((openMidis?.[n.s] ?? 40) + n.f);
+          const y = stepToY(step, bottomY, ls);
+          const up = step < 4; // the stem rule in drawNotationNotes
+          // Opposite the stem; baselines chosen so the digit's visual center
+          // lands ~ls·1.3 from the head center on either side.
+          ctx.fillText(String(n.fg), x, up ? y + ls * 1.7 : y - ls * 0.95);
+          prevS = n.s; prevF = n.f;
+        }
+        ctx.textAlign = 'left';
+      }
+    }
+
     // ── Playhead ──────────────────────────────────────────────────────────
     function drawNotationPlayhead(notH, bottomY, ls) {
       const x = xForDt(0), staffTop = bottomY - ls*4;
@@ -8655,6 +9008,7 @@
         drawNotationBarLines(bundle, now, bottomY, ls);
         drawNotationRests(bundle, now, bottomY, ls);
         drawNotationNotes(bundle, now, bottomY, ls, openMidis);
+        drawNotationHandMarks(bundle, now, bottomY, ls, openMidis);
         drawNotationPlayhead(notH, bottomY, ls);
         drawChordNames(bundle, now, notH);
       }
@@ -8989,6 +9343,34 @@
     const pcs = jamHighlightMode === 'guide' ? cur.gpcs : cur.cpcs;
     return (pcs && pcs.length) ? new Set(pcs) : null;
   }
+  // Shift telegraph (hand-marks Slice 2; UX ruling): when the run is about to
+  // LEAVE the current fret zone, collect the next position's note dots so the
+  // strip can pre-light them as dashed ghosts in their own STRING colors ~1.5
+  // beats early — the same anticipation grammar as the Jam next-chord ghost
+  // (which stays amber/harmony-only; one grammar, two colors, two questions).
+  function fretboardShiftGhosts(t) {
+    if (!handMarksOn() || !activeBundle) return null;
+    const notes = activeBundle.notes || []; if (!notes.length) return null;
+    const beat = chartBeatSeconds(activeBundle) || 0.5;
+    const lead = beat * 1.5;
+    // The current zone = frets sounded over the last ~2 beats.
+    let lo = Infinity, hi = -Infinity;
+    for (const n of notes) {
+      if (n.t > t) break;
+      if (n.t >= t - beat * 2 && n.f > 0) { if (n.f < lo) lo = n.f; if (n.f > hi) hi = n.f; }
+    }
+    if (!isFinite(lo)) return null;
+    const out = [], seen = new Set();
+    for (const n of notes) {
+      if (n.t <= t) continue;
+      if (n.t > t + lead) break;
+      if (n.f > 0 && (n.f < lo - 2 || n.f > hi + 2)) {
+        const k = n.s + ':' + n.f;
+        if (!seen.has(k)) { seen.add(k); out.push({ s: n.s, f: n.f, at: n.t }); }
+      }
+    }
+    return out.length ? { ghosts: out, lead } : null;
+  }
   // Play-the-changes ANTICIPATION: within ~1.5 beats of the next chord, the NEXT
   // chord's guide tones (3rd/7th) — drawn as a distinct amber "ghost" on the strip
   // so the player preps the change before it lands. Wraps to the top of the loop.
@@ -9183,6 +9565,26 @@
         ctx.globalAlpha = 0.75; ctx.beginPath(); ctx.arc(xNote(p.f), rowY(p.s), 11, 0, 6.2832); ctx.stroke();
       }
       ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
+    // Shift telegraph (hand-marks Slice 2): dashed next-position ghosts in their
+    // own string colors as a shift approaches. Practice modes only — Jam carries
+    // no prescriptions (the panel constitution), and its ghost slot is the
+    // harmony anticipation above. Fade-in ~150ms, gated by reduced-motion.
+    if (!jamOn) {
+      const tg = fretboardShiftGhosts(currentPracticeTime);
+      if (tg) {
+        const rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        ctx.setLineDash([3, 2]); ctx.lineWidth = 1.5;
+        for (const g of tg.ghosts) {
+          if (g.s < 0 || g.s >= nStrings) continue;
+          const sinceQ = tg.lead - (g.at - currentPracticeTime);   // seconds since this ghost qualified
+          const a = rm ? 0.4 : 0.4 * Math.max(0, Math.min(1, sinceQ / 0.15));
+          if (a <= 0.01) continue;
+          ctx.globalAlpha = a; ctx.strokeStyle = STRING_COLORS[g.s % STRING_COLORS.length];
+          ctx.beginPath(); ctx.arc(xNote(g.f), rowY(g.s), 10, 0, 6.2832); ctx.stroke();
+        }
+        ctx.setLineDash([]); ctx.globalAlpha = 1;
+      }
     }
     const targetPcs = jamOn ? jamTargetPcs(currentPracticeTime) : null;
     if (targetPcs) {
@@ -12057,6 +12459,12 @@
     // Shape-walk flag (The Five CAGED Shapes) is specialized → default OFF unless
     // the rung opts in, so the walk never leaks into the next chord rung selected.
     setFieldSilent('shapeWalk', config.shapeWalk ? 'true' : '');
+    // Stroke-policy school is specialized → default EMPTY unless the rung opts
+    // in, so a declared school never marks the next rung's run (anti-leak).
+    setFieldSilent('strokePolicy', config.strokePolicy || '');
+    // Herta accent/walk: anti-leak defaulted like the other rung-scoped flags.
+    setFieldSilent('hertaAccent', config.hertaAccent != null ? config.hertaAccent : '0');
+    setFieldSilent('hertaWalk', config.hertaWalk ? 'true' : '');
     // Custom tuning override (drop-A djent etc.) is specialized → default EMPTY
     // unless the rung opts in, so a drop-tuned variation never leaks its tuning
     // into the next pathway selected. (readConfig also length-validates the CSV
@@ -12249,6 +12657,86 @@
     sel.dispatchEvent(new Event('change'));
   }
 
+  // ── Form-cue library (hand-marks Slice 2; the ergonomics lane) ─────────────
+  // ONE quiet pre-run sentence on the goal card — never mid-run, never
+  // detection-triggered ("we cannot see the hands — auto-firing a form cue off
+  // a missed note is fake diagnosis"), never fades. Priority per the panel:
+  // rung-specific > tier-triggered (tension cues belong to the top tier) >
+  // band-default; a rung's candidate list rotates by tier. Guitar = the
+  // 12-cue panel vocabulary; bass = the bass-pedagogy vocabulary (9+1).
+  const FORM_CUES = {
+    guitar: {
+      thumb_back: 'Thumb low on the back of the neck — it frees the fingers to arch onto their tips.',
+      thumb_over: 'Let the thumb hook over the top — it anchors the grip a bend pushes against.',
+      one_finger_per_fret: 'One finger per fret — let each finger own its fret instead of crawling.',
+      light_grip: 'Press just hard enough for a clean note, then back off 10% — speed lives in a light grip.',
+      finger_proximity: 'Keep idle fingers hovering low over the strings — distance is wasted time.',
+      wrist_neutral: 'Keep the picking wrist straight and loose — the motion comes from the wrist, not the elbow.',
+      anchor_palm: 'Rest the palm edge lightly at the bridge — an anchor, not a clamp.',
+      pinky_bend_support: 'Bend with the ring finger and stack index + middle behind it — never the pinky alone.',
+      guide_finger: 'On the shift, let a finger glide along the string — a rail, not a leap.',
+      shoulder_drop: 'Check your shoulders — drop them and breathe; tension creeps up at speed.',
+      barre_roll: 'Roll the barre finger slightly onto its bony edge — it takes less pressure than the flat pad.',
+      roll_dont_barre: "Across same-fret strings, roll one fingertip joint by joint — don't flatten a barre.",
+    },
+    bass: {
+      one_two_four: 'Down low, finger 1-2-4 and skip the ring — the frets are too wide for one-per-fret.',
+      floating_thumb: 'Let the thumb float and mute the strings it passes — the skipped string must stay silent.',
+      strict_im: 'Alternate index and middle strictly — ghosts included; the motor never stops.',
+      rake_descent: "Dropping to a lower string, let the same finger rake through — don't force the alternation.",
+      bridge_neck_tone: 'Pluck near the bridge for punch, near the neck for fat — choose the tone on purpose.',
+      pivot_dont_jump: 'Shift by pivoting the hand, not jumping it — and let an open string buy the move.',
+      full_value: 'Hold every note its full length — a walking line breathes in the note-ends.',
+      thumb_bounce: "Bounce the thumb off the string, don't bury it — the slap rings, the thud chokes.",
+      pop_hook: 'Hook the popping finger lightly under the string — the snap comes from wrist rotation, not pulling.',
+      relax_forearm: 'If the plucking forearm tightens, drop a tier — relaxation is the skill.',
+    },
+  };
+  // Rung-specific candidates (guitar); rotation across the list by tier.
+  const FORM_CUE_RUNGS = {
+    chromatic_warmup: ['one_finger_per_fret', 'light_grip'],
+    bend_drill: ['pinky_bend_support', 'thumb_over'],
+    sweep_arpeggio_primer: ['roll_dont_barre', 'light_grip'],
+    melodeath_twin_leads: ['roll_dont_barre'],
+    pick_tremolo: ['wrist_neutral', 'anchor_palm'],
+    pick_alternate: ['wrist_neutral', 'anchor_palm'],
+    pick_economy: ['wrist_neutral', 'light_grip'],
+    pick_string_skip: ['anchor_palm'],
+    pick_herta: ['light_grip', 'finger_proximity'],
+    leg_hopo: ['finger_proximity', 'light_grip'],
+    leg_runs: ['finger_proximity', 'light_grip'],
+    leg_tapping: ['finger_proximity'],
+    major_scale_caged: ['guide_finger'],
+    whole_neck_freedom: ['guide_finger'],
+  };
+  // Band defaults (guitar).
+  const FORM_CUE_BANDS = {
+    core_beginner: 'light_grip',
+    concept_picking: 'wrist_neutral',
+    concept_legato: 'finger_proximity',
+    concept_rhythm: 'anchor_palm',
+  };
+  // Bass candidates derive from the exercise CLASS (the bass ruling maps cues
+  // to practice types), not the rung id — adapted rungs get the right cue free.
+  function bassFormCueCandidates(cfg) {
+    const pt = (cfg && cfg.practiceType) || '';
+    if (pt === 'slap_pop') return ['thumb_bounce', 'pop_hook'];
+    if (pt === 'walking_bass') return ['pivot_dont_jump', 'full_value'];
+    if (pt === 'octave_groove' || pt === 'dead_note_groove' || pt === 'right_hand_technique') return ['floating_thumb', 'strict_im'];
+    if (pt === 'chromatic' || pt === 'root_fifth_octave' || (cfg && cfg.fretMin != null && cfg.fretMin < 5)) return ['one_two_four', 'strict_im'];
+    return ['strict_im'];
+  }
+  function formCueForRung(pathwayId, tierIdx, cfg) {
+    const pw = PATHWAYS[pathwayId]; if (!pw) return null;
+    const inst = (cfg && cfg.instrument) === 'bass' ? 'bass' : 'guitar';
+    const lib = FORM_CUES[inst];
+    const cands = inst === 'bass' ? bassFormCueCandidates(cfg) : FORM_CUE_RUNGS[pathwayId];
+    if (cands && cands.length) return lib[cands[Math.max(0, tierIdx | 0) % cands.length]] || null;
+    const topTier = pw.tempoTiers && pw.tempoTiers.length > 1 && tierIdx >= pw.tempoTiers.length - 1;
+    if (topTier) return lib[inst === 'bass' ? 'relax_forearm' : 'shoulder_drop'];
+    return lib[FORM_CUE_BANDS[pathwayBandId(pathwayId)] || (inst === 'bass' ? 'strict_im' : 'light_grip')] || null;
+  }
+
   function updatePathwayGoalCard(pathwayId, modified, favoritePreset) {
     const card = $('slopscale-pathway-goal-card');
     const tag = $('slopscale-pathway-tag');
@@ -12308,6 +12796,33 @@
         note.textContent = '';
         note.style.display = 'none';
       }
+    }
+    // Form cue (hand-marks Slice 2; ergonomics ruling): ONE quiet pre-run
+    // sentence — goal-card only, never fades, never detection-triggered.
+    const cueEl = $('slopscale-pathway-form-cue');
+    if (cueEl) {
+      let cue = null;
+      if (pw && pathwayId) { try { cue = formCueForRung(pathwayId, activeTempoTierIdx, readConfig()); } catch (_) {} }
+      if (cue) { cueEl.textContent = 'Form · ' + cue; cueEl.style.display = ''; }
+      else { cueEl.textContent = ''; cueEl.style.display = 'none'; }
+    }
+    // Clean-rung proving affordance (the player-opted supports-off run — the
+    // Clean depth rung's first concrete mechanic): offered once the Speed climb
+    // is cleared and Clean isn't credited, while hand-marks are ON. Clicking is
+    // the PLAYER flipping the pill — the toggle is never auto-flipped.
+    const prove = $('slopscale-prove-clean');
+    if (prove) {
+      let show = false;
+      if (pw && pathwayId && handMarksOn()) {
+        try {
+          const st = nodeProgressState(pathwayId, pathwayTiersLoad());
+          // depth is null both for an UNTOUCHED node (offer the affordance —
+          // Clean is uncredited) and in progress-Off mode (the whole layer is
+          // collapsed — don't offer). Distinguish by the store mode.
+          show = !!(st.cleared && progressLoad().mode !== 'off' && !(st.depth && st.depth.clean));
+        } catch (_) {}
+      }
+      prove.style.display = show ? '' : 'none';
     }
     updateStartCta();   // keep the primed START CTA's name/skill in sync
   }
@@ -13699,7 +14214,7 @@
   function advanceDepthLadder(session) {
     const store = progressLoad();
     if (store.mode === 'off') return null;                    // Off collapses the layer
-    const out = { xpGained:0, travelKey:null, travelRung:false };
+    const out = { xpGained:0, travelKey:null, travelRung:false, cleanRung:false };
     const pwId = session.pathway_id;
     // XP — derived time×difficulty, gained-only (accrues for any run, pathway or not).
     const gained = Math.round(Math.max(0, (session.duration_ms || 0) / 1000) * xpDifficultyMult(session));
@@ -13725,9 +14240,18 @@
           emitProgress('depth', pwId, { axis:'travel', rung:true });
         }
       }
+      // CLEAN rung (hand-marks Slice 2 — the player-opted supports-off proving
+      // run): a clean top-tier pass with the Fingering pill OFF for the whole
+      // run (off at sessionBegin AND still off now). Same bar as Travel
+      // (speed cleared + top tier + clean); one-time flip, gained-only.
+      if (speedCleared && session.bpm_tier === topTier && runIsClean(session)
+          && session.hand_marks_on === false && !handMarksOn() && !node.depth.clean) {
+        node.depth.clean = Date.now(); out.cleanRung = true;
+        emitProgress('depth', pwId, { axis:'clean', rung:true });
+      }
     }
     progressSave(store);
-    return (out.xpGained || out.travelKey) ? out : null;
+    return (out.xpGained || out.travelKey || out.cleanRung) ? out : null;
   }
   // ── End depth ladder ────────────────────────────────────────────────────────
 
@@ -13778,6 +14302,9 @@
       id: `${now}-${Math.random().toString(36).slice(2, 7)}`,
       date: localDateStr(),
       ts: now, mode, pathway_id, bpm, bpm_tier, scale, key, key_credit, tuning_offset, practice_type,
+      // Hand-marks state at run start (Clean depth rung: a supports-off proving
+      // run needs the marks OFF for the whole run — checked again at credit).
+      hand_marks_on: handMarksOn(),
       // content_ms = the exercise's MUSIC length (bars × measureSeconds), for the
       // proof-loop settling-tax (did the run HOLD, vs bail in the first phrase). NOT
       // songInfo.duration — that's inflated by the count-in lead + the lookahead tail,
@@ -14864,6 +15391,15 @@
         hmToggle.setAttribute('aria-checked', String(next));
       });
     }
+    // Clean-rung proving affordance: the click IS the player opting into the
+    // supports-off run (never auto-flipped). Flips the pill OFF and hides
+    // itself; the player turns the pill back on themselves.
+    const proveBtn = $('slopscale-prove-clean');
+    if (proveBtn) proveBtn.addEventListener('click', () => {
+      try { localStorage.setItem('slopscale.showHandMarks', 'off'); } catch (_) {}
+      hmToggle?.setAttribute('aria-checked', 'false');
+      proveBtn.style.display = 'none';
+    });
     const fbToggle = $('slopscale-fretboard-toggle');
     if (fbToggle) fbToggle.addEventListener('click', () => {
       fretboardOn = !fretboardOn;

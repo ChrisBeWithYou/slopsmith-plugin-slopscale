@@ -85,8 +85,8 @@ All note objects use these compact keys:
 | `ac` / `tp` | accent / tap |
 | `ch` | chord/strum group key (optional). Notes sharing a `ch` value — or, untagged, sharing an *exactly* equal `t` — form one simultaneous chord/diad event. The pitch scorer exempts such groups from judgment (the host detector is monophonic and reports nothing usable for polyphony — probe-verified 2026-06-05); builders that rake-stagger strums (`emitStrum`) must tag, since their notes don't share a `t`. |
 | `fg` | fret-hand finger (optional; 0 = open, 1–4 = index..pinky). **Omitted = no prescription** — the hand-marks honesty rule (`docs/hand-marks-roundtable.md`): emitted only from validated sources (shape resolvers, the chromatic frame rule, bass's dual-regime `applyBassFingering`). Display/teach only — never scored. |
-| `pkd` | pick stroke (optional; host sloppak ints verbatim: 0 = down, 1 = up). Omitted = player's choice. Never on legato (`ho`/`po`) or tapped notes — pick-transparent. Display/teach only — never scored. |
-| `rh` | pluck-hand finger (optional; host enum 0=p 1=i 2=m 3=a 4=c). Reserved — emission lands with hand-marks Slice 2 (bass i-m parity, fingerstyle). A note sets at most ONE of `pkd`/`rh`. |
+| `pkd` | pick stroke (optional; host sloppak ints verbatim: 0 = down, 1 = up). Omitted = player's choice. Never on legato (`ho`/`po`) or tapped notes — pick-transparent. Emission is school-driven (`applyStrokePolicy` off `cfg.strokePolicy`: alternate / economy / gypsy / bluegrass / metal with the `DOWNPICK_CEILING_BPM` flip; a `RHYTHM_CELLS` `strokes` array — gallop `D-DU` — is definitive). Display/teach only — never scored. |
+| `rh` | pluck-hand finger (optional; host enum 0=p 1=i 2=m 3=a 4=c). Bass fingerstyle emission (hand-marks Slice 2): strict i-m parity with ghosts counting (`applyBassPlucking`; a same-finger descent = the implicit RAKE), `octave_groove` by role (i root / m octave), `slap_pop` by region (0 = thumb incl. dead-thumb ghosts, 1 = pop). Bass is never given guitar pick logic (`bass_parity` fallback). A note sets at most ONE of `pkd`/`rh`. Display/teach only — never scored. |
 
 ## Chord templates
 

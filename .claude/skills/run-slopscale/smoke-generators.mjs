@@ -335,6 +335,208 @@ async function run() {
       return rows;
     });
     sections.push({ name: "engine semantics (5)", rows: p5 });
+
+    // ── Phase 6: hand-marks data layer (fg/pkd) ────────────────────────────
+    // Durable rows promoted from probe-hand-marks (per-system rule): the
+    // Slice-1 emission semantics from docs/hand-marks-roundtable.md. Display
+    // only — nothing ever scores on fg/pkd/rh — but the DATA must stay honest:
+    // fg only from a validated source (honesty by omission), pkd strict
+    // alternation by note order with legato pick-transparency, sweeps
+    // directional, bass on the 1-2-4 low-box regime. shapeNotes is nulled in
+    // every patch: readConfig pre-resolves the form's shape and shape notes
+    // (correctly) win over the fretboardSystem switch.
+    const p6 = await page.evaluate(() => {
+      const S = window.SlopScale;
+      const gen = (over) => {
+        const cfg = Object.assign(S.readConfig(), { shapeNotes: null }, over);
+        cfg.mode = cfg.practiceType;
+        return S.generateExercise(cfg).chart.notes.filter((n) => !n._tail);
+      };
+      const row = (label, fn) => {
+        try {
+          const fatal = fn();
+          return { label, ok: fatal.length === 0, fatal, warn: [], notes: 0 };
+        } catch (e) { return { label, ok: false, fatal: [`threw: ${e.message}`], warn: [], notes: 0 }; }
+      };
+      const rows = [];
+      const all = []; // pooled for the cross-cutting invariants row
+      rows.push(row("CAGED scale: fg on every note + strict alternate pkd from a downstroke", () => {
+        // fg rides the form-resolved shapeNotes (readConfig pre-resolves the
+        // shape, and the resolver is where fg lives) — so drive the REAL form
+        // like smoke-strings does; patching cfg around readConfig would test a
+        // path that never carries fingering.
+        const adv = document.querySelector('[name="advancedMode"]'); if (adv) adv.checked = true;
+        const setForm = (o) => { for (const [k, v] of Object.entries(o)) { const el = document.querySelector(`#slopscale-controls [name="${k}"]`); if (el) el.value = String(v); } };
+        setForm({ stringSetup: "guitar_6_standard", practiceType: "scale", scale: "minor_pentatonic", key: "A", fretboardSystem: "caged", shape: "E" });
+        const cfg = S.readConfig(); cfg.mode = cfg.practiceType;
+        const caged = S.generateExercise(cfg).chart.notes.filter((n) => !n._tail);
+        all.push(...caged);
+        const fgN = caged.filter((n) => n.fg != null).length;
+        const picked = caged.filter((n) => !n.ho && !n.po && !n.tp);
+        const fatal = [];
+        if (!caged.length || fgN !== caged.length) fatal.push(`fg on ${fgN}/${caged.length} notes — resolver fg plumbing broken`);
+        if (!picked.every((n) => n.pkd === 0 || n.pkd === 1)) fatal.push("a picked note is missing pkd");
+        if (!(picked.length && picked[0].pkd === 0)) fatal.push("first stroke is not a downstroke");
+        if (!picked.every((n, i) => i === 0 || n.pkd !== picked[i - 1].pkd || n.t - picked[i - 1].t > 0.5)) fatal.push("pkd does not alternate by note order");
+        return fatal;
+      }));
+      rows.push(row("chromatic: 1-2-3-4 frame fingering + strict alternate", () => {
+        const chrom = gen({ practiceType: "chromatic", chromaticPattern: "1234", fretMin: 1, fretMax: 4, stringSetup: "guitar_6_standard" });
+        all.push(...chrom);
+        const fatal = [];
+        // fretBase=1 → fg = offset+1 = f exactly.
+        if (!chrom.every((n) => n.fg >= 1 && n.fg <= 4 && n.fg === n.f)) fatal.push("frame fingering broken (fg should equal the fret in a 1–4 window)");
+        if (!chrom.every((n, i) => n.pkd === i % 2)) fatal.push("chromatic pkd not strict-alternate from down");
+        return fatal;
+      }));
+      rows.push(row("full_neck: NO fg (honesty by omission — no validated source)", () => {
+        const fullNeck = gen({ practiceType: "scale", fretboardSystem: "full_neck", key: "C", scale: "major", stringSetup: "guitar_6_standard" });
+        all.push(...fullNeck);
+        return fullNeck.every((n) => n.fg == null) ? [] : ["full_neck emitted fg — guessed fingering violates the honesty rule"];
+      }));
+      rows.push(row("bass low box: 1-2-4 regime — ring finger never assigned", () => {
+        const bassLow = gen({ practiceType: "scale", fretboardSystem: "position", stringSetup: "bass_4_standard", stringCount: 4, key: "A", scale: "minor_pentatonic", fretMin: 0, fretMax: 4 });
+        all.push(...bassLow);
+        const fg = bassLow.filter((n) => n.f > 0 && n.fg != null).map((n) => n.fg);
+        const fatal = [];
+        if (!fg.length) fatal.push("no fingered notes — bass fg emission gone");
+        if (fg.includes(3)) fatal.push("finger 3 assigned below the anchor-5 boundary (1-2-4 regime broken)");
+        return fatal;
+      }));
+      rows.push(row("sweep: directional pkd both ways, apex legato pick-transparent", () => {
+        const sweep = gen({ practiceType: "sweep_arpeggios", key: "A", scale: "natural_minor", fretMin: 5, fretMax: 17, stringSetup: "guitar_6_standard", stringCount: 6 });
+        all.push(...sweep);
+        const sw = sweep.filter((n) => !n.ho && !n.po);
+        const fatal = [];
+        if (!(sw.some((n) => n.pkd === 0) && sw.some((n) => n.pkd === 1))) fatal.push("sweep pkd is not directional (missing downs or ups)");
+        if (!sweep.filter((n) => n.ho || n.po).every((n) => n.pkd == null)) fatal.push("a legato sweep note carries pkd");
+        return fatal;
+      }));
+      rows.push(row("tremolo: strict alternate", () => {
+        const trem = gen({ practiceType: "tremolo_picking", key: "E", scale: "natural_minor", stringSetup: "guitar_6_standard" });
+        all.push(...trem);
+        const okv = trem.length > 4 && trem.every((n, i) => n.pkd === i % 2 || (i > 0 && n.t - trem[i - 1].t > 0.5));
+        return okv ? [] : ["tremolo pkd not strict-alternate"];
+      }));
+      // Stroke-policy engine rows (hand-marks Slice 2): the per-genre schools are
+      // pure functions dispatched off cfg.strokePolicy — assert each school's
+      // DEFINING invariant (a wrong stroke mark teaches a wrong habit).
+      rows.push(row("economy policy: a string crossing continues the travel direction", () => {
+        const eco = gen({ practiceType: "scale", strokePolicy: "economy", fretboardSystem: "3nps", shape: 1, key: "C", scale: "major", direction: "ascending", stringSetup: "guitar_6_standard", bpm: 90, subdivision: "sixteenth" });
+        all.push(...eco);
+        const picked = eco.filter((n) => !n.ho && !n.po && !n.tp);
+        const fatal = [];
+        let crossings = 0;
+        for (let i = 1; i < picked.length; i++) {
+          const a = picked[i - 1], b = picked[i];
+          if (b.t - a.t > 0.5 || b.s === a.s) continue;
+          crossings++;
+          const want = b.s > a.s ? 0 : 1;
+          if (b.pkd !== want) { fatal.push(`crossing at t=${b.t.toFixed(2)} got pkd=${b.pkd}, want ${want}`); break; }
+        }
+        if (!crossings) fatal.push("no string crossings generated — bad test config");
+        return fatal;
+      }));
+      rows.push(row("gypsy policy: upstrokes only as same-string fill", () => {
+        const gy = gen({ practiceType: "scale", strokePolicy: "gypsy", fretboardSystem: "caged", shape: "E", key: "A", scale: "minor_pentatonic", stringSetup: "guitar_6_standard", bpm: 90, subdivision: "sixteenth" });
+        all.push(...gy);
+        const picked = gy.filter((n) => !n.ho && !n.po && !n.tp);
+        for (let i = 1; i < picked.length; i++) {
+          if (picked[i].pkd === 1 && picked[i].s !== picked[i - 1].s) return [`upstroke on a string change at t=${picked[i].t.toFixed(2)} — the rest-stroke school broken`];
+        }
+        return picked.some((n) => n.pkd === 0) ? [] : ["no strokes emitted"];
+      }));
+      rows.push(row("metal policy: all-down palm-muted 8ths ≤ ceiling, flips to alternate above", () => {
+        const lo = gen({ practiceType: "rhythm_pulse", strokePolicy: "metal", subdivision: "eighth", bpm: 130, key: "E", stringSetup: "guitar_6_drop_d", bars: 4 });
+        const hi = gen({ practiceType: "rhythm_pulse", strokePolicy: "metal", subdivision: "eighth", bpm: 200, key: "E", stringSetup: "guitar_6_drop_d", bars: 4 });
+        all.push(...lo, ...hi);
+        const fatal = [];
+        if (!lo.length || !lo.every((n) => n.pkd === 0)) fatal.push("≤170 BPM palm-muted 8ths are not all-down");
+        if (!hi.some((n) => n.pkd === 1)) fatal.push(">170 BPM did not flip to alternate (the per-tier flip is the lesson)");
+        return fatal;
+      }));
+      // Slice-2 finish rows: gallop cell strokes (definitive D-DU), bass rh
+      // emission per the bass-pedagogy per-class table, and the bass veto on
+      // guitar sweep pick logic.
+      rows.push(row("gallop cell strokes are definitive: D-DU cycling", () => {
+        const gal = gen({ practiceType: "scale", strokePolicy: "alternate", subdivision: "gallop", fretboardSystem: "position", key: "E", scale: "minor_pentatonic", stringSetup: "guitar_6_standard", bpm: 100, fretMin: 0, fretMax: 5 });
+        all.push(...gal);
+        const picked = gal.filter((n) => !n.ho && !n.po && !n.tp);
+        if (picked.length < 6) return ["too few notes to judge the cell"];
+        const okv = picked.every((n, i) => n.pkd === (i % 3 === 2 ? 1 : 0));
+        return okv ? [] : ["gallop pkd is not the D-D-U cell pattern"];
+      }));
+      rows.push(row("bass dead-note pocket: i-m parity, GHOSTS COUNT", () => {
+        const dng = gen({ practiceType: "dead_note_groove", stringSetup: "bass_4_standard", stringCount: 4, key: "A", bpm: 90 });
+        all.push(...dng);
+        const fatal = [];
+        if (!dng.length || !dng.every((n) => n.rh === 1 || n.rh === 2)) fatal.push("a bass pocket note is missing i/m");
+        if (!dng.some((n) => n.mt && n.rh != null)) fatal.push("ghosts are not in the plucking sequence (the 16th motor)");
+        return fatal;
+      }));
+      rows.push(row("bass octave groove: rh BY STRING — i on the root, m on the octave", () => {
+        const og = gen({ practiceType: "octave_groove", stringSetup: "bass_4_standard", stringCount: 4, key: "A", bpm: 95 });
+        all.push(...og);
+        // The builder marks the octave pop accented (ac:!isRoot).
+        const okv = og.length > 0 && og.every((n) => (n.ac ? n.rh === 2 : n.rh === 1));
+        return okv ? [] : ["octave-groove rh is not role-assigned (i root / m octave)"];
+      }));
+      rows.push(row("bass slap & pop: region-derived — thumb on the low root (ghosts too), pop above", () => {
+        const sp = gen({ practiceType: "slap_pop", stringSetup: "bass_4_standard", stringCount: 4, key: "A", bpm: 90 });
+        all.push(...sp);
+        const fatal = [];
+        if (!sp.length || !sp.every((n) => n.rh === 0 || n.rh === 1)) fatal.push("a slap note carries a non-t/p finger");
+        if (!sp.filter((n) => n.mt).every((n) => n.rh === 0)) fatal.push("a dead-thumb ghost isn't marked thumb");
+        if (!(sp.some((n) => n.rh === 0) && sp.some((n) => n.rh === 1))) fatal.push("missing thumb or pop marks");
+        return fatal;
+      }));
+      rows.push(row("bass veto: sweeps carry NO pick arrows — i-m/rake instead", () => {
+        const bsw = gen({ practiceType: "sweep_arpeggios", stringSetup: "bass_4_standard", stringCount: 4, key: "A", scale: "natural_minor", fretMin: 3, fretMax: 12, bpm: 80 });
+        all.push(...bsw);
+        const fatal = [];
+        if (bsw.some((n) => n.pkd != null)) fatal.push("a bass sweep note carries pkd (guitar sweep pick logic is vetoed on bass)");
+        if (!bsw.some((n) => n.rh != null)) fatal.push("bass sweep emitted no plucking marks at all");
+        return fatal;
+      }));
+      rows.push(row("chord-template fingers: never double-booked, wide spans omitted (Slice 3)", () => {
+        // The heuristic templates (templateFromPositions) must obey the grip
+        // rules: one finger never on two different frets (barre = same fret),
+        // and an ungrippable span (>4 frets — an arpeggio tone collection)
+        // emits NO fingers at all (honesty by omission).
+        const fatal = [];
+        const mk = (over) => {
+          const cfg = Object.assign(S.readConfig(), { shapeNotes: null }, over);
+          cfg.mode = cfg.practiceType;
+          return S.generateExercise(cfg).chart.chordTemplates || [];
+        };
+        const cts = [
+          ...mk({ practiceType: "diatonic_arpeggios", fretboardSystem: "position", key: "C", scale: "major", stringSetup: "guitar_6_standard", fretMin: 0, fretMax: 7 }),
+          ...mk({ practiceType: "progression_arpeggios", fretboardSystem: "position", key: "A", scale: "natural_minor", progression: "i-VI-III-VII", stringSetup: "guitar_6_standard", fretMin: 0, fretMax: 12 }),
+        ];
+        if (!cts.length) return ["no templates generated"];
+        for (const ct of cts) {
+          const fr = ct.frets || [], fi = ct.fingers || [];
+          const byFinger = {};
+          fi.forEach((f, s) => { if (f > 0) (byFinger[f] = byFinger[f] || new Set()).add(fr[s]); });
+          for (const f of Object.keys(byFinger)) {
+            if (byFinger[f].size > 1) { fatal.push(`${ct.name}: finger ${f} on ${byFinger[f].size} different frets`); break; }
+          }
+          const fretted = fr.filter((x) => x > 0);
+          if (fretted.length && Math.max(...fretted) - Math.min(...fretted) > 3 && fi.some((x) => x > 0)) {
+            fatal.push(`${ct.name}: ungrippable span (${Math.min(...fretted)}–${Math.max(...fretted)}) carries fingers`);
+          }
+        }
+        return fatal;
+      }));
+      rows.push(row("invariants: pkd/rh exclusive + legato/tapped never picked", () => {
+        const fatal = [];
+        if (!all.every((n) => !(n.pkd != null && n.rh != null))) fatal.push("a note carries BOTH pkd and rh");
+        if (!all.filter((n) => n.ho || n.po || n.tp).every((n) => n.pkd == null)) fatal.push("a legato/tapped note carries pkd");
+        return fatal;
+      }));
+      return rows;
+    });
+    sections.push({ name: "hand-marks data layer (6)", rows: p6 });
   } finally {
     await browser.close();
   }

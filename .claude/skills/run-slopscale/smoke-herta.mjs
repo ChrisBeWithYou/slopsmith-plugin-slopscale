@@ -78,6 +78,27 @@ try {
   ok(wired.title === "Herta Burst", "pick_herta goal card loads", `“${wired.title}”`);
   ok(wired.pwNotes > 0, "pick_herta pathway generates a chart", `n=${wired.pwNotes}`);
 
+  // FORM plumbing (hand-marks Slice 2 fix): hertaAccent/hertaWalk had no hidden
+  // fields, so the pathway's vary steps wrote to nothing and the accent ladder
+  // was silently inert in the UI (the cfg-patch rows above never saw it). Drive
+  // the hidden FIELD and assert readConfig + the chart pick it up.
+  const plumbed = await page.evaluate(() => {
+    const set = (name, v) => { const el = document.querySelector(`#slopscale-controls [name="${name}"]`); if (el) el.value = String(v); return !!el; };
+    const hasField = set("hertaAccent", 3) && set("hertaWalk", "true");
+    const cfg = window.SlopScale.readConfig();
+    let acc3 = false, walked = false;
+    try {
+      const notes = window.SlopScale.generateExercise(Object.assign(cfg, { mode: "herta", practiceType: "herta" })).chart.notes.filter(n => !n._tail);
+      acc3 = notes.length > 4 && notes[3].ac === true && notes[0].ac === false;
+      walked = notes[0].f !== notes[4].f || notes[0].s !== notes[4].s;
+    } catch (_) {}
+    set("hertaAccent", 0); set("hertaWalk", "");
+    return { hasField, cfgAccent: cfg.hertaAccent, cfgWalk: cfg.hertaWalk, acc3, walked };
+  });
+  ok(plumbed.hasField, "hertaAccent/hertaWalk hidden fields exist (were unplumbed pre-Slice-2)");
+  ok(plumbed.cfgAccent === 3 && plumbed.cfgWalk === true, "readConfig carries the form's hertaAccent/hertaWalk", `acc=${plumbed.cfgAccent} walk=${plumbed.cfgWalk}`);
+  ok(plumbed.acc3 && plumbed.walked, "form-driven accent + walk reach the chart", `acc3=${plumbed.acc3} walked=${plumbed.walked}`);
+
   ok(pageErrs.length === 0, "no uncaught page errors", pageErrs.join(" | "));
   console.log(`\n${fails === 0 ? "PASS" : "FAIL"}  guitar herta: ${fails} failure(s)`);
   process.exit(fails ? 1 : 0);
