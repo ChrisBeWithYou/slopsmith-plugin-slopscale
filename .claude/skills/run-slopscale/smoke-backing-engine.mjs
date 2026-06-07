@@ -288,6 +288,202 @@ try {
   ok(c3.scComp === 0, "player-is-the-comp: strum_comp suppresses the comp lane", `comp=${c3.scComp}`);
   ok(c3.devPad, "the pad-vs-comp A/B dev flag forces the legacy pad");
 
+  // ── (6c) BASS_FIGURES (step 4): walking/figures, kick lock, lift, mute ──────
+  step("BASS_FIGURES (step 4)");
+  const c4 = await page.evaluate(() => {
+    const S = window.SlopScale;
+    const base = Object.assign(S.readConfig(), {
+      practiceType: "scale", mode: "scale", shapeNotes: null, fretboardSystem: "position",
+      key: "C", scale: "major", stringSetup: "guitar_6_standard", bpm: 100, bars: 4,
+      progression: "I-V-vi-IV", meter: { numerator: 4, denominator: 4, grouping: [4] },
+      backingStyle: "pad", swing: "straight", backingComp: "", backingBass: "", backingDensity: undefined, backingPadDev: false,
+    });
+    const gen = (over) => {
+      const cfg = Object.assign({}, base, over);
+      const ex = S.generateExercise(cfg);
+      const b = S.makeBundle(ex);
+      return { b, tl: ex.chart.timeline || [], lead: b.leadIn || 0 };
+    };
+    const bass = (b) => (b.backingEvents || []).filter((e) => e.role === "bass");
+    const harm = (b) => (b.backingEvents || []).filter((e) => e.role !== "drums" && e.role !== "bass");
+    const out = {};
+    // (a) the jazz pilot walks: swung cfg → walking line, root on 1 at the
+    // chord slot (the kick lock), accent velocity on the landing.
+    const jz = gen({ swing: "swing_8" });
+    const jzB = bass(jz.b);
+    out.walkFig = jzB.length > 0 && jzB.every((e) => e.fig === "walking");
+    out.walkRootOn1 = jz.tl.length > 0 && jz.tl.every((c) => {
+      const hit = jzB.find((e) => Math.abs(e.t - (c.startSec + jz.lead)) < 1e-3);
+      return hit && hit.midis[0] % 12 === ((c.rootPc % 12) + 12) % 12 && hit.vel === 1;
+    });
+    // (b) range + leap discipline (the bass-pedagogy realism numbers)
+    const mids = jzB.map((e) => e.midis[0]);
+    out.range = mids.every((m) => m >= 28 && m <= 51);
+    let badLeap = 0;
+    for (let i = 1; i < mids.length; i++) { const g = Math.abs(mids[i] - mids[i - 1]); if (g > 9 && g !== 12) badLeap++; }
+    out.badLeap = badLeap;
+    out.noRepeat = mids.every((m, i) => i === 0 || m !== mids[i - 1] || jzB[i].vel === 0.45);
+    // (c) approach semantics: the note before each change targets the next root
+    // — chromatic ±1, scalar ±2, or the dominant (the next chord's 5th, pc
+    // diff 7). Compare pitch classes (octave-agnostic).
+    let seams = 0, approaches = 0;
+    for (let i = 1; i < jz.tl.length; i++) {
+      const c = jz.tl[i], prevHits = jzB.filter((e) => e.t < c.startSec + jz.lead - 1e-3);
+      if (!prevHits.length) continue;
+      const last = prevHits[prevHits.length - 1].midis[0];
+      const diff = ((last % 12) - (((c.rootPc % 12) + 12) % 12) + 12) % 12;
+      seams++;
+      if ([1, 2, 7, 10, 11].includes(diff)) approaches++;
+    }
+    out.seams = seams; out.approaches = approaches;
+    // (d) the boogie full-recipe migration: cell + figure; the A/B flag keeps
+    // the bespoke pre-step-4 builder (no comp/fig tags).
+    const bg = gen({ backingStyle: "boogie", swing: "shuffle" });
+    const bgB = bass(bg.b), bgH = harm(bg.b);
+    out.boogieFig = bgB.length > 0 && bgB.every((e) => e.fig === "bass_ostinato");
+    out.boogieCell = bgH.length > 0 && bgH.every((e) => e.comp === "boogie_stab");
+    out.boogieShape = bg.tl.slice(0, 4).every((c) => {
+      const hits = bgB.filter((e) => e.t >= c.startSec + bg.lead - 1e-3 && e.t < c.endSec + bg.lead - 1e-3).map((e) => e.midis[0]);
+      return hits.length >= 4 && hits[1] - hits[0] === 7 && hits[2] - hits[0] === 9 && hits[3] - hits[0] === 10;
+    });
+    const bgDev = gen({ backingStyle: "boogie", swing: "shuffle", backingPadDev: true });
+    out.boogieLegacy = bass(bgDev.b).length > 0 && (bgDev.b.backingEvents || []).every((e) => !e.fig && !e.comp);
+    // (e) player-is-the-bassist: a bass cfg mutes the figure, keeps the comp
+    const bz = gen({ swing: "swing_8", stringSetup: "bass_4_standard", instrument: "bass" });
+    out.bassMuted = bass(bz.b).length === 0 && harm(bz.b).length > 0;
+    // (f) register lift: comp drops its folded root when a figure plays
+    out.liftOn = Math.min(...harm(jz.b).flatMap((e) => e.midis)) >= 48;
+    out.liftOff = Math.min(...harm(gen({}).b).flatMap((e) => e.midis)) < 48;
+    // (g) authored figures: motown (ghosts + root on 1), root_pump, two_feel
+    const mo = gen({ backingBass: "motown_counter" });
+    const moB = bass(mo.b);
+    out.motown = moB.length > 0 && moB.every((e) => e.fig === "motown_counter")
+      && moB.some((e) => e.vel === 0.45)
+      && mo.tl.every((c) => { const h = moB.find((e) => Math.abs(e.t - (c.startSec + mo.lead)) < 1e-3); return h && h.midis[0] % 12 === ((c.rootPc % 12) + 12) % 12; });
+    const rpG = gen({ backingBass: "root_pump" });
+    const rpB = bass(rpG.b);
+    out.rootPump = rpB.length > 0 && rpB.every((e) => e.fig === "root_pump")
+      && rpG.tl.slice(0, 2).every((c) => {
+        const hits = rpB.filter((e) => e.t >= c.startSec + rpG.lead - 1e-3 && e.t < c.endSec + rpG.lead - 1e-3);
+        return hits.length === 8 && hits.every((e) => e.midis[0] % 12 === ((c.rootPc % 12) + 12) % 12);
+      });
+    const tf = gen({ backingBass: "two_feel" });
+    const tfB = bass(tf.b);
+    out.twoFeel = tf.tl.length > 0 && tf.tl.slice(0, 2).every((c) => {
+      const hits = tfB.filter((e) => e.t >= c.startSec + tf.lead - 1e-3 && e.t < c.endSec + tf.lead - 1e-3).map((e) => e.midis[0]);
+      return hits.length === 2 && (hits[1] - hits[0] + 12) % 12 === 7;
+    });
+    // (h) density 1 (vamp) has no bass figure
+    out.density1 = bass(gen({ swing: "swing_8", backingDensity: 1 }).b).length === 0;
+    // (i) determinism: the seeded generator rolls the same line every build
+    const j1 = JSON.stringify(gen({ swing: "swing_8" }).b.backingEvents);
+    const j2 = JSON.stringify(gen({ swing: "swing_8" }).b.backingEvents);
+    out.deterministic = j1 === j2;
+    // (j) exactly ONE labeled carrier per chord change (no label spam)
+    const cars = (jz.b.backingEvents || []).filter((e) => e.cpcs);
+    const named = (jz.b.backingEvents || []).filter((e) => e.name);
+    out.carriers = cars.length; out.namedN = named.length; out.tlN = jz.tl.length;
+    return out;
+  });
+  ok(c4.walkFig, "jazz pilot: swung cfg walks a role:'bass' line (fig='walking')");
+  ok(c4.walkRootOn1, "walking lands the ROOT on beat 1 of every change, at the kick's slot, accented");
+  ok(c4.range, "the line stays in the backing-bass register (MIDI 28–51)");
+  ok(c4.badLeap === 0, "leaps ≤9 semitones (octave whitelisted)", `bad=${c4.badLeap}`);
+  ok(c4.noRepeat, "no repeated adjacent pitches in the walk");
+  ok(c4.seams > 0 && c4.approaches === c4.seams, "every change is approached (chromatic/scalar/dominant into the next root)", `${c4.approaches}/${c4.seams}`);
+  ok(c4.boogieFig && c4.boogieCell, "boogie full-recipe migration: bass_ostinato figure + boogie_stab cell", `fig=${c4.boogieFig} cell=${c4.boogieCell}`);
+  ok(c4.boogieShape, "the boogie figure walks root–5–6–♭7 on the beats (ported verbatim)");
+  ok(c4.boogieLegacy, "the A/B dev flag keeps the bespoke pre-step-4 boogie");
+  ok(c4.bassMuted, "player-is-the-bassist: a bass cfg MUTES the figure, keeps the comp");
+  ok(c4.liftOn && c4.liftOff, "register lift: the comp drops its folded root (≥48) only while a figure plays", `on=${c4.liftOn} off=${c4.liftOff}`);
+  ok(c4.motown, "authored motown_counter: root on 1, dead-thumb ghosts at the ghost tier");
+  ok(c4.rootPump, "authored root_pump emits the eighth-note pump");
+  ok(c4.twoFeel, "authored two_feel: root on 1, the 5th on beat 3");
+  ok(c4.density1, "backingDensity 1 (vamp) carries no bass figure");
+  ok(c4.deterministic, "the seeded walk is byte-identical across builds (determinism)");
+  ok(c4.carriers === c4.tlN && c4.namedN === c4.tlN, "exactly ONE labeled cpcs carrier per chord change", `carriers=${c4.carriers} named=${c4.namedN} changes=${c4.tlN}`);
+
+  // ── (6d) step-4 VETTING fixes (bass-pedagogy / blues / jazz, 2026-06-07) ────
+  step("vetting fixes (6d)");
+  const c5 = await page.evaluate(() => {
+    const S = window.SlopScale;
+    const base = Object.assign(S.readConfig(), {
+      practiceType: "scale", mode: "scale", shapeNotes: null, fretboardSystem: "position",
+      key: "C", scale: "major", stringSetup: "guitar_6_standard", bpm: 120, bars: 8,
+      progression: "ii-V-I", meter: { numerator: 4, denominator: 4, grouping: [4] },
+      backingStyle: "pad", swing: "swing_8", backingComp: "", backingBass: "", backingDensity: undefined, backingPadDev: false,
+    });
+    const gen = (over) => {
+      const cfg = Object.assign({}, base, over);
+      const ex = S.generateExercise(cfg);
+      const b = S.makeBundle(ex);
+      return { b, tl: ex.chart.timeline || [], lead: b.leadIn || 0 };
+    };
+    const bass = (b) => (b.backingEvents || []).filter((e) => e.role === "bass");
+    const out = {};
+    // (a) the SEAM fix (bass-ped must-fix #1 == jazz's stall bug): the approach
+    // targets the next window's ACTUAL landing — never the same pitch across
+    // the barline, and a chromatic approach resolves by step in register.
+    const w = gen({});
+    const wB = bass(w.b);
+    let stall = 0, badSeam = 0, accWrong = 0, seamN = 0;
+    for (let i = 1; i < w.tl.length; i++) {
+      const c = w.tl[i], prevC = w.tl[i - 1];
+      const land = wB.find((e) => Math.abs(e.t - (c.startSec + w.lead)) < 1e-3);
+      const before = wB.filter((e) => e.t < c.startSec + w.lead - 1e-3);
+      if (!land || !before.length) continue;
+      seamN++;
+      const appr = before[before.length - 1].midis[0], lm = land.midis[0];
+      if (appr === lm) stall++;                                        // the cross-barline repeat stall
+      const diff = ((appr % 12) - (lm % 12) + 12) % 12;
+      const dom = (appr % 12) === ((c.rootPc % 12) + 7) % 12;
+      if (!([1, 2, 10, 11].includes(diff) || dom)) badSeam++;
+      if ([1, 11].includes(diff) && Math.abs(appr - lm) > 2) badSeam++; // chromatic must resolve by STEP
+      // accent semantics: vel 1 exactly when the chord changes
+      const changed = c.name !== prevC.name;
+      if ((land.vel === 1) !== changed) accWrong++;
+    }
+    out.seamN = seamN; out.stall = stall; out.badSeam = badSeam; out.accWrong = accWrong;
+    // landing accents exist at all (the first window is a change by definition)
+    const first = wB.find((e) => Math.abs(e.t - (w.tl[0].startSec + w.lead)) < 1e-3);
+    out.firstAcc = !!(first && first.vel === 1);
+    // (b) motown natural-6 gate (bass-ped must-fix #2): no natural 6 over a
+    // minor-3rd chord (the diatonic vi) — the ♭7 plays as the COLOUR tone.
+    // The window's FINAL hit is the chromatic approach into the NEXT chord
+    // (e.g. F# into F major) — legitimate approach vocabulary, excluded.
+    const mo = gen({ swing: "straight", progression: "I-vi-IV-V", backingBass: "motown_counter" });
+    const moB = bass(mo.b);
+    let nat6 = 0, minorSeen = 0;
+    for (const c of mo.tl) {
+      const ivs = c.intervals.map((x) => ((x % 12) + 12) % 12);
+      if (!(ivs.includes(3) && !ivs.includes(4))) continue;
+      minorSeen++;
+      const hits = moB.filter((e) => e.t >= c.startSec + mo.lead - 1e-3 && e.t < c.endSec + mo.lead - 1e-3);
+      for (let i = 0; i < hits.length - 1; i++) if (hits[i].midis[0] % 12 === ((c.rootPc % 12) + 9) % 12) nat6++;
+    }
+    out.minorSeen = minorSeen; out.nat6 = nat6;
+    // (c) comp accent placement (blues + jazz one-liners): Charleston accents
+    // the '&-of-2' push; boogie stabs accent '&-of-2'/'&-of-4'. Authored on a
+    // straight cfg so the grid positions are unwarped by swing.
+    const beat = 60 / base.bpm;
+    const accPos = (cellId) => {
+      const g = gen({ swing: "straight", backingComp: cellId });
+      const comp = (g.b.backingEvents || []).filter((e) => e.role !== "drums" && e.role !== "bass" && e.vel === 1);
+      const c0 = g.tl[0];
+      return comp.filter((e) => e.t >= c0.startSec + g.lead - 1e-3 && e.t < c0.endSec + g.lead - 1e-3)
+        .map((e) => +(((e.t - (c0.startSec + g.lead)) / beat)).toFixed(2));
+    };
+    out.charlestonAcc = accPos("charleston");
+    out.boogieAcc = accPos("boogie_stab");
+    return out;
+  });
+  ok(c5.seamN > 0 && c5.stall === 0, "no cross-barline pitch repeat (the seam-stall fix)", `stalls=${c5.stall}/${c5.seamN}`);
+  ok(c5.badSeam === 0, "approaches target the ACTUAL next landing (chromatic resolves by step)", `bad=${c5.badSeam}`);
+  ok(c5.accWrong === 0 && c5.firstAcc, "walk accents land ONLY on chord changes (accent = 'new chord here')", `wrong=${c5.accWrong}`);
+  ok(c5.minorSeen > 0 && c5.nat6 === 0, "motown: no natural 6 over a minor-3rd chord (the ♭7 plays)", `minors=${c5.minorSeen} nat6=${c5.nat6}`);
+  ok(JSON.stringify(c5.charlestonAcc) === "[1.5]", "Charleston accent sits on the '&-of-2' push, not beat 1", JSON.stringify(c5.charlestonAcc));
+  ok(JSON.stringify(c5.boogieAcc) === "[1.5,3.5]", "boogie stabs accent '&-of-2'/'&-of-4' (backbeat-side)", JSON.stringify(c5.boogieAcc));
+
   // ── (7) scheduler ceiling: a Woodshed Play stays windowed ───────────────────
   step("scheduler ceiling");
   await page.click("#slopscale-mode-session");

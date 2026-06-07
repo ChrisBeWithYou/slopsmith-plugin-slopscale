@@ -349,6 +349,34 @@ try {
   ok(c9.miss2 && c9.miss2.bare, "(9c) an unplayed note's miss dispatches mark-only (no fabricated diagnostics)", JSON.stringify(c9.miss2));
   await p.click("#slopscale-play").catch(() => {});
 
+  // (10) HOST-TUNER WINDOW INHERIT (2026-06-07): the judge's timing windows
+  // come from note_detect's saved sliders in localStorage['slopsmith_notedetect']
+  // (Clean Timing / chord window, host clamp chain incl. timingTolerance),
+  // read per run, inherit-never-write; absent key = the shipped ±100/±150ms.
+  const winDiff = async () => p.evaluate(async () => {
+    const dbg = globalThis.__ss_debug;
+    for (let i = 0; i < 50 && !(dbg.ptWindows() || []).length; i++) await new Promise((r2) => setTimeout(r2, 20));
+    const ws = dbg.ptWindows();
+    if (!ws.length) return null;
+    return +(ws[0].t - ws[0].matchStart).toFixed(3);
+  });
+  await p.evaluate(() => {
+    const set = (name, v) => { const el = document.querySelector(`#slopscale-controls [name="${name}"]`); if (el) { if (el.type === "checkbox") el.checked = !!v; else el.value = String(v); el.dispatchEvent(new Event("change", { bubbles: true })); } };
+    set("practiceType", "chromatic"); set("subdivision", "quarter"); set("bpm", "120"); set("bars", "2"); set("countIn", "0");
+    localStorage.setItem("slopsmith_notedetect", JSON.stringify({ timingTolerance: 0.25, timingHitThreshold: 0.2 }));
+  });
+  await p.click("#slopscale-play");
+  const inherited = await winDiff();
+  // The transport split: Play mid-run = PAUSE (resume keeps the window table).
+  // STOP ends the run so the next Play rebuilds windows + re-reads the inherit.
+  await p.click("#slopscale-stop").catch(() => {});
+  await p.evaluate(() => localStorage.removeItem("slopsmith_notedetect"));
+  await p.click("#slopscale-play");
+  const dflt = await winDiff();
+  await p.click("#slopscale-stop").catch(() => {});
+  ok(inherited === 0.2, "(10a) a widened host Clean Timing slider widens the judge window (±200ms inherited)", `got ${inherited}`);
+  ok(dflt === 0.1, "(10b) no host tuner settings = the shipped ±100ms default", `got ${dflt}`);
+
   ok(errs.length === 0, "no page errors from the gem path", errs.join(" | "));
 
   console.log(`\n${fails === 0 ? "PASS" : "FAIL"}  gems: ${fails} failure(s)`);

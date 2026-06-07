@@ -416,3 +416,69 @@ agent authors its own recipe + cells when its tier is built.
 7. *(unchanged)* Breadth/exotic tier stays DEFERRED behind proof: compLanes[] multi-lane,
    cellBeats polymeter, swung-16ths (`swingUnit`), quartal/drop2, busy_melodic, the
    passing-chord generator, pump/roll/arrastre/808-glide.
+
+---
+
+# Step 4 build record — BASS_FIGURES (2026-06-07, session #15)
+
+**SHIPPED + 3-lane vetted** (bass-pedagogy / blues-idiom / jazz-idiom — verdicts in their
+agent memories; all must-fixes landed same session). Guarded by `smoke-backing-engine`
+§6c (17 rows) + §6d (6 vetting rows) — 80 checks, 16/16 net.
+
+**What landed (screen.js, grep `BASS_FIGURES`):**
+- **Registry**: pattern figures `sustained_root` / `two_feel` / `root_pump` /
+  `bass_ostinato` (the boogie R-5-6-♭7 port = figure #1, label "boogie bass figure") +
+  generators `walking` / `motown_counter`, every figure labeled; startup guard (grid
+  shape, beat-1-root kick lock, iv range, root window under the ceiling).
+- **Realism numbers** (bass-pedagogy's locked re-check, implemented): roots fold 28–43
+  (soft Eb-edge: one-semitone ceiling overshoot beats dropping below E1), line ≤50,
+  leap ≤9 + octave-12 whitelist + repair pass, 0.9×slot note length, beat-1 root at the
+  chord slot's exact time (the kick lock; on-beat quarters are fixed points of the swing
+  warp ⇒ a jazz walking line stays straight under a swung ride **by construction**),
+  velocity tiers 1.0/0.78/0.45.
+- **Resolver** `bassFigureForConfig` (mirrors `compCellForConfig`): A/B `backingPadDev` +
+  density gates first (bass enters at density 2), `isBassCfg` PLAYER-IS-THE-BASSIST mute
+  (jam-drops-bass), authored `cfg.backingBass` wins, boogie → `bass_ostinato`, swung
+  non-boogie → `walking` (the jazz pilot, arriving with the Charleston).
+- **Register lift**: pad/cell voicings drop the folded root (lowest voice ≥48) whenever a
+  figure plays (`voiceBackingChord`/`voiceLeadBackingChord` lift windows; `compTargetMidis`
+  pedal lift).
+- **Boogie full-recipe migration**: `boogie_stab` cell + `bass_ostinato` figure replace the
+  bespoke builder (kept verbatim behind `slopscale.backingPad='pad'` for A/B); roots now
+  fold into the TRUE bass octave 28–40 (the 36–48 guitar-window bias bass-pedagogy flagged
+  is gone). strum_comp suppression now precedes the boogie branch (the rule beats a
+  style recipe — behavior change for boogie+strum_comp cfgs, which now get no backing).
+- **One carrier per change**: exactly one event per chord change carries
+  name/cpcs/gpcs/rn/fn — the figure's beat-1 when present, else the cell's first hit, else
+  the pad (also fixed step 3's label-on-every-hit). Jam consumers made dense-lane-proof:
+  `jamNextGuidePcs` walks carriers (wrap-aware), `overviewBands` Jam branch filters to
+  carriers (band end = next carrier's start).
+- **Plumbing**: hidden `backingBass` field (screen.html) → readConfig → anti-leak in
+  applyPathwayConfig; goal-card line now names both primitives
+  ("Backing · Charleston comp + walking bass").
+- **Determinism**: generators draw only from `chartRng(cfg)` (fresh instance — the note
+  path's rolls are untouched); same cfg ⇒ byte-identical backing.
+
+**Vetting verdicts + fixes landed (2026-06-07):**
+- *bass-pedagogy*: patterns/boogie PASS; walking FIX → **two-pass seam targeting** (pre-roll
+  every window's beat-1 degree; approaches target the ACTUAL next landing — kills the
+  cross-barline stall jazz also flagged); motown FIX → **quality-gated colour tone** (♭7
+  over minor-3rd chords; natural 6 only over maj/dom). Rulings: walking beat-1 roots obey
+  the LINE window (28–50) via seam-nearest, not the 28–43 pattern fold; the boogie
+  transposed-ostinato seam leap is exempt from the walking cap.
+- *blues-idiom*: PASS-with-notes → **boogie_stab accents moved to '&-of-2'/'&-of-4'**
+  (backbeat-side, riding the snare crack; &-of-1/&-of-3 read oom-pah). Confirmed the
+  octave-deeper roots and the 0.225-beat post-warp chick. Audition evidence note: probe
+  must use the real `12_bar_blues` palette token (the first audition's "12bar_blues" fell
+  back to I-V-vi-IV).
+- *jazz-idiom*: PASS-with-notes → **walk accents only on chord changes** (accent = "new
+  chord here"; a hammer on every downbeat is oom-pah) + **Charleston accent moved to the
+  '&-of-2' push**. Time-feel mechanics confirmed correct-by-construction.
+
+**Step-5/6 carry-forwards from vetting:** jazz needs its own DRUM groove (a swung cfg
+currently gets `straight_8th_rock` — a swung ROCK beat under a jazz trio; spang-a-lang +
+hat 2/4 is already in the step-5 plan) · move the walking/Charleston trigger from the
+swing FEEL key to style/recipe keys at step 6 (a rock rung flipping swing on as a feel
+exercise shouldn't summon a jazz trio) · slow-blues 12/8 wants a longer-sustain stab cell
+at crawl tempos · tempo-adaptive swing-ratio curve (rhythm-meter lane) · I-bar walking
+oscillation excursion bias (polish) · dom7 depth for raw Custom boogie cfgs (harmony lane).
