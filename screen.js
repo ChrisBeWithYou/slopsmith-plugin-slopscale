@@ -2025,9 +2025,23 @@
       chordTemplates: {
         // G-shape is overwhelmingly played as an open chord (3-2-0-0-0-3, classic
         // 2-1-0-0-0-3 fingering). Barre-up form is rare/uncomfortable.
-        maj: [{s:0,fOff:0,iv:0,fg:2},{s:1,fOff:-1,iv:4,fg:1},{s:2,fOff:-3,iv:7,fg:1},{s:3,fOff:-3,iv:0,fg:1},{s:4,fOff:-3,iv:4,fg:1},{s:5,fOff:0,iv:0,fg:3}],
-        min: [{s:0,fOff:0,iv:0,fg:2},{s:1,fOff:-2,iv:3,fg:1},{s:2,fOff:-3,iv:7,fg:1},{s:3,fOff:-3,iv:0,fg:1},{s:4,fOff:-4,iv:3,fg:1},{s:5,fOff:0,iv:0,fg:3}],
-        dim: [{s:0,fOff:0,iv:0,fg:2},{s:1,fOff:-2,iv:3,fg:1},{s:2,fOff:-4,iv:6,fg:1},{s:3,fOff:-3,iv:0,fg:1},{s:4,fOff:-4,iv:3,fg:1},{s:5,fOff:0,iv:0,fg:3}]
+        // maj fingering corrected 2026-06-07 (load-guard catch): fg1 spanned
+        // fOff -1 AND -3 (impossible). fg encodes the barre form per the header
+        // convention: index barre at -3, middle on the 3rd, ring/pinky split the
+        // two roots. templateFromShape zeroes fingers on open strings, so the
+        // open-G render shows 3-2-0-0-0-4 — the (equally classic) C-change-
+        // friendly open fingering.
+        maj: [{s:0,fOff:0,iv:0,fg:3},{s:1,fOff:-1,iv:4,fg:2},{s:2,fOff:-3,iv:7,fg:1},{s:3,fOff:-3,iv:0,fg:1},{s:4,fOff:-3,iv:4,fg:1},{s:5,fOff:0,iv:0,fg:4}],
+        // min/dim fingering corrected 2026-06-07 (load-guard catch): fg1 spanned
+        // 3 fret offsets (impossible). Both are MOVABLE-only renders (fOff -4 →
+        // fret -1 at open-G root 3 → templateFromShape returns null) consumed by
+        // the arpeggio paths, so finger them as the arpeggio-through-the-shape:
+        // 1FPF from the lowest fret. min: index -4, middle mini-barre/roll -3
+        // (s2+s3 adjacent), ring -2, pinky replants the two outer roots at 0.
+        min: [{s:0,fOff:0,iv:0,fg:4},{s:1,fOff:-2,iv:3,fg:3},{s:2,fOff:-3,iv:7,fg:2},{s:3,fOff:-3,iv:0,fg:2},{s:4,fOff:-4,iv:3,fg:1},{s:5,fOff:0,iv:0,fg:4}],
+        // dim: index mini-barre at -4 (s2+s4; s3 arches HIGHER at -3 — valid,
+        // the classic xx1212 dim-grip core), middle -3, ring -2, pinky roots.
+        dim: [{s:0,fOff:0,iv:0,fg:4},{s:1,fOff:-2,iv:3,fg:3},{s:2,fOff:-4,iv:6,fg:1},{s:3,fOff:-3,iv:0,fg:2},{s:4,fOff:-4,iv:3,fg:1},{s:5,fOff:0,iv:0,fg:4}]
       }
     },
     E: {
@@ -2037,7 +2051,14 @@
         // the barre form (e.g. F major at rootFret 1: 1-3-3-2-1-1).
         maj: [{s:0,fOff:0,iv:0,fg:1},{s:1,fOff:2,iv:7,fg:3},{s:2,fOff:2,iv:0,fg:4},{s:3,fOff:1,iv:4,fg:2},{s:4,fOff:0,iv:7,fg:1},{s:5,fOff:0,iv:0,fg:1}],
         min: [{s:0,fOff:0,iv:0,fg:1},{s:1,fOff:2,iv:7,fg:3},{s:2,fOff:2,iv:0,fg:4},{s:3,fOff:0,iv:3,fg:1},{s:4,fOff:0,iv:7,fg:1},{s:5,fOff:0,iv:0,fg:1}],
-        dim: [{s:0,fOff:0,iv:0,fg:1},{s:1,fOff:1,iv:6,fg:2},{s:2,fOff:2,iv:0,fg:4},{s:3,fOff:0,iv:3,fg:1},{s:4,fOff:-1,iv:6,fg:1},{s:5,fOff:0,iv:0,fg:1}]
+        // dim fingering corrected 2026-06-07 (load-guard catch): fg1 sat at
+        // fOff 0 AND -1 (the ♭5 below the barre — impossible). No 6-string
+        // simultaneous E-dim grip exists (see the caged-template guard SKIP
+        // note; real dim comping uses the 4-string D/A forms), so finger it as
+        // the arpeggio-through-the-shape, 1FPF anchored on the low ♭5: index
+        // -1, middle replants the three 0-offset tones, ring +1, pinky +2
+        // (2-3-4-2-1-2 low→high).
+        dim: [{s:0,fOff:0,iv:0,fg:2},{s:1,fOff:1,iv:6,fg:3},{s:2,fOff:2,iv:0,fg:4},{s:3,fOff:0,iv:3,fg:2},{s:4,fOff:-1,iv:6,fg:1},{s:5,fOff:0,iv:0,fg:2}]
       }
     },
     D: {
@@ -11896,10 +11917,25 @@
       try { navigator.clipboard.writeText(proofCardText(s)); ev.target.textContent = 'Copied ✓'; } catch (_) {}
     });
     root.classList.add('ss-results-open');
+    // The dialog ships aria-hidden="true" in the markup (every other panel
+    // toggles it in its open/close fns — this one was missed): flip it BEFORE
+    // focusing the CTA, or the browser blocks the hidden state ("aria-hidden
+    // on an element because its descendant retained focus", live console
+    // report 2026-06-07).
+    $('slopscale-results-modal')?.setAttribute('aria-hidden', 'false');
     ($('slopscale-results-primary') || $('slopscale-results-done'))?.focus();
   }
   function closeResultsModal() {
     const root = $('slopscale-root'); if (!root) return;
+    const modal = $('slopscale-results-modal');
+    // Move focus OUT before re-hiding — aria-hidden on the focused element's
+    // ancestor hides focus from assistive tech (and the browser refuses it).
+    // The transport Play button is the natural close-and-arm landing spot.
+    if (modal && modal.contains(document.activeElement)) {
+      const play = $('slopscale-play');
+      if (play) play.focus(); else { try { document.activeElement.blur(); } catch (_) {} }
+    }
+    modal?.setAttribute('aria-hidden', 'true');
     root.classList.remove('ss-results-open');
     // The rail tier-glow fired at sessionEnd UNDER the modal scrim and burned out
     // unseen (UX finding 2026-06-06). Re-fire on dismiss so the player watches the
@@ -17085,6 +17121,7 @@
     // size. A re-attach when the screen becomes visible is cheap and makes
     // the initial paint reliable. (Also covers re-entry after the user
     // navigated to Library or another screen and came back.)
+    let fireInitialGenerate = null; // set by fireInitialGenerateWhenLaidOut below; idempotent
     if (window.slopsmith && typeof window.slopsmith.on === 'function') {
       window.slopsmith.on('screen:changed', (ev) => {
         if (ev?.detail?.id !== 'plugin-slopscale') return;
@@ -17093,6 +17130,10 @@
         if (lastExercise) {
           // attachRenderer re-syncs the view row to the actual renderer.
           attachRenderer(lastExercise).catch(e => console.warn('[SlopScale] re-attach on screen show failed', e));
+        } else if (fireInitialGenerate) {
+          // Initial generate was deferred because the screen mounted hidden
+          // (see the hidden-mount guard below) — run it on first show.
+          fireInitialGenerate();
         }
       });
     }
@@ -17105,6 +17146,7 @@
       if (!host || typeof ResizeObserver === 'undefined') { onGenerate(); return; }
       let fired = false;
       const fire = () => { if (fired) return; fired = true; try { ro.disconnect(); } catch (_) {} onGenerate(); };
+      fireInitialGenerate = fire;
       const ro = new ResizeObserver(entries => {
         for (const entry of entries) {
           const w = entry.contentRect.width, h = entry.contentRect.height;
@@ -17112,9 +17154,17 @@
         }
       });
       ro.observe(host);
-      // Failsafe in case the observer never reports non-zero (e.g. plugin
-      // screen mounted hidden for a long time).
-      setTimeout(fire, 1000);
+      // Failsafe in case the observer never reports non-zero. Hidden-mount
+      // guard (2026-06-07, live console report): at host boot with another
+      // screen active this used to FORCE a generate against the hidden
+      // screen — the borrowed highway_3d aborts on a parentless canvas
+      // ("[SlopScale] generate failed: initScene failed"). When the host can
+      // tell us about screen shows, defer instead: the RO keeps watching and
+      // the screen:changed hook above fires the deferred initial generate.
+      setTimeout(() => {
+        if (!host.offsetParent && window.slopsmith && typeof window.slopsmith.on === 'function') return;
+        fire();
+      }, 1000);
     })();
     return true;
   }
