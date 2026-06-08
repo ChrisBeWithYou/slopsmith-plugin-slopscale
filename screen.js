@@ -14348,6 +14348,35 @@
   // not a generated fact), so a host setting change only needs a redraw.
   function refreshForHostSettingChange() { if (!activeBundle) return; syncHighwaySettings(activeBundle); drawOnce(); }
 
+  // ── Depth slice (2026-06-07 panel) — the summit-invite atom ──────────────────
+  // The first depth axis BEYOND Speed is PATTERNS (guitar-pedagogy: sequence the
+  // same box/key before moving the hands at all). The engine already exists
+  // (SEQUENCE_PATTERNS / applySequencePattern, §7) and only REORDERS resolved
+  // positions — zero bad-note risk. This turns the dead-end "Summit reached"
+  // signpost into a live close-and-arm pointing at that next step (Fork-1 verdict:
+  // explicit, student-DRIVEN, never auto). Travel(keys/positions) + Support-off are
+  // the follow-on increments; here we only ship the smallest atom that proves the
+  // invite model where the grinder currently hits a wall.
+  const SEQ_SUPPORTING = new Set(['scale', 'chord_scales']);   // the practice types that consume cfg.sequence
+  function depthSequenceField() { return document.querySelector('#slopscale-controls [name="sequence"]'); }
+  function depthIsPatterned() { const f = depthSequenceField(); return !!(f && f.value && f.value !== 'none'); }
+  // The pattern to OFFER at the speed summit, or null when the rung can't sequence
+  // (non-scale type; advancedMode OFF → readConfig strips sequence to 'none', so
+  // offering it would be a silent no-op — the exact honesty trap UX flagged; or
+  // already patterned). Pentatonic/blues are <7-note, where `thirds` ([0,2]) is NOT
+  // a diatonic third — offer `fours` instead (degree-agnostic, always correctly
+  // labelled) per guitar-pedagogy's relabel gate.
+  function depthPatternOffer(pw) {
+    const pt = pw && pw.base && pw.base.practiceType;
+    if (!SEQ_SUPPORTING.has(pt)) return null;
+    const adv = document.querySelector('#slopscale-controls [name="advancedMode"]');
+    if (!adv || !adv.checked) return null;                 // would be stripped → never offer a no-op
+    if (depthIsPatterned()) return null;                   // already on a pattern — next axis is the follow-on slice
+    const scaleField = document.querySelector('#slopscale-controls [name="scale"]');
+    const scale = (scaleField && scaleField.value) || (pw.base && pw.base.scale) || 'major';
+    const sevenNote = (SCALE_INTERVALS[scale] || []).length === 7;
+    return sevenNote ? { seq: 'thirds', label: 'in 3rds' } : { seq: 'fours', label: 'in 4ths' };
+  }
   function syncTempoTierButtons() {
     const container = $('slopscale-tier-buttons');
     if (!container) return;
@@ -14386,7 +14415,18 @@
       const nextIdx = highestCleared + 1;
       if (nextIdx >= tiers.length) {
         signpost.classList.add('summit');
-        signpost.innerHTML = `<span class="climb-arrow">✓</span>Summit reached — every speed cleared.`;
+        const offer = depthPatternOffer(pw);
+        if (offer) {
+          // The live invite: the dead-end becomes the next depth step, armed on click.
+          signpost.innerHTML = `<span class="climb-arrow">✓</span>All speeds cleared. ` +
+            `<button type="button" class="slopscale-climb-cta" data-act="depth-pattern" data-seq="${offer.seq}">Now play it ${offer.label} ▸</button>`;
+        } else if (SEQ_SUPPORTING.has(pw && pw.base && pw.base.practiceType) && depthIsPatterned()) {
+          // Already on a pattern — forward hook (the always-visible roadmap signal),
+          // naming the next axis without yet shipping its control.
+          signpost.innerHTML = `<span class="climb-arrow">✓</span>Speeds + pattern cleared — new keys &amp; positions are next.`;
+        } else {
+          signpost.innerHTML = `<span class="climb-arrow">✓</span>Summit reached — every speed cleared.`;
+        }
       } else {
         const name = TIER_LABELS[nextIdx] || `Rung ${nextIdx + 1}`;
         signpost.innerHTML = `<span class="climb-arrow">→</span>Next rung: <span class="climb-target">${name}</span> · ${tiers[nextIdx]} BPM`;
@@ -16448,6 +16488,16 @@
       if (activeBundle) onGenerate();
     });
     $('slopscale-save-tuning')?.addEventListener('click', onSaveTuningClick);
+    // The Climb signpost's summit invite (depth slice — the summit-invite atom):
+    // arm the offered next-depth pattern on the live form, then regenerate. The
+    // signpost re-renders its innerHTML each sync, so delegate from the container.
+    $('slopscale-climb-next')?.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-act="depth-pattern"]');
+      if (!btn) return;
+      setFieldSilent('sequence', btn.dataset.seq || 'thirds');
+      syncTempoTierButtons();   // flip the signpost to the "pattern cleared" forward hook immediately
+      if (activeBundle) onGenerate();   // rebuild the chart with the sequenced run
+    });
     // Fetch any tunings the user saved in a prior session and pull them
     // into the dropdown. Async; the dropdown is repainted by the fetch
     // callback so users see saved entries the moment the request lands.

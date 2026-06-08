@@ -842,6 +842,16 @@
   .slopscale-climb-next .climb-target { color: var(--ss-text-dim); font-weight: 700; }
   .slopscale-climb-next.summit { color: var(--ss-meter); }
   .slopscale-climb-next.summit .climb-arrow { color: var(--ss-meter); }
+  /* Summit invite (depth slice): the live close-and-arm to the next depth step.
+     Reads as the accent "next" cue, not a heavy button — a link with a clear hit area. */
+  .slopscale-climb-cta {
+    appearance: none; border: 0; background: none; cursor: pointer;
+    font: inherit; font-weight: 800; color: var(--ss-meter);
+    padding: 1px 2px; border-radius: 4px; letter-spacing: 0.01em;
+    text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px;
+  }
+  .slopscale-climb-cta:hover { background: color-mix(in srgb, var(--ss-meter) 14%, transparent); text-decoration: none; }
+  .slopscale-climb-cta:focus-visible { outline: 2px solid var(--ss-meter); outline-offset: 1px; }
 
   /* Single ↔ Session mode toggle pill */
   /* Instrument family selector — three-way segmented control above the
