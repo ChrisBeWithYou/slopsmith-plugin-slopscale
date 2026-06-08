@@ -172,6 +172,43 @@ try {
   await page.click("#slopscale-play"); // stop
   await page.evaluate(() => { delete window.slopsmithDesktop; });
 
+  // 3d. Matched-but-REFUSED switch (the unhandled 'speaker-selection' permission
+  //     on slopsmith-desktop, 2026-06-07 Arch follow-up): the honest mismatch must
+  //     fire — previously this died in the outer catch with NO UI state,
+  //     indistinguishable from "worked". Stubs: a bridge on a matchable device,
+  //     an enumerateDevices carrying it, and a setSinkId that refuses (shadowed
+  //     on the live ctx instance — prototype patching can miss it since the
+  //     screen-scoped AudioContext patch swaps constructors).
+  const blocked = await page.evaluate(async () => {
+    window.slopsmithDesktop = { audio: {
+      isAudioRunning: async () => true,
+      getCurrentDevice: async () => ({ inputType: "ALSA", outputType: "ALSA", input: "", output: "Scarlett 2i2 USB" }),
+    } };
+    navigator.mediaDevices.enumerateDevices = async () =>
+      [{ kind: "audiooutput", deviceId: "sink-x", label: "Focusrite Scarlett 2i2 USB Audio", groupId: "g" }];
+    const ctx = globalThis.__ss_debug.audioCtxRef();
+    if (!ctx) return { noCtx: true };
+    ctx.setSinkId = async () => { const e = new Error("denied"); e.name = "NotAllowedError"; throw e; };
+    await globalThis.__ss_debug.applyHostSink();
+    return globalThis.__ss_debug.sinkState();
+  });
+  ok(!blocked.noCtx && blocked.appliedId === null && (blocked.mismatch || "").includes("blocked"),
+    "sink follow: matched device + refused setSinkId → honest 'blocked' mismatch (speaker-selection)",
+    `state=${JSON.stringify(blocked)}`);
+
+  // 3e. Zero-token engine name ("PipeWire"/"default"-class): deliberately
+  //     console-only — default sink, NO UI mismatch (a ⚠ would false-alarm every
+  //     legit default-device setup) — and it must RESET a stale mismatch.
+  const generic = await page.evaluate(async () => {
+    window.slopsmithDesktop.audio.getCurrentDevice = async () => ({ inputType: "ALSA", outputType: "ALSA", input: "", output: "PipeWire" });
+    await globalThis.__ss_debug.applyHostSink();
+    return globalThis.__ss_debug.sinkState();
+  });
+  ok(generic.mismatch === "" && generic.appliedId === null,
+    "sink follow: zero-token device name → default sink, no UI mismatch (console-only diagnostic), stale mismatch reset",
+    `state=${JSON.stringify(generic)}`);
+  await page.evaluate(() => { delete window.slopsmithDesktop; });
+
   console.log(`\n${fails === 0 ? "PASS" : "FAIL"}  audiocontext-sharing: ${fails} failure(s)  [SDK ${hasSDK ? "present" : "absent"}]`);
   process.exit(fails ? 1 : 0);
 } finally {

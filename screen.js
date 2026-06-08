@@ -10869,11 +10869,14 @@
     if (hits.length !== 1) return null;
     return { deviceId: hits[0].d.deviceId, label: hits[0].d.label };
   }
+  let _sinkLastOuts = [];                  // last-enumerated audiooutput labels (diagnostics — one paste shows both name spaces)
   async function resolveSinkId(name) {
     if (_sinkResolved[name]) return _sinkResolved[name];
     let devices;
     try { devices = await navigator.mediaDevices.enumerateDevices(); } catch (_) { return null; }
-    const hit = pickSinkMatch(name, devices.filter((d) => d.kind === 'audiooutput'));
+    const outs = devices.filter((d) => d.kind === 'audiooutput');
+    _sinkLastOuts = outs.map((d) => d.label || '(unlabeled)');
+    const hit = pickSinkMatch(name, outs);
     // Success-only cache: pre-mic-grant the labels are empty (no match) and the
     // grant arrives with the first scored run — a cached failure would poison
     // the Play-time retry.
@@ -10888,6 +10891,13 @@
       // stopped the main game itself plays HTML5 → OS default, and following
       // the saved device would make us diverge from it.
       const bridge = window.slopsmithDesktop && window.slopsmithDesktop.audio;
+      // Diagnostic (2026-06-07, the Arch+Focusrite "it did not" follow-up): a
+      // desktop host WITHOUT the audio bridge API previously fell through
+      // identically to a web host — silent, nothing for the user to paste.
+      if (window.slopsmithDesktop && (!bridge || typeof bridge.isAudioRunning !== 'function') && !_sinkWarned['no-bridge']) {
+        _sinkWarned['no-bridge'] = true;
+        console.warn('[SlopScale] slopsmith-desktop detected but its audio bridge API is unavailable (downlevel host?) — cannot read the engine output device; playing to the system default output.');
+      }
       let name = null;
       if (bridge && typeof bridge.isAudioRunning === 'function') {
         let running = false;
@@ -10902,6 +10912,14 @@
         }
       }
       if (!name || !sinkTokens(name).length) { // no engine / web host / "default"-class device
+        // Zero-token name ("PipeWire"/"default"/"JACK"-class): we genuinely can't
+        // tell whether the engine is on the OS default or somewhere we can't
+        // name-match. Console-only (a UI ⚠ would false-alarm every legit
+        // default-device setup) — but say it ONCE so the user has a line to paste.
+        if (name && !_sinkWarned['generic:' + name]) {
+          _sinkWarned['generic:' + name] = true;
+          console.info(`[SlopScale] output-follow: the host engine device "${name}" has no matchable tokens — following the system default output. If SlopScale lands on the wrong device, route it per-app in the system mixer (e.g. pavucontrol on PipeWire).`);
+        }
         _sinkMismatch = '';
         if (_sinkAppliedId) { _sinkAppliedId = null; await ctx.setSinkId(''); }
         return;
@@ -10912,7 +10930,7 @@
         _sinkMismatch = `audio on system default — host engine is on “${name}”`;
         if (!_sinkWarned[name]) {
           _sinkWarned[name] = true;
-          console.warn(`[SlopScale] The host audio engine outputs to "${name}" but no matching browser output device was found; SlopScale is playing to the system default output.`);
+          console.warn(`[SlopScale] The host audio engine outputs to "${name}" but no matching browser output device was found; SlopScale is playing to the system default output. Browser outputs seen: ${JSON.stringify(_sinkLastOuts)}. Workaround: route SlopScale per-app in the system mixer (e.g. pavucontrol on PipeWire).`);
         }
         refreshStatusFromState();
         return;
@@ -10924,7 +10942,21 @@
       // anchor by the measured delta when it's material (>20ms); smaller
       // shifts the per-run auto-cal absorbs.
       const before = Number(ctx.outputLatency) || 0;
-      await ctx.setSinkId(id);
+      try {
+        await ctx.setSinkId(id);
+      } catch (e) {
+        // Matched the device but the switch was REFUSED — on slopsmith-desktop
+        // this is the unhandled 'speaker-selection' permission (the standing
+        // HOST-ASK). Surface it honestly: previously this died in the outer
+        // catch with no UI state, indistinguishable from "worked".
+        _sinkMismatch = `audio on system default — output switch to “${name}” was blocked`;
+        if (!_sinkWarned['blocked:' + name]) {
+          _sinkWarned['blocked:' + name] = true;
+          console.warn(`[SlopScale] Matched the host engine device "${name}" to a browser output, but setSinkId was refused (${(e && e.name) || e}). On slopsmith-desktop this means the 'speaker-selection' permission isn't handled by the host. Playing to the system default output.`);
+        }
+        refreshStatusFromState();
+        return;
+      }
       _sinkAppliedId = id; _sinkMismatch = '';
       const deltaMs = Math.round(((Number(ctx.outputLatency) || 0) - before) * 1000);
       if (Math.abs(deltaMs) > 20) {
@@ -17129,6 +17161,6 @@
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
   window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, ptPracticeTime: () => currentPracticeTime, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch }), avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, ptPracticeTime: () => currentPracticeTime, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
