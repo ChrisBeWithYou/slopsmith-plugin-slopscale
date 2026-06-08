@@ -1430,6 +1430,11 @@
           <option value="rhy_odd_meter">Odd Meters</option>
           <option value="rhy_over_barline">Over the Barline</option>
           <option value="rhy_trade_bars">Trade Bars — Make a Groove</option>
+          <option value="sweep3_triad">Three-String Triad Sweep</option>
+          <option value="sweep5_box">Five-String Box</option>
+          <option value="sweep_roll_apex">The Roll &amp; Clean Apex</option>
+          <option value="sweep7_color">Seventh Sweeps</option>
+          <option value="sweep_changes">Sweeps Over Changes</option>
         </optgroup>
         <optgroup label="Genre">
           <option value="blues_box">The Box &amp; the Blue Note</option>
@@ -1453,6 +1458,27 @@
           <option value="bass_dead_notes">Dead-Note Pocket</option>
           <option value="bass_walking">Walking Bass</option>
           <option value="bass_slap">Slap &amp; Pop</option>
+          <option value="bass_scale_one_box">One-Position Box</option>
+          <option value="bass_scale_two_octave">The Two-Octave Scale</option>
+          <option value="bass_scale_modes">Modes in One Shape</option>
+          <option value="bass_scale_shifts">Position Shifts (Bass)</option>
+          <option value="bass_scale_whole_neck">Whole-Neck Coverage</option>
+          <option value="bass_arp_triads">Triad Arpeggios (Bass)</option>
+          <option value="bass_arp_sevenths">Seventh Arpeggios (Bass)</option>
+          <option value="bass_arp_inversions">Arpeggio Inversions (Bass)</option>
+          <option value="bass_arp_changes">Arpeggios Over Changes (Bass)</option>
+          <option value="bass_rh_pulse">Alternating-Finger Pulse</option>
+          <option value="bass_rh_crossing">String Crossing &amp; Raking</option>
+          <option value="bass_rh_sixteenth">Sixteenth-Note Stamina</option>
+          <option value="bass_rh_funk_pocket">The Funk Pocket — Applied</option>
+          <option value="bass_rh_three_finger">Three-Finger Independence</option>
+          <option value="bass_root_click">Root on the Click</option>
+          <option value="bass_finger_gym">Finger Gym</option>
+          <option value="bass_lc_roots">Roots on the One</option>
+          <option value="bass_lc_guide_tones">Guide-Tone Targets</option>
+          <option value="bass_lc_approach">Approach-Note Lines</option>
+          <option value="bass_lc_capstone">The 12-Bar Walk</option>
+          <option value="bass_lc_trade">Trade the Blues — Build a Line</option>
         </optgroup>
         <optgroup label="Guitar Core">
           <option value="pulse_muting">Pulse &amp; Muting</option>
@@ -1665,6 +1691,19 @@
              silently inert in the UI. Same setFieldSilent→readConfig contract. -->
         <input type="hidden" name="hertaAccent" id="slopscale-herta-accent" value="0">
         <input type="hidden" name="hertaWalk" id="slopscale-herta-walk" value="">
+        <!-- Sweep ladder: constrain a sweep to the top N strings (3-string entry
+             rung). Pathway-driven; 0 = full box. Same setFieldSilent→readConfig
+             contract; anti-leak defaulted in applyPathwayConfig. -->
+        <input type="hidden" name="sweepStrings" id="slopscale-sweep-strings" value="0">
+        <!-- Bass Groove & Right-Hand ladder: plucking-hand mode
+             (pulse|crossing|rake|three_finger). Pathway-driven; 'pulse' default;
+             anti-leak defaulted in applyPathwayConfig. -->
+        <input type="hidden" name="rhTechMode" id="slopscale-rh-tech-mode" value="pulse">
+        <!-- Bass Lines & Changes ladder: walking-line approach into the next chord
+             (scale|chromatic|dominant|mixed). Pathway-driven; 'scale' default;
+             anti-leak defaulted in applyPathwayConfig. -->
+        <input type="hidden" name="walkApproach" id="slopscale-walk-approach" value="scale">
+        <input type="hidden" name="walkFeel" id="slopscale-walk-feel" value="four">
         <!-- Backing engine step 3: the comp CELL (COMP_GROOVES id; empty = legacy
              pad / style default) and density 0–3 (authored-only). Pathway-driven
              hidden fields, anti-leak defaulted in applyPathwayConfig. -->
@@ -1917,6 +1956,7 @@
             <option value="circle_diatonic">Circle: I–IV–vii°–iii–vi–ii–V–I</option>
             <option value="12_bar_blues">12-bar blues</option>
             <option value="quick_change_blues">Quick-change 12-bar blues</option>
+            <option value="jazz_blues">Jazz 12-bar blues (ii–V turnaround)</option>
             <option value="i-VI-III-VII">Minor: i–VI–III–VII</option>
             <option value="i-VII-VI-VII">Minor: i–VII–VI–VII</option>
             <option value="minor_ii_V_i">Minor ii–V–i</option>

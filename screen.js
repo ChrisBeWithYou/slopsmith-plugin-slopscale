@@ -253,6 +253,11 @@
     circle_diatonic:[1,4,7,3,6,2,5,1],
     '12_bar_blues':[1,1,1,1,4,4,1,1,5,4,1,5],
     quick_change_blues:[1,4,1,1,4,4,1,1,5,4,1,5],
+    // Jazz 12-bar blues — the quick-change form with the bar-6 ♯iv°7 passing
+    // diminished, the bar-8 VI7 secondary dominant, and a bar 9–10 ii–V turnaround
+    // (vs the plain blues' static V–IV). I/IV/V are dominant (override below); the
+    // ii is min7; the ♯iv°7 and VI7 carry their own quality via the token.
+    jazz_blues:[1, 4, 1, 1, 4, { semis:6, q:'dim7', rn:'♯iv°7' }, 1, { semis:9, q:'dom7', rn:'VI7' }, 2, 5, 1, 5],
     'i-VI-III-VII':[1,6,3,7],
     'i-VII-VI-VII':[1,7,6,7],
     minor_ii_V_i:[2,5,1,1],
@@ -301,6 +306,7 @@
     minor_ii_V_i:        { 2:'min7b5', 5:'dom7', 1:'min7' },
     rhythm_changes_a:    { 6:'dom7' },
     rhythm_changes_bridge:{ 3:'dom7', 6:'dom7', 2:'dom7', 5:'dom7' },
+    jazz_blues:          { 1:'dom7', 4:'dom7', 5:'dom7', 2:'min7' },   // dominant I/IV/V, min7 ii (the ♯iv°7/VI7 carry their own q via the token)
     andalusian:          { 5:'dom7' }    // the Andalusian V is the one idiomatic dominant in a modal prog (flamenco variant uses {5:'maj'} over phrygian — handled at the pathway stage)
   };
   // Minor-spelled progressions: their Roman numerals (bVI / bIII / bVII) are
@@ -517,6 +523,41 @@
     ['djent_polymeter',    'djent_skip_gallop'],
     ['djent_skip_gallop',  'djent_moving_chug'],
     ['djent_moving_chug',  'djent_lock_the_cell'],
+    // ── CORE: BASS spine prereqs (2026-06-08) — the bass Beginner→Advanced climb
+    // through the instrument-aware Core bands (bass_rh_pulse is the on-ramp).
+    ['bass_rh_pulse',          'bass_root_click'],
+    ['bass_root_click',        'bass_finger_gym'],
+    ['bass_finger_gym',        'bass_root_fifth_octave'],
+    ['bass_root_fifth_octave', 'bass_octave_groove'],
+    ['bass_octave_groove',     'bass_lc_roots'],
+    ['bass_lc_roots',          'bass_scale_one_box'],          // Beginner → Intermediate
+    ['bass_scale_one_box',     'bass_scale_two_octave'],
+    ['bass_root_fifth_octave', 'bass_arp_triads'],             // root-5-8 is half a triad
+    ['bass_arp_triads',        'bass_arp_sevenths'],
+    ['bass_octave_groove',     'bass_dead_notes'],
+    ['bass_dead_notes',        'bass_rh_sixteenth'],
+    ['bass_arp_sevenths',      'bass_walking'],                // Intermediate capstone
+    ['bass_scale_two_octave',  'bass_scale_modes'],            // Intermediate → Advanced
+    ['bass_scale_modes',       'bass_scale_shifts'],
+    ['bass_scale_shifts',      'bass_scale_whole_neck'],
+    ['bass_arp_sevenths',      'bass_arp_changes'],
+    ['bass_arp_sevenths',      'bass_lc_guide_tones'],
+    ['bass_walking',           'bass_lc_approach'],
+    ['bass_lc_guide_tones',    'bass_lc_approach'],
+    ['bass_rh_sixteenth',      'bass_rh_three_finger'],
+    ['bass_lc_approach',       'bass_lc_capstone'],            // the hard application
+    ['bass_lc_capstone',       'bass_lc_trade'],               // the creative on-ramp (the true destination)
+    // Bass: Slap & Funk elective — builds on the Core pocket + arps.
+    ['bass_dead_notes',        'bass_rh_funk_pocket'],
+    ['bass_rh_funk_pocket',    'bass_rh_crossing'],
+    ['bass_arp_sevenths',      'bass_arp_inversions'],
+    ['bass_rh_funk_pocket',    'bass_slap'],
+    // Sweep Picking ladder — builds on the Arpeggios pack's sweep rung, then climbs.
+    ['arp_sweeps',         'sweep3_triad'],
+    ['sweep3_triad',       'sweep5_box'],
+    ['sweep5_box',         'sweep_roll_apex'],
+    ['sweep_roll_apex',    'sweep7_color'],
+    ['sweep7_color',       'sweep_changes'],
   ];
   // Band map — the single source for the two-level picker that replaces the SVG
   // skill-tree display (which tangles at 27 nodes). L1 = band (array order); L2 =
@@ -531,9 +572,14 @@
   // (`buildsOn`, player vocabulary, informational — never a lock) + a `family`
   // (groups the Available column into a curriculum map as the roster grows).
   const PATHWAY_BANDS = [
-    { id:'core_beginner',     label:'Beginner',     kind:'core', pinned:true, pathways:['chromatic_warmup','pulse_muting','pent_foundation','power_chord_comping','blues_foundation','bend_drill'] },
-    { id:'core_intermediate', label:'Intermediate', kind:'core', pinned:true, pathways:['major_scale_caged','sixteenth_pocket','dorian_groove','chord_tone_targeting','modal_awareness','diatonic_triad_drill'] },
-    { id:'core_advanced',     label:'Advanced',     kind:'core', pinned:true, pathways:['seventh_vocab','whole_neck_freedom','guide_tones_path','ii_V_I_workout','modal_vamp','melmin_exotic_12key','harmonic_minor_exotic','sweep_arpeggio_primer'] },
+    // Core is INSTRUMENT-AWARE (2026-06-08): each band holds the guitar spine AND the
+    // bass spine (b-lite); isHiddenNode shows only the active instrument's rungs, so a
+    // bass player sees a pinned bass Beginner→Advanced staircase in the SAME 3 bands —
+    // parity with guitar, not a separate taxonomy. Bass spine = the dissolved bass Style
+    // packs (Foundations/Scales/Arps/Groove) re-homed + the new Core/L&C rungs.
+    { id:'core_beginner',     label:'Beginner',     kind:'core', pinned:true, pathways:['chromatic_warmup','pulse_muting','pent_foundation','power_chord_comping','blues_foundation','bend_drill','bass_rh_pulse','bass_root_click','bass_finger_gym','bass_root_fifth_octave','bass_octave_groove','bass_lc_roots'] },
+    { id:'core_intermediate', label:'Intermediate', kind:'core', pinned:true, pathways:['major_scale_caged','sixteenth_pocket','dorian_groove','chord_tone_targeting','modal_awareness','diatonic_triad_drill','bass_scale_one_box','bass_scale_two_octave','bass_arp_triads','bass_arp_sevenths','bass_dead_notes','bass_rh_sixteenth','bass_walking'] },
+    { id:'core_advanced',     label:'Advanced',     kind:'core', pinned:true, pathways:['seventh_vocab','whole_neck_freedom','guide_tones_path','ii_V_I_workout','modal_vamp','melmin_exotic_12key','harmonic_minor_exotic','sweep_arpeggio_primer','bass_scale_modes','bass_scale_shifts','bass_scale_whole_neck','bass_arp_changes','bass_lc_guide_tones','bass_lc_approach','bass_rh_three_finger','bass_lc_capstone','bass_lc_trade'] },
     { id:'style_blues',       label:'Blues',        kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner — minor-pentatonic box 1, the blue note (♭5), and a steady pulse over the 12-bar form.', pathways:['blues_box','blues_shuffle','blues_bends','blues_call_response','blues_mix'] },
     { id:'style_country',     label:'Country',      kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner→Intermediate — major pentatonic and the CAGED major scale; you target chord tones inside the shape, then add the country idiom (double-stops, chicken pickin\', the ♭VII train change).', pathways:['major_pent_country','country_cowboy_changes','country_double_stops','country_chicken_pickin','country_pedal_bends','country_train'] },
     { id:'style_metal',       label:'Metal',        kind:'style', family:'High-Gain & Technical', buildsOn:'Builds on Core — power chords and palm-mute pulse (Beginner), tight 16th picking (Intermediate), plus exotic/harmonic-minor scales and sweep mechanics (Advanced). The djent sub-ladder climbs chug precision → accent control → grouping cells → cell vocabulary → moving stacks, topping out in a trade-bars jam.', pathways:['metalcore_chug','melodic_metal_gallop','djent_chug_lock','djent_accent_grid','djent_polymeter','djent_skip_gallop','djent_moving_chug','djent_lock_the_cell','melodeath_twin_leads','death_chromatic'] },
@@ -552,10 +598,14 @@
     { id:'concept_rhythm', label:'Rhythm', kind:'style', family:'Concepts', buildsOn:'Builds on Core — a steady pulse and the pentatonic box. Own TIME itself, easy→mastery: the grid (subdivisions, the 16th pocket) → the feel (swing, syncopation, the gallop, moving the accent) → the pulse frame (one-note pulse, half/double-time, odd meters) → two pulses at once (over the barline) → trade bars and make your own groove. World rhythms (tresillo, clave) ride the one-note pulse. Instrument-agnostic — works on guitar or bass.', pathways:['rhy_subdivision','rhy_sixteenth','rhy_swing','rhy_displacement','rhy_gallop_snap','rhy_accent_displace','rhy_single_string','rhy_half_double','rhy_odd_meter','rhy_over_barline','rhy_trade_bars'] },
     { id:'concept_picking', label:'Picking', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the chromatic warmup and one-finger-per-fret sync. The pick-hand engine: tremolo, alternate across strings, economy crossings, string skipping, hybrid picking.', pathways:['pick_tremolo','pick_alternate','pick_economy','pick_string_skip','pick_hybrid','pick_herta'] },
     { id:'concept_legato', label:'Legato', kind:'style', family:'Concepts', buildsOn:'Builds on Core — clean fretting and a scale shape. The fretting-hand engine: hammer-ons/pull-offs, 3NPS legato runs, then two-hand tapping.', pathways:['leg_hopo','leg_runs','leg_tapping'] },
-    // Bass family — the first bass-NATIVE ladder (cross-instrument parity). Its pathways
-    // are bass_4_standard; the instrument-aware picker filter (isHiddenNode) hides them on
-    // guitar and hides guitar-only pathways on bass.
-    { id:'bass_foundations_ladder', label:'Bass', kind:'style', family:'Bass', buildsOn:"The bassist's core, foundation-first on a 4-string: root-fifth-octave -> the octave groove -> the dead-note pocket -> walking bass -> slap & pop.", pathways:['bass_root_fifth_octave','bass_octave_groove','bass_dead_notes','bass_walking','bass_slap'] },
+    { id:'concept_sweeps', label:'Sweep Picking', kind:'style', family:'Concepts', buildsOn:'Builds on the Arpeggios pack — you can already spell a triad across the neck in a shape. Sweep picking turns that vertical chord shape into one fluid raked motion, the fretting hand muting everything not sounding: 3-string triad -> the 5-string box -> the finger-roll & clean apex -> seventh sweeps -> sweeps through the changes. Cleanliness comes first; speed is a byproduct.', pathways:['sweep3_triad','sweep5_box','sweep_roll_apex','sweep7_color','sweep_changes'] },
+    // Bass family — DISSOLVED into the instrument-aware Core (2026-06-08): the former
+    // Bass: Foundations/Scales/Arpeggios/Groove packs were fundamentals filed as Style
+    // only because there was no bass Core band. Their rungs now live in core_* above
+    // (de-dup: a rung is in Core OR a Style pack, never both). What remains a genuine
+    // opt-in elective is the genre-specific Slap & Funk lane (slap moves OUT of the
+    // old Foundations capstone here) + the arpeggio-inversions deepening.
+    { id:'bass_slap_funk', label:'Bass: Slap & Funk', kind:'style', family:'Bass', buildsOn:"Builds on Core: Bass — the dead-note pocket, the i-m motor, and arpeggios. The funk-bass lane: the 16th funk pocket at speed, string-crossing rakes, arpeggio inversions for slap fills, then thumb-slap & pop.", pathways:['bass_rh_funk_pocket','bass_rh_crossing','bass_arp_inversions','bass_slap'] },
   ];
   // Family display order for the Pack-manager Available column (Core-branch-point
   // depth → the catalog reads as a curriculum map, not a scrolling wall).
@@ -1004,8 +1054,8 @@
       goal:'The jazz/blues engine: one note per beat, walking from chord to chord — root on the downbeat, chord tones and chromatic approach notes leading into the next change. The skill is voice-leading the bass line so it both outlines the harmony and pulls forward. The most-wanted bass skill in jazz and blues.',
       scales:['major','dorian','mixolydian'],
       tempoTiers:[65, 85, 105, 125],
-      base:{ practiceType:'walking_bass', scale:'major', progression:'ii-V-I', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'quarter', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:7 },
-      vary:[ { progression:'ii-V-I' }, { progression:'12_bar_blues', chordOverride:'dom7', scale:'mixolydian' }, { progression:'vi-ii-V-I' }, { key:'F', progression:'ii-V-I' }, { key:'G', progression:'12_bar_blues', chordOverride:'dom7' } ]
+      base:{ practiceType:'walking_bass', scale:'major', progression:'ii-V-I', chordDepth:'seventh', chordOverride:'auto', walkApproach:'chromatic', meter:'4/4', subdivision:'quarter', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:7 },
+      vary:[ { progression:'ii-V-I', walkApproach:'chromatic' }, { progression:'12_bar_blues', chordOverride:'dom7', scale:'mixolydian', walkApproach:'mixed' }, { progression:'vi-ii-V-I', walkApproach:'dominant' }, { key:'F', progression:'ii-V-I' }, { key:'G', progression:'12_bar_blues', chordOverride:'dom7', walkApproach:'mixed' } ]
     },
     bass_slap: {
       label:'Slap & Pop',
@@ -1014,6 +1064,198 @@
       tempoTiers:[70, 90, 110, 130],
       base:{ practiceType:'slap_pop', scale:'minor_pentatonic', progression:'static_i', chordDepth:'seventh', chordOverride:'min7', meter:'4/4', subdivision:'sixteenth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'A', fretMin:0, fretMax:5 },
       vary:[ { key:'A' }, { key:'E' }, { progression:'i-VII-VI-VII' }, { key:'G' }, { key:'D' } ]
+    },
+    // ── BASS: SCALES / FRETBOARD ladder (new bass_scales_ladder pack) ───────────
+    // The missing bass scale foundation (Foundations is groove-only). bass-pedagogy
+    // panel 2026-06-07: the all-4ths MOVABLE box (never CAGED), foundation-first —
+    // one box → two-octave shape → the modes in one shape → position shifts →
+    // whole-neck. Difficulty axis = neck coverage. fretboardSystem:'position'
+    // (+ 'full_neck' on the capstone); the window tracks the key so the ONE shape
+    // stays movable. Spec: .claude/plans/proud-swinging-codd-agent-aff275c5*.md.
+    bass_scale_one_box: {
+      label:'One-Position Box',
+      goal:"Own one box cold. The major scale in a single hand position — the same movable shape in every key, because the bass is tuned all in 4ths (no CAGED shapes to juggle). Below the 5th fret, reach it 1-2-4 (index–middle–pinky) with a small shift, not a flat four-fret stretch. The foundation the whole neck is built on.",
+      scales:['major','natural_minor','minor_pentatonic'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'G', fretMin:2, fretMax:7 },
+      vary:[ { key:'G', fretMin:2, fretMax:7 }, { key:'A', fretMin:4, fretMax:9 }, { key:'C', fretMin:7, fretMax:12 }, { key:'E', fretMin:0, fretMax:5 }, { key:'D', fretMin:2, fretMax:7 } ]
+    },
+    bass_scale_two_octave: {
+      label:'The Two-Octave Scale',
+      goal:"The bassist's signature shape: the scale climbing across all the strings, root to octave to octave. On a 4-string you reach about an octave and a half in one position, then shift the last stretch; on a 5-string the whole two octaves sit under one hand. The shape you'll run to warm up for the rest of your life.",
+      scales:['major','natural_minor','dorian'],
+      tempoTiers:[55, 75, 95, 115],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:75, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'G', fretMin:2, fretMax:9 },
+      vary:[ { key:'G', fretMin:2, fretMax:9 }, { key:'C', fretMin:5, fretMax:12 }, { key:'A', scale:'natural_minor', fretMin:4, fretMax:11 }, { key:'E', stringSetup:'bass_5_standard', fretMin:0, fretMax:9 }, { key:'D', scale:'dorian', fretMin:2, fretMax:9 } ]
+    },
+    bass_scale_modes: {
+      label:'Modes in One Shape',
+      goal:"One fingering, seven modes. Keep the same box and just move which note is home: start on the 2nd degree and it's Dorian, on the 5th and it's Mixolydian. Because the bass box is symmetric (all 4ths) the SHAPE never changes — only the tonic does. Hear each mode's color out of one shape you already own.",
+      scales:['major','dorian','mixolydian','natural_minor','phrygian'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:5, fretMax:10 },
+      vary:[ { key:'C', scale:'major' }, { key:'D', scale:'dorian' }, { key:'E', scale:'phrygian' }, { key:'G', scale:'mixolydian' }, { key:'A', scale:'natural_minor' } ]
+    },
+    bass_scale_shifts: {
+      label:'Position Shifts',
+      goal:"Travel the neck. A run that deliberately shifts position mid-phrase — pivot a finger to the next zone instead of staying boxed in. An open string buys you the shift for free. Clean shifts are how a bassline moves up the neck without a seam.",
+      scales:['major','natural_minor','minor_pentatonic'],
+      tempoTiers:[55, 70, 90, 110],
+      base:{ practiceType:'position_shift', scale:'natural_minor', meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'A', fretMin:0, fretMax:7 },
+      vary:[ { key:'A', fretMin:0, fretMax:7 }, { key:'E', fretMin:0, fretMax:7 }, { key:'G', fretMin:2, fretMax:9 }, { key:'C', scale:'major', fretMin:3, fretMax:10 }, { key:'D', fretMin:2, fretMax:9 } ]
+    },
+    bass_scale_whole_neck: {
+      label:'Whole-Neck Coverage',
+      goal:"Stop thinking in boxes. The whole key from the open strings to the top, as one connected field — find any note in the key anywhere and connect zones without seams. A 5-string adds the low end below E. This is fretboard freedom: the bassline goes where the music needs, not where the box ends.",
+      scales:['major','natural_minor','minor_pentatonic'],
+      tempoTiers:[50, 70, 90, 110],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'full_neck', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'G' },
+      vary:[ { key:'G' }, { key:'C' }, { key:'A', scale:'natural_minor' }, { key:'E', stringSetup:'bass_5_standard' }, { key:'D' } ]
+    },
+    // ── BASS: ARPEGGIOS ladder (new bass_arpeggios_ladder pack) ─────────────────
+    // Outline the changes — bass spells harmony from the root up. Starts ABOVE
+    // root-5th-octave (that lives in Foundations): triads → sevenths → inversions →
+    // over changes. Harmony guardrails (harmony panel): blues = all-dominant
+    // (force dom7+mixolydian); auto elsewhere. Spec: agent-aff275c5* / -acd22ff6*.
+    bass_arp_triads: {
+      label:'Triad Arpeggios',
+      goal:"A chord, one note at a time: root–3rd–5th for every diatonic triad. The root–5th–octave box gave you the frame; the 3rd is the note that tells major from minor. Spell each chord in the key and you can outline any progression from the bottom up.",
+      scales:['major','natural_minor'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'triad', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:2, fretMax:9 },
+      vary:[ { key:'C' }, { key:'G' }, { key:'A', scale:'natural_minor' }, { key:'E' }, { key:'F' } ]
+    },
+    bass_arp_sevenths: {
+      label:'Seventh Arpeggios',
+      goal:"Add the 7th: maj7, m7, dom7, m7♭5 — the four sevenths that build every diatonic chord. The 7th gives a chord its flavor and pulls the harmony forward. A bassist who can spell these outlines a jazz or soul tune with no chart in front of them.",
+      scales:['major','natural_minor','dorian'],
+      tempoTiers:[60, 85, 105, 125],
+      base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:2, fretMax:9 },
+      vary:[ { key:'C' }, { key:'A', scale:'natural_minor' }, { key:'G' }, { key:'F' }, { key:'D', scale:'dorian' } ]
+    },
+    bass_arp_inversions: {
+      label:'Arpeggio Inversions',
+      goal:"The same seventh chord, started from each chord tone: root, 3rd, 5th, 7th. Inversions let you begin a line on any note and connect arpeggios up the neck — the bassist's tool for landing on the strongest note over each change instead of always thumping the root.",
+      scales:['major','natural_minor'],
+      tempoTiers:[55, 75, 95, 115],
+      base:{ practiceType:'arpeggio_inversions', scale:'major', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:9 },
+      vary:[ { key:'C' }, { key:'A', scale:'natural_minor' }, { key:'G' }, { key:'E', stringSetup:'bass_5_standard', fretMin:0, fretMax:9 }, { key:'F' } ]
+    },
+    bass_arp_changes: {
+      label:'Arpeggios Over Changes',
+      goal:"Outline a progression: play each chord's arpeggio as the changes move (ii–V–I, then vi–ii–V–I). Every note is a chord tone, so the line is never wrong — only more or less melodic. This is the bridge from arpeggios to real walking bass and bass soloing.",
+      scales:['major','dorian','mixolydian'],
+      tempoTiers:[65, 85, 105, 125],
+      base:{ practiceType:'progression_arpeggios', scale:'major', chordDepth:'seventh', chordOverride:'auto', progression:'ii-V-I', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:9 },
+      vary:[ { key:'C', progression:'ii-V-I' }, { key:'C', progression:'vi-ii-V-I' }, { key:'F', progression:'ii-V-I' }, { key:'G', progression:'12_bar_blues', chordOverride:'dom7', scale:'mixolydian' }, { key:'A', progression:'i-VII-VI-VII', scale:'natural_minor', stringSetup:'bass_5_standard' } ]
+    },
+    // ── BASS: GROOVE & RIGHT HAND ladder (new bass_groove_rh_ladder pack) ────────
+    // The plucking-hand engine Foundations skipped (it shipped with no
+    // right_hand_technique rung). rhTechMode (built this session) drives it: the
+    // i-m motor → string crossing & raking → 16th stamina → the funk pocket AT
+    // SPEED → three-finger. Overlap with Foundations' Dead-Note Pocket resolved:
+    // rung 4 is the at-speed application (faster tiers), not a second intro.
+    bass_rh_pulse: {
+      label:'Alternating-Finger Pulse',
+      goal:"The motor under every bassline: strict index–middle alternation, dead even, never breaking stride, while the floating thumb mutes the strings you're not playing. The hand pattern IS the drill — even attacks, even volume, locked to the click. Build this and everything else gets easier.",
+      scales:['natural_minor','minor_pentatonic'],
+      tempoTiers:[60, 90, 120, 150],
+      base:{ practiceType:'right_hand_technique', rhTechMode:'pulse', scale:'natural_minor', progression:'static_i', chordDepth:'seventh', chordOverride:'min7', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'E', fretMin:5, fretMax:9 },
+      vary:[ { key:'E' }, { key:'A' }, { key:'G' }, { key:'B', stringSetup:'bass_5_standard', fretMin:0, fretMax:4 }, { key:'C' } ]
+    },
+    bass_rh_crossing: {
+      label:'String Crossing & Raking',
+      goal:"Move the motor across strings without losing the pulse. The crossing to the next string, and the rake — letting ONE finger fall through two or three adjacent strings on the way down instead of re-plucking each. Raking is the efficiency every electric bassist steals from the upright.",
+      scales:['natural_minor','dorian'],
+      tempoTiers:[55, 75, 95, 115],
+      base:{ practiceType:'right_hand_technique', rhTechMode:'rake', scale:'natural_minor', progression:'i-VII-VI-VII', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:75, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'A', fretMin:5, fretMax:9 },
+      vary:[ { key:'A' }, { key:'E' }, { key:'D', scale:'dorian' }, { key:'G' }, { key:'C' } ]
+    },
+    bass_rh_sixteenth: {
+      label:'Sixteenth-Note Stamina',
+      goal:"Drive the i–m motor at sixteenths and keep it relaxed. This is where speed lives — and where it falls apart first on bass, somewhere around 95–110 BPM. Find your wall, sit just under it, and let the motor get effortless before you push past it.",
+      scales:['minor_pentatonic','dorian'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'right_hand_technique', rhTechMode:'pulse', scale:'minor_pentatonic', progression:'static_i', chordDepth:'seventh', chordOverride:'min7', meter:'4/4', subdivision:'sixteenth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'E', fretMin:5, fretMax:9 },
+      vary:[ { key:'E' }, { key:'A' }, { key:'G' }, { key:'D', scale:'dorian' }, { key:'C' } ]
+    },
+    bass_rh_funk_pocket: {
+      label:'The Funk Pocket — Applied',
+      goal:"Now spend the motor on a real groove. Real notes on the syncopated pushes, muted ghosts filling every other sixteenth, a couple of hard accents per bar — at performance tempo. The ghosts never stop; the hand keeps the sixteenth grid even when the note is dead. The at-speed application of the pocket.",
+      scales:['minor_pentatonic','dorian'],
+      tempoTiers:[85, 105, 125, 145],
+      base:{ practiceType:'dead_note_groove', scale:'minor_pentatonic', progression:'static_i', chordDepth:'seventh', chordOverride:'min7', meter:'4/4', subdivision:'sixteenth', bpm:105, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'E', fretMin:0, fretMax:7 },
+      vary:[ { key:'E' }, { key:'A' }, { key:'D', scale:'dorian', progression:'i-VII-VI-VII', chordOverride:'auto' }, { key:'B', stringSetup:'bass_5_standard', fretMin:0, fretMax:7 }, { key:'G' } ]
+    },
+    bass_rh_three_finger: {
+      label:'Three-Finger Independence',
+      goal:"Add the ring finger: index–middle–ring in rotation. Three fingers spread fast sixteenth and triplet streams across more digits so no one finger fatigues — the technique behind relentless metal and Latin bass. The skill is evenness: all three landing with identical tone and timing.",
+      scales:['minor_pentatonic','natural_minor'],
+      tempoTiers:[70, 90, 110, 130],
+      base:{ practiceType:'right_hand_technique', rhTechMode:'three_finger', scale:'minor_pentatonic', progression:'static_i', chordDepth:'seventh', chordOverride:'min7', meter:'4/4', subdivision:'sixteenth', bpm:95, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'E', fretMin:5, fretMax:9 },
+      vary:[ { key:'E' }, { key:'A' }, { key:'D', subdivision:'triplet' }, { key:'G' }, { key:'B', stringSetup:'bass_5_standard', fretMin:0, fretMax:4 } ]
+    },
+    // ── BASS CORE rungs (the pinned Core: Bass spine, 2026-06-08 panel) ──────────
+    // These slot INTO the existing core_beginner/intermediate/advanced bands (b-lite:
+    // bass ids alongside guitar ids; isHiddenNode shows the active instrument's set).
+    // Naming/structure parallel guitar Core. The motor (bass_rh_pulse), root_click +
+    // finger_gym are the missing PHYSICAL floor; the bass_lc_* rungs are the Lines &
+    // Changes harmony-literacy lane (over the shipped walking-approach flags).
+    bass_root_click: {
+      label:'Root on the Click',
+      goal:"Bass is the timekeeper — before anything else, one note has to sit dead on the beat. One low-string root, struck in a steady pulse, locked to the click so it lands WITH the kick. With no fretting-hand variable your plucking hand IS the metronome — the most direct way to build rock-solid time. Quarters first, then eighths: every strike even and relaxed, no rushing or dragging.",
+      scales:['minor_pentatonic'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'rhythm_pulse', pulseAccent:0, pulseOffbeat:false, scale:'minor_pentatonic', anchor:'open_lowest', anchorFret:0, meter:'4/4', subdivision:'quarter', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d' },
+      vary:[ { subdivision:'quarter' }, { subdivision:'eighth' }, { anchorFret:3 }, { anchorFret:5 }, { subdivision:'eighth', anchorFret:5 } ]
+    },
+    bass_finger_gym: {
+      label:'Finger Gym',
+      goal:"The fretting hand's foundation: one finger per fret, pressing just behind the fret, every note clean and even. Up at the 5th–8th frets the four frets sit comfortably under your four fingers (1-2-3-4). Down at the bottom of the neck the stretch is too wide — there you switch to 1-2-4 (index, middle, pinky) with a small shift, never a flat four-finger reach. Build finger independence and a relaxed hand before speed.",
+      scales:['minor_pentatonic'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'chromatic', chromaticPattern:'1234', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', fretMin:5, fretMax:8 },
+      vary:[ { chromaticPattern:'1234', fretMin:5, fretMax:8 }, { chromaticPattern:'1324', fretMin:5, fretMax:8 }, { chromaticPattern:'4321', fretMin:5, fretMax:8 }, { chromaticPattern:'1234', fretMin:0, fretMax:3 }, { chromaticPattern:'1234', fretMin:7, fretMax:10 } ]
+    },
+    bass_lc_roots: {
+      label:'Roots on the One',
+      goal:"The first step into playing the changes: the root of each chord, on beat 1, held — change exactly when the chord changes. No flash, just the right note at the right moment, locked to the kick. This is what a bassline IS before anything else — the harmonic floor that tells the whole band where the music is. Follow a real progression and never miss the change.",
+      scales:['major','natural_minor'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'walking_bass', walkFeel:'roots', scale:'major', progression:'I-V-vi-IV', chordDepth:'triad', chordOverride:'auto', meter:'4/4', subdivision:'quarter', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:7 },
+      vary:[ { progression:'I-V-vi-IV' }, { progression:'I-IV-V', key:'G' }, { progression:'ii-V-I' }, { progression:'i-VII-VI-VII', scale:'natural_minor', key:'A' }, { progression:'vi-IV-I-V' } ]
+    },
+    bass_lc_guide_tones: {
+      label:'Guide-Tone Targets',
+      goal:"The 3rd and the 7th are a chord's identity — they're what make a m7 sound different from a dom7. Land on those guide tones as the changes move, in the bass register, and your line spells the harmony with two notes per chord. This is the bassist's secret to outlining changes without playing every chord tone: hit the guide tones and the ear hears the whole chord.",
+      scales:['major','dorian'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'guide_tones', scale:'major', progression:'ii-V-I', chordDepth:'seventh', voices:'both_alternating', meter:'4/4', subdivision:'quarter', bpm:75, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:9 },
+      vary:[ { progression:'ii-V-I' }, { progression:'vi-ii-V-I' }, { key:'F', progression:'ii-V-I' }, { key:'G', progression:'I-vi-ii-V' }, { progression:'12_bar_blues', chordOverride:'dom7', scale:'mixolydian' } ]
+    },
+    bass_lc_approach: {
+      label:'Approach-Note Lines',
+      goal:"Now connect the changes like a jazz bassist: a chromatic half-step or a dominant 5th on the last beat, pulling your ear into the next chord's root. This is the device that turns roots-and-fifths into a walking LINE that leads. Then graduate the feel — half-time 'in 2' for the head, four-to-the-bar quarters when it's time to walk. The engine of jazz and blues bass.",
+      scales:['major','dorian','mixolydian'],
+      tempoTiers:[65, 85, 105, 125],
+      base:{ practiceType:'walking_bass', walkApproach:'chromatic', scale:'major', progression:'ii-V-I', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'quarter', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:7 },
+      vary:[ { walkApproach:'chromatic' }, { walkApproach:'dominant' }, { walkApproach:'mixed', progression:'vi-ii-V-I' }, { walkApproach:'chromatic', walkFeel:'two' }, { key:'F', walkApproach:'mixed' } ]
+    },
+    bass_lc_capstone: {
+      label:'The 12-Bar Walk',
+      goal:"The hard application: walk a complete JAZZ 12-bar blues — every change outlined with roots, chord tones, and approach notes, the line resolving through the bar-6 diminished passing chord and the bar 9–10 ii–V turnaround that separate a jazz blues from a plain one. A full, real walking bassline over an authentic form. Learn it, then play it clean at tempo: when you can walk it without thinking, you're ready to build your own — that's the next rung.",
+      scales:['mixolydian','major'],
+      tempoTiers:[70, 90, 110, 130],
+      base:{ practiceType:'walking_bass', walkApproach:'mixed', scale:'mixolydian', progression:'jazz_blues', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'quarter', bpm:90, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:7, backingStyle:'boogie', swing:'shuffle' },
+      vary:[ { key:'C' }, { key:'G' }, { key:'F' }, { progression:'12_bar_blues', chordOverride:'dom7', key:'Bb' }, { progression:'ii-V-I', bars:8, scale:'major', chordOverride:'auto' } ]
+    },
+    bass_lc_trade: {
+      label:'Trade the Blues — Build a Line',
+      goal:"The destination of the whole bass journey: two bars of a blues bass phrase, then two bars of space that are YOURS. Echo the line back, then start changing it — your own approach notes, your own chord tones, your own pocket — until the line is yours, not ours. This is where the vocabulary becomes creativity: you're not running a drill anymore, you're building basslines you own and take off the screen. Trade with the band over the 12-bar form; make the space your own. (Your answers are your space — nothing here is scored.)",
+      scales:['blues','minor_pentatonic','dorian'],
+      tempoTiers:[70, 90, 110, 130],
+      base:{ practiceType:'call_response', scale:'blues', progression:'12_bar_blues', chordOverride:'dom7', meter:'4/4', subdivision:'eighth', bpm:90, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'A', fretMin:0, fretMax:7, backingStyle:'boogie', swing:'shuffle', audioProfile:'blues' },
+      vary:[ { key:'A' }, { key:'E' }, { scale:'dorian', progression:'ii-V-I', chordOverride:'auto', swing:'swing', audioProfile:'jazz' }, { key:'G' }, { scale:'minor_pentatonic', key:'C' } ]
     },
     // ── RHYTHM / TIME concept ladder (new concept_rhythm pack) ───────────────────
     // The time/pocket spine — learning-design's #2 underserved gap. Instrument-AGNOSTIC
@@ -1222,6 +1464,57 @@
       tempoTiers:[60, 80, 100, 120],
       base:{ practiceType:'tapping', scale:'natural_minor', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
       vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { scale:'harmonic_minor' }, { key:'D', shape:'E' }, { scale:'minor_pentatonic', key:'A' } ]
+    },
+    // ── SWEEP PICKING ladder (new concept_sweeps pack) ──────────────────────────
+    // The dedicated sweep vertical (was only 2 isolated rungs). guitar-pedagogy +
+    // metal-idiom panel 2026-06-07: string count grows 3→5→6, tempo ceilings DESCEND
+    // on harder rungs (clean before fast). The A-shape is the signature 5-string
+    // sweep (root on A); the E-shape is the 6-string. Engine facts (this session):
+    //   • sweepStrings:N constrains the rake to the top N strings (3-string entry).
+    //   • Seventh sweeps route through the interval-derived greedy arpeggio (the
+    //     CAGED chordTemplates carry only triads) anchored at the shape's position,
+    //     so the 7th actually sounds; rung 4 sets a wide fretMin/fretMax window.
+    //   • The roll lives in the E-shape (index barre across same-fret G/B/e) + a
+    //     clean +3 apex HO/PO on the MINOR shape. Specs: agent-a2cf05d3*/-a61eefea*.
+    sweep3_triad: {
+      label:'Three-String Triad Sweep',
+      goal:"The raw sweep motion with the least to mute: one rake across the top three strings, down and back. The A-shape minor sliced to its top three strings is a clean descending staircase — one finger per fret, nothing to roll yet. Start dead slow; the lesson is one clean pick-stroke per string, never speed.",
+      scales:['natural_minor','harmonic_minor','major'],
+      tempoTiers:[50, 65, 85, 110],
+      base:{ practiceType:'sweep_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:50, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'A', sweepStrings:3 },
+      vary:[ { key:'A', shape:'A' }, { key:'E', shape:'A' }, { key:'A', shape:'A', scale:'major' }, { key:'D', shape:'A' }, { key:'C', shape:'A', scale:'major' } ]
+    },
+    sweep5_box: {
+      label:'Five-String Box',
+      goal:"The signature five-string sweep — root on the A string, one pick-stroke per string raked up to the high E and back. Anchor the rake on the bass-string root and keep every note its own clean event. Slow and even beats fast and smeared, every single time.",
+      scales:['natural_minor','harmonic_minor','major'],
+      tempoTiers:[50, 65, 80, 100],
+      base:{ practiceType:'sweep_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:55, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'A' },
+      vary:[ { key:'A', shape:'A' }, { key:'E', shape:'A' }, { key:'D', shape:'A' }, { key:'A', shape:'A', scale:'major' }, { key:'B', shape:'A' } ]
+    },
+    sweep_roll_apex: {
+      label:'The Roll & Clean Apex',
+      goal:"The two skills that separate a real sweep from a smear. The fingertip ROLL: where same-fret strings sit under one finger, roll the tip across them joint by joint so only one rings at a time — never a flat barre. And the clean APEX: a hammer-on/pull-off flips the rake at the top with no pick-stroke. If the roll buzzes or two notes blur, drop a tempo tier — the roll is the whole lesson.",
+      scales:['natural_minor','harmonic_minor'],
+      tempoTiers:[45, 60, 75, 90],
+      base:{ practiceType:'sweep_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:50, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'A', shape:'E', scale:'harmonic_minor' }, { key:'D', shape:'E' }, { key:'G', shape:'E' } ]
+    },
+    sweep7_color: {
+      label:'Seventh Sweeps',
+      goal:"Four-note arpeggios — m7, maj7, dom7 — adding the 7th's color and one more string-crossing to the rake. The seventh is what turns a triad sweep into a chord with a voice. The harmonic-minor variation hands you the diminished-7th sweep: the symmetric shape that slides up every minor third.",
+      scales:['natural_minor','major','harmonic_minor'],
+      tempoTiers:[45, 58, 72, 88],
+      base:{ practiceType:'sweep_arpeggios', scale:'natural_minor', chordDepth:'seventh', chordOverride:'auto', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:48, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E', fretMin:0, fretMax:17 },
+      vary:[ { key:'A', shape:'E' }, { key:'A', shape:'A' }, { key:'D', shape:'E' }, { key:'A', shape:'E', scale:'major' }, { key:'A', shape:'E', scale:'harmonic_minor' } ]
+    },
+    sweep_changes: {
+      label:'Sweeps Over Changes',
+      goal:"The musical payoff: run the sweep through a progression, re-rooting the box on each chord's bass note in time. One shape slides to the nearest position per change — the skill is landing the new root cleanly on the downbeat, not the fireworks. This is a sweep turned into music.",
+      scales:['natural_minor','major','harmonic_minor'],
+      tempoTiers:[50, 60, 72, 85],
+      base:{ practiceType:'sweep_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:52, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E', fretMin:0, fretMax:17 },
+      vary:[ { key:'A', shape:'E', progression:'i-VI-III-VII' }, { key:'A', shape:'A', progression:'i-VII-VI-VII' }, { key:'C', shape:'E', scale:'major', progression:'ii-V-I' }, { key:'G', shape:'E', scale:'major', progression:'I-vi-IV-V' }, { key:'A', shape:'E', scale:'harmonic_minor', chordDepth:'seventh', progression:'minor_ii_V_i' } ]
     },
     // ── CHORDS concept ladder (new concept_chords pack) ─────────────────────────
     // Triads/grips SOUNDED TOGETHER (vs the Triads ladder's arpeggios). 6-agent panel
@@ -3359,6 +3652,20 @@
       // smoke-herta drove cfg directly so it never saw the gap).
       hertaAccent: Math.max(0, Math.min(3, parseInt(data.get('hertaAccent') || '0', 10) || 0)),
       hertaWalk: data.get('hertaWalk') === 'on' || data.get('hertaWalk') === 'true',
+      // sweepStrings (Sweep ladder entry rung): constrain a sweep to the top N
+      // strings. Pathway-driven hidden field; 0/absent = the full box. 2–6 clamp.
+      sweepStrings: Math.max(0, Math.min(6, parseInt(data.get('sweepStrings') || '0', 10) || 0)),
+      // rhTechMode (Bass Groove & Right-Hand ladder): pulse|crossing|rake|three_finger.
+      // Pathway-driven hidden field; absent = 'pulse' (the back-compatible default).
+      rhTechMode: data.get('rhTechMode') || 'pulse',
+      // walkApproach (Bass Lines & Changes ladder): how the walking line targets the
+      // NEXT chord on the bar's last beat — scale (current scale-walk) | chromatic
+      // (½-step into the next root) | dominant (the 5th of the next chord, V→I) |
+      // mixed (cycles the three). Pathway-driven hidden field; absent = 'scale'.
+      walkApproach: data.get('walkApproach') || 'scale',
+      // walkFeel (Bass Lines & Changes): 'four' = walking quarters (default) | 'two'
+      // = the "in 2" feel (root & 5th as half notes on 1 & 3) — the on-ramp rung.
+      walkFeel: data.get('walkFeel') || 'four',
       audio: { notes: data.get('audioNotes') === 'on', metronome: data.get('audioMetronome') === 'on', harmony: data.get('audioHarmony') === 'on', profile: data.get('audioProfile') || '', brightness: Math.max(0, Math.min(1, parseFloat(data.get('brightness')))) }
     };
   }
@@ -6230,9 +6537,28 @@
     return { notes, chords:[], chordTemplates:[], handShapes:[], sections:[{ name:`scale-${cfg.fretboardSystem || 'position'}`, number:1, time:0 }], duration };
   }
 
+  // Constrain a resolved sweep position set to the top N (highest-pitched) strings —
+  // the entry-rung "3-string sweep" (G-B-e triad) before the full box. Keeps the N
+  // highest string indices present (s=high e is the topmost). Returns the input
+  // unchanged when N is falsy or ≥ the strings already present.
+  function sliceSweepTopStrings(positions, n) {
+    if (!n || !positions || !positions.length) return positions;
+    const strings = [...new Set(positions.map(p => p.s))].sort((a, b) => b - a);
+    if (n >= strings.length) return positions;
+    const keep = new Set(strings.slice(0, n));
+    return positions.filter(p => keep.has(p.s));
+  }
+
   function sweepArpeggioPositions(cfg, rootPc, quality, anchorFret) {
     const formula = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj;
-    const intervalPcSet = new Set(formula.intervals.map(iv => (rootPc + iv) % 12));
+    // Chord tones as pitch-classes in ASCENDING interval order: R, 3, 5, (7)…
+    // We lay ONE chord tone per string in this cycle so EVERY tone is sounded — a
+    // seventh sweep must rake the 7th, not skip it. (The old "nearest of ANY chord
+    // tone per string" greedy repeated root/3rd/5th and dropped the 7th on most
+    // chords — caught by probe-sweep-bass-ladders.) The bass string takes the root
+    // (cycle index 0); each higher string takes the next tone nearest the running
+    // fret, so the shape stays contiguous (a real sweepable grip).
+    const tonePcs = [...new Set(formula.intervals.map(iv => (rootPc + iv) % 12))];
     const opens = openMidisForConfig(cfg), out = [];
     const fLo = Math.max(0, cfg.fretMin), fHi = Math.min(24, cfg.fretMax);
     // Contain the sweep window to the top-six on a 7/8-string (off = N-6), so the
@@ -6241,24 +6567,38 @@
     // range). off=0 on ≤6-string, so bass/6-string sweep every string as before.
     const off = Math.max(0, cfg.stringCount - 6);
     const bassStr = off; // lowest string of the sweep window — the bass anchor
-    // Greedy-adjacent selection: the bass string anchors near anchorFret (root
-    // preferred); each higher string then picks the chord tone CLOSEST to the
-    // previous string's fret. This keeps the shape contiguous (a real sweepable
-    // grip) instead of the zig-zags an independent per-string search can produce.
+    // Nearest fret on string s sounding pitch-class pc, to a reference fret.
+    const nearestPc = (s, pc, ref) => {
+      let bf = null, bd = Infinity;
+      for (let f = fLo; f <= fHi; f++) {
+        if (((opens[s] + f) % 12) !== pc) continue;
+        const d = Math.abs(f - ref);
+        if (d < bd) { bf = f; bd = d; }
+      }
+      return bf == null ? null : { s, f: bf, midi: opens[s] + bf, pc, d: bd };
+    };
+    // COVERAGE-FIRST selection (so a seventh sweep actually rakes the 7th): the
+    // bass string anchors on the ROOT; each higher string then prefers an UNCOVERED
+    // chord tone, nearest the running fret, until all tones are sounded — then takes
+    // the nearest tone. Distance-to-ref keeps the shape contiguous/compact. (A plain
+    // "nearest of any tone" greedy repeated root/3rd/5th and dropped the 7th when it
+    // was never the closest — caught by probe-sweep-bass-ladders.)
+    const covered = new Set();
     let prevFret = anchorFret;
     for (let s = off; s < cfg.stringCount; s++) {
-      let best = null, bestScore = Infinity;
       const ref = (s === bassStr) ? anchorFret : prevFret;
-      for (let f = fLo; f <= fHi; f++) {
-        const midi = opens[s] + f, pc = midi % 12;
-        if (!intervalPcSet.has(pc)) continue;
-        const dist = Math.abs(f - ref);
-        // On the bass string, strongly prefer the root to anchor the sweep correctly
-        const rootPenalty = (s === bassStr && pc !== rootPc) ? 30 : 0;
-        const score = dist + rootPenalty;
-        if (score < bestScore) { best = { s, f, midi, pc }; bestScore = score; }
+      const cands = tonePcs.map(pc => nearestPc(s, pc, ref)).filter(Boolean);
+      if (!cands.length) continue;
+      let pick;
+      if (s === bassStr) {
+        pick = cands.find(c => c.pc === rootPc) || cands.slice().sort((a, b) => a.d - b.d)[0];
+      } else {
+        const uncovered = cands.filter(c => !covered.has(c.pc));
+        pick = (uncovered.length ? uncovered : cands).slice().sort((a, b) => a.d - b.d)[0];
       }
-      if (best) { out.push(best); prevFret = best.f; }
+      out.push({ s: pick.s, f: pick.f, midi: pick.midi, pc: pick.pc });
+      covered.add(pick.pc);
+      prevFret = pick.f;
     }
     return out;
   }
@@ -6312,7 +6652,17 @@
     // top-six (anchored via `off` in pickShapeRootFret/cagedShapeNotesForChord),
     // so the extended-range sweep keeps by-construction fingering instead of the
     // greedy all-string rake. <6 (bass) → falls to sweepArpeggioPositions.
-    const useShape = cfg.stringCount >= 6 && !!CAGED_SHAPES[shape];
+    const wantShape = cfg.stringCount >= 6 && !!CAGED_SHAPES[shape];
+    // The CAGED chordTemplates carry only TRIADS (maj/min/dim) — cagedShapeQualityKey
+    // collapses min7→min and maj7/dom7→maj, so a seventh sweep through the template
+    // would silently drop the 7th (its whole color). Route seventh sweeps to the
+    // interval-derived greedy arpeggio instead: sweepArpeggioPositions reads the
+    // full CHORD_FORMULAS (incl. the 7th), and we anchor it at the shape's walked
+    // root fret below so it still sits in the canonical CAGED position per chord.
+    // It loses only the static template fingers, which templateFromPositions then
+    // recomputes (1FPF). Triad sweeps keep the by-construction template.
+    const seventhSweep = cfg.chordDepth === 'seventh';
+    const useShape = wantShape && !seventhSweep;
     let prevRootFret = null;
     const notes = [], chordTemplates = [], chords = [], handShapes = [], sections = [];
     for (let bar = 0; bar < totalBars; bar++) {
@@ -6328,7 +6678,22 @@
           if (tmplPos && tmplPos.length) { positions = dedupeUnisons(tmplPos); shapeRootFret = rootFret; }
         }
       }
-      if (!positions || !positions.length) positions = dedupeUnisons(sweepArpeggioPositions(cfg, rootPc, quality, anchorFret));
+      if (!positions || !positions.length) {
+        // Interval-derived greedy arpeggio (the no-shape/bass case AND every
+        // seventh sweep). When a CAGED shape is named (a seventh sweep), anchor the
+        // greedy search at the shape's walked root fret so the 7th sweep tracks the
+        // canonical position per chord rather than a fixed mid-window anchor.
+        let aFret = anchorFret;
+        if (wantShape) {
+          const rf = pickShapeRootFret(cfg, shape, rootPc, prevRootFret, 'closest');
+          if (rf != null) { prevRootFret = rf; aFret = rf; }
+        }
+        positions = dedupeUnisons(sweepArpeggioPositions(cfg, rootPc, quality, aFret));
+      }
+      // sweepStrings:N — constrain the rake to the top N strings (the cleanest
+      // entry sweep; e.g. a 3-string triad on G-B-e). Anti-leak-defaulted in
+      // applyPathwayConfig so it never persists into the next pathway.
+      if (cfg.sweepStrings) positions = sliceSweepTopStrings(positions, cfg.sweepStrings);
       if (!positions.length) continue;
       const path = buildSweepPathWithHopo(positions, cfg, rootPc, quality);
       if (!path.length) continue;
@@ -6504,8 +6869,9 @@
     const notes = [], sections = [];
     sections.push({ name:`Guide tones — ${voices.replace(/_/g,' ')}`, number:1, time:0 });
 
-    // Start in mid-range guitar register (E4 = MIDI 64)
-    let prevMidi = 64;
+    // Start register: mid guitar (E4 = 64), or the bass register (E2 = 40) on bass
+    // so guide tones don't seed two octaves too high (harmony-theory ruling).
+    let prevMidi = isBassCfg(cfg) ? 40 : 64;
     let useThird = true;
     let t = 0;
     const reps = Math.max(1, Math.round(cfg.bars / Math.max(1, degrees.length)));
@@ -7101,6 +7467,23 @@
     return ex;
   }
 
+  // Walking-bass approach landing for the bar's LAST beat (Bass Lines & Changes).
+  // Returns the MIDI to land on just before the next chord, or null for 'scale' (the
+  // plain scale-walk). Mirrors the backing walker bassWalkEvents' approach set:
+  //   chromatic — a ½-step into the next root, from the side the line is on
+  //   dominant  — the 5th of the NEXT chord (the V→I bass move; resolves down a 5th)
+  //   mixed     — alternates chromatic/dominant per change for a varied line
+  // fromMidi = the bar's starting root; targetMidi = the next root's nearest octave.
+  function walkApproachMidi(mode, bar, targetMidi, nextRootPc, fromMidi) {
+    let m = mode;
+    if (m === 'mixed') m = (bar % 2 === 0) ? 'chromatic' : 'dominant';
+    if (m === 'dominant') {
+      const domPc = (((nextRootPc + 7) % 12) + 12) % 12;            // the 5th of the next chord
+      const n = fromMidi - ((((fromMidi - domPc) % 12) + 12) % 12); // greatest ≤ fromMidi with that pc
+      return Math.abs(n - fromMidi) <= Math.abs(n + 12 - fromMidi) ? n : n + 12;
+    }
+    return targetMidi + (fromMidi >= targetMidi ? 1 : -1);          // chromatic ½-step into the next root
+  }
   function buildWalkingBassExercise(cfg) {
     const opens = openMidisForConfig(cfg);
     const mLen = measureSeconds(cfg), beatStep = 60 / cfg.bpm;
@@ -7108,7 +7491,7 @@
     const degrees = progressionDegreesForConfig(cfg);
     const fMin = cfg.fretMin || 0, fMax = cfg.fretMax || 12;
     const notes = [], sections = [{ name: `Walking bass — ${cfg.key} ${cfg.scale}`, number: 1, time: 0 }];
-    let prevMidi = 40, t = 0;
+    let prevMidi = 40, t = 0, prevDeg = null;
     for (let bar = 0; bar < cfg.bars; bar++) {
       const deg = degrees[bar % degrees.length];
       const nextDeg = degrees[(bar + 1) % degrees.length];
@@ -7116,45 +7499,92 @@
       const nextRootPc = chordRootForDegree(cfg, nextDeg);
       const rootPos = nearestPositionForPc(rootPc, prevMidi, opens, fMin, fMax);
       if (!rootPos) { t += mLen; continue; }
-      notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: rootPos.s, f: rootPos.f, sus: beatStep * 0.9, ac: true }));
+      const beatsPerBar = cfg.meter.numerator;
+      // Accent the downbeat ONLY when the chord changes (jazz-idiom ruling): the
+      // accent then MEANS "new chord here" — a hammer on every bar is oom-pah, not
+      // walking. Two-feel = root & 5th as half notes on 1 & 3 (the "in 2" on-ramp).
+      const chordChanged = deg !== prevDeg;
+      const feel = cfg.walkFeel || 'four';
+      const rootsOnly = feel === 'roots';   // root on the ONE only — the harmony-literacy bridge
+      const twoFeel = feel === 'two' && beatsPerBar >= 4;
+      const rootSus = rootsOnly ? beatStep * beatsPerBar * 0.92 : twoFeel ? beatStep * (beatsPerBar / 2) * 0.92 : beatStep * 0.9;
+      notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: rootPos.s, f: rootPos.f, sus: rootSus, ac: chordChanged }));
       // barRootMidi anchors the straight-line walk toward the next root. We
       // interpolate from this FIXED point (not the moving prevMidi) so the line
       // actually travels across the bar instead of stalling on one pitch.
       const barRootMidi = opens[rootPos.s] + rootPos.f;
-      prevMidi = barRootMidi;
+      prevMidi = barRootMidi; prevDeg = deg;
       // Target octave of next root nearest to the bar's starting root.
       let targetMidi = nextRootPc;
       while (targetMidi < barRootMidi - 6) targetMidi += 12;
       while (targetMidi > barRootMidi + 17) targetMidi -= 12;
-      const beatsPerBar = cfg.meter.numerator;
-      const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
-      const scaleInts = SCALE_INTERVALS[cfg.scale] || SCALE_INTERVALS.major;
-      // Candidate scale-tone MIDIs near the line, sorted by distance to a target.
-      const scaleToneNear = (approxMidi) => {
+      if (rootsOnly) { t += mLen; continue; }   // just the root, held the whole bar (follow the changes)
+      if (twoFeel) {
+        // The 5th on beat 3 (half the bar in), held — the classic "in 2" foundation.
+        const fifthPc = (rootPc + 7) % 12, half = Math.floor(beatsPerBar / 2);
+        const pos = nearestPositionForPc(fifthPc, barRootMidi, opens, fMin, fMax);
+        if (pos) { notes.push(noteDefaults({ t: Number((t + half * beatStep).toFixed(6)), s: pos.s, f: pos.f, sus: rootSus })); prevMidi = opens[pos.s] + pos.f; }
+        t += mLen;
+        continue;
+      }
+      // Walking quarters: a CHORD-TONE-FIRST walk pool (chord tones + the passing
+      // 2nd + the 6th over maj/dom/dorian) — a real line, not a scale run
+      // (harmony-theory ruling; mirrors the backing walker bassWalkEvents).
+      const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, deg, cfg.chordOverride, cfg.progression);
+      const chordIvs = (CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj).intervals.map(i => (((i % 12) + 12) % 12));
+      const poolPcs = new Set(chordIvs.map(iv => (rootPc + iv) % 12));
+      poolPcs.add((rootPc + 2) % 12);   // the passing 2nd (R-2-3 stepwise lines)
+      if ((chordIvs.includes(4) || chordIvs.includes(10)) && !chordIvs.includes(6)) poolPcs.add((rootPc + 9) % 12);   // 6th over maj/dom, never over ♭5
+      const poolNear = (approxMidi) => {
         const cands = [];
-        for (const iv of scaleInts) {
-          const pc = (keyPc + iv) % 12;
-          const oct = Math.round((approxMidi - pc) / 12);
-          for (const o of [oct - 1, oct, oct + 1]) cands.push(pc + o * 12);
-        }
+        for (const pc of poolPcs) { const oct = Math.round((approxMidi - pc) / 12); for (const o of [oct - 1, oct, oct + 1]) cands.push(pc + o * 12); }
         return [...new Set(cands)].sort((a, b) => Math.abs(a - approxMidi) - Math.abs(b - approxMidi));
       };
+      // Approach into the next chord on the LAST beat (Lines & Changes). null = the
+      // plain pool-walk (early rungs); a value = land a chromatic/dominant approach
+      // on beat (beatsPerBar-1) so the next downbeat RESOLVES into it, and the
+      // off-beats before it walk toward THAT landing (not the bare next root).
+      const approachMode = cfg.walkApproach || 'scale';
+      const apprMidi = (approachMode !== 'scale' && beatsPerBar >= 2)
+        ? walkApproachMidi(approachMode, bar, targetMidi, nextRootPc, barRootMidi) : null;
+      const aim = apprMidi != null ? apprMidi : targetMidi;
+      const lastBeat = beatsPerBar - 1, nextRootPcN = ((nextRootPc % 12) + 12) % 12;
       for (let b = 1; b < beatsPerBar; b++) {
-        const frac = b / beatsPerBar;
-        const approxMidi = Math.round(barRootMidi + (targetMidi - barRootMidi) * frac);
-        // Walk to the nearest scale tone to the interpolated point, but never
-        // repeat the immediately preceding pitch — a walking line keeps moving.
-        // Fall through to the next-nearest tone if the closest equals prevMidi.
-        let chosen = null;
-        for (const cand of scaleToneNear(approxMidi)) {
-          if (cand === prevMidi) continue;
-          const pos = nearestPositionForPc(((cand % 12) + 12) % 12, cand, opens, fMin, fMax);
-          if (pos && opens[pos.s] + pos.f === cand) { chosen = pos; break; }
-          if (pos && !chosen) chosen = pos; // best-effort fallback if exact octave unavailable in range
+        if (apprMidi != null && b === lastBeat) {
+          // The deliberate approach note — exact pitch, nearest playable position.
+          const apprPc = (((apprMidi % 12) + 12) % 12);
+          const pos = nearestPositionForPc(apprPc, apprMidi, opens, fMin, fMax);
+          if (pos) {
+            notes.push(noteDefaults({ t: Number((t + b * beatStep).toFixed(6)), s: pos.s, f: pos.f, sus: beatStep * 0.9 }));
+            prevMidi = opens[pos.s] + pos.f;
+          }
+          continue;
         }
-        if (chosen) {
-          notes.push(noteDefaults({ t: Number((t + b * beatStep).toFixed(6)), s: chosen.s, f: chosen.f, sus: beatStep * 0.9 }));
-          prevMidi = opens[chosen.s] + chosen.f;
+        const denom = apprMidi != null ? lastBeat : beatsPerBar;   // land ON the approach at lastBeat
+        const frac = b / denom;
+        const approxMidi = Math.round(barRootMidi + (aim - barRootMidi) * frac);
+        // Nearest pool tone to the line: no immediate repeat; cap leaps at ~a 5th
+        // (≤9 semis, prefer stepwise) so it reads as a line; the final scale-mode
+        // beat avoids the next downbeat's pitch-class (the cardinal cross-barline
+        // repeat); the beat before an approach never pre-plays the approach pitch.
+        // `fallback` (first playable non-repeat) guarantees a note even if the
+        // preference filters reject everything.
+        let chosen = null, fallback = null;
+        for (const cand of poolNear(approxMidi)) {
+          if (cand === prevMidi) continue;
+          const candPc = (((cand % 12) + 12) % 12);
+          const pos = nearestPositionForPc(candPc, cand, opens, fMin, fMax);
+          if (!pos) continue;
+          if (!fallback) fallback = pos;
+          if (Math.abs(cand - prevMidi) > 9) continue;
+          if (apprMidi == null && b === lastBeat && candPc === nextRootPcN) continue;
+          if (apprMidi != null && b === lastBeat - 1 && cand === apprMidi) continue;
+          if (opens[pos.s] + pos.f === cand) { chosen = pos; break; }
+        }
+        const place = chosen || fallback;
+        if (place) {
+          notes.push(noteDefaults({ t: Number((t + b * beatStep).toFixed(6)), s: place.s, f: place.f, sus: beatStep * 0.9 }));
+          prevMidi = opens[place.s] + place.f;
         }
       }
       t += mLen;
@@ -7803,15 +8233,43 @@
     const degrees = progressionDegreesForConfig(cfg);
     const notes = [], sections = [{ name:`Right-hand technique — ${cfg.key}`, number:1, time:0 }];
     const sus = Math.max(0.05, step * 0.5);
+    // rhTechMode (Bass Groove & Right-Hand ladder) selects the per-step position
+    // sequence over the all-4ths grip (root s, fifth s+1, octave s+2 — adjacent
+    // ascending strings):
+    //   pulse        — re-articulated root on one string (the i-m motor; default)
+    //   crossing     — alternate root↔fifth across two adjacent strings
+    //   rake         — descending octave→fifth→root dragged with ONE plucking
+    //                  finger across the adjacent strings (the upright-derived rake)
+    //   three_finger — root pulse with the pluck rotating index→middle→ring
+    const mode = cfg.rhTechMode || 'pulse';
+    const bassRh = isBassCfg(cfg);
     let prevMidi = 33, t = 0, bar = 0;
     while (t < totalTime - 0.001) {
       const grip = bassRootGrip(cfg, chordRootForDegree(cfg, degrees[bar % degrees.length]), prevMidi);
       const barEnd = Math.min(totalTime, t + mLen);
-      if (grip) { for (let tt = t; tt < barEnd - 0.001; tt += step) notes.push(noteDefaults({ t:Number(tt.toFixed(6)), s:grip.root.s, f:grip.root.f, sus })); prevMidi = grip.root.midi; }
+      if (grip) {
+        const seq = mode === 'crossing' ? [grip.root, grip.fifth]
+          : mode === 'rake' ? [grip.octave, grip.fifth, grip.root]
+          : [grip.root];
+        let i = 0;
+        for (let tt = t; tt < barEnd - 0.001; tt += step, i++) {
+          const p = seq[i % seq.length];
+          const nf = { t:Number(tt.toFixed(6)), s:p.s, f:p.f, sus };
+          if (bassRh) {
+            if (mode === 'rake') nf.rh = 1;                       // one finger dragged through the rake
+            else if (mode === 'three_finger') nf.rh = [1, 2, 3][i % 3];
+          }
+          notes.push(noteDefaults(nf));
+        }
+        prevMidi = grip.root.midi;
+      }
       t = barEnd; bar++;
     }
     if (!notes.length) throw new Error('No right-hand technique notes generated.');
-    applyStrokePolicy(notes, cfg, 'bass_parity');   // bass rung 0: the i-m assignment IS the drill
+    // pulse/crossing keep the i-m parity drill (the alternation IS the lesson);
+    // rake (single dragged finger) and three_finger (explicit rotation) set their
+    // own rh above, so the parity pass would wrongly overwrite them.
+    if (mode === 'pulse' || mode === 'crossing') applyStrokePolicy(notes, cfg, 'bass_parity');
     return { notes, chords:[], chordTemplates:[], handShapes:[], sections, duration:totalTime };
   }
 
@@ -13504,6 +13962,18 @@
     if (!config) return;
     if (Object.prototype.hasOwnProperty.call(config, 'advancedMode')) setFieldSilent('advancedMode', config.advancedMode);
     syncAdvancedMode();
+    // Instrument-family FIRST: if the rung declares a stringSetup for a different
+    // family, switch the instrument class before the field loop writes practiceType.
+    // syncInstrumentClass DISABLES the practice-type options not offered on the
+    // current instrument, and setFieldSilent silently rejects a value whose <option>
+    // is disabled — so applying a bass-native rung (e.g. right_hand_technique) while
+    // the class was still guitar fell back to 'scale'. (Surfaced selecting a bass
+    // ladder from a guitar context / restoring a bass pathway on reload.)
+    if (config.stringSetup && STRING_SETUPS[config.stringSetup]) {
+      setFieldSilent('stringSetup', config.stringSetup);
+      syncStringSetupControls();
+      syncInstrumentClass();
+    }
     // Specialized backing/feel fields default OFF unless the pathway opts in, so a
     // boogie/shuffle pathway's settings never leak into the next pathway selected
     // (applyPathwayConfig doesn't reset the form; it only writes keys it's given).
@@ -13521,6 +13991,16 @@
     // Herta accent/walk: anti-leak defaulted like the other rung-scoped flags.
     setFieldSilent('hertaAccent', config.hertaAccent != null ? config.hertaAccent : '0');
     setFieldSilent('hertaWalk', config.hertaWalk ? 'true' : '');
+    // sweepStrings (Sweep ladder): anti-leak defaulted → a 3-string entry rung's
+    // limiter never persists into the next pathway's full-box sweep.
+    setFieldSilent('sweepStrings', config.sweepStrings != null ? config.sweepStrings : '0');
+    // rhTechMode (Bass Groove & Right-Hand): anti-leak defaulted to 'pulse' so a
+    // rake/crossing/three-finger rung never carries into the next pathway.
+    setFieldSilent('rhTechMode', config.rhTechMode || 'pulse');
+    // walkApproach (Bass Lines & Changes): anti-leak defaulted to 'scale' so a
+    // chromatic/dominant-approach rung never carries into the next pathway.
+    setFieldSilent('walkApproach', config.walkApproach || 'scale');
+    setFieldSilent('walkFeel', config.walkFeel || 'four');   // anti-leak: two-feel never carries forward
     // Backing comp cell + bass figure + density (steps 3–4): anti-leak
     // defaulted — a rung's authored backing never rides into the next pathway.
     setFieldSilent('backingComp', config.backingComp || '');
@@ -13712,8 +14192,12 @@
       sel.value = 'custom';
     } else {
       let stored = null; try { stored = localStorage.getItem(PATHWAY_STORAGE_KEY); } catch (_) {}
-      const valid = stored && stored !== 'custom' && Array.from(sel.options).some(o => o.value === stored);
-      sel.value = valid ? stored : (activePathwayId && activePathwayId !== 'custom' ? activePathwayId : 'pent_foundation');
+      // Instrument-aware: a stored/active pathway coded for the OTHER instrument is
+      // rejected (it would yank the player's instrument), falling back to this
+      // instrument's Core on-ramp — never a hidden guitar pathway on bass.
+      const valid = stored && stored !== 'custom' && PATHWAYS[stored] && !isHiddenNode(stored);
+      const activeOk = activePathwayId && activePathwayId !== 'custom' && PATHWAYS[activePathwayId] && !isHiddenNode(activePathwayId);
+      sel.value = valid ? stored : activeOk ? activePathwayId : (currentFamily() === 'bass' ? 'bass_rh_pulse' : 'pent_foundation');
     }
     sel.dispatchEvent(new Event('change'));
   }
@@ -13758,6 +14242,8 @@
     chromatic_warmup: ['one_finger_per_fret', 'light_grip'],
     bend_drill: ['pinky_bend_support', 'thumb_over'],
     sweep_arpeggio_primer: ['roll_dont_barre', 'light_grip'],
+    // Sweep Picking ladder: the roll rung's two cleanliness cues (panel 2026-06-07).
+    sweep_roll_apex: ['roll_dont_barre', 'light_grip'],
     melodeath_twin_leads: ['roll_dont_barre'],
     pick_tremolo: ['wrist_neutral', 'anchor_palm'],
     pick_alternate: ['wrist_neutral', 'anchor_palm'],
@@ -14032,6 +14518,22 @@
   // design — it must NOT re-run the full applyPathwayConfig form write: the
   // user's mid-rung instrument pick (and any hand-set fields) stick; only the
   // derived outputs refresh against the form's CURRENT declaration.
+  // When an instrument switch makes the active Ladder pathway non-offerable on the
+  // new instrument (e.g. a guitar-only sweep lesson → bass), drop to Custom so the
+  // goal card doesn't lie and the exercise becomes a safe default for the new
+  // instrument (syncInstrumentClass's mustSwitch already moved the practice type to
+  // a playable one). Only in Ladder (guided) mode — Workout/Jam don't surface
+  // activePathwayId. Returns true when it switched, so the caller skips its own
+  // reapply/regenerate (selectMode → the pathway-select change handler regenerates).
+  function dropPathwayIfUnplayable() {
+    let mode = 'guided'; try { mode = localStorage.getItem(MODE_STORAGE_KEY) || 'guided'; } catch (_) {}
+    if (mode !== 'guided') return false;
+    if (!activePathwayId || activePathwayId === 'custom') return false;
+    if (!isHiddenNode(activePathwayId)) return false;
+    selectMode('custom');
+    return true;
+  }
+
   function reapplyActivePathway() {
     if (!(activePathwayId && activePathwayId !== 'custom' && PATHWAYS[activePathwayId])) return;
     const pw = PATHWAYS[activePathwayId];
@@ -14327,8 +14829,11 @@
     // 'custom' means the user opted out of any pathway; treat it as a non-choice
     // on plugin open so beginners always land on a real exercise. The user can
     // re-select Custom mid-session from the dropdown.
-    const useStored = stored && stored !== 'custom' && Array.from(select.options).some(o => o.value === stored);
-    const initial = useStored ? stored : PATHWAY_FIRST_VISIT_DEFAULT;
+    // Instrument-aware default: reject a stored pathway coded for the other instrument
+    // (it would yank the player's instrument on open), landing on this instrument's
+    // Core on-ramp instead (bass → bass_rh_pulse; guitar → chromatic_warmup).
+    const useStored = stored && stored !== 'custom' && PATHWAYS[stored] && !isHiddenNode(stored);
+    const initial = useStored ? stored : (currentFamily() === 'bass' ? 'bass_rh_pulse' : PATHWAY_FIRST_VISIT_DEFAULT);
     if (!initial) return;
     if (!Array.from(select.options).some(o => o.value === initial)) return;
     select.value = initial;
@@ -14445,8 +14950,22 @@
     // PRACTICE_APPLICABILITY ternary tags are the single source of truth.
     const setup = document.querySelector('[name="stringSetup"]');
     const inst = (setup && (STRING_SETUPS[setup.value] || {}).instrument) || 'guitar';
-    const pt = PATHWAYS[id] && PATHWAYS[id].base && PATHWAYS[id].base.practiceType;
-    return !!(pt && !offerable(pt, inst));
+    const pw = PATHWAYS[id];
+    const pt = pw && pw.base && pw.base.practiceType;
+    if (pt && !offerable(pt, inst)) return true;
+    // Family match (2026-06-07): a pathway CODED for the other instrument family is
+    // also hidden — its base.stringSetup yanks the player's instrument when selected
+    // (applyPathwayConfig writes every config key incl. stringSetup). This catches
+    // the bass Scales/Arpeggios ladders on guitar (their practice types — scale,
+    // diatonic_arpeggios — ARE offered on guitar, so the practice-type test above
+    // misses them) and, symmetrically, guitar-coded ladders on bass. EXCEPT the
+    // instrument-agnostic rungs (the Rhythm ladder + any pw.instAgnostic), which are
+    // built to ADAPT to the player's instrument rather than force their coded setup
+    // (same condition as applyPathwayById's adapt branch).
+    const pwInst = (STRING_SETUPS[pw && pw.base && pw.base.stringSetup] || {}).instrument;
+    const agnostic = pathwayBandId(id) === 'concept_rhythm' || (pw && pw.instAgnostic);
+    if (pwInst && pwInst !== inst && !agnostic) return true;
+    return false;
   }
   // A pathway's prerequisite = the first incoming edge in the prereq graph. Used for
   // the soft "Builds on …" hint (gamification: prereqs suggest, never gate).
@@ -14496,7 +15015,15 @@
       .filter(Boolean)
       .map(b => ({ id:b.id, label:b.label, kind:b.kind, ids:b.pathways.filter(id => PATHWAYS[id] && !isHiddenNode(id)) }))
       .filter(b => b.ids.length);
-    if (!bands.length) { bandBar.innerHTML = ''; list.innerHTML = ''; return; }
+    if (!bands.length) {
+      // No bands have a playable rung for this instrument — show an empty-state line
+      // rather than a blank pane (belt-and-suspenders: the instrument-aware Core
+      // should always have content, but a future instrument without a Core spine
+      // would otherwise blank here). Points the player at the Pack manager.
+      bandBar.innerHTML = '';
+      list.innerHTML = '<div class="slopscale-lib-empty">No pathways for this instrument yet — tap <strong>+</strong> to browse packs.</div>';
+      return;
+    }
     // Which band to show = the user's selected band (_activeBandId), defaulting to the
     // active pathway's band when unset/stale. Band-chip clicks set _activeBandId directly
     // (browse); selecting a pathway sets it in applyPathwayById (list follows selection).
@@ -16456,7 +16983,22 @@
     instrument?.addEventListener('change', () => {
       if (!setup) return;
       setup.value = instrument.value === 'bass' ? 'bass_4_standard' : 'guitar_6_standard';
+      // A per-string custom tuning from the old family has the wrong string count /
+      // ranges for the new one — clear it so the saved L1 store reflects the family
+      // standard (mirrors onInstrumentFamilyClick).
+      const hidden = $('slopscale-custom-open-midis'); if (hidden) hidden.value = '';
       syncInstrumentClass();
+      syncStringCountChips();   // a direct instrument-select change (not via the chips) must refresh these too
+      syncTuningOptions();
+      // Switching FAMILY is the player's L1 declaration — persist it so it survives a
+      // reload (the bug: the programmatic setup.value above dispatches no 'change',
+      // so the setup handler's instrumentStoreSave never ran, and the stale L1 store
+      // won restore → a guitar→bass switch reverted after restart).
+      instrumentStoreSave();
+      renderPathwayList();      // repaint the instrument-aware picker (bass packs in / guitar-only out)
+      // If the active Ladder rung can't be played on the new instrument, drop to
+      // Custom (that path regenerates); otherwise re-derive the rung + regenerate.
+      if (dropPathwayIfUnplayable()) return;
       reapplyActivePathway();   // re-derive the active rung for the new instrument
       if (activeBundle) onGenerate();
     });
@@ -16466,6 +17008,10 @@
       // (Pathway writes go through setFieldSilent — no 'change' — so a rung's
       // coded setup never overwrites the player's durable store.)
       instrumentStoreSave();
+      renderPathwayList();      // a setup change can cross families (guitar setup → bass setup): repaint the picker
+      // If this setup change crossed families and orphaned the active Ladder rung,
+      // drop to Custom (that path regenerates) instead of re-deriving a hidden rung.
+      if (dropPathwayIfUnplayable()) return;
       // Re-derive the active rung AGAINST the new declaration (anchor key, L1
       // adapt, goal-card readout) — save first so the derivation reads it.
       reapplyActivePathway();
