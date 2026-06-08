@@ -169,6 +169,8 @@ Diatonic progressions, the common pop/jazz/blues sets, minor ii–V–i, 12-bar 
 - **Save tuning** — custom tunings to `slopscale_tunings`, shown under "Saved" every session
 - **Share link** — the whole form state encodes into a URL hash; paste a link to land on the exact same exercise
 
+> **Upgrading Slopsmith Desktop?** Some Desktop upgrades advise deleting the config folder. Your **presets & tunings** live in the host DB and survive (and can be **Settings → Export**ed/Imported), but your **Skill-Ladder progress, installed packs, mixer and preferences** live in browser localStorage and are cleared by a config wipe. **Export your settings first** if you want to keep them. (Ladder progress isn't yet in the export — on the roadmap.)
+
 ## Quick start
 
 ### Prerequisites

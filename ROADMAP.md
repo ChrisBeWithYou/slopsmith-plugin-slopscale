@@ -1,9 +1,28 @@
 # SlopScale Roadmap
 
 > Read this at the start of every session. Update it before closing.
-> Current date: 2026-06-07.
+> Current date: 2026-06-08.
+
+## 🔭 Host-release overlap sweep (STANDING RITUAL — run on every new Slopsmith release)
+
+SlopScale keeps building things the host later ships (v0.2.9 shipped a Tuner, Drums, Minigames XP, NAM Rig Builder, settings export, wake-lock — we'd hand-built our own of all six). The per-feature HOST CHECK fires once at design time and can't catch a clean build *becoming* a double-build when the host later ships parity. So: **when a new Slopsmith Desktop/host release lands, do a ~15-min overlap sweep** (this is the standing counterpart to the per-feature HOST CHECK in CLAUDE.md rule 4):
+1. Read the host release notes → list new capabilities.
+2. Cross-check each against the **watchlist** below (our shell features the host might ship). For every overlap, make ONE call: **migrate-to-borrow** (host's is now good enough — retire ours) · **keep-ours-with-a-written-reason** (e.g. our tuner is target-aware + contained-playback-scoped) · **defer**.
+3. Re-verify our borrows still work on the new build: `SLOPSMITH_SOURCE=bundled npm test` (tests our `main` against the actual user runtime) + an eyeball launch.
+
+**Watchlist — shell capabilities we OWN that the host might ship (flip to borrow when host parity arrives):**
+tuner (ours = target-aware) · drums (ours = synth/WAF, no host bank to borrow live) · XP/progress (ours = competency-typed; host = flat sqrt-score → DON'T feed; host-subscribes-to-our-emit is the on-mission path) · mixer (ours = per-instrument buses; host mix-plane is plugin-output-level + player-gated) · wake-lock · settings export · NAM tone (host borrow now GREEN — runtime-only, never vendor) · scoring/detector (host territory — we never build DSP) · asset-serving (host generic asset route exists; low-value migrate).
+> The slopsmith-host-expert + devops agents carry the live version of this watchlist in their memory. Full v0.2.9 audit: project memory `project_host_release_v029_audit`.
 
 ## Session log (most recent first)
+
+### ⏸️ STOPPED HERE (2026-06-08 session #19) — Slopsmith Desktop v0.2.9 AUDIT (4-agent panel) + the quick fixes/verify/rituals — UNCOMMITTED
+> v0.2.9 shipped (2026-06-08): **SlopScale is now BUNDLED** in Desktop. Audited by host-expert (lead) + devops + gamification + audio-engine. Full findings: project memory `project_host_release_v029_audit` + the plan file `.claude/plans/proud-swinging-codd.md`.
+> **THE REFRAME:** SlopScale reaches users two ways — a frozen **v0.7.3 vendored snapshot** in the box (the floor), AND **catalog-updatable to our repo `main` HEAD** via the host's `update_manager` v1.4 (registry = host README → our repo; user-dir wins on id collision). So **our `main` HEAD is now a published end-user artifact** — WIP belongs on a branch.
+> **Verified NOT broken:** `SLOPSMITH_SOURCE=bundled npm test` = **16/16 on the real v0.2.9 runtime** (highway_3d 3.22 camera overhaul, notedetect 1.10 bass-aware verify + scoring SDK, AudioContext patch still scoped right). #650 stub STILL required (highway 3.22 still self-creates a ctx on the contained path). Residual manual eyeballs (non-blocking): lefty frame #603, new highway chrome density (per-note fret labels + chord diagrams now default ON — inherited).
+> **Done this session (A+B+C):** A — `launch.ps1` bundled python repointed to the Velopack `current\` path (was the stale 0.2.7 path → bundled mode silently booted the wrong runtime); `plugin.json` 0.7.4→**0.7.5** + `license:AGPL-3.0-only`. B — the 16/16 bundled verify above. C — this overlap-sweep ritual + watchlist; the main-is-published rule (CLAUDE/AGENTS); the README config-wipe upgrade note.
+> **New hooks (verdicts):** NAM tone borrow now GREEN (nam_tone bundled v1.1.0 / NAMCore 0.5.3 — runtime-only, never vendor) → unblocks the backing-engine TONE seam, but the distorted track is unblocked by OUR DSP not v0.2.9 (and isn't wired yet). Minigames XP = HOLD (stay a plugin; host couples XP↔leaderboard; feed nothing). Generic asset route + output-device plane = WATCH/optional. Capability pipelines = opt-in (`caps=none` everywhere), nothing obligated.
+> **HELD (Christian, circle back): D1** rebase+sign-off+file the gp2rs handmarks PR (complementary to host #729/#730/#750 — they import techniques, NOT our pkd/rh/fingerings; needs `-s` DCO + rebase onto origin/main ~7 ahead). **D2** the distorted-track baseline (in-house WaveShaper + CC0 cab-IR; confirm `djenty.wav`/`djent_highgain.nam` licensing first). Also deferred: D3 trim the distributed zip; move ladder progress localStorage→DB (the v0.2.9 config-wipe deletes it).
 
 ### ⏸️ STOPPED HERE (2026-06-08 session #18 cont.) — WALKING-BASS approach FIX + INSTRUMENT-AWARE BASS CORE (dissolves the bass Style packs from earlier this session) — BUILT + VERIFIED, **UNCOMMITTED**
 > Christian: "improve the walking-bass exercise (Lines & Changes lane)" + "check bass + L&D that bass core pathways are in good shape." 4-agent panel (bass-pedagogy + L&D chair + harmony + jazz). Christian then approved the **full instrument-aware bass Core** + "make naming/structure approximate-parity with guitar."

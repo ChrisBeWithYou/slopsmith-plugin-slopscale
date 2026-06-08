@@ -38,7 +38,11 @@ $VenvDir = if ($env:SLOPSMITH_VENV) { $env:SLOPSMITH_VENV } else { 'C:\Users\chr
 if ($Source -eq 'checkout') {
   $PythonExe = Join-Path $VenvDir 'Scripts\python.exe'
 } else {
-  $PythonExe = 'C:\Program Files\Slopsmith\resources\python\python.exe'
+  # Velopack installs the active version under `current\` (the v0.2.9+ layout);
+  # the legacy flat `resources\` path is a stale older install. Prefer current\
+  # so `bundled` mode actually tests the version users run (devops audit 2026-06-08).
+  $curPy = 'C:\Program Files\Slopsmith\current\resources\python\python.exe'
+  $PythonExe = if (Test-Path $curPy) { $curPy } else { 'C:\Program Files\Slopsmith\resources\python\python.exe' }
 }
 $DlcDir = if ($env:DLC_DIR) { $env:DLC_DIR } else { 'C:\Users\chris\slopsmith-dlc' }
 $ConfigDir = if ($env:CONFIG_DIR) { $env:CONFIG_DIR } else { 'C:\Users\chris\slopsmith-config' }
