@@ -2602,6 +2602,17 @@
   // chord-shape frames onto the note lane (see attachRenderer + drawOnce).
   let rendererBundle = null;
   let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
+  // Audio-clock play anchor (seconds on audioCtx.currentTime), set alongside
+  // playAnchorMs by anchorPlayClock(). While it's live, tick() derives the
+  // playback clock from the AUDIO clock — the timebase the scheduled notes
+  // actually play on — instead of performance.now(). The two clocks tick at
+  // slightly different rates (measured 63ppm ≈ 3.8ms/min on the dev box,
+  // 2026-06-07 A/V-sync audit), and the wall-clock version accumulated that
+  // drift across seamless loop passes (~113ms over an unbroken 30-min
+  // Workout): the gems slid off the audio, and the judging windows slid off
+  // what the player was hearing. playAnchorMs stays maintained as the
+  // fallback for the no-AudioContext path.
+  let playAnchorCtx = null;
   // PAUSE is a sub-state of playing (playing stays true while paused) so every
   // "transport break → stopPlayback()" call site keeps working unchanged. The
   // clock freezes (tick skips the advance), audio + judgment stop, the session
@@ -9912,8 +9923,7 @@
       // (e.g. clearing an A-B loop), never at the steady-state chunk seam.
       stopAudio();
       scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
-      playAnchorChartTime = currentPracticeTime;
-      playAnchorMs = nowMs + AUDIO_LOOKAHEAD_SECONDS * 1000;
+      anchorPlayClock(currentPracticeTime);
       return;
     }
     if (ctxNow + SCHED_REFILL_AHEAD >= scheduledUntilCtx) scheduleNextChunk();
@@ -10687,6 +10697,17 @@
     syncPlayButton();
     refreshStatusFromState();
   }
+  // Re-anchor the playback clock at `chartTime`, in BOTH clock domains, with
+  // the standard scheduling lookahead. Every (re)start/seek/wrap/re-schedule
+  // site goes through here so the audio anchor can never fall out of step
+  // with the wall anchor. The ctx anchor intentionally tolerates a suspended
+  // context: its currentTime freezes exactly as the scheduled audio does, so
+  // visuals wait WITH the audio instead of running ahead on the wall clock.
+  function anchorPlayClock(chartTime) {
+    playAnchorChartTime = chartTime;
+    playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
+    playAnchorCtx = audioCtx ? audioCtx.currentTime + AUDIO_LOOKAHEAD_SECONDS : null;
+  }
   function tick(nowMs) {
     if (!renderer || !activeBundle) return;
     if (playing) {
@@ -10700,7 +10721,12 @@
       // Paused: keep the RAF alive (the nav-guard above + redraws stay armed)
       // but freeze the clock — no advance, no loop wraps, no finite-run end.
       if (paused) { drawOnce(); rafId = requestAnimationFrame(tick); return; }
-      const elapsedMs = Math.max(0, nowMs - playAnchorMs);
+      // Single clock domain: while an AudioContext is live, elapsed time comes
+      // from the audio clock the notes are scheduled on (drift-free vs what
+      // the player hears); the wall clock is the fallback when there's no ctx.
+      const elapsedMs = (audioCtx && playAnchorCtx != null)
+        ? Math.max(0, (audioCtx.currentTime - playAnchorCtx) * 1000)
+        : Math.max(0, nowMs - playAnchorMs);
       currentPracticeTime = playAnchorChartTime + elapsedMs / 1000;
       const duration = activeBundle.songInfo.duration || 1;
       // A-B segment loop wins over whole-chart wrap when both endpoints are
@@ -10709,8 +10735,7 @@
       // for the count-in / rewind plan.)
       if (segmentLoopA != null && segmentLoopB != null && currentPracticeTime >= segmentLoopB) {
         currentPracticeTime = segmentLoopA;
-        playAnchorChartTime = segmentLoopA;
-        playAnchorMs = nowMs + AUDIO_LOOKAHEAD_SECONDS * 1000;
+        anchorPlayClock(segmentLoopA);
         stopAudio();
         // Whole-segment scheduling (A-B regions are short), but bounded at B:
         // events past B were dead weight — killed unheard by this very
@@ -12490,14 +12515,12 @@
     if (segmentLoopA != null && segmentLoopB != null) {
       currentPracticeTime = Math.min(segmentLoopA, segmentLoopB);
     }
-    playAnchorChartTime = currentPracticeTime;
     playStartChartTime = currentPracticeTime;  // remember where this play began (for Stop)
     // Count-in is baked into the chart as lead-in rest bars (see applyCountIn),
     // so playback just starts from the playhead — no playhead freeze. Starting
     // from 0 plays the count-in once; the loop then cycles the music only. The
     // count-in clicks come from schedulePreviewAudio (lead-in beats always tick).
-    const startMs = performance.now();
-    playAnchorMs = startMs + AUDIO_LOOKAHEAD_SECONDS * 1000;
+    anchorPlayClock(currentPracticeTime);
     scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
     if (!rafId) rafId = requestAnimationFrame(tick);
     startPitchTracker(activeBundle); syncPlayButton(); refreshStatusFromState();
@@ -12522,8 +12545,7 @@
     _pausedAccumMs += Math.max(0, performance.now() - _pauseBeganMs);
     paused = false;
     acquireWakeLock();
-    playAnchorChartTime = currentPracticeTime;
-    playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
+    anchorPlayClock(currentPracticeTime);
     scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
     // Scoring hygiene across a pause is inherent: paused frames are discarded
     // in ptOnPitch, so nothing scores against a frozen clock.
@@ -12580,8 +12602,7 @@
     const dur = activeBundle.songInfo?.duration || 0;
     currentPracticeTime = Math.max(0, Math.min(dur, Number(t) || 0));
     if (playing && !paused) {
-      playAnchorChartTime = currentPracticeTime;
-      playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
+      anchorPlayClock(currentPracticeTime);
       stopAudio();
       scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
     } else {
@@ -16878,8 +16899,7 @@
         // (mirrors the per-channel instrument change below; no full regen needed).
         // Not while paused — a paused run must stay silent; resume re-schedules.
         if (playing && !paused) {
-          playAnchorChartTime = currentPracticeTime;
-          playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
+          anchorPlayClock(currentPracticeTime);
           stopAudio();
           scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
         }
@@ -16909,8 +16929,7 @@
       if (activeBundle) {
         await awaitVoices(activeBundle);
         if (playing && !paused) {   // paused stays silent; resume re-schedules on the new voice
-          playAnchorChartTime = currentPracticeTime;
-          playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
+          anchorPlayClock(currentPracticeTime);
           stopAudio();
           scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
         }
@@ -17089,8 +17108,7 @@
       // Re-anchor the play clock and re-schedule audio from A so the listener
       // hears the loop region immediately, not silence until the next wrap.
       // Bounded at B — see the A-B wrap branch in tick() for why.
-      playAnchorChartTime = aNum;
-      playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
+      anchorPlayClock(aNum);
       stopAudio();
       schedulePreviewAudio(activeBundle, aNum, AUDIO_LOOKAHEAD_SECONDS, bNum);
     } else {
@@ -17111,6 +17129,6 @@
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
   window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, ptPracticeTime: () => currentPracticeTime, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch }) };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, ptPracticeTime: () => currentPracticeTime, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch }), avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
