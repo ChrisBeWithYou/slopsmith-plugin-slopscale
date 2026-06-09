@@ -44,6 +44,12 @@
   // physically partitioned yet — a future Step-1 module split relocates them.)
   // ===========================================================================
 
+  // Plugin version shown in the header next to the title. The host doesn't inject
+  // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
+  // the same way), so this is the display mirror of plugin.json's "version".
+  // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
+  const SLOPSCALE_VERSION = '0.7.6-dev';
+
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
   // note names, string setups, scale intervals, chord formulas, diatonic
@@ -17224,6 +17230,7 @@
   // ===========================================================================
   function bind() {
     const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1';
+    { const verEl = $('slopscale-version'); if (verEl) verEl.textContent = 'v' + SLOPSCALE_VERSION; }   // header version badge (mirrors plugin.json)
     const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'), advancedToggle = $('slopscale-advanced-toggle');
     // LCD tempo is EDITABLE in place (DAW transport convention) — two-way with
     // the Inspector BPM field. Delegated on the strip (the LCD re-renders on
