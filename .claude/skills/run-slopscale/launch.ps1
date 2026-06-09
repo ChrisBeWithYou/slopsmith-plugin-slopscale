@@ -46,8 +46,15 @@ if ($Source -eq 'checkout') {
 }
 $DlcDir = if ($env:DLC_DIR) { $env:DLC_DIR } else { 'C:\Users\chris\slopsmith-dlc' }
 $ConfigDir = if ($env:CONFIG_DIR) { $env:CONFIG_DIR } else { 'C:\Users\chris\slopsmith-config' }
-$PluginsBase = Join-Path $env:LOCALAPPDATA 'Slopsmith\plugins'
+# Dedicated DEV plugins dir so the test host NEVER touches the user's real Desktop
+# install at ...\Slopsmith\plugins\slopscale (now a GitHub clone of slopscale-dev,
+# decoupled from this workspace on purpose). Override with $env:SLOPSMITH_PLUGINS_BASE.
+$PluginsBase = if ($env:SLOPSMITH_PLUGINS_BASE) { $env:SLOPSMITH_PLUGINS_BASE } else { Join-Path $env:LOCALAPPDATA 'Slopsmith\plugins-dev' }
 $JunctionPath = Join-Path $PluginsBase 'slopscale'
+# note_detect (the pinned chord-verifier clone) lives in the user's REAL plugins dir;
+# mirror it into the dev dir so scoring-e2e keeps the same detector (not the bundled one).
+$NoteDetectSrc  = Join-Path $env:LOCALAPPDATA 'Slopsmith\plugins\note_detect'
+$NoteDetectLink = Join-Path $PluginsBase 'note_detect'
 $LogDir = Join-Path $env:TEMP 'slopscale'
 $LogFile = Join-Path $LogDir 'server.log'
 
@@ -129,17 +136,25 @@ if (Test-Path $JunctionPath) {
   cmd /c mklink /J "$JunctionPath" "$PluginRoot" | Out-Null
 }
 
+# Mirror note_detect into the dev plugins dir (junction -> the user's pinned clone)
+# so the dev host has the chord verifier without depending on the bundled version.
+if ((Test-Path $NoteDetectSrc) -and -not (Test-Path $NoteDetectLink)) {
+  Write-Host "[launch] linking note_detect -> $NoteDetectSrc"
+  cmd /c mklink /J "$NoteDetectLink" "$NoteDetectSrc" | Out-Null
+}
+
 Write-Host "[launch] starting server [$Source] via $PythonExe on http://127.0.0.1:$Port/ (log: $LogFile)"
 $env:HOST = '127.0.0.1'
 $env:PORT = $Port
 $env:DLC_DIR = $DlcDir
 $env:CONFIG_DIR = $ConfigDir
-# Running the checkout: its built-in plugins/ dir is the checkout's own, so point
-# user-plugin discovery (SLOPSMITH_PLUGINS_DIR, read by server.py/plugins) at the
-# junction dir where this script links SlopScale. (The bundled runtime already
-# defaults there, so we only set it for the checkout path.)
+# Point user-plugin discovery (SLOPSMITH_PLUGINS_DIR, read by server.py/plugins) at
+# the DEV plugins dir for BOTH modes — so the test host reads plugins-dev (this
+# workspace), never the user's real Desktop install. (Bundled honours the env too;
+# if a bundled build ever ignored it, it would fall back to the default dir, which
+# now holds the clean slopscale-dev clone — still a valid plugin, just not live edits.)
+$env:SLOPSMITH_PLUGINS_DIR = $PluginsBase
 if ($Source -eq 'checkout') {
-  $env:SLOPSMITH_PLUGINS_DIR = $PluginsBase
   # main.py imports top-level modules from BOTH the checkout root and lib/ (the
   # bundled python's ._pth listed ../slopsmith + ../slopsmith/lib). The venv
   # python isn't ._pth-isolated, so it honours PYTHONPATH — mirror those here.
