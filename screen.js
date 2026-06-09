@@ -774,7 +774,7 @@
       goal:"Apply it as a line: run each chord's scale, but instead of restarting on the root every bar, land on the nearest guide tone (3rd or 7th) of the NEXT chord. That one habit — aim for the guide tone across the bar line — is what \"playing the changes\" means. The scale becomes a melody that follows the harmony.",
       scales:['major','dorian','mixolydian'],
       tempoTiers:[60, 80, 100, 120],
-      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', progression:'ii-V-I', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', swing:'swing', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:7 },
+      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', progression:'ii-V-I', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', swing:'swing', audioProfile:'jazz', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:7 },
       vary:[ { progression:'ii-V-I' }, { progression:'vi-ii-V-I' }, { key:'F', progression:'ii-V-I' }, { key:'G', progression:'I-V-vi-IV' }, { key:'Bb', progression:'vi-ii-V-I' } ]
     },
     // ── Arpeggio Mastery ladder (Concepts family) ───────────────────────────────
@@ -1613,7 +1613,7 @@
       goal:'The most common cadence in jazz — ii–V–I — run by playing each chord\'s mode over the changes (Dorian → Mixolydian → Ionian). The skill is hearing the harmony move and switching scale color per chord — the first real step toward playing the changes instead of one scale over everything.',
       scales:['major','dorian','mixolydian','melodic_minor','bebop_major','bebop_dominant'],
       tempoTiers:[70, 100, 120, 144],
-      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', chordDepth:'seventh', chordOverride:'auto', progression:'ii-V-I', meter:'4/4', subdivision:'eighth', swing:'swing', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
+      base:{ practiceType:'chord_scales', chordScaleStrategy:'mode_of_moment', scale:'major', chordDepth:'seventh', chordOverride:'auto', progression:'ii-V-I', meter:'4/4', subdivision:'eighth', swing:'swing', audioProfile:'jazz', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:0, fretMax:7 },
       vary:[ { key:'C' }, { key:'F' }, { key:'Bb' }, { key:'G' }, { key:'D' }, { key:'A' } ]
     },
     harmonic_minor_exotic: {
@@ -3724,9 +3724,25 @@
   // sample set (brush/percussion sample sets are a later curation pass). NOTE: the
   // FluidR3_GM drum DATA redistribution should be verified before any public release
   // (same caveat as the bundled JCLive melodic data).
-  const ACOUSTIC_PIECES = { kick:36, snare:38, hatClosed:42, hatOpen:46, hatPedal:44, ride:51, crash:49, tomHi:50, tomMid:47, tomLo:43, clap:39 };
+  // Voice ids mirror the host's lib/drums.py PIECES vocabulary (snake_case) so a
+  // SlopScale drum event maps 1:1 onto the host's 18-piece kit (and a future
+  // drum_tab.json export needs no translation). GM notes match where we overlap.
+  const ACOUSTIC_PIECES = {
+    kick:36, snare:38, snare_xstick:37,
+    hh_closed:42, hh_open:46, hh_pedal:44,
+    ride:51, ride_bell:53, bell:80,
+    crash_l:49, crash_r:57, splash:55, china:52,
+    tom_hi:50, tom_mid:47, tom_low:43, tom_floor:41,
+    clap:39,
+  };
   const drumFile = (note, font, variant) => `128${note}_${variant}_${font}_sf2_file.js`;
   const drumVar  = (note, font, variant) => `_drum_${note}_${variant}_${font}_sf2_file`;
+  // GM notes that ACTUALLY ship a committed FluidR3 one-shot under static/wafonts.
+  // The step-5 extended pieces (snare_xstick 37, tom_floor 41, china 52, ride_bell
+  // 53, splash 55, crash_r 57, bell 80) have NO sample yet → they take the synth
+  // voice instead of a per-hit 404 (loadWafPreset retries on 'failed'). ADD a note
+  // here only when its sample file lands. (Drum curation pass = a later phase.)
+  const SAMPLED_DRUM_NOTES = new Set([35, 36, 38, 39, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51]);
   const KIT_REGISTRY = {
     kit_909: { engine: 'synth', preset: '909' },   // tight/punchy default electronic
     kit_808: { engine: 'synth', preset: '808' },   // sub-heavy, long kick tail
@@ -3738,7 +3754,7 @@
   };
   const DRUM_KIT_FAMILY_DEFAULT = { electronic: 'kit_909', acoustic: 'kit_acoustic_soft', clean: 'kit_rock', distorted: 'kit_rock' };
   // Core groove staples preloaded at generate; cymbals/toms lazy-load on first hit.
-  const DRUM_CORE_PIECES = ['kick', 'snare', 'hatClosed', 'hatOpen'];
+  const DRUM_CORE_PIECES = ['kick', 'snare', 'hh_closed', 'hh_open'];
 
   // ── STYLE_PALETTES — one shared style→harmony table (build-queue #2) ──────────
   // The single source a Pathway, a Custom config, and a Jam style all draw from:
@@ -6258,50 +6274,176 @@
     return events;
   }
 
-  // ── Drum grooves (audio-realism Phase D) ────────────────────────────────────
+  // ── Drum grooves (audio-realism Phase D · backing-engine step 5) ─────────────
   // A groove is a declarative per-voice lane cell on a subdivision grid. `div` =
-  // steps per beat (2=8ths, 3=triplets, 4=16ths). Each lane is a token string of
-  // length stepsPerBar (numerator*div): 'a'=accent, 'n'=normal, 'g'=ghost,
-  // '.'/'0'=rest. Pre-swung triplet cells (shuffle/jazz) set `preSwung` so
-  // applySwingToBundle skips them (no double-swing); straight cells (div=2) ride
-  // the global swing warp. buildDrumEvents tiles the cell across the content
-  // length using the same beat math buildBeats uses. Fills are a Phase D5 concern.
-  const DRUM_VELOCITY = { a: 0.95, n: 0.78, g: 0.32 };
+  // steps per beat (2=8ths, 3=triplets, 4=16ths). A lane is a token string of
+  // length numerator*div, OR a `{ pat, vel, div }` object — `vel` scales that
+  // lane's token velocities (the quiet jazz kit; a feathered foot), `div` overrides
+  // the subdivision for that one lane (a 16th double-kick under an 8th hat).
+  // Tokens: 'a'=accent, 'n'=normal, 'g'=ghost, 'x'=feathered (the whisper kick),
+  // 'o'=open-hat (emits hh_open + choke wherever it sits), 'f'=flam (a soft grace
+  // ~28 ms before the main accent), '.'/'0'=rest. Voice ids mirror the host
+  // lib/drums.py PIECES vocabulary (hh_closed/hh_open/hh_pedal/ride/ride_bell/
+  // crash_l/tom_hi…) so a SlopScale drum event maps 1:1 onto the host kit.
+  // Pre-swung cells (shuffle/jazz/clave) set `preSwung` so applySwingToBundle
+  // skips them (no double-swing); straight cells ride the global swing warp.
+  // `cellBars` (default 1) lets a cell span N bars (bossa/second-line clave).
+  // `comp[]` is a seed-rotated 1-bar overlay (jazz snare comp — layered on the
+  // base so a looped ride breathes). `fillFamily`/`fillEveryBars` splice a fill
+  // into the phrase's last bar. buildDrumEvents tiles, fills, and humanizes
+  // (seeded) BEFORE makeBundle's count-in shift + swing.
+  const DRUM_VELOCITY = { a: 0.95, n: 0.78, g: 0.32, x: 0.12 };
+  // Per-piece relative gain (sound-design) — tames the hot GM ride/cymbals so a
+  // continuous jazz ride doesn't swamp the kit; applied in BOTH drum engines at
+  // schedule time (NOT in the chart, so the event velocities stay structural).
+  const DRUM_PIECE_GAIN = {
+    kick: 0.85, snare: 1.0, snare_xstick: 0.4,
+    hh_closed: 0.5, hh_open: 0.5, hh_pedal: 0.3,
+    ride: 0.5, ride_bell: 0.5, bell: 0.6,
+    crash_l: 0.6, crash_r: 0.6, splash: 0.55, china: 0.6,
+    tom_hi: 0.9, tom_mid: 0.9, tom_low: 0.9, tom_floor: 0.9, clap: 0.85,
+  };
+  // Jazz comp overlays (1 bar, div3) — seed-rotated snare/cross-stick jabs layered
+  // over the ride so an 8-bar loop doesn't sound like a typewriter. Entry 0 = lay out.
+  const JAZZ_COMP = [
+    {},
+    { snare:        '......g....n' },   // soft jab on beat 3, ghost into 4
+    { snare_xstick: '...n.....n..' },   // cross-stick comp on 2 & 4
+    { snare:        '..g......g.n' },   // a couple of feathered ghosts
+  ];
   const DRUM_GROOVES = {
     // 8-step (4/4 ·div2) backbeat: kick 1+3, snare 2+4, straight 8th hats.
-    straight_8th_rock: { div: 2, preSwung: false, lanes: {
+    straight_8th_rock: { div: 2, preSwung: false, fillFamily: 'rock_tom', lanes: {
       kick:      'n...n...',
       snare:     '..a...a.',
-      hatClosed: 'nnnnnnnn',
+      hh_closed: 'nnnnnnnn',
     } },
     // Disco/dance: four-on-the-floor kick, backbeat snare, open hat on every "&"
     // (choked by the next closed hat — the genre-defining sizzle).
-    four_on_floor: { div: 2, preSwung: false, lanes: {
+    four_on_floor: { div: 2, preSwung: false, fillFamily: 'rock_tom', fillEveryBars: 16, lanes: {
       kick:      'n.n.n.n.',
       snare:     '..a...a.',
-      hatClosed: 'n.n.n.n.',
-      hatOpen:   '.n.n.n.n',
+      hh_closed: 'n.n.n.n.',
+      hh_open:   '.n.n.n.n',
     } },
     // Half-time: backbeat moves to beat 3 only, lots of space.
-    half_time: { div: 2, preSwung: false, lanes: {
+    half_time: { div: 2, preSwung: false, fillFamily: 'rock_tom', lanes: {
       kick:      'n....n..',
       snare:     '....a...',
-      hatClosed: 'nnnnnnnn',
+      hh_closed: 'nnnnnnnn',
     } },
     // 12-step (4/4 ·div3) triplet shuffle, authored pre-swung: hats play the
     // "spang" skip (downbeat + last triplet), kick 1+3, snare 2+4.
-    shuffle_blues: { div: 3, preSwung: true, lanes: {
+    shuffle_blues: { div: 3, preSwung: true, fillFamily: 'funk_snare', lanes: {
       kick:      'n.....n.....',
       snare:     '...a.....a..',
-      hatClosed: 'n.nn.nn.nn.n',
+      hh_closed: 'n.nn.nn.nn.n',
+    } },
+    // ── Step-5 grooves ──────────────────────────────────────────────────────
+    // Jazz spang-a-lang (the headline fix — a jazz trio no longer plays under a
+    // rock drummer). Pre-swung triplet ride: quarters + the swung skip on the
+    // let-of-2 / let-of-4; hi-hat FOOT on 2 & 4; kick FEATHERED on all four; NO
+    // backbeat snare (the comp[] adds the colour). Quiet kit (per-lane vel).
+    jazz_swing: { div: 3, preSwung: true, comp: JAZZ_COMP, fillFamily: 'jazz_tom', fillEveryBars: 12, lanes: {
+      ride:     { pat: 'n..n.gn..n.g', vel: 0.6 },
+      hh_pedal: { pat: '...n.....n..', vel: 0.7 },
+      kick:     'x..x..x..x..',
+    } },
+    // Reggae one-drop: beat 1 is EMPTY (the drop); kick + cross-stick together on
+    // beat 3, straight 8th hats. The space IS the genre.
+    reggae_one_drop: { div: 2, preSwung: false, lanes: {
+      kick:         '....n...',
+      snare_xstick: '....a...',
+      hh_closed:    'nnnnnnnn',
+    } },
+    // Funk 16ths: a ghost-note web around the 2 & 4 backbeat, a syncopated kick,
+    // 16th closed hats. "Play more, not louder" — the accents are the backbeat.
+    funk_16th: { div: 4, preSwung: false, fillFamily: 'funk_snare', lanes: {
+      kick:      'n..n..n.n..n....',
+      snare:     '....a..g.g..a..g',
+      hh_closed: 'nnnnnnnnnnnnnnnn',
+    } },
+    // Metal double-kick: a constant 16th double-bass (kick on its OWN div:4 lane)
+    // under a driving 8th hat + a 2 & 4 backbeat.
+    metal_double_kick: { div: 2, preSwung: false, fillFamily: 'rock_tom', fillEveryBars: 16, lanes: {
+      kick:      { pat: 'nnnnnnnnnnnnnnnn', div: 4 },
+      snare:     '..a...a.',
+      hh_closed: 'nnnnnnnn',
+    } },
+    // Train beat (country/newgrass): a constant 16th snare buzz of ghosts with the
+    // 2 & 4 accents on top, kick on the quarters — the snare carries the time, no hat.
+    train_beat: { div: 4, preSwung: false, fillFamily: 'funk_snare', fillEveryBars: 16, lanes: {
+      kick:      'n...n...n...n...',
+      snare:     'g.g.a.g.g.g.a.g.',
+    } },
+    // Gospel pocket: a deeper ghost web than funk + a laid-back gospel kick, hats
+    // with a couple of gaps so the pocket breathes.
+    gospel_pocket: { div: 4, preSwung: false, fillFamily: 'funk_snare', lanes: {
+      kick:      'n..n.n....n.n...',
+      snare:     'g.g.a.gng.g.a.g.',
+      hh_closed: 'n.nnn.nnn.nnn.nn',
+    } },
+    // Bossa nova (2-bar cell, swing-locked): the surdo kick (1, &-of-2, 4) under a
+    // straight-8th hat, with the 3-2 bossa clave on the cross-stick across both bars.
+    bossa: { div: 2, preSwung: true, cellBars: 2, lanes: {
+      hh_closed:    'nnnnnnnnnnnnnnnn',
+      kick:         'n..n..n.n..n..n.',
+      snare_xstick: 'a..a..a...a.a...',
+    } },
+    // New Orleans second line (2-bar cell): the syncopated street-beat — a NOLA
+    // bass-drum phrase + a ghost-rolled snare with the "big four" landing late.
+    // Real second-line percussion is APPROXIMATED on the kit here (panel call).
+    second_line: { div: 2, preSwung: false, cellBars: 2, lanes: {
+      kick:      'n..n.n..n..n.n.n',
+      snare:     'g.a.g.gng.a.g.aa',
+      hh_closed: 'n.n.n.n.n.n.n.n.',
     } },
   };
-  // Resolve which groove a config plays. Shuffle feel → the triplet shuffle;
-  // everything else → the straight backbeat. (four_on_floor / half_time are wired
-  // and reachable via an explicit cfg.groove or a future electronic palette.)
+  // Self-contained 1-bar fill cells (carry their own kick). The phrase's last bar
+  // swaps to this cell, the time-keeping hats mute, and the engine drops a crash_l
+  // on the next downbeat. Tasteful — a practice loop, not a drum solo.
+  const FILLS = {
+    rock_tom: { div: 4, lanes: {                         // descending tom fill, beats 3-4
+      kick:      'n...............',
+      snare:     'a.n.a.n.........',
+      tom_hi:    '........a.n.....',
+      tom_mid:   '............a...',
+      tom_low:   '..............a.',
+      tom_floor: '...............a',
+    } },
+    funk_snare: { div: 4, lanes: {                       // a 16th snare roll turnaround
+      kick:      'n.......n.......',
+      snare:     'g.gng.gna.gngnaa',
+    } },
+    jazz_tom: { div: 3, lanes: {                         // light, triplet, ride keeps going
+      ride:      'n..n..n..n..',
+      snare:     '......g.n.an',
+      tom_mid:   '.........n..',
+      tom_low:   '...........n',
+    } },
+  };
+  // The audio profile lives at cfg.audio.profile on the readConfig path but at a
+  // top-level cfg.audioProfile on palette/pathway/session partials — read both.
+  function cfgAudioProfile(cfg) { return cfg.audioProfile || (cfg.audio && cfg.audio.profile) || ''; }
+  // Profile → groove (the reconciled style-keyed route; jazz-idiom: do NOT route a
+  // bare swing:'swing' to a jazz ride — only an explicit jazz audioProfile).
+  const GROOVE_FOR_PROFILE = { jazz: 'jazz_swing' };
+  // Genres that traditionally have NO drum kit (bluegrass/folk/classical/gypsy-jazz)
+  // opt out per-config via `drums:'none'` (or `groove:'none'`) → resolveGroove
+  // returns null and the comp/bass carry the time. We deliberately do NOT silence by
+  // audioProfile TOKEN: 'bluegrass' is shared by the country palette, which DOES have
+  // a drummer (the train beat). A token earns a place here only once it's DISTINCT.
+  const DRUMLESS_PROFILES = new Set();
+  // Resolve which groove a config plays, or null for a deliberately drumless style.
+  // Precedence: explicit cfg.groove → shuffle feel → jazz profile → straight backbeat.
   function resolveGroove(cfg) {
+    if (cfg.groove === 'none' || cfg.drums === 'none') return null;
     if (cfg.groove && DRUM_GROOVES[cfg.groove]) return cfg.groove;
+    const ap = cfgAudioProfile(cfg);
+    if (ap && DRUMLESS_PROFILES.has(ap)) return null;
     if (cfg.swing === 'shuffle') return 'shuffle_blues';
+    const byProf = ap && GROOVE_FOR_PROFILE[ap];
+    if (byProf && DRUM_GROOVES[byProf]) return byProf;
     return 'straight_8th_rock';
   }
   // Emit role:'drums' backing events for [0, duration). Pitch-less: each event is
@@ -6309,45 +6451,110 @@
   // a `noSwing` flag for pre-swung cells). Concatenated into backingEvents in
   // makeBundle BEFORE the count-in shift + swing, so drums get count-in silence
   // and the global swing warp for free. Open hats are choked to the next hat.
-  // Open-hat choke: an open hat rings only until the next hat (closed or open).
   function chokeOpenHats(events) {
-    const hats = events.filter(e => e.voice === 'hatOpen' || e.voice === 'hatClosed').sort((a, b) => a.t - b.t);
+    const hats = events.filter(e => e.voice === 'hh_open' || e.voice === 'hh_closed').sort((a, b) => a.t - b.t);
     for (let i = 0; i < hats.length; i++) {
-      if (hats[i].voice !== 'hatOpen') continue;
+      if (hats[i].voice !== 'hh_open') continue;
       const next = hats[i + 1];
       if (next) hats[i].dur = Math.max(0.04, +(next.t - hats[i].t - 0.005).toFixed(6));
     }
     return events;
   }
+  // A lane is a string (×1.0 vel, base div) OR { pat, vel, div }.
+  function drumLaneSpec(lane) {
+    return (typeof lane === 'string')
+      ? { pat: lane, vel: 1, div: 0 }
+      : { pat: lane.pat, vel: (lane.vel != null ? lane.vel : 1), div: (lane.div || 0) };
+  }
+  // Seeded micro-timing + velocity humanization (a salted stream so it NEVER
+  // correlates with the bass figure's roll). Baked into `t` BEFORE the swing map.
+  // The loop's "one" (the content downbeat at t≈0) is protected — no micro-shift,
+  // so a tiled loop never flams against its own wrap. Kit-gated: electronic 808/909
+  // get a fraction of the human jitter (machines are tight); acoustic gets it all.
+  function humanizeDrums(events, cfg) {
+    const rng = mulberry32((resolveHumanSeed(cfg) ^ 0x4452554d) >>> 0);
+    const prof = AUDIO_PROFILES[cfgAudioProfile(cfg)];
+    const scale = (prof && prof.family === 'electronic') ? 0.2 : 1.0;
+    for (const e of events) {
+      const onOne = e.t < 1e-3;                          // protect the loop's "one"
+      if (!onOne) {
+        const micro = (rng() * 2 - 1) * (0.003 + rng() * 0.005) * scale;   // ±3–8 ms
+        e.t = +Math.max(0, e.t + micro).toFixed(6);
+      }
+      const amp = e.accent ? 0.05 : e.ghost ? 0.05 : 0.08;
+      let v = e.velocity + (rng() * 2 - 1) * amp * scale;
+      if (e.ghost) v = Math.max(0.25, v);                // a ghost stays audible
+      e.velocity = +Math.min(1, Math.max(0.02, v)).toFixed(4);
+    }
+    return events;
+  }
   function buildDrumEvents(cfg, duration, grooveId) {
     if (!(duration > 0)) return [];
+    if (grooveId == null || grooveId === 'none') return [];   // deliberately drumless
     const groove = DRUM_GROOVES[grooveId];
     const numer = Math.max(1, cfg.meter.numerator), denom = cfg.meter.denominator;
-    const div = groove ? Math.max(1, groove.div) : 2, stepsPerBar = numer * div;
-    const cellLen = groove ? Math.max(...Object.values(groove.lanes).map(s => s.length)) : 0;
-    // The authored cells are written for one meter (default 4/4). For any OTHER meter
-    // (odd/changing — out of authored-cell v1 scope per ROADMAP) we must NOT wrap a
-    // 4/4 cell across the bar; degrade to a grouping-based generic keep instead.
-    const fits = groove && (groove.sig || '4/4') === (numer + '/' + denom) && cellLen === stepsPerBar;
-    if (!fits) return chokeOpenHats(buildGenericDrumGroove(cfg, duration));
-    const beatSec = (60 / cfg.bpm) * (4 / denom), stepSec = beatSec / div;
-    const voices = Object.keys(groove.lanes);
-    const events = [];
-    for (let barStart = 0; barStart < duration - 1e-4; barStart += stepsPerBar * stepSec) {
-      for (const voice of voices) {
-        const pat = groove.lanes[voice];
-        for (let s = 0; s < stepsPerBar; s++) {
-          const tok = pat[s] || '.';
-          if (tok === '.' || tok === '0') continue;
-          const t = barStart + s * stepSec;
-          if (t >= duration - 1e-4) break;
-          events.push({ t: +t.toFixed(6), end: +(t + 0.1).toFixed(6), role: 'drums', voice,
-            velocity: DRUM_VELOCITY[tok] ?? 0.78, accent: tok === 'a', ghost: tok === 'g',
-            noSwing: !!groove.preSwung });
+    const baseDiv = groove ? Math.max(1, groove.div) : 2;
+    const cellBars = groove ? Math.max(1, groove.cellBars || 1) : 1;
+    // Authored cells are written for 4/4 (or the groove's `sig`). Any OTHER meter
+    // (odd/changing — out of authored-cell v1 scope) → the grouping-based generic
+    // keep, so we never wrap a 4/4 cell across an odd bar.
+    const sigOk = groove && (groove.sig || '4/4') === (numer + '/' + denom);
+    const lanesOk = groove && Object.values(groove.lanes).every(l => {
+      const sp = drumLaneSpec(l); return sp.pat.length === numer * (sp.div || baseDiv) * cellBars;
+    });
+    if (!groove || !sigOk || !lanesOk) return chokeOpenHats(humanizeDrums(buildGenericDrumGroove(cfg, duration), cfg));
+
+    const beatSec = (60 / cfg.bpm) * (4 / denom);
+    const barSec = numer * beatSec, cellSec = barSec * cellBars;
+    const preSwung = !!groove.preSwung, events = [];
+    const mkEv = (voice, t, velocity, accent, ghost) => {
+      if (t >= duration - 1e-4) return;
+      events.push({ t: +t.toFixed(6), end: +(t + 0.1).toFixed(6), role: 'drums', voice,
+        velocity: Math.min(1, velocity), accent: !!accent, ghost: !!ghost, noSwing: preSwung });
+    };
+    const pushTok = (voice, tok, t, laneVel) => {
+      if (tok === '.' || tok === '0') return;
+      if (tok === 'o') { mkEv('hh_open', t, DRUM_VELOCITY.n * laneVel, false, false); return; }
+      if (tok === 'f') {                                 // flam: soft grace + main accent
+        mkEv(voice, Math.max(0, t - 0.028), DRUM_VELOCITY.g * laneVel, false, true);
+        mkEv(voice, t, DRUM_VELOCITY.a * laneVel, true, false); return;
+      }
+      mkEv(voice, t, (DRUM_VELOCITY[tok] ?? 0.78) * laneVel, tok === 'a', tok === 'g');
+    };
+    const emitLanes = (blockStart, lanes, muteHats) => {
+      for (const voice in lanes) {
+        if (muteHats && (voice === 'hh_closed' || voice === 'hh_open')) continue;
+        const sp = drumLaneSpec(lanes[voice]), stepSec = beatSec / (sp.div || baseDiv);
+        for (let s = 0; s < sp.pat.length; s++) pushTok(voice, sp.pat[s], blockStart + s * stepSec, sp.vel);
+      }
+    };
+
+    const comp = Array.isArray(groove.comp) ? groove.comp : null;
+    const compRot = comp && comp.length ? (resolveHumanSeed(cfg) % comp.length) : 0;
+    const fill = (cellBars === 1 && groove.fillFamily) ? FILLS[groove.fillFamily] : null;
+    const fillEvery = fill ? Math.max(0, groove.fillEveryBars != null ? groove.fillEveryBars : 8) : 0;
+
+    if (cellBars > 1) {
+      // Multi-bar clave cells: tile the whole cell; no fills/comp in v1.
+      for (let cs = 0; cs < duration - 1e-4; cs += cellSec) emitLanes(cs, groove.lanes, false);
+    } else {
+      let barIdx = 0;
+      for (let bs = 0; bs < duration - 1e-4; bs += barSec) {
+        const isFill = fill && fillEvery > 0 && ((barIdx + 1) % fillEvery === 0);
+        if (isFill) {
+          emitLanes(bs, fill.lanes, true);               // fill replaces the bar; time-keep hats mute
+          mkEv('crash_l', bs + barSec, DRUM_VELOCITY.a, true, false);   // crash on the next downbeat
+        } else {
+          emitLanes(bs, groove.lanes, false);
+          if (comp && comp.length) {                     // jazz: layer a seed-rotated snare comp
+            const ov = comp[(barIdx + compRot) % comp.length];
+            if (ov && Object.keys(ov).length) emitLanes(bs, ov, false);
+          }
         }
+        barIdx++;
       }
     }
-    return chokeOpenHats(events);
+    return chokeOpenHats(humanizeDrums(events, cfg));
   }
   // Meter-agnostic generic time-keep for any meter the authored cells don't cover.
   // Kick on the group-starts (the felt pulse — 7/8 = 2+2+3 kicks at beats 0,2), snare
@@ -6368,7 +6575,7 @@
         const t = barStart + i * beatSec;
         if (t >= duration - 1e-4) break;
         const mk = (voice, vel, accent) => events.push({ t:+t.toFixed(6), end:+(t + 0.1).toFixed(6), role:'drums', voice, velocity:vel, accent:!!accent, ghost:false, noSwing:false });
-        mk('hatClosed', DRUM_VELOCITY.n, false);
+        mk('hh_closed', DRUM_VELOCITY.n, false);
         if (kickBeats.has(i)) mk('kick', i === 0 ? DRUM_VELOCITY.a : DRUM_VELOCITY.n, i === 0);
         if (snareBeats.has(i)) mk('snare', DRUM_VELOCITY.a, true);
       }
@@ -11501,6 +11708,20 @@
   // Lazily-created per-track sub-bus ('notes' | 'harmony' | 'click'). Future
   // per-track processing (amp/cab, sampler, sends) inserts between the track gain
   // and master without touching the voice code below.
+  // The one shared short reverb (zero-asset noise-decay IR), built lazily so the
+  // FIRST backing bus to need it (drums OR harmony/bass, any creation order) wins.
+  function ensureSharedReverb(ctx, bus) {
+    if (!bus.reverb) {
+      const conv = ctx.createConvolver();
+      const len = Math.floor(ctx.sampleRate * 0.9), ir = ctx.createBuffer(2, len, ctx.sampleRate);
+      for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.4); }
+      conv.buffer = ir;
+      const wet = ctx.createGain(); wet.gain.value = 0.12;
+      conv.connect(wet); wet.connect(bus.backingGroup);
+      bus.reverb = conv;
+    }
+    return bus.reverb;
+  }
   function trackBus(ctx, name) {
     const bus = ensureAudioBus(ctx);
     if (!bus.tracks[name]) {
@@ -11518,7 +11739,17 @@
         comp.attack.value = 0.005; comp.release.value = 0.12;
         const shelf = ctx.createBiquadFilter();
         shelf.type = 'highshelf'; shelf.frequency.value = 8000; shelf.gain.value = -3;
-        g.connect(comp); comp.connect(shelf); shelf.connect(groupOut);
+        // A small pan sets the kit slightly off-centre so the dry/centered player
+        // pops forward; a touch of the shared room glues the kit to the band.
+        g.connect(comp); comp.connect(shelf);
+        let drumOut = shelf;
+        if (typeof ctx.createStereoPanner === 'function') {
+          const pan = ctx.createStereoPanner(); pan.pan.value = -0.1;
+          shelf.connect(pan); drumOut = pan;
+        }
+        drumOut.connect(groupOut);
+        const send = ctx.createGain(); send.gain.value = 0.07;
+        shelf.connect(send); send.connect(ensureSharedReverb(ctx, bus));
       } else if (name === 'harmony' || name === 'bass') {
         // Mix 7b (step 3.5; sound-design): register-carve + pan + one shared
         // short reverb send — persistent per-bus nodes only, zero assets.
@@ -11534,19 +11765,9 @@
           carve.connect(pan); chainOut = pan;
         }
         g.connect(carve); chainOut.connect(groupOut);
-        // Shared reverb send (built once, zero-asset noise-decay IR, post-carve
-        // pre-pan so the room stays centered).
-        if (!bus.reverb) {
-          const conv = ctx.createConvolver();
-          const len = Math.floor(ctx.sampleRate * 0.9), ir = ctx.createBuffer(2, len, ctx.sampleRate);
-          for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.4); }
-          conv.buffer = ir;
-          const wet = ctx.createGain(); wet.gain.value = 0.12;
-          conv.connect(wet); wet.connect(bus.backingGroup);
-          bus.reverb = conv;
-        }
+        // Shared reverb send (post-carve, pre-pan so the room stays centered).
         const send = ctx.createGain(); send.gain.value = name === 'harmony' ? 0.18 : 0.07;
-        carve.connect(send); send.connect(bus.reverb);
+        carve.connect(send); send.connect(ensureSharedReverb(ctx, bus));
       } else {
         g.connect(groupOut);   // click / notes stay DRY and centered (the time reference)
       }
@@ -12665,8 +12886,14 @@
     _drumNoiseBuf = buf; _drumNoiseCtx = ctx; return buf;
   }
   // Natural ring-out per piece for sampled hits (cymbals ring; hats/kick are short).
-  // hatOpen uses the choke dur from buildDrumEvents instead.
-  const DRUM_NATURAL_DUR = { kick:0.5, snare:0.4, hatClosed:0.12, hatPedal:0.1, hatOpen:0.5, ride:0.6, crash:2.0, tomHi:0.5, tomMid:0.5, tomLo:0.5, clap:0.3 };
+  // hh_open uses the choke dur from buildDrumEvents instead.
+  const DRUM_NATURAL_DUR = {
+    kick:0.5, snare:0.4, snare_xstick:0.18,
+    hh_closed:0.12, hh_pedal:0.1, hh_open:0.5,
+    ride:0.6, ride_bell:0.35, bell:0.3,
+    crash_l:2.0, crash_r:2.0, splash:1.2, china:1.4,
+    tom_hi:0.5, tom_mid:0.5, tom_low:0.5, tom_floor:0.55, clap:0.3,
+  };
   // Play one sampled drum hit via WebAudioFont — wafVoice MINUS wafLoudnessTrim (a
   // drum note number is a piece selector, not a pitch, so the pitch-tilt is wrong).
   // Routes through the drum sub-bus (its own comp + shelf, before the master limiter).
@@ -12681,12 +12908,13 @@
   function scheduleDrumHit(ctx, kit, piece, when, vol, dur) {
     if (kit && kit.engine === 'sample' && kit.pieces) {
       const note = kit.pieces[piece];
-      if (note != null) {
+      if (note != null && SAMPLED_DRUM_NOTES.has(note)) {   // skip uncommitted notes (no 404 retry)
         ensureDrumPiece(kit, piece);   // lazy-load cymbals/toms on first use
         const preset = getReadyWafPreset(drumVar(note, kit.font, kit.variant));
         if (preset) {
-          const d = (piece === 'hatOpen' && Number.isFinite(dur)) ? dur : (DRUM_NATURAL_DUR[piece] || 0.4);
-          wafDrumVoice(ctx, preset, note, when, Math.max(0, vol) * (kit.level || 1), d);
+          const d = (piece === 'hh_open' && Number.isFinite(dur)) ? dur : (DRUM_NATURAL_DUR[piece] || 0.4);
+          const g = DRUM_PIECE_GAIN[piece] != null ? DRUM_PIECE_GAIN[piece] : 1;
+          wafDrumVoice(ctx, preset, note, when, Math.max(0, vol) * (kit.level || 1) * g, d);
           return;
         }
       }
@@ -12698,7 +12926,8 @@
   // Procedural synth drum voice (808/909) — the electronic kits + the sample failover.
   function scheduleSynthDrumHit(ctx, preset, piece, when, vol, dur) {
     const out = trackBus(ctx, 'drums');
-    const v = Math.max(0, vol || 0);
+    // Per-piece relative gain (sound-design) — tames the hot GM ride/cymbals/hats.
+    const v = Math.max(0, (vol || 0) * (DRUM_PIECE_GAIN[piece] != null ? DRUM_PIECE_GAIN[piece] : 1));
     if (v <= 0) return;
     const RAMP = 0.004;   // 4 ms attack ramp — hearing-safe, no click transient
     const env = (g, peak, decay) => {
@@ -12740,12 +12969,44 @@
           env(g, 0.22 * v, 0.1); osc.connect(g); g.connect(out);
           osc.start(when); osc.stop(when + RAMP + 0.12 + 0.05); audioNodes.push(osc, g); }
         break;
-      case 'hatClosed':
+      case 'hh_closed':
         noise(0.32 * v, 0.035, 'highpass', 7500);
         break;
-      case 'hatOpen':
+      case 'hh_open':
         noise(0.28 * v, (Number.isFinite(dur) ? dur : 0.32), 'highpass', 7500);
         break;
+      case 'hh_pedal':                                             // foot chick — dark + short
+        noise(0.42 * v, 0.07, 'bandpass', 5500, 1.2);
+        break;
+      case 'snare_xstick': {                                       // woody cross-stick click
+        const osc = ctx.createOscillator(), g = ctx.createGain();
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(820, when);
+        osc.frequency.exponentialRampToValueAtTime(440, when + 0.03);
+        env(g, 0.5 * v, 0.08); osc.connect(g); g.connect(out);
+        osc.start(when); osc.stop(when + RAMP + 0.1); audioNodes.push(osc, g);
+        noise(0.18 * v, 0.03, 'bandpass', 1800, 1.2);
+        break;
+      }
+      case 'ride': {                                               // warm tip ping — NOT a wash
+        [3140, 4180, 5350].forEach((f, i) => {
+          const osc = ctx.createOscillator(), g = ctx.createGain();
+          osc.type = 'square'; osc.frequency.value = f;
+          env(g, (0.05 - i * 0.012) * v, 0.45 + i * 0.1);
+          osc.connect(g); g.connect(out);
+          osc.start(when); osc.stop(when + RAMP + 0.65); audioNodes.push(osc, g);
+        });
+        noise(0.05 * v, 0.25, 'highpass', 8000);                  // tip shimmer
+        break;
+      }
+      case 'ride_bell': case 'bell': {                             // short tonal bell ping
+        [2400, 3600, 5400].forEach((f, i) => {
+          const osc = ctx.createOscillator(), g = ctx.createGain();
+          osc.type = 'square'; osc.frequency.value = f;
+          env(g, (0.07 - i * 0.015) * v, 0.3); osc.connect(g); g.connect(out);
+          osc.start(when); osc.stop(when + RAMP + 0.4); audioNodes.push(osc, g);
+        });
+        break;
+      }
       case 'clap': {
         const n = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
         n.buffer = drumNoiseBuffer(ctx); f.type = 'bandpass'; f.frequency.value = 1500; f.Q.value = 0.7;
@@ -12759,9 +13020,9 @@
         n.start(when); n.stop(when + 0.2); audioNodes.push(n, f, g);
         break;
       }
-      case 'tomHi': case 'tomMid': case 'tomLo': {
+      case 'tom_hi': case 'tom_mid': case 'tom_low': case 'tom_floor': {
         const osc = ctx.createOscillator(), g = ctx.createGain();
-        const f0 = piece === 'tomHi' ? 220 : piece === 'tomMid' ? 150 : 100;
+        const f0 = piece === 'tom_hi' ? 220 : piece === 'tom_mid' ? 150 : piece === 'tom_low' ? 100 : 80;
         osc.type = 'sine';
         osc.frequency.setValueAtTime(f0, when);
         osc.frequency.exponentialRampToValueAtTime(f0 * 0.7, when + 0.12);
@@ -12769,9 +13030,20 @@
         osc.start(when); osc.stop(when + RAMP + 0.25 + 0.05); audioNodes.push(osc, g);
         break;
       }
-      case 'crash':
-        noise(0.3 * v, 0.6, 'highpass', 5000);                      // electronic cymbal only
+      case 'crash_l': case 'crash_r': case 'splash': case 'china': {
+        // A 6–8 ms soft attack ramp (not the 4 ms transient ramp) so a downbeat
+        // crash doesn't slam the limiter; the genre cymbals differ by band/decay.
+        const n = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+        n.buffer = drumNoiseBuffer(ctx);
+        f.type = 'highpass'; f.frequency.value = piece === 'splash' ? 6500 : piece === 'china' ? 4000 : 5000;
+        const decay = piece === 'splash' ? 0.5 : piece === 'china' ? 0.7 : 0.9, CRAMP = 0.007;
+        g.gain.setValueAtTime(0.0001, when);
+        g.gain.exponentialRampToValueAtTime(Math.max(0.0002, 0.3 * v), when + CRAMP);
+        g.gain.exponentialRampToValueAtTime(0.0001, when + CRAMP + decay);
+        n.connect(f); f.connect(g); g.connect(out);
+        n.start(when); n.stop(when + CRAMP + decay + 0.05); audioNodes.push(n, f, g);
         break;
+      }
     }
   }
   // Resolve the active drum kit OBJECT. Mixer kit override wins, then the profile's
@@ -17807,6 +18079,6 @@
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
   window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, ptPracticeTime: () => currentPracticeTime, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, ptPracticeTime: () => currentPracticeTime, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();

@@ -484,6 +484,66 @@ try {
   ok(JSON.stringify(c5.charlestonAcc) === "[1.5]", "Charleston accent sits on the '&-of-2' push, not beat 1", JSON.stringify(c5.charlestonAcc));
   ok(JSON.stringify(c5.boogieAcc) === "[1.5,3.5]", "boogie stabs accent '&-of-2'/'&-of-4' (backbeat-side)", JSON.stringify(c5.boogieAcc));
 
+  // ── (8) DRUM_GROOVES (step 5): the groove library + fills + humanization ────
+  step("drum grooves (step 5)");
+  const d5 = await page.evaluate(() => {
+    const D = globalThis.__ss_debug;
+    const mk = (over) => Object.assign({ meter: { numerator: 4, denominator: 4, grouping: [] }, bpm: 120, swing: "straight", humanSeed: 12345, audio: {} }, over);
+    const out = { badTile: [] };
+    // every groove tiles to a finite, in-range, non-empty stream (16s = 8 bars @120)
+    for (const gid of Object.keys(D.DRUM_GROOVES)) {
+      const ev = D.buildDrumEvents(mk({}), 16, gid);
+      const good = ev.length > 0 && ev.every((e) => Number.isFinite(e.t) && e.t >= -1e-9 && e.t < 16 && e.velocity > 0 && e.velocity <= 1 && typeof e.voice === "string");
+      if (!good) out.badTile.push(gid);
+    }
+    // routing (style-keyed, NOT bare swing)
+    out.routeJazz = D.resolveGroove(mk({ audioProfile: "jazz" }));
+    out.routeJazzObj = D.resolveGroove(mk({ audio: { profile: "jazz" } }));
+    out.routeBareSwing = D.resolveGroove(mk({ swing: "swing" }));
+    out.routeShuffle = D.resolveGroove(mk({ swing: "shuffle" }));
+    out.routeNone = D.resolveGroove(mk({ drums: "none" }));
+    out.noneEmpty = D.buildDrumEvents(mk({ drums: "none" }), 16, null).length;
+    // jazz feathered kick + foot + no backbeat snare
+    const jz = D.buildDrumEvents(mk({ audioProfile: "jazz" }), 16, "jazz_swing");
+    out.jazzKickMax = Math.max(...jz.filter((e) => e.voice === "kick").map((e) => e.velocity));
+    out.jazzRideMin = Math.min(...jz.filter((e) => e.voice === "ride").map((e) => e.velocity));
+    out.jazzFoot = jz.some((e) => e.voice === "hh_pedal");
+    out.jazzNoBackbeat = !jz.some((e) => e.voice === "snare" && e.accent);
+    // fill: straight rock, default every-8 → bar 8 is a tom fill, hats mute, crash next downbeat
+    const rk = D.buildDrumEvents(mk({}), 18, "straight_8th_rock");
+    const bar8 = rk.filter((e) => e.t >= 14 && e.t < 16);
+    out.fillToms = bar8.some((e) => e.voice.startsWith("tom_"));
+    out.fillHatsMuted = !bar8.some((e) => e.voice === "hh_closed");
+    out.fillCrash = rk.some((e) => e.voice === "crash_l" && Math.abs(e.t - 16) < 0.05);
+    out.bar1Hats = rk.filter((e) => e.t < 2).some((e) => e.voice === "hh_closed");
+    // cellBars:2 clave spans both bars of the cell
+    const bo = D.buildDrumEvents(mk({}), 16, "bossa").filter((e) => e.voice === "snare_xstick");
+    out.bossaClave = bo.length > 0 && bo.some((e) => e.t < 2) && bo.some((e) => e.t >= 2);
+    // determinism (humanization included)
+    out.det = JSON.stringify(D.buildDrumEvents(mk({ audioProfile: "jazz" }), 16, "jazz_swing")) === JSON.stringify(D.buildDrumEvents(mk({ audioProfile: "jazz" }), 16, "jazz_swing"));
+    out.seedVaries = JSON.stringify(D.buildDrumEvents(mk({ humanSeed: 1 }), 16, "funk_16th")) !== JSON.stringify(D.buildDrumEvents(mk({ humanSeed: 2 }), 16, "funk_16th"));
+    // the loop's "one" is never micro-shifted
+    out.oneClean = rk.some((e) => e.t === 0);
+    // odd meter → generic keep (no ride lane crammed)
+    const seven = mk({ meter: { numerator: 7, denominator: 8, grouping: [2, 2, 3] }, audioProfile: "jazz" });
+    const sv = D.buildDrumEvents(seven, 14, D.resolveGroove(seven));
+    out.oddN = sv.length; out.oddNoRide = !sv.some((e) => e.voice === "ride");
+    return out;
+  });
+  ok(d5.badTile.length === 0, "every groove tiles to a valid event stream", d5.badTile.join(","));
+  ok(d5.routeJazz === "jazz_swing" && d5.routeJazzObj === "jazz_swing", "an explicit jazz audioProfile routes to jazz_swing (both cfg shapes)", `${d5.routeJazz}/${d5.routeJazzObj}`);
+  ok(d5.routeBareSwing !== "jazz_swing", "a bare swing:'swing' (non-jazz) does NOT drag in the jazz ride", d5.routeBareSwing);
+  ok(d5.routeShuffle === "shuffle_blues", "shuffle feel → the triplet shuffle", d5.routeShuffle);
+  ok(d5.routeNone === null && d5.noneEmpty === 0, "drums:'none' → a silent kit (drumless genres)", `${d5.routeNone}/${d5.noneEmpty}`);
+  ok(d5.jazzKickMax < d5.jazzRideMin && d5.jazzKickMax < 0.28, "jazz kick is feathered (quieter than the ride)", `kick=${d5.jazzKickMax} ride=${d5.jazzRideMin}`);
+  ok(d5.jazzFoot && d5.jazzNoBackbeat, "jazz: hi-hat foot on 2&4, no backbeat snare accent in the base");
+  ok(d5.fillToms && d5.fillHatsMuted && d5.fillCrash && d5.bar1Hats, "a fill swaps the phrase's last bar (toms), mutes hats, crashes the next downbeat", `toms=${d5.fillToms} mute=${d5.fillHatsMuted} crash=${d5.fillCrash}`);
+  ok(d5.bossaClave, "cellBars:2 grooves tile across the multi-bar cell (bossa clave)");
+  ok(d5.det, "same cfg => byte-identical drum events (humanization is seeded)");
+  ok(d5.seedVaries, "a different humanSeed varies the humanized roll");
+  ok(d5.oneClean, "the loop's 'one' is never micro-shifted");
+  ok(d5.oddN > 0 && d5.oddNoRide, "odd meter still falls to the generic groove (no 4/4 cell crammed)", `n=${d5.oddN}`);
+
   // ── (7) scheduler ceiling: a Woodshed Play stays windowed ───────────────────
   step("scheduler ceiling");
   await page.click("#slopscale-mode-session");
@@ -509,4 +569,4 @@ try {
 } finally { await browser.close(); }
 
 if (fail) { console.log(`FAIL  backing-engine: ${fail} failure(s) (${pass} passed)`); process.exit(1); }
-console.log(`PASS  backing-engine: ${pass} checks passed (timeline validity x styles, 2/bar, push, determinism, key-cycle + session assembly)`);
+console.log(`PASS  backing-engine: ${pass} checks passed (timeline validity x styles, 2/bar, push, determinism, key-cycle + session assembly, drum grooves + fills)`);
