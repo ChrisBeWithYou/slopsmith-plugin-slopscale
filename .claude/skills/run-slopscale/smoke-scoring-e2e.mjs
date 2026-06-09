@@ -67,6 +67,11 @@ async function openScreen(browser) {
   await page.evaluate(() => window.showScreen("plugin-slopscale"));
   await page.waitForSelector("#slopscale-root", { state: "attached" });
   await page.waitForFunction(() => window.SlopScale && typeof window.SlopScale.makeBundle === "function", { timeout: 10000 });
+  // Re-add the harness-only 0-bar count-in option (removed from the product UI
+  // 2026-06-09 — players always get ≥1) so these real-audio fixtures keep notes
+  // at t=0 (the A2 tone aligns predictably). The count-in path is covered by its
+  // own smoke-session-sync row, not here.
+  await page.evaluate(() => { const c = document.querySelector('#slopscale-controls [name="countIn"]'); if (c && !c.querySelector('option[value="0"]')) { const o = document.createElement('option'); o.value = '0'; o.textContent = 'None'; c.insertBefore(o, c.firstChild); } });
   return { page, pageErrs, consoleErrs };
 }
 

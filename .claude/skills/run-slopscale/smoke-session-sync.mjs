@@ -117,6 +117,35 @@ try {
     ok(okKeys, "key-cycle backing roots on each section's key (per-key fix)", okKeys ? "" : "a region's backing did not root on its key");
   }
 
+  // ---- Workout-love Tier 1 (2026-06-09): count-in + breath + loop-wrap + alt-tuning ----
+  // The session path used to drop the count-in (slammed in cold), breathe only on
+  // changed seams, never breathe at the loop-wrap, and ignore the player's tuning.
+  const wl = await page.evaluate(() => {
+    const S = window.SlopScale;
+    const mkSeg = (bpm) => ({ kind: "scale", config: { bpm, bars: 4, key: "C", scale: "major", meter: "4/4", subdivision: "eighth", direction: "up_down", sequence: "none", fretboardSystem: "caged", shape: "E", audio: { notes: true, harmony: true, metronome: true } } });
+    const segs = [mkSeg(90), mkSeg(90), mkSeg(90)];
+    const mk = (over) => S.makeBundle(S.generateSession(Object.assign({ name: "WL", stringSetup: "guitar_6_standard", segments: segs }, over)));
+    const brk = (b) => (b.beats || []).filter(x => x.brk);
+    const lastEnd = (b) => Math.max(0, ...(b.segmentBounds || []).map(s => s.end));
+    const c2 = mk({ countInBars: 2, interBlockBreak: "off" });
+    const n0 = (c2.notes || []).filter(n => !n._tail).sort((a, b) => a.t - b.t)[0];
+    const al = mk({ countInBars: 1, interBlockBreak: "always" });
+    return {
+      lead: c2.leadIn || 0, n0t: n0 ? n0.t : -1,
+      alwaysBrk: brk(al).length, wrap: brk(al).filter(x => x.time > lastEnd(al) - 1e-3).length,
+      autoBrk: brk(mk({ countInBars: 1, interBlockBreak: "auto" })).length,
+      offBrk: brk(mk({ countInBars: 1, interBlockBreak: "off" })).length,
+      ddOpen0: (mk({ countInBars: 1, customOpenMidis: "38,45,50,55,59,64" }).openMidis || [])[0],
+      stOpen0: (mk({ countInBars: 1 }).openMidis || [])[0],
+    };
+  });
+  console.log(`\n== Workout-love Tier 1 ==`);
+  ok(wl.lead > 0 && Math.abs(wl.n0t - wl.lead) < 0.05, "Workout has a leading count-in (block-1 count-in plumbed; note[0] at the lead)", `lead=${wl.lead.toFixed(2)} n0=${(wl.n0t).toFixed(2)}`);
+  ok(wl.alwaysBrk > 0 && wl.wrap > 0, "inter-block breaks present + a trailing LOOP-WRAP breath after the last block", `brk=${wl.alwaysBrk} wrap=${wl.wrap}`);
+  ok(wl.autoBrk > 0, "'auto' breathes every seam (1-bar floor — was 0 for flowing seams)", `auto=${wl.autoBrk}`);
+  ok(wl.offBrk === 0, "'off' inserts no break (respects the toggle)", `off=${wl.offBrk}`);
+  ok(wl.ddOpen0 === 38 && wl.stOpen0 === 40, "alt-tuning threads into the Workout (drop-D low string = 38/D; standard = 40/E)", `dd=${wl.ddOpen0} std=${wl.stOpen0}`);
+
   // ---- Control: single exercise (Pathways/Custom/Jam are single-config) ----
   const sc = await page.evaluate(() => {
     const S = window.SlopScale;

@@ -55,7 +55,10 @@ try {
 
   // (3)+(4) inject a fake scorer, play, fire a CORRECT synthetic pitch for note[0].
   await p.evaluate(() => {
-    const c = document.querySelector('[name="countIn"]'); if (c) { c.value = '0'; c.dispatchEvent(new Event('change', { bubbles: true })); }
+    // Re-add the harness-only 0-bar count-in option (removed from the product UI
+    // 2026-06-09 — players always get ≥1) so this suite's fixture keeps note[0] at
+    // t=0; the option persists on the element for the later set("countIn","0") calls.
+    const c = document.querySelector('[name="countIn"]'); if (c) { if (!c.querySelector('option[value="0"]')) { const o = document.createElement('option'); o.value = '0'; o.textContent = 'None'; c.insertBefore(o, c.firstChild); } c.value = '0'; c.dispatchEvent(new Event('change', { bubbles: true })); }
     window.__fp = null; window.__run = true;
     // Pin the YIN scoring lane: with the note_detect plugin installed (PR #4
     // verifier-backed scoring), window.noteDetect would put the run in verifier

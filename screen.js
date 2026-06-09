@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.7-dev';
+  const SLOPSCALE_VERSION = '0.7.8-dev';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -2941,6 +2941,24 @@
   // and the "Practiced m:ss" readout never credit paused time.
   let paused = false, _pausedAccumMs = 0, _pauseBeganMs = 0;
   function sessionPausedMs() { return _pausedAccumMs + (paused ? Math.max(0, performance.now() - _pauseBeganMs) : 0); }
+  // Resume PRE-ROLL (Workout-love Tier 2): a chart time the playhead counts INTO
+  // on resume. While currentPracticeTime < _preRollUntil the runway plays — its
+  // notes muted, the count-in click forced, the judge silent — then normal play
+  // resumes at the re-entry bar. 0 = no pre-roll active.
+  let _preRollUntil = 0;
+  // Visible-rewind wrap animation (Workout-love Tier 2 polish): when the loop
+  // wraps (whole-chart re-entry or an A–B loop), the overview playhead would just
+  // teleport from the seam-out point back to the seam-in point. Instead we mirror
+  // the host's animated loop-wrap with a brief draw-only "tape rewind" sweep of the
+  // overview playhead. Draw-only — never touches the clock/audio (those already
+  // wrapped seamlessly). { fromT, atMs } | null; reduced-motion + tiny loops skip it.
+  let _wrapAnim = null;
+  const WRAP_ANIM_MS = 300;
+  function triggerWrapRewind(fromT, toT) {
+    if (Math.abs(fromT - toT) < 2.5) return;   // a short A–B loop would strobe — only animate a meaningful span
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    _wrapAnim = { fromT, atMs: performance.now() };
+  }
   // Chart time where the current/last playback began (Logic-style: Stop returns
   // the playhead here). Unlike playAnchorChartTime, it does NOT drift on loop wrap.
   let playStartChartTime = 0;
@@ -3504,6 +3522,7 @@
     // it), so live audio could keep crediting it against a frozen clock —
     // discard verify events while paused, mirroring ptOnPitch's paused guard.
     if (paused) return;
+    if (_preRollUntil > 0 && currentPracticeTime < _preRollUntil) return;   // resume pre-roll runway — discard verify frames (re-orienting, not playing)
     const d = ev && ev.detail;
     if (!d || !d.isHit || !_ndVerifyActive.length) return;
     // Input-presence: with a host level source the level meter owns _ptHadInput
@@ -3648,7 +3667,11 @@
       // play). 1/2/4 = that many bars of metronome clicks at the current
       // bpm + meter, then the chart kicks in. See startPlayback below for
       // how this is plumbed into the transport.
-      countInBars: Math.max(0, Math.min(8, parseInt(data.get('countIn') || '0', 10) || 0)),
+      // Count-in: the form DEFAULT is 1 bar and the 0-bar "drop-in" option was
+      // removed (2026-06-09) — count-in is always-on for players (a 0-bar drop-in
+      // is a DAW recording convenience, not a practice need). 0 stays engine-
+      // reachable (the smoke harness sets it for a note[0]-at-t=0 fixture).
+      countInBars: (() => { const v = parseInt(data.get('countIn'), 10); return Math.max(0, Math.min(8, Number.isFinite(v) ? v : 1)); })(),
       // Click subdivision: soft clicks per metric beat for BOTH the count-in and
       // the in-chart metronome. 1 = on the beat only; 2/3/4 = duplet/triplet/
       // quadruplet feel. This is a transport (click-track) setting, independent
@@ -8797,6 +8820,17 @@
   function buildSegmentConfig(segment, session) {
     const stringSetup = session.stringSetup || 'guitar_6_standard';
     const setup = STRING_SETUPS[stringSetup] || STRING_SETUPS.guitar_6_standard;
+    // Alt-tuning (Workout fix 2026-06-09): the session may carry the player's
+    // customOpenMidis — set shell-side in onLaunchSession, only when the instrument
+    // FAMILY matches, already applyTuningAdaptL1-resolved. LENGTH-GUARD it against
+    // THIS setup's string count (a 6-string CSV must never land on a 4-string bass).
+    // (Core-pure: reads only the passed `session`, no DOM/store.)
+    const _parseSegMidis = (v) => {
+      const list = Array.isArray(v) ? v.slice()
+        : (typeof v === 'string' && v.trim() ? v.split(',').map(s => parseInt(s, 10)).filter(Number.isFinite) : null);
+      return (list && list.length === setup.openMidis.length) ? list : null;
+    };
+    const sessionTuning = _parseSegMidis(session.customOpenMidis);
     const raw = Object.assign({
       // Structural defaults
       key:'C', scale:'major', bpm:80, bars:4, direction:'up_down', sequence:'none',
@@ -8813,12 +8847,19 @@
       // Segment kind drives the mode dispatch
       mode: segment.kind, practiceType: segment.kind,
     });
+    // Normalize customOpenMidis to an ARRAY — openMidisForConfig + the resolvers
+    // expect an array (as readConfig produces), NOT a CSV string. A segment's OWN
+    // tuning (an L3 rung CSV in segment.config) wins over the player's session
+    // tuning; both length-guarded to this setup.
+    const effTuning = _parseSegMidis(raw.customOpenMidis) || sessionTuning;
+    if (effTuning) raw.customOpenMidis = effTuning; else delete raw.customOpenMidis;
+    const effectiveOpenMidis = effTuning || setup.openMidis;
     // Parse meter string → object (e.g. '4/4' → { numerator:4, denominator:4, grouping:[4] })
     if (typeof raw.meter === 'string') raw.meter = parseMeter(raw.meter);
     // Resolve CAGED / 3NPS / Open shape into fretMin/fretMax + shapeNotes
     raw.shapeNotes = null; raw.shapeDisplayName = null;
     if (isShapeAwareSystem(raw.fretboardSystem)) {
-      const resolved = resolveCurrentShape({ fretboardSystem:raw.fretboardSystem, key:raw.key, scale:raw.scale, shape:raw.shape }, setup.openMidis);
+      const resolved = resolveCurrentShape({ fretboardSystem:raw.fretboardSystem, key:raw.key, scale:raw.scale, shape:raw.shape }, effectiveOpenMidis);
       if (resolved) {
         raw.shape = resolved.shape;
         raw.shapeNotes = resolved.resolved.notes;
@@ -9054,9 +9095,14 @@
     const tempoSame = prevCfg.bpm === curCfg.bpm;
     const meterSame = (prevCfg.meter?.numerator === curCfg.meter?.numerator) && (prevCfg.meter?.denominator === curCfg.meter?.denominator);
     // 'auto': adjacent blocks that genuinely flow (same pulse + hand-mode + region)
-    // get NO break — a clean segue is better there (guitar tier-1).
-    if (mode !== 'always' && tempoSame && meterSame && !techChange && !bigLeap) return 0;
-    if (techChange || bigLeap) bars = Math.max(bars, 2);                  // hand must relocate / re-grip
+    // still get a 1-bar reset-breath (2026-06-09 panel: L&D + rhythm-meter). A
+    // Workout is a SEQUENCE of distinct drills — a zero boundary erases the chunk
+    // the curriculum is built on, and the breath carries the per-block verdict
+    // beat. Real transitions get the full quantized break below.
+    if (mode !== 'always' && tempoSame && meterSame && !techChange && !bigLeap) return 1;
+    // Technique-class change (both hands re-grip) or a ≥5-fret leap → never tighter
+    // than ~3s (guitar-ped: at fast tempos 2 bars starves a legato→slap re-grip).
+    if (techChange || bigLeap) bars = Math.max(bars, 2, Math.ceil(3.0 / barSec));
     return bars;
   }
 
@@ -9068,7 +9114,7 @@
     // Per-segment time bounds — drives the session transport (progress bar,
     // segment jump, active-segment highlight, per-segment loop).
     const segmentBounds = [];
-    let t = 0, tplOffset = 0, prevCfg = null, beatOff = 0, barOff = 0;
+    let t = 0, tplOffset = 0, prevCfg = null, firstCfg = null, beatOff = 0, barOff = 0;
     const breakMode = session.interBlockBreak || 'auto';
 
     for (const rawSeg of (session.segments || [])) {
@@ -9078,6 +9124,7 @@
       const segment = materializeSegment(rawSeg);
       if (!segment) continue;                                 // unknown templateId — skip
       const segCfg = buildSegmentConfig(segment, session);
+      if (!firstCfg) firstCfg = segCfg;   // captured for the loop-wrap break (block-N → block-1 re-entry)
       // Inter-block break: a count-in for THIS (incoming) block so the prior block
       // doesn't slam into it. Adds count beats over the gap + advances the offset.
       if (prevCfg) {
@@ -9166,6 +9213,21 @@
       t += dur;
       prevCfg = segCfg;
     }
+    // Loop-wrap breath: the seamless whole-chart loop re-enters block 1 with no
+    // break (jarring after minutes). Append a TRAILING wrap break (block-N → block-1)
+    // INSIDE [0,t] so the count-in shift + the contentLen phase-carry stay correct
+    // (devops). It's the re-entry count for passes 2+ (the head count-in plays only
+    // pass 1 — the loop wraps to leadIn, after it). Re-entry is never a segue, so
+    // interBlockBreakBars' 1-bar floor gives ≥1 under 'auto'; 'off' yields 0.
+    if (firstCfg && prevCfg && (session.segments || []).length > 1) {
+      const wrapBars = interBlockBreakBars(prevCfg, firstCfg, breakMode);
+      if (wrapBars > 0) {
+        const wrapSec = wrapBars * measureSeconds(firstCfg);
+        buildBeats(firstCfg, Math.max(0, wrapSec - 1e-4)).forEach(b =>
+          beats.push(Object.assign({}, b, { time: Number((b.time + t).toFixed(6)), brk: true })));
+        t += wrapSec;
+      }
+    }
     return { notes, chords, chordTemplates, handShapes, sections, anchors, beats, backingEvents, segmentBounds, timeline, duration:t };
   }
 
@@ -9182,6 +9244,11 @@
     const anchors = chart.anchors?.length ? chart.anchors : buildAnchors(firstCfg, duration);
     const sessionMeta = Object.assign({}, firstCfg, {
       mode:'session', practiceType:'session',
+      // Block-1 count-in: the session path bypasses readConfig, so makeBundle saw
+      // no countInBars and a Workout slammed in cold. Carry it (the shell sets
+      // session.countInBars from the player's default; floor ≥1 — count-in is
+      // always on). Counted in block 1's meter (firstCfg) — "incoming governs".
+      countInBars: Math.max(1, Math.min(8, (session.countInBars != null ? session.countInBars : 1))),
       sessionName:session.name, sessionId:Object.keys(BUILT_IN_SESSIONS).find(k => BUILT_IN_SESSIONS[k] === session) || 'custom'
     });
     return { version:1, session:sessionMeta, chart:Object.assign({}, chart, { beats:chart.beats || [], anchors, duration }) };
@@ -11153,6 +11220,43 @@
       tAt: cx => Math.max(0, Math.min(g.dur, now + ((cx - g.rect.left - g.padX) / g.usableW) * win.span - win.BEHIND)),
       inView: t => t >= now - win.BEHIND - 0.06 && t <= now + win.AHEAD + 0.06 };
   }
+  // Are we mid-count-in / inter-block breath / resume pre-roll RIGHT NOW, and how
+  // many beats until the next downbeat? The head count-in, the inter-block break,
+  // the loop-wrap break, and the resume runway are one primitive — "establish the
+  // incoming pulse before its notes" — so they share one countdown readout (the
+  // Workout-love Tier-2 "the breath carries a visible count, not dead air" fix).
+  // The count counts at the INCOMING block's pulse (the brk/lead beats are built in
+  // its meter). Returns null when notes are playing. Memory: project_workout_love.
+  function seamCountInfo() {
+    const b = activeBundle; if (!b) return null;
+    const beats = b.beats || []; if (!beats.length) return null;
+    const lead = b.leadIn || 0, dur = b.songInfo?.duration || 0;
+    const now = currentPracticeTime;
+    let target = null, kind = null;
+    if (_preRollUntil > 0 && now < _preRollUntil) { target = _preRollUntil; kind = 'resume'; }
+    else if (lead > 0 && now < lead - 1e-4) { target = lead; kind = 'countin'; }
+    else {
+      // Inside a run of `brk` beats (inter-block break or trailing loop-wrap)?
+      let cur = null;
+      for (let i = 0; i < beats.length; i++) {
+        const t1 = (i + 1 < beats.length ? beats[i + 1].time : Infinity);
+        if (now >= beats[i].time - 1e-4 && now < t1 - 1e-4) { cur = beats[i]; break; }
+      }
+      if (cur && cur.brk) {
+        for (let i = 0; i < beats.length; i++) { if (beats[i].time > now + 1e-4 && !beats[i].brk) { target = beats[i].time; break; } }
+        if (target == null) target = dur;   // trailing wrap break → counts to the loop point
+        kind = 'break';
+      }
+    }
+    if (target == null || target <= now + 1e-4) return null;
+    // The digit holds across its own beat: count from the current beat (inclusive)
+    // to the downbeat (exclusive) → 4,3,2,1 then clear on the downbeat.
+    let cbs = now;
+    for (let i = beats.length - 1; i >= 0; i--) { if (beats[i].time <= now + 1e-4) { cbs = beats[i].time; break; } }
+    let remain = 0;
+    for (let i = 0; i < beats.length; i++) { if (beats[i].time >= cbs - 1e-4 && beats[i].time < target - 1e-4) remain++; }
+    return { kind, target, start: cbs, remain: Math.max(1, remain) };
+  }
   function drawRulerFrame() {
     const canvas = $('slopscale-ruler-canvas');
     if (!canvas || canvas.offsetParent === null) return;  // hidden view
@@ -11173,6 +11277,7 @@
     // this cycle." N = the progression's bar count (the jam loop length).
     const jam = isJamMode();
     const cycN = jam ? (activeBundle.config?.bars || 0) : 0;
+    const seam = seamCountInfo();   // mid count-in / break / resume runway? (suppresses the loop hint; drawn as a readout last)
 
     // Loop-zone backing + base track
     ctx.fillStyle = 'rgba(148,163,184,0.06)'; ctx.fillRect(0, 0, W, lz);
@@ -11212,7 +11317,7 @@
       else { ctx.beginPath(); ctx.moveTo(2, lz / 2 - 4); ctx.lineTo(9, lz / 2); ctx.lineTo(2, lz / 2 + 4); ctx.closePath(); ctx.fill(); }
       if (bx >= 0 && bx <= W) ctx.fillRect(bx - 1, 0, 2, H);
       else { ctx.beginPath(); ctx.moveTo(W - 2, lz / 2 - 4); ctx.lineTo(W - 9, lz / 2); ctx.lineTo(W - 2, lz / 2 + 4); ctx.closePath(); ctx.fill(); }
-    } else {
+    } else if (!seam) {   // the seam readout owns the loop strip while counting in
       ctx.fillStyle = 'rgba(100,116,139,0.65)'; ctx.font = '8px sans-serif'; ctx.textBaseline = 'middle';
       ctx.fillText(jam ? 'CYCLE · drag to focus' : 'LOOP · drag here', padX + 3, lz / 2 + 0.5);
     }
@@ -11224,6 +11329,23 @@
     ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
     ctx.fillStyle = '#f43f5e';
     ctx.beginPath(); ctx.moveTo(px - 4, H); ctx.lineTo(px + 4, H); ctx.lineTo(px, H - 5); ctx.closePath(); ctx.fill();
+
+    // Count-in / break readout — drawn LAST so it overlays. A silent breath used to
+    // read as dead air; now the runway ahead of the playhead is washed amber, the
+    // loop strip shows a label, and a countdown digit (4 3 2 1) sits over the runway.
+    if (seam) {
+      const rx0 = Math.max(0, px), rx1 = Math.min(W, xAt(seam.target));
+      if (rx1 > rx0) { ctx.fillStyle = 'rgba(245,180,80,0.12)'; ctx.fillRect(rx0, lz, rx1 - rx0, H - lz); }
+      ctx.fillStyle = 'rgba(245,180,80,0.20)'; ctx.fillRect(0, 0, W, lz);
+      const label = seam.kind === 'countin' ? 'COUNT-IN' : seam.kind === 'resume' ? 'RESUME' : 'NEXT ▸';
+      ctx.fillStyle = 'rgba(247,206,140,0.95)'; ctx.font = 'bold 8px ui-sans-serif, sans-serif';
+      ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+      ctx.fillText(label, padX + 4, lz / 2 + 0.5);
+      const dx = Math.max(px + 12, Math.min(W - 10, (Math.max(px, rx0) + rx1) / 2));
+      ctx.fillStyle = '#ffd591'; ctx.font = 'bold 14px ui-monospace, monospace'; ctx.textAlign = 'center';
+      ctx.fillText(String(seam.remain), dx, lz + (H - lz) / 2 + 0.5);
+      ctx.textAlign = 'left';
+    }
   }
 
   // ── Overview / marker strip (two-lane transport, lane 2) ─────────────────────
@@ -11311,6 +11433,26 @@
         ctx.restore();
       }
     }
+    // Rest bands: the inter-block breaths + the trailing loop-wrap breath aren't in
+    // segmentBounds (they're the GAPS between bands), so they'd read as empty void.
+    // Paint them a neutral slate with a centered breath glyph so the whole-session
+    // map shows the rests as deliberate beats, not dead gaps (Workout-love Tier 2).
+    if (!jam) {
+      const sb = Array.isArray(activeBundle.segmentBounds) ? activeBundle.segmentBounds : [];
+      if (sb.length > 1) {
+        const gaps = [];
+        for (let i = 0; i + 1 < sb.length; i++) if (sb[i + 1].start - sb[i].end > 0.05) gaps.push([sb[i].end, sb[i + 1].start, false]);
+        const lastEnd = sb[sb.length - 1].end;
+        if (dur - lastEnd > 0.05) gaps.push([lastEnd, dur, true]);   // trailing loop-wrap breath
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        for (const [g0, g1, wrap] of gaps) {
+          const ax = xAt(g0), w = Math.max(1, xAt(g1) - ax);
+          ctx.fillStyle = 'rgba(100,116,139,0.16)'; ctx.fillRect(ax, 1, w, H - 2);
+          if (w > 8) { ctx.fillStyle = 'rgba(148,163,184,0.7)'; ctx.font = '8px ui-sans-serif, sans-serif'; ctx.fillText(wrap ? '↻' : '·', ax + w / 2, H / 2 + 0.5); }
+        }
+        ctx.textAlign = 'left';
+      }
+    }
     // A–B loop / focus overlay (the authoring view).
     if (tpA != null && tpB != null && Math.abs(tpA - tpB) > 0.02) {
       const ax = xAt(Math.min(tpA, tpB)), bx = xAt(Math.max(tpA, tpB));
@@ -11329,10 +11471,26 @@
       ctx.fillStyle = 'rgba(148,163,184,0.7)'; ctx.font = '9px sans-serif'; ctx.textAlign = 'right';
       ctx.fillText('↻', W - 2, H / 2 + 0.5); ctx.textAlign = 'left';
     }
-    // Playhead.
+    // Playhead — normally at the live position. On a loop wrap, a brief "tape
+    // rewind" sweeps it from the seam-out point back to the (live) re-entry point
+    // with a fading streak, mirroring the host's animated loop-wrap. Draw-only:
+    // the clock already wrapped seamlessly; this is purely the visible tell.
     const px = xAt(now);
+    let headX = px;
+    if (_wrapAnim) {
+      const p = (performance.now() - _wrapAnim.atMs) / WRAP_ANIM_MS;
+      if (p >= 1) { _wrapAnim = null; }
+      else {
+        const ease = 1 - Math.pow(1 - Math.max(0, p), 3);   // ease-out: whip back, settle onto the live head
+        const fromX = xAt(_wrapAnim.fromT);
+        headX = fromX + (px - fromX) * ease;
+        const grad = ctx.createLinearGradient(headX, 0, fromX, 0);   // motion streak trailing toward the seam-out point
+        grad.addColorStop(0, 'rgba(244,63,94,0.55)'); grad.addColorStop(1, 'rgba(244,63,94,0)');
+        ctx.fillStyle = grad; ctx.fillRect(Math.min(headX, fromX), H / 2 - 1.5, Math.abs(fromX - headX), 3);
+      }
+    }
     ctx.strokeStyle = '#f43f5e'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(headX, 0); ctx.lineTo(headX, H); ctx.stroke();
   }
 
   // ── Chord-shape box (small VERTICAL chord chart) ─────────────────────────
@@ -11469,12 +11627,14 @@
         ? Math.max(0, (audioCtx.currentTime - playAnchorCtx) * 1000)
         : Math.max(0, nowMs - playAnchorMs);
       currentPracticeTime = playAnchorChartTime + elapsedMs / 1000;
+      if (_preRollUntil > 0 && currentPracticeTime >= _preRollUntil) _preRollUntil = 0;   // resume pre-roll done → normal play (notes audible, judge live)
       const duration = activeBundle.songInfo.duration || 1;
       // A-B segment loop wins over whole-chart wrap when both endpoints are
       // set. No count-in or rewind animation in this phase — just snap to A
       // and re-schedule audio. (See docs/section-looping.md "Phase 2 — UI"
       // for the count-in / rewind plan.)
       if (segmentLoopA != null && segmentLoopB != null && currentPracticeTime >= segmentLoopB) {
+        triggerWrapRewind(segmentLoopB, segmentLoopA);   // visible rewind tell on the overview
         currentPracticeTime = segmentLoopA;
         anchorPlayClock(segmentLoopA);
         stopAudio();
@@ -11514,6 +11674,7 @@
           // count-in plays once and each loop is music. contentLen carries the
           // phase so the loop stays drift-free.
           const contentLen = duration - (activeBundle.leadIn || 0);
+          triggerWrapRewind(currentPracticeTime, currentPracticeTime - contentLen);   // visible rewind tell (the clock keeps phase-carry; this is draw-only)
           playAnchorChartTime -= contentLen;
           currentPracticeTime -= contentLen;
           // Scoring hygiene across the wrap is inherent: the window cursor
@@ -12769,8 +12930,14 @@
     try { localStorage.setItem('slopscale.xpMode', mode); } catch (_) {}
     document.querySelectorAll('#slopscale-xp-mode .slopscale-mini-btn').forEach(b => b.classList.toggle('active', b.dataset.xp === mode));
   }
+  // Count-in is always ≥1 bar (no 0-bar drop-in — a DAW recording convenience, not
+  // a practice need). The setting picks the LENGTH (1/2/4); a stale '0' floors to 1.
+  function countInDefaultBars() {
+    try { return Math.max(1, Math.min(8, parseInt(localStorage.getItem('slopscale.countInDefault') || '1', 10) || 1)); } catch (_) { return 1; }
+  }
   function applyCountInDefault(val) {
-    setFieldSilent('countIn', String(val));   // the field is the source; syncTransport reflects the segments
+    const bars = Math.max(1, Math.min(8, parseInt(val, 10) || 1));
+    setFieldSilent('countIn', String(bars));   // the field is the source; syncTransport reflects the segments
     syncTransport();
   }
   function loadSettingsPrefs() {
@@ -12780,10 +12947,10 @@
     try { ci = localStorage.getItem('slopscale.countInDefault'); } catch (_) {}
     applyTheme(theme);
     applyXpModeDefault(xp);
-    // First-run default = a 1-bar count-in, so a new player gets a gentle lead-in
-    // on their first Play instead of starting cold on beat 1. A stored value wins
-    // thereafter (including an explicit "Off" = '0', which is non-null).
-    if (ci == null) ci = '1';
+    // A count-in is ALWAYS on (≥1 bar) — the 0-bar "drop-in" is a DAW recording
+    // convenience, not a practice need (removed 2026-06-09). A stored value sets
+    // the LENGTH (1/2/4); absent or a stale '0' floors to 1.
+    ci = String(Math.max(1, Math.min(8, parseInt(ci || '1', 10) || 1)));
     applyCountInDefault(ci);
     const sel = $('slopscale-countin-default');
     if (sel) sel.value = ci;
@@ -12915,10 +13082,10 @@
   }
   // Three click tiers: accent (group/measure downbeat), normal (on-beat), and
   // soft (a count-in subdivision tick between beats).
-  function scheduleClick(ctx, when, accent, soft) {
+  function scheduleClick(ctx, when, accent, soft, levelMul) {
     const osc = ctx.createOscillator(), gain = ctx.createGain(), filter = ctx.createBiquadFilter();
     const freq = accent ? 1760 : (soft ? 900 : 1120);
-    const peak = accent ? 0.14 : (soft ? 0.05 : 0.09);
+    const peak = (accent ? 0.14 : (soft ? 0.05 : 0.09)) * (levelMul || 1);
     const decay = accent ? 0.055 : (soft ? 0.03 : 0.04);
     osc.type = 'square'; osc.frequency.setValueAtTime(freq, when); filter.type = 'highpass'; filter.frequency.setValueAtTime(650, when);
     gain.gain.setValueAtTime(0.0001, when); gain.gain.exponentialRampToValueAtTime(peak, when + 0.002); gain.gain.exponentialRampToValueAtTime(0.0001, when + decay);
@@ -13256,6 +13423,7 @@
     }
     if (audio.notes) for (const n of bundle.notes || []) {
       if (n._tail) continue;  // visual loop-preview copy; audio loops via the scheduler
+      if (_preRollUntil > 0 && n.t < _preRollUntil) continue;  // resume pre-roll runway: notes muted, only the count-in click plays
       if (n.t < startFrom || n.t >= winEnd) continue;
       if (n.s < 0 || n.s >= opens.length || n.f < 0) continue;
       const when = base + (n.t - startFrom), midi = opens[n.s] + n.f;
@@ -13288,12 +13456,16 @@
         if (b._tail) continue;  // visual loop-preview copy; don't double-click at the seam
         if (b.time < startFrom || b.time >= winEnd) continue;
         const inCountIn = lead > 0 && b.time < lead - 1e-4;
-        if (!audio.metronome && !inCountIn) continue;
+        const inPreRoll = _preRollUntil > 0 && b.time < _preRollUntil;   // resume pre-roll runway → force the count-in click (full level, like the head count-in)
+        if (!audio.metronome && !inCountIn && !b.brk && !inPreRoll) continue;   // the inter-block break + the resume pre-roll ARE count-ins → always click (even metronome-off)
         // Strong accent on measure downbeats and grouping starts (e.g. 7/8 as
         // 3+2+2). Beats are already meter-correct (built by buildBeats), so this
         // follows the time-signature selection.
         const accent = b.accent === 'measure' || b.accent === 'group' || (b.measure || -1) >= 0;
-        scheduleClick(ctx, base + (b.time - startFrom), accent, false);
+        // Break clicks sit ~2.5 dB under the in-block metronome (same timbre, so the
+        // ear locks the exact incoming pulse) → the next block's first downbeat reads
+        // as an ARRIVAL. The leading count-in + the metronome play at full.
+        scheduleClick(ctx, base + (b.time - startFrom), accent, false, b.brk ? 0.75 : 1);
         schedEnd = Math.max(schedEnd, base + (b.time - startFrom) + 0.1);
         if (perBeat > 1) {
           // Derive this beat's length from the actual gap to the next beat so
@@ -13360,7 +13532,7 @@
     sessionBegin();
     stopAudio(); syncHighwaySettings(activeBundle);
     playing = true;
-    paused = false; _pausedAccumMs = 0; _pauseBeganMs = 0;
+    paused = false; _pausedAccumMs = 0; _pauseBeganMs = 0; _preRollUntil = 0; _wrapAnim = null;
     acquireWakeLock();   // hold the screen awake for the duration of this play
     // With an active A–B loop, playback begins at the loop start — not wherever
     // the playhead happens to sit (DAW cycle behavior; the playhead is just a
@@ -13381,7 +13553,7 @@
   // Stop returns the playhead to where playback last began (Logic Pro behaviour:
   // hit Play to instantly replay the same passage). The ⏮ button jumps to the
   // very start — Logic's "press Stop again to go to the top".
-  function stopPlayback() { sessionEnd(); playing = false; paused = false; releaseWakeLock(); currentPracticeTime = playStartChartTime; playAnchorChartTime = playStartChartTime; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
+  function stopPlayback() { sessionEnd(); playing = false; paused = false; _preRollUntil = 0; _wrapAnim = null; releaseWakeLock(); currentPracticeTime = playStartChartTime; playAnchorChartTime = playStartChartTime; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
   // Pause freezes the run in place: clock + audio + judgment stop, the session
   // and the pitch-tracker state stay alive, the playhead holds. Resume re-anchors
   // the clock/audio from the frozen playhead (the seekTo pattern). Wake lock is
@@ -13398,10 +13570,40 @@
     _pausedAccumMs += Math.max(0, performance.now() - _pauseBeganMs);
     paused = false;
     acquireWakeLock();
-    anchorPlayClock(currentPracticeTime);
+    // Resume PRE-ROLL (Tier 2): re-lock the pulse before the notes return. Snap
+    // back to the measure downbeat at/before the pause, count in 1–2 bars over the
+    // REAL preceding chart time (the prior bar(s) = the visual runway — DAW
+    // pre-roll), muting those notes + forcing the count-in click, then resume at
+    // the bar. ZERO chart mutation — a transient clock trick. Skips when the pause
+    // is already in the head count-in or the very first music bar (the lead-in is
+    // its own runway). A-B loop: never run before A.
+    const lead = activeBundle ? (activeBundle.leadIn || 0) : 0;
+    const pauseT = currentPracticeTime;
+    let resumeAt = pauseT;
+    _preRollUntil = 0;
+    if (pauseT > lead + 1e-3) {
+      const measures = ((activeBundle && activeBundle.beats) || [])
+        .filter(b => !b._tail && (b.accent === 'measure' || (b.measure || -1) >= 0))
+        .map(b => b.time).sort((a, b) => a - b);
+      let reentry = lead;
+      for (const m of measures) { if (m <= pauseT + 1e-3) reentry = m; else break; }
+      if (reentry > lead + 1e-3) {                       // a genuine mid-chart bar
+        const idx = measures.indexOf(reentry);
+        const localBar = (idx >= 0 && idx + 1 < measures.length) ? (measures[idx + 1] - reentry)
+                       : (idx > 0 ? (reentry - measures[idx - 1]) : 2);
+        const preBars = Math.max(1, Math.min(2, Math.round(2.0 / Math.max(0.3, localBar))));
+        let startAt = reentry - preBars * localBar;
+        if (segmentLoopA != null) startAt = Math.max(startAt, segmentLoopA);
+        resumeAt = Math.max(0, startAt);
+        _preRollUntil = reentry;
+      }
+    }
+    currentPracticeTime = resumeAt;
+    anchorPlayClock(resumeAt);
     scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
-    // Scoring hygiene across a pause is inherent: paused frames are discarded
-    // in ptOnPitch, so nothing scores against a frozen clock.
+    // Scoring hygiene across a pause is inherent: paused frames are discarded in
+    // ptOnPitch; pre-roll frames likewise (the player isn't expected to play the
+    // runway — they're re-orienting to the count).
     syncPlayButton(); refreshStatusFromState();
   }
   // Dedicated transport Stop (the button left of Play/Pause). Acts on a running
@@ -15915,6 +16117,7 @@
     // discarded — a note held across a frozen clock must never accumulate
     // evidence or score against the note sitting under the playhead.
     if (paused) return;
+    if (_preRollUntil > 0 && currentPracticeTime < _preRollUntil) return;   // resume pre-roll runway — the player is re-orienting, not playing
     // Judge on the latency-shifted clock: mic capture + analysis means evidence
     // for an attack at t ARRIVES ~80ms later. The host's grader subtracts the
     // same offset before matching; we judged at the raw clock until 2026-06-06,
@@ -17184,6 +17387,11 @@
     const sessionSetup = STRING_SETUPS[baseSession.stringSetup] || STRING_SETUPS.guitar_6_standard;
     const formSetup = formStringSetup ? STRING_SETUPS[formStringSetup] : null;
     const inheritForm = !!formSetup && formSetup.instrument === sessionSetup.instrument;
+    // Thread the player's ALT TUNING into the Workout too (was dropped → Workouts
+    // played standard even in drop-D/DADGAD/5-string). Only when the family matches
+    // (a bass tuning must never land on a guitar session); the form value is already
+    // applyTuningAdaptL1-resolved, buildSegmentConfig length-guards it per-segment.
+    const formCustomOpenMidis = inheritForm ? (document.querySelector('#slopscale-controls [name="customOpenMidis"]')?.value || '').trim() : '';
     // Launch the editable working DRAFT (refreshed/edited) — materialize any template-ref
     // slots, then patch audio + (family-compatible) string setup into each concrete config.
     // Falls back to a fresh clone if the draft is missing/stale for the selected session.
@@ -17193,6 +17401,8 @@
     // no-op when the draft has no preset ("As built"). interBlockBreak rides along.
     const session = applyLengthPreset(Object.assign({}, draft, {
       ...(inheritForm ? { stringSetup: formStringSetup } : {}),
+      ...(inheritForm && formCustomOpenMidis ? { customOpenMidis: formCustomOpenMidis } : {}),
+      countInBars: countInDefaultBars(),   // a Workout gets the player's count-in default (≥1) at block 1 — was dropped (slammed in cold)
       segments: (draft.segments || []).map(materializeSegment).filter(Boolean).map(seg =>
         Object.assign({}, seg, { config: Object.assign({}, seg.config, { audio }) })
       )
@@ -17212,7 +17422,7 @@
       showStatus(`Session error: ${e.message || e}`);
       console.error('[SlopScale] session launch failed', e);
     } finally {
-      if (btn) { btn.disabled = false; btn.textContent = '▶ Launch Session'; }
+      if (btn) { btn.disabled = false; btn.textContent = '▶ Start Workout'; }
     }
   }
 
@@ -18263,6 +18473,6 @@
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
   window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, ptPracticeTime: () => currentPracticeTime, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
