@@ -167,7 +167,7 @@ In **Jam** (`isJamMode`) the overview becomes the **chord loop** — function-ti
 
 ### Code map (screen.js + routes.py)
 
-`screen.js` is **one IIFE, ~17,100 lines** — it loads as a classic `<script>` (no `type="module"`), so it **cannot use `import`/`export`; keep it one file.** Sections are marked with `§N` banner comments and indexed in a **table-of-contents header at the top of the file** (the canonical §1–§15 order) — **grep `§` or read that header to navigate before editing.**
+`screen.js` is **one IIFE, ~18,100 lines** — it loads as a classic `<script>` (no `type="module"`), so it **cannot use `import`/`export`; keep it one file.** Sections are marked with `§N` banner comments and indexed in a **table-of-contents header at the top of the file** (the canonical §1–§15 order) — **grep `§` or read that header to navigate before editing.**
 
 `routes.py` registers FastAPI routes under `/api/plugins/slopscale/…` (status, preset + tuning CRUD, the dormant `POST /temp-sloppak` chart builder, and the self-hosted `/wafont` `/ir` `/nam` audio-asset routes). **Storage is DB-backed** (the shared Slopsmith meta-DB via `context["meta_db"]` → tables `slopscale_presets` + `slopscale_tunings`), not flat files.
 
