@@ -1,7 +1,7 @@
 {
   "id": "slopscale",
   "name": "SlopScale",
-  "version": "0.7.5",
+  "version": "0.7.6-dev",
   "license": "AGPL-3.0-only",
   "nav": {
     "label": "SlopScale - Practice",
