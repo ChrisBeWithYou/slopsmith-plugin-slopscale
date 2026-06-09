@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.6-beta.1';
+  const SLOPSCALE_VERSION = '0.7.7-beta.1';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -3102,6 +3102,35 @@
   let _ptExempt = null;         // Slice-2 class counts { legato, fast, spanNotes, floorMs } (set per run)
   let _ptJamRun = false;        // Jam run: scorer may run for the meter, but no note ever paints judged
   let _deliberateStop = false;  // true only across an explicit Stop / finite-run end — gates the results modal
+  // ── Input-level / onset gate (2026-06-08 grading rebuild — MIRROR the host's
+  //    own silence gate; docs/grading-rebuild-roundtable.md) ──────────────────
+  // The host's note_detect VERIFY side-door has NO absolute level floor (its
+  // comb is scale-invariant), so an inaudible idle residual (induced signal,
+  // hum) on a direct-interface/DI rig credits HANDS-OFF. The host's REAL grader
+  // gates exactly this — it forces a miss when inputLevel < 0.02 across ±200ms
+  // of a note (note_detect _ND_SILENCE_THRESHOLD). We MIRROR that gate here, fed
+  // by the host's OWN input meter (getLevels) — interface-AGNOSTIC by following
+  // the host: it reports whatever device the player configured in Slopsmith. A
+  // credit ALSO needs an attack ONSET in-window: a steady residual (even above
+  // the floor) has no rising edge and never fires one. No host level source →
+  // gate INACTIVE (no input path to police; fail-open-to-honest).
+  const PT_LVL_FLOOR_MIN = 0.02;     // host's _ND_SILENCE_THRESHOLD (−34 dBFS on the host's 0..1 meter)
+  const PT_LVL_REST_MULT = 4;        // levelFloor = max(restingFloor × 4 [+12 dB], FLOOR_MIN)
+  const PT_ONSET_RATIO   = 3.5;      // onset fires when level / baseline ≥ this (≈+11 dB rising edge)
+  const PT_ONSET_REFRACT = 0.080;    // suppress onset re-fire for 80ms (attack rise + ring decay)
+  const PT_LVL_WARMUP    = 0.25;     // meter-start warm-up: baseline glued to level (no onset) while the tap settles
+  let _lvlMode = 'none';             // 'desktop' (getLevels) | 'web' (own analyser) | 'none' (gate inactive)
+  let _lvlSamples = [];              // ring of { jt: judge-time, L } (bounded 512)
+  let _lvlOnsets = [];               // ring of onset judge-times (bounded 256)
+  let _lvlBaseline = 0;              // floor-follower (down-fast / up-slow)
+  let _lvlFloor = PT_LVL_FLOOR_MIN;  // calibrated credit floor (host 0..1 scale)
+  let _lvlRestBuf = [];              // count-in resting samples → the 90th-pct floor
+  let _lvlCalibrated = false;        // count-in calibration done this run
+  let _lvlWarmEnd = null;            // judge-time the meter-start warm-up ends (anti analyser-warmup / steady-tone false onset)
+  let _lvlLastOnset = -Infinity;     // last onset judge-time (refractory)
+  let _lvlPoll = null;               // desktop getLevels interval
+  let _lvlRaf = 0;                   // web analyser RAF handle
+  let _lvlStream = null, _lvlAnalyser = null, _lvlData = null;   // web tap
   // ── Timing model (2026-06-06 seven-lane panel; MIRRORS the host's grader) ──
   // The host's note_detect judges with PARALLEL per-note candidate windows
   // (early-strict ±100ms; late grace rides the sustain, capped 1s), disambiguates
@@ -3351,11 +3380,13 @@
   // unit-denominated (a span = 1; a chord = its member count, matching the
   // denominator's prefix sums).
   function ptCreditWindow(w) {
-    if (w.credited) return;
+    if (w.credited) return false;
+    if (!ptCreditGatePasses(w)) return false;   // independent absolute-level + onset evidence (host-mirror silence gate)
     w.credited = true;
     _ptScoredUnits += w.span ? 1 : w.notes.length;
     for (const n of w.notes) _ptScored.add(ptKey(n));
     ptDispatchJudgment('hit', w, null);   // the host hit flare (label-free)
+    return true;
   }
   // End-of-span evaluation: a tremolo span is a hit when in-tune presence
   // covered ≥ PT_SPAN_RATIO of its 100ms buckets (the "rang in tune over the
@@ -3436,11 +3467,27 @@
     _ndVerifyActive = notes;
     _ndVerifyActiveWin = win;
     if (!notes.length) { try { window.noteDetect.setVerifyTarget(null); } catch (_) {} return; }
-    // Pass only the flags whose meaning matches the host's: b = bend (SlopScale
-    // `bn` is a magnitude; any non-zero means "this note bends"). We deliberately
-    // do NOT map SlopScale's `mt` (muted) onto the host's `hm` (HARMONIC) — they
-    // are different techniques. Muted-note handling stays SlopScale's own.
-    const tgt = notes.map(n => ({ s: n.s, f: n.f, b: !!n.bn }));
+    // Identity-tone reduction (harmony lane, grading rebuild): a chord voicing
+    // octave-doubles its consonant skeleton (root/5th), so pushing the FULL grip
+    // lets the host's fixed 0.5 hit-ratio pass on the doublings alone — a
+    // WRONG-ROOT chord that shares the root/5th credits. Dedupe to DISTINCT
+    // PITCH CLASSES so the ratio measures over the chord's actual tones (every
+    // distinct tone — incl. the quality-defining 3rd/7th — is kept; only octave
+    // duplicates drop). A wrong-root chord now shares too few tones to clear 0.5.
+    // (Forcing maj↔min specifically isn't possible at the host's fixed 0.5 ratio
+    // — that needs a host feature; logged. Single notes pass through untouched.)
+    // Pass only host-meaningful flags: b = bend (SlopScale `bn` magnitude → any
+    // non-zero means "bends"); `mt` (muted) stays SlopScale's own, never mapped
+    // onto the host's `hm` (HARMONIC) — different techniques.
+    const om = (_ndVerifyCtx && _ndVerifyCtx.openMidis) || _ptOpenMidis || [];
+    const seenPc = new Set();
+    const reduced = [];
+    for (const n of notes) {
+      const pc = ((((om[n.s] || 0) + n.f) % 12) + 12) % 12;
+      if (seenPc.has(pc)) continue;          // drop octave/unison duplicates of a tone already in the target
+      seenPc.add(pc); reduced.push(n);
+    }
+    const tgt = (reduced.length ? reduced : notes).map(n => ({ s: n.s, f: n.f, b: !!n.bn }));
     try { window.noteDetect.setVerifyTarget(tgt, _ndVerifyCtx); } catch (_) {}
   }
   // notedetect:verify fires (every frame the target rings) with { isHit }. On a
@@ -3459,19 +3506,21 @@
     if (paused) return;
     const d = ev && ev.detail;
     if (!d || !d.isHit || !_ndVerifyActive.length) return;
-    _ptHadInput = true;
+    // Input-presence: with a host level source the level meter owns _ptHadInput
+    // (a raw isHit can fire on an inaudible residual — the very bug). Only fall
+    // back to arming on the verify event when there is NO level source.
+    if (_lvlMode === 'none') _ptHadInput = true;
     const w = _ndVerifyActiveWin;
     if (!w) return;
     if (w.span) {
       // Tremolo span: a verify hit marks its presence bucket; the credit
-      // decision waits for end-of-span (ptFinalizeSpans).
+      // decision waits for end-of-span (ptFinalizeSpans, level-gated there).
       const bi = Math.floor((currentPracticeTime - ptLatency() - w.t) / PT_SPAN_BUCKET);
       if (bi >= 0 && bi < w.bktN) w.bkts.add(bi);
     } else {
-      // Timing tendency: first evidence for this window, relative to its onset
-      // on the judge clock (the feel→data converter — disclosure only).
-      if (!w.credited) _ptDevs.push(currentPracticeTime - ptLatency() - w.t);
-      ptCreditWindow(w);
+      // Credit only if the level+onset gate also passes (raw isHit is not
+      // enough — host-mirror). Timing tendency records only on a real credit.
+      if (ptCreditWindow(w)) _ptDevs.push(currentPracticeTime - ptLatency() - w.t);
     }
   }
   function ndStopVerify() {
@@ -15530,6 +15579,130 @@
     });
   }
 
+  // ── Input-level / onset gate (grading rebuild) ─────────────────────────────
+  // Feed = the host's OWN input meter (interface-agnostic — we follow the host
+  // for all sound I/O): DESKTOP reads slopsmithDesktop.audio.getLevels() (the
+  // same source note_detect's silence gate uses); WEB opens its own analyser on
+  // the existing playback ctx. No source → mode 'none' → gate INACTIVE (there is
+  // no input path, so nothing real to credit and nothing to wrongly block; the
+  // detector's pitch/comb evidence still has to fire). All times are JUDGE time
+  // (currentPracticeTime − ptLatency()), matching the window table both ears read.
+  function _lvlPushSample(raw) {
+    if (!(raw >= 0)) raw = 0;
+    const jt = currentPracticeTime - ptLatency();
+    if (_lvlWarmEnd == null) _lvlWarmEnd = jt + PT_LVL_WARMUP;   // meter-start warm-up window (set on the very first sample)
+    const L = raw;   // raw level — an instant-down baseline catches a real attack's sharp rise reliably (no false-miss); a stray harness-jitter frame is tolerated by the test's "not wholesale" assertion, and the real desktop getLevels meter is stable
+    const lead = (activeBundle && activeBundle.leadIn) || 0;
+    if (!_lvlCalibrated) {
+      // Count-in [0, leadIn) is player-silent → pure resting residual. Floor =
+      // max(90th-pct(resting) × 4, 0.02). (For countIn>0 the warm-up window above
+      // elapses during the count-in, so the first PLAYED note fires normally.)
+      if (currentPracticeTime < lead) { _lvlRestBuf.push(L); if (L >= _lvlFloor) _ptHadInput = true; _lvlSamples.push({ jt, L }); if (_lvlSamples.length > 512) _lvlSamples.shift(); return; }
+      if (_lvlRestBuf.length) {
+        const sorted = _lvlRestBuf.slice().sort((a, b) => a - b);
+        const rest = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.9))];
+        _lvlFloor = Math.max(rest * PT_LVL_REST_MULT, PT_LVL_FLOOR_MIN);
+        _lvlBaseline = rest;
+      } else { _lvlFloor = PT_LVL_FLOOR_MIN; _lvlBaseline = L; }
+      _lvlCalibrated = true;
+    }
+    // Warm-up glue: while the tap settles (0→signal) — or a STEADY tone is already
+    // present at scoring start (an inaudible residual) — snap the baseline to the
+    // level so it never reads as a rising-edge onset. Only a LATER sharp rise
+    // (after a gap/decay) fires. count-in absorbs this; for countIn=0 it costs
+    // only note-0's onset (precision bias).
+    if (jt < _lvlWarmEnd) {
+      _lvlBaseline = L;
+      if (L >= _lvlFloor) _ptHadInput = true;
+      _lvlSamples.push({ jt, L }); if (_lvlSamples.length > 512) _lvlSamples.shift();
+      return;
+    }
+    if (L < _lvlBaseline) _lvlBaseline = L; else _lvlBaseline += 0.05 * (L - _lvlBaseline);   // floor-follower (on smoothed L): down fast, up slow
+    if (L >= _lvlFloor && L / Math.max(_lvlBaseline, _lvlFloor) >= PT_ONSET_RATIO && jt - _lvlLastOnset > PT_ONSET_REFRACT) {
+      _lvlLastOnset = jt; _lvlOnsets.push(jt); if (_lvlOnsets.length > 256) _lvlOnsets.shift();
+    }
+    if (L >= _lvlFloor) _ptHadInput = true;   // real input present → misses may light (replaces the circular / confidence arming)
+    _lvlSamples.push({ jt, L }); if (_lvlSamples.length > 512) _lvlSamples.shift();
+  }
+  function ptPeakLevelIn(lo, hi) {
+    let pk = 0;
+    for (let i = _lvlSamples.length - 1; i >= 0; i--) {
+      const s = _lvlSamples[i];
+      if (s.jt < lo - 0.5) break;                 // time-ordered ring — stop once well before the window
+      if (s.jt >= lo && s.jt <= hi && s.L > pk) pk = s.L;
+    }
+    return pk;
+  }
+  function ptOnsetIn(lo, hi) {
+    for (let i = _lvlOnsets.length - 1; i >= 0; i--) {
+      const t = _lvlOnsets[i];
+      if (t < lo - 0.5) break;
+      if (t >= lo && t <= hi) return true;
+    }
+    return false;
+  }
+  // The gate both ears pass through (in ptCreditWindow): real input energy
+  // in-window AND (for per-note windows) an attack onset in-window. Tremolo
+  // spans ride level + their own presence ratio (many attacks — onset is less
+  // meaningful; audio-engine ruling).
+  function ptCreditGatePasses(w) {
+    if (_lvlMode === 'none') return true;         // no host level source → gate inactive
+    const lo = w.span ? w.t : w.matchStart;
+    const hi = w.span ? w.spanEnd : w.matchEnd;
+    if (ptPeakLevelIn(lo, hi) < _lvlFloor) return false;
+    if (!w.span && !ptOnsetIn(lo, hi)) return false;
+    return true;
+  }
+  function startLevelMeter() {
+    stopLevelMeter();
+    _lvlMode = 'none'; _lvlSamples = []; _lvlOnsets = []; _lvlBaseline = 0;
+    _lvlFloor = PT_LVL_FLOOR_MIN; _lvlRestBuf = []; _lvlCalibrated = false; _lvlWarmEnd = null; _lvlLastOnset = -Infinity;
+    const bridge = window.slopsmithDesktop && window.slopsmithDesktop.audio;
+    if (bridge && typeof bridge.getLevels === 'function') {
+      let okOnce = false;
+      _lvlPoll = setInterval(() => {
+        let lv = null;
+        try { lv = bridge.getLevels(); } catch (_) { lv = null; }
+        if (!lv || typeof lv.inputLevel !== 'number') {
+          if (!okOnce) { clearInterval(_lvlPoll); _lvlPoll = null; _startWebLevelMeter(); }   // bridge can't level → fall to web
+          return;
+        }
+        okOnce = true; _lvlMode = 'desktop'; _lvlPushSample(lv.inputLevel);
+      }, 50);
+      return;
+    }
+    _startWebLevelMeter();
+  }
+  function _startWebLevelMeter() {
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) return;   // stays 'none'
+    let ctx; try { ctx = ensureAudioCtx(); } catch (_) { return; }
+    if (!ctx) return;
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
+      .then((stream) => {
+        if (!_ptHandle && !_ndVerifyMode) { try { stream.getTracks().forEach(t => t.stop()); } catch (_) {} return; }   // run ended before grant
+        _lvlStream = stream;
+        const src = ctx.createMediaStreamSource(stream);
+        _lvlAnalyser = ctx.createAnalyser(); _lvlAnalyser.fftSize = 1024; _lvlData = new Float32Array(_lvlAnalyser.fftSize);
+        src.connect(_lvlAnalyser);   // analyser taps the source; NOT connected to destination (no monitoring)
+        _lvlMode = 'web';
+        const tick = () => {
+          if (_lvlMode !== 'web' || !_lvlAnalyser) return;
+          _lvlAnalyser.getFloatTimeDomainData(_lvlData);
+          let s = 0; for (let i = 0; i < _lvlData.length; i++) s += _lvlData[i] * _lvlData[i];
+          _lvlPushSample(Math.min(1, Math.sqrt(s / _lvlData.length) * 5));   // → the host's 0..1 inputLevel scale
+          _lvlRaf = requestAnimationFrame(tick);
+        };
+        _lvlRaf = requestAnimationFrame(tick);
+      })
+      .catch(() => { /* mic denied / no device → stays 'none' (gate inactive) */ });
+  }
+  function stopLevelMeter() {
+    if (_lvlPoll) { clearInterval(_lvlPoll); _lvlPoll = null; }
+    if (_lvlRaf) { try { cancelAnimationFrame(_lvlRaf); } catch (_) {} _lvlRaf = 0; }
+    if (_lvlStream) { try { _lvlStream.getTracks().forEach(t => t.stop()); } catch (_) {} _lvlStream = null; }
+    _lvlAnalyser = null; _lvlData = null; _lvlMode = 'none';
+  }
+
   // ── Pitch tracker ──────────────────────────────────────────────────────────
   // Uses slopsmithMinigames.scoring.createContinuous (bundled, no registration
   // required). Silently no-ops when the Minigames plugin isn't loaded.
@@ -15709,6 +15882,7 @@
       }
     }
     if (!_ptHandle && !_ndVerifyMode) return;   // no ear at all → nothing to show
+    startLevelMeter();   // the host-mirror level/onset gate (follows the host's input meter)
     // Results-modal diagnostics (detection-testing instrument): the judged
     // universe for this run — what was exempt and WHY, and which ear owns
     // scoring. Read by sessionEnd → showResultsModal.
@@ -15747,7 +15921,10 @@
     // grading an on-time player ~80ms late on every note.
     const tJudge = currentPracticeTime - ptLatency();
     const passedTotal = ptWinPassedCount(tJudge);
-    if (confidence >= PT_CONF_INPUT) _ptHadInput = true;   // real input seen → misses may now light (anti "sea of red")
+    // Input-presence: the level meter owns _ptHadInput when a host level source
+    // exists (a confident YIN lock can come from a steady inaudible residual —
+    // the bug). Fall back to confidence only when there is NO level source.
+    if (_lvlMode === 'none' && confidence >= PT_CONF_INPUT) _ptHadInput = true;
     if (confidence < PT_CONF_INPUT) {
       ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: _ptScoredUnits, total: passedTotal });
       return;
@@ -15798,10 +15975,9 @@
           if (bi >= 0 && bi < best.bktN) best.bkts.add(bi);
         } else {
           // Single-frame commit (the host's rule): one fresh in-window
-          // in-pitch lock credits the note. Timing tendency records the
-          // crediting frame's arrival vs onset (disclosure only).
-          if (!best.credited) _ptDevs.push(tJudge - best.t);
-          ptCreditWindow(best);
+          // in-pitch lock credits the note — IF the level+onset gate also
+          // passes. Timing tendency records only on a real credit.
+          if (ptCreditWindow(best)) _ptDevs.push(tJudge - best.t);
         }
       } else {
         // Near-miss aggregate: a fresh in-pitch frame that lands just
@@ -15847,6 +16023,7 @@
   function stopPitchTracker() {
     if (_ptHandle) { try { _ptHandle.stop(); } catch (_) {} _ptHandle = null; }
     ndStopVerify();   // clear the verify target + listener, restore note_detect
+    stopLevelMeter();   // tear down the level/onset tap (poll / RAF / mic stream)
     // Clear scoring state so a later silent preview can't read this run's
     // notes/hits and feed stale hit/miss counts to the pathway tier gate.
     _ptNotes = []; _ptScored = new Set(); _ptByKey = new Map(); _ptHadInput = false;
