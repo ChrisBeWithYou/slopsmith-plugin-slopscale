@@ -1289,7 +1289,6 @@
         <div class="slopscale_beta-settings-group">
           <span class="slopscale_beta-settings-lbl">Count-in (default)</span>
           <select id="slopscale_beta-countin-default" class="slopscale_beta-settings-select">
-            <option value="0">Off</option>
             <option value="1">1 bar</option>
             <option value="2">2 bars</option>
             <option value="4">4 bars</option>
@@ -1849,8 +1848,7 @@
         <label>BPM<input name="bpm" type="number" min="30" max="260" step="1" value="100"></label>
         <label>Count-in
           <select name="countIn">
-            <option value="0" selected>None</option>
-            <option value="1">1 bar</option>
+            <option value="1" selected>1 bar</option>
             <option value="2">2 bars</option>
             <option value="4">4 bars</option>
           </select>
@@ -2064,15 +2062,6 @@
           <!-- populated by syncSessionSummary() -->
         </div>
 
-        <label class="slopscale_beta-length-row">Session length
-          <select id="slopscale_beta-length-preset" title="Optional — extend the workout into a longer woodshed. 'As built' keeps each block's natural length; the others spread the time across your blocks.">
-            <option value="">As built</option>
-            <option value="quick">Quick — ~10 min</option>
-            <option value="standard">Standard — ~20 min</option>
-            <option value="woodshed">Woodshed — ~30 min</option>
-          </select>
-        </label>
-
         <div class="slopscale_beta-group-title slopscale_beta-segments-head">
           <span>Segments</span>
           <button type="button" id="slopscale_beta-workout-refresh" class="slopscale_beta-refresh-btn" title="Re-roll every block into a fresh variation — same workout, new keys & positions">↻ Refresh</button>
@@ -2094,8 +2083,17 @@
         </div>
         <!-- Backing-voice selection lives in the Mixer (M) now — Phase C. -->
 
+        <label class="slopscale_beta-length-row">Session length
+          <select id="slopscale_beta-length-preset" title="How long you're settling in for. 'As built' keeps each block's natural length; the others spread the time across your blocks.">
+            <option value="">As built</option>
+            <option value="quick">Quick — ~10 min</option>
+            <option value="standard">Standard — ~20 min</option>
+            <option value="woodshed">Woodshed — ~30 min</option>
+          </select>
+        </label>
+
         <div class="slopscale_beta-actions">
-          <button type="button" id="slopscale_beta-launch-session" class="primary">▶ Launch Session</button>
+          <button type="button" id="slopscale_beta-launch-session" class="primary">▶ Start Workout</button>
         </div>
 
       </div><!-- end .slopscale_beta-session-only -->
@@ -2216,7 +2214,6 @@
           <span class="slopscale_beta-tp-sep"></span>
           <div class="slopscale_beta-tp-countin" role="group" aria-label="Count-in bars">
             <span class="slopscale_beta-tp-lbl">Count-in</span>
-            <button type="button" class="slopscale_beta-tp-seg" data-countin="0">Off</button>
             <button type="button" class="slopscale_beta-tp-seg" data-countin="1">1</button>
             <button type="button" class="slopscale_beta-tp-seg" data-countin="2">2</button>
             <button type="button" class="slopscale_beta-tp-seg" data-countin="4">4</button>
