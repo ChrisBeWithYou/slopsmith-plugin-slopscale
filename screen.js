@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.6-dev';
+  const SLOPSCALE_VERSION = '0.7.6-beta.1';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -1890,8 +1890,8 @@
       ]
     }
   };
-  const PATHWAY_STORAGE_KEY = 'slopscale.lastPathway';
-  const MODE_STORAGE_KEY = 'slopscale.lastMode';   // resume-last-mode (data-mode token)
+  const PATHWAY_STORAGE_KEY = 'slopscale_beta.lastPathway';
+  const MODE_STORAGE_KEY = 'slopscale_beta.lastMode';   // resume-last-mode (data-mode token)
   // First-ever launch lands on the first pathway (Chromatic Warmup, the root of
   // the skill tree) on 6-string guitar — its base config sets guitar_6_standard.
   // Only applies when nothing is stored; later launches restore the last pathway.
@@ -2715,11 +2715,11 @@
   // Populate the Shape dropdown for the current key + system. Preserves the
   // currently-selected shape if it's still valid for the new system.
   function syncShapeDropdown() {
-    const sel = (typeof document !== 'undefined') ? document.getElementById('slopscale-shape') : null;
+    const sel = (typeof document !== 'undefined') ? document.getElementById('slopscale_beta-shape') : null;
     if (!sel) return;
-    const sysEl = document.getElementById('slopscale-fretboard-system');
-    const keyEl = document.querySelector('#slopscale-controls [name="key"]');
-    const scaleEl = document.querySelector('#slopscale-controls [name="scale"]');
+    const sysEl = document.getElementById('slopscale_beta-fretboard-system');
+    const keyEl = document.querySelector('#slopscale_beta-controls [name="key"]');
+    const scaleEl = document.querySelector('#slopscale_beta-controls [name="scale"]');
     const system = sysEl ? sysEl.value : 'caged';
     const keyPc = keyEl ? (NOTE_ALIASES[keyEl.value] ?? 0) : 0;
     const scale = scaleEl ? scaleEl.value : 'major';
@@ -2760,7 +2760,7 @@
 
     // Mirror the active shape into the legacy cagedShape hidden input so the
     // chord-template helpers keep working. Only meaningful when system is CAGED.
-    const cagedHidden = document.getElementById('slopscale-caged-shape-value');
+    const cagedHidden = document.getElementById('slopscale_beta-caged-shape-value');
     if (cagedHidden) {
       if (system === 'caged') cagedHidden.value = sel.value || 'C';
       // For 3NPS/Open, leave the hidden value alone — chord-template helpers
@@ -2787,7 +2787,7 @@
 
   // Expose for DevTools inspection and (soon) chart generation.
   if (typeof window !== 'undefined') {
-    window.__slopscaleShapes = {
+    window.__slopscale_betaShapes = {
       CAGED_SHAPES,
       THREE_NPS_POSITION_DEFS,
       CAGED_CYCLE,
@@ -3014,7 +3014,7 @@
     // breaking the host's stem decode ("ctx.decodeAudioData is not a function").
     // Scoping to the active screen keeps the highway-click fix (SlopScale on
     // screen) while leaving the global pristine for everyone else.
-    const slopscaleActive = () => { const r = document.getElementById('slopscale-root'); return !!(r && r.offsetParent); };
+    const slopscale_betaActive = () => { const r = document.getElementById('slopscale_beta-root'); return !!(r && r.offsetParent); };
     const Patched = function(...args) {
       // Only fake when there's NO scoring SDK. The fake exists solely to suppress the
       // borrowed highway's audio-reactive-bg AudioContext (an audible click) on OLD
@@ -3024,7 +3024,7 @@
       // fake would BREAK (resume() is undefined, state 'closed') → the tuner / grading /
       // per-note gems silently die. So when the SDK is present, always hand out the REAL
       // context. (ptAvailable() ⇔ "current host" — the scorer + #650 shipped together.)
-      if (slopscaleActive() && audioCtx && audioCtx.state !== 'closed' && !ptAvailable()) return makeFakeCtx();
+      if (slopscale_betaActive() && audioCtx && audioCtx.state !== 'closed' && !ptAvailable()) return makeFakeCtx();
       return new Ctor(...args);
     };
     Patched.prototype = Ctor.prototype;
@@ -3081,18 +3081,18 @@
     },
   };
   // Active theme for renderers that participate. Light is the default.
-  let currentRenderTheme = (typeof localStorage !== 'undefined' && localStorage.getItem('slopscale.renderTheme')) || 'light';
+  let currentRenderTheme = (typeof localStorage !== 'undefined' && localStorage.getItem('slopscale_beta.renderTheme')) || 'light';
   if (currentRenderTheme !== 'light' && currentRenderTheme !== 'dark') currentRenderTheme = 'light';
   function getRenderTheme() { return RENDER_THEMES[currentRenderTheme] || RENDER_THEMES.light; }
   // Hand-marks display switch (hand-marks Slice 1; UX ruling): ONE toggle,
   // default ON, persisted, never auto-flipped — beginner/advanced scaling
   // happens at EMISSION (the pedagogy lane), not by flipping the player's
   // switch. Read per-frame by the Tab renderer + fretboard strip.
-  function handMarksOn() { try { return localStorage.getItem('slopscale.showHandMarks') !== 'off'; } catch (_) { return true; } }
+  function handMarksOn() { try { return localStorage.getItem('slopscale_beta.showHandMarks') !== 'off'; } catch (_) { return true; } }
   function setRenderTheme(name) {
     if (name !== 'light' && name !== 'dark') return;
     currentRenderTheme = name;
-    try { localStorage.setItem('slopscale.renderTheme', name); } catch (_) {}
+    try { localStorage.setItem('slopscale_beta.renderTheme', name); } catch (_) {}
     if (renderer && activeBundle) drawOnce();
   }
   // Pitch tracker state — wraps slopsmithMinigames.scoring.createContinuous (no registration required)
@@ -3118,7 +3118,7 @@
   // over the run's offset-free detections, refine by mean residual — the
   // host's `_ndCalibrateOffsetMs` objective, note_detect screen.js:708).
   // EMA-blended (0.7 old / 0.3 new), clamped 0–250ms, persisted
-  // `slopscale.latencyMs`. No UI (the roundtable's "hidden latency setting");
+  // `slopscale_beta.latencyMs`. No UI (the roundtable's "hidden latency setting");
   // disclosed in the verbose diagnostics. Seeding order (2026-06-07): our own
   // MEASURED anchor wins when stored; else the host tuner's latencyOffset
   // slider (localStorage['slopsmith_notedetect'] — the player already dialed
@@ -3127,7 +3127,7 @@
   // readable.) NEVER written host-side; the sweep self-corrects either way.
   let _ptLatencyS = (() => {
     try {
-      const v = parseInt(localStorage.getItem('slopscale.latencyMs') || '', 10);
+      const v = parseInt(localStorage.getItem('slopscale_beta.latencyMs') || '', 10);
       if (Number.isFinite(v)) return Math.max(0, Math.min(250, v)) / 1000;
     } catch (_) {}
     try {
@@ -3513,7 +3513,7 @@
   }
 
   function readConfig() {
-    const data = new FormData($('slopscale-controls'));
+    const data = new FormData($('slopscale_beta-controls'));
     const stringSetup = data.get('stringSetup') || 'guitar_6_standard';
     const setup = STRING_SETUPS[stringSetup] || STRING_SETUPS.guitar_6_standard;
     // Effective open-string tuning: a custom per-string override (DADGAD, Drop A,
@@ -3574,7 +3574,7 @@
       // Shape WALK (The Five CAGED Shapes): bar i voiced in the i-th CAGED shape
       // low→high — see buildStrumCompExercise. Pathway-driven hidden field.
       shapeWalk: advancedMode && String(data.get('shapeWalk') || '') === 'true',
-      renderer: data.get('renderer') || localStorage.getItem('slopscale.renderer') || 'highway_3d',
+      renderer: data.get('renderer') || localStorage.getItem('slopscale_beta.renderer') || 'highway_3d',
       instrument: setup.instrument,
       stringSetup,
       setupLabel: setup.label,
@@ -3651,7 +3651,7 @@
       backingComp: (data.get('backingComp') || '').toString(),
       backingBass: (data.get('backingBass') || '').toString(),
       backingDensity: data.get('backingDensity') !== null && data.get('backingDensity') !== '' ? Math.max(0, Math.min(3, parseInt(data.get('backingDensity'), 10) || 0)) : undefined,
-      backingPadDev: (() => { try { return localStorage.getItem('slopscale.backingPad') === 'pad'; } catch (_) { return false; } })(),
+      backingPadDev: (() => { try { return localStorage.getItem('slopscale_beta.backingPad') === 'pad'; } catch (_) { return false; } })(),
       // Herta accent slot (0–3) + walk flag: pathway-driven hidden fields. These
       // were UNPLUMBED until hand-marks Slice 2 (the pick_herta vary steps wrote
       // to a nonexistent field → the accent ladder was silently inert in the UI;
@@ -4526,8 +4526,8 @@
   // Self-hosted: bundled under static/wafonts/, served by routes.py (no runtime
   // CDN dependency, offline-safe). WebAudioFont code is MIT; the JCLive GM
   // soundfont data is bundled for the backing — verify redistribution before public release.
-  const WAF_BASE = '/api/plugins/slopscale/wafont/';
-  const WAF_PLAYER_URL = '/api/plugins/slopscale/wafont/WebAudioFontPlayer.js';
+  const WAF_BASE = '/api/plugins/slopscale_beta/wafont/';
+  const WAF_PLAYER_URL = '/api/plugins/slopscale_beta/wafont/WebAudioFontPlayer.js';
   const WAF_SF = 'JCLive_sf2_file';
   // Symbolic voice id → General MIDI program. Bundled under static/wafonts/ and
   // served by routes.py (offline-safe). guitar = steel acoustic (25); clean =
@@ -4557,11 +4557,11 @@
     wafPresets[key] = entry;
     entry.promise = (async () => {
       try {
-        await loadScriptOnce('slopscale-waf-player', WAF_PLAYER_URL);
+        await loadScriptOnce('slopscale_beta-waf-player', WAF_PLAYER_URL);
         if (typeof WebAudioFontPlayer === 'undefined') throw new Error('WebAudioFontPlayer missing');
         if (!wafPlayer) wafPlayer = new WebAudioFontPlayer();
         const ctx = ensureAudioCtx();
-        if (!window[varName]) await loadScriptOnce('slopscale-waf-' + key, url);
+        if (!window[varName]) await loadScriptOnce('slopscale_beta-waf-' + key, url);
         const preset = window[varName];
         if (!preset) throw new Error('preset var missing');
         wafPlayer.adjustPreset(ctx, preset);
@@ -5676,7 +5676,7 @@
     else if (/7/.test(q)) r += '7';
     return r;
   }
-  function isJamMode() { const r = $('slopscale-root'); return !!(r && (r.classList.contains('ss-mode-jam') || r.classList.contains('slopscale-jam-mode'))); }
+  function isJamMode() { const r = $('slopscale_beta-root'); return !!(r && (r.classList.contains('ss-mode-jam') || r.classList.contains('slopscale_beta-jam-mode'))); }
 
   // ── Chord timeline — the single source of "what chord at what bar/beat" ──────
   // Derived ONCE from the cfg (progression × key × scale × chordDepth/override ×
@@ -8870,7 +8870,7 @@
       if (i >= 0) return RUN_TIER_MOD_BY_IDX[i] || 1;
     }
     // Live Pathways Climb tier — only meaningful while a pathway is the active mode.
-    const pathwayMode = !!($('slopscale-root')?.classList.contains('slopscale-pathway-mode'));
+    const pathwayMode = !!($('slopscale_beta-root')?.classList.contains('slopscale_beta-pathway-mode'));
     if (pathwayMode && activePathwayId && activePathwayId !== 'custom') {
       return RUN_TIER_MOD_BY_IDX[activeTempoTierIdx] || 1;
     }
@@ -9253,7 +9253,7 @@
     }
     const bundle = {
       currentTime:0,
-      songInfo:{ title:exerciseTitle(cfg), artist:'SlopScale', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'slopscale-practice', fretboardSystem:cfg.fretboardSystem },
+      songInfo:{ title:exerciseTitle(cfg), artist:'SlopScale', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'slopscale_beta-practice', fretboardSystem:cfg.fretboardSystem },
       config:cfg,
       // Finite-run eligibility (Depth Ladder slice 1): a single-exercise DRILL
       // (Pathways/Custom) plays its right-sized run ONCE then ends with the session
@@ -9315,7 +9315,7 @@
 
   // ===========================================================================
   // §11 · BUILT-IN 2D RENDERERS
-  // Jumping-Tab fallback (makeBuiltin2DRenderer), Tab, Notation. Draw #slopscale-canvas.
+  // Jumping-Tab fallback (makeBuiltin2DRenderer), Tab, Notation. Draw #slopscale_beta-canvas.
   // ===========================================================================
   function makeBuiltin2DRenderer() {
     let canvas = null, ctx = null, W = 0, H = 0;
@@ -9324,7 +9324,7 @@
 
     function resize() {
       if (!canvas) return;
-      const box = canvas.parentElement || $('slopscale-render-host');
+      const box = canvas.parentElement || $('slopscale_beta-render-host');
       const r = box ? box.getBoundingClientRect() : { width: canvas.width, height: canvas.height };
       W = Math.max(640, Math.round(r.width || 1280));
       H = Math.max(420, Math.round(r.height || 720));
@@ -10485,7 +10485,7 @@
     // a source checkout without the Desktop-bundled Jumping Tab/Piano), bail
     // immediately instead of polling 3s for a global that will never register.
     // Fast, clean fallback to the in-tree renderer.
-    try { await loadScriptOnce('slopscale-viz-' + globalName, scriptPath); }
+    try { await loadScriptOnce('slopscale_beta-viz-' + globalName, scriptPath); }
     catch (_) { loaded = false; }
     if (loaded) {
       // Loaded — but the host may register its global a tick or two after onload.
@@ -10522,7 +10522,7 @@
     return { factory:makeBuiltin2DRenderer, label:'2D Highway (default)' };
   }
 
-  function replaceCanvas() { const host = $('slopscale-render-host'), old = $('slopscale-canvas'), canvas = document.createElement('canvas'); canvas.id = 'slopscale-canvas'; canvas.style.width = '100%'; canvas.style.height = '100%'; if (old && old.parentElement) old.replaceWith(canvas); else if (host) host.appendChild(canvas); const rect = (host || canvas).getBoundingClientRect(); canvas.width = Math.max(640, Math.round(rect.width || 1280)); canvas.height = Math.max(420, Math.round(rect.height || 720)); return canvas; }
+  function replaceCanvas() { const host = $('slopscale_beta-render-host'), old = $('slopscale_beta-canvas'), canvas = document.createElement('canvas'); canvas.id = 'slopscale_beta-canvas'; canvas.style.width = '100%'; canvas.style.height = '100%'; if (old && old.parentElement) old.replaceWith(canvas); else if (host) host.appendChild(canvas); const rect = (host || canvas).getBoundingClientRect(); canvas.width = Math.max(640, Math.round(rect.width || 1280)); canvas.height = Math.max(420, Math.round(rect.height || 720)); return canvas; }
   function stopAudio() { for (const n of audioNodes) { try { n.stop && n.stop(0); } catch {} try { n.disconnect && n.disconnect(); } catch {} } audioNodes = []; scheduledUntilCtx = 0; schedChartPos = 0; schedChunks = []; }
 
   // ── Rolling-window loop scheduling ───────────────────────────────────────────
@@ -10636,7 +10636,7 @@
     const cfg = exercise.session;
     // Honour saved renderer preference when the form hasn't been explicitly changed
     if (!cfg.renderer || cfg.renderer === 'highway_3d') {
-      const saved = localStorage.getItem('slopscale.renderer');
+      const saved = localStorage.getItem('slopscale_beta.renderer');
       if (saved) cfg.renderer = saved;
     }
     // The host 3D Highway renders 4–8 strings (resolveStringCount + an 8-entry
@@ -10674,14 +10674,14 @@
     if (!renderer || typeof renderer.draw !== 'function') throw new Error('Selected renderer did not return a Slopsmith-compatible renderer object.');
     if (typeof renderer.init === 'function') { renderer.init(canvas, rendererBundle); if (renderer.readyPromise && typeof renderer.readyPromise.then === 'function') await renderer.readyPromise; }
     if (cfg.renderer === 'notation_2d') renderer?.setMode?.(notationMode);
-    const rect = (canvas.parentElement || $('slopscale-render-host'))?.getBoundingClientRect() || { width: canvas.width, height: canvas.height };
+    const rect = (canvas.parentElement || $('slopscale_beta-render-host'))?.getBoundingClientRect() || { width: canvas.width, height: canvas.height };
     if (typeof renderer.resize === 'function') renderer.resize(Math.round(rect.width || canvas.width), Math.round(rect.height || canvas.height));
-    const rendererStatus = $('slopscale-renderer-status'); if (rendererStatus) rendererStatus.textContent = resolved.label; drawOnce();
+    const rendererStatus = $('slopscale_beta-renderer-status'); if (rendererStatus) rendererStatus.textContent = resolved.label; drawOnce();
     resetTransportLoop();
   }
 
   function syncPlayButton() {
-    const btn = $('slopscale-play');
+    const btn = $('slopscale_beta-play');
     if (!btn) return;
     // Three transport states (DAW convention — Stop is its own button now):
     // stopped → "▶ Play" · running → "⏸ Pause" · paused → "▶ Play" (resume).
@@ -10691,7 +10691,7 @@
     btn.classList.toggle('is-playing', !!(playing && !paused));
     btn.classList.toggle('is-paused', !!(playing && paused));
     btn.textContent = (playing && !paused) ? '⏸ Pause' : '▶ Play';
-    const stopBtn = $('slopscale-stop');
+    const stopBtn = $('slopscale_beta-stop');
     if (stopBtn) stopBtn.disabled = !playing;   // enabled while running OR paused
     updateStartCta();
   }
@@ -10704,9 +10704,9 @@
     return seg.length > 52 ? seg.slice(0, 50).trim() + '…' : seg;
   }
   function updateStartCta() {
-    const cta = $('slopscale-start-cta'); if (!cta) return;
+    const cta = $('slopscale_beta-start-cta'); if (!cta) return;
     const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
-    const verb = $('slopscale-start-verb'), name = $('slopscale-start-name'), skill = $('slopscale-start-skill');
+    const verb = $('slopscale_beta-start-verb'), name = $('slopscale_beta-start-name'), skill = $('slopscale_beta-start-skill');
     if (verb) verb.textContent = (playing && !paused) ? '⏸ PAUSE' : (paused ? '▶ RESUME' : '▶ START');
     if (name) name.textContent = pw ? pw.label : 'this exercise';
     if (skill) skill.textContent = pw ? startSkillHook(pw) : '';
@@ -10752,7 +10752,7 @@
   // the Highlight mode (chord tones / guide tones / scale / off) and the chord at the
   // playhead (from the enriched backing events). The teaching mirror.
   let jamHighlightMode = 'chord';   // chord | guide | scale | off
-  try { const m = localStorage.getItem('slopscale.jamHighlight'); if (m) jamHighlightMode = m; } catch (_) {}
+  try { const m = localStorage.getItem('slopscale_beta.jamHighlight'); if (m) jamHighlightMode = m; } catch (_) {}
   function jamTargetPcs(t) {
     if (jamHighlightMode === 'off' || !activeBundle) return null;
     if (jamHighlightMode === 'scale') {
@@ -10841,20 +10841,20 @@
   }
   // Reflect the toggle state onto the root class (drives strip visibility) and
   // the toggle button. The strip only actually appears when the active renderer
-  // is also fretboard-capable (see syncViewSwitcher's .slopscale-fb-capable).
+  // is also fretboard-capable (see syncViewSwitcher's .slopscale_beta-fb-capable).
   function syncFretboardUI() {
-    $('slopscale-root')?.classList.toggle('slopscale-fb-on', fretboardOn);
-    $('slopscale-fretboard-toggle')?.setAttribute('aria-checked', String(fretboardOn));
+    $('slopscale_beta-root')?.classList.toggle('slopscale_beta-fb-on', fretboardOn);
+    $('slopscale_beta-fretboard-toggle')?.setAttribute('aria-checked', String(fretboardOn));
   }
   // Reflect the keep-looping state onto its toggle (visibility is CSS, per mode).
   function syncKeepLoopUI() {
-    $('slopscale-keeploop-toggle')?.setAttribute('aria-checked', String(keepLooping));
+    $('slopscale_beta-keeploop-toggle')?.setAttribute('aria-checked', String(keepLooping));
   }
-  // Reflect the active swing/feel (hidden #slopscale-swing) onto the visible
+  // Reflect the active swing/feel (hidden #slopscale_beta-swing) onto the visible
   // Feel segmented control.
   function syncFeelControl() {
-    const v = ($('slopscale-swing')?.value) || 'straight';
-    document.querySelectorAll('.slopscale-feel-btn').forEach(b => {
+    const v = ($('slopscale_beta-swing')?.value) || 'straight';
+    document.querySelectorAll('.slopscale_beta-feel-btn').forEach(b => {
       const on = b.dataset.feel === v;
       b.classList.toggle('active', on);
       b.setAttribute('aria-pressed', String(on));
@@ -10863,9 +10863,9 @@
   // Left settings panel collapse/expand. Reflects state onto the root class
   // (drives the layout) and the chevron button (glyph + a11y).
   function syncPanelToggle() {
-    $('slopscale-root')?.classList.toggle('slopscale-collapsed', panelCollapsed);
+    $('slopscale_beta-root')?.classList.toggle('slopscale_beta-collapsed', panelCollapsed);
     // Setup|Play segmented control: Play == collapsed (rail hidden, stage widened).
-    document.querySelectorAll('.slopscale-modeview-btn').forEach(b => {
+    document.querySelectorAll('.slopscale_beta-modeview-btn').forEach(b => {
       const on = (b.dataset.modeview === 'play') === panelCollapsed;
       b.classList.toggle('active', on);
       b.setAttribute('aria-pressed', String(on));
@@ -10878,29 +10878,29 @@
     // viz re-lays-out instead of stretching its old canvas (mirrors the
     // fretboard-strip toggle).
     if (renderer && typeof renderer.resize === 'function') {
-      const host = $('slopscale-render-host');
+      const host = $('slopscale_beta-render-host');
       if (host) { const r = host.getBoundingClientRect(); renderer.resize(Math.round(r.width), Math.round(r.height)); }
     }
     drawOnce();
   }
   // ── Focus mode (fullscreen the stage) ──────────────────────────────────────
-  // Fullscreens just the .slopscale-stage (transport + ruler + render) so the
+  // Fullscreens just the .slopscale_beta-stage (transport + ruler + render) so the
   // host chrome drops away. requestFullscreen needs a user gesture (the click
   // provides it); Esc exits via the browser before the host's Escape handler.
   function toggleFocus() {
-    const stage = document.querySelector('.slopscale-stage');
+    const stage = document.querySelector('.slopscale_beta-stage');
     if (!stage) return;
     if (!document.fullscreenElement) { try { stage.requestFullscreen?.(); } catch (_) {} }
     else { try { document.exitFullscreen?.(); } catch (_) {} }
   }
   function onFullscreenChange() {
     const on = !!document.fullscreenElement;
-    $('slopscale-root')?.classList.toggle('slopscale-focused', on);
-    $('slopscale-focus-btn')?.setAttribute('aria-pressed', String(on));
+    $('slopscale_beta-root')?.classList.toggle('slopscale_beta-focused', on);
+    $('slopscale_beta-focus-btn')?.setAttribute('aria-pressed', String(on));
     // Re-fit the renderer to the resized stage on the next frame (after layout settles).
     requestAnimationFrame(() => {
       if (renderer && typeof renderer.resize === 'function') {
-        const host = $('slopscale-render-host');
+        const host = $('slopscale_beta-render-host');
         if (host) { const r = host.getBoundingClientRect(); renderer.resize(Math.round(r.width), Math.round(r.height)); }
       }
       drawOnce();
@@ -10909,10 +10909,10 @@
 
   // ===========================================================================
   // §13 · LIVE FRETBOARD STRIP
-  // horizontal neck on #slopscale-fretboard; hollow pattern + glowing live notes.
+  // horizontal neck on #slopscale_beta-fretboard; hollow pattern + glowing live notes.
   // ===========================================================================
   function drawFretboardFrame() {
-    const canvas = $('slopscale-fretboard');
+    const canvas = $('slopscale_beta-fretboard');
     if (!canvas || canvas.offsetParent === null) return;  // hidden (wrong view / toggled off / piano)
     if (!fbCtx || fbCtx.canvas !== canvas) fbCtx = canvas.getContext('2d');
     const ctx = fbCtx; if (!ctx) return;
@@ -10992,7 +10992,7 @@
     // Jam target-highlight: light the current chord's chord/guide/scale tones within
     // the lead box (green = --ss-meter "target") so the player sees which box notes to
     // aim for as the changes move. Drawn under the live glow.
-    const jamOn = $('slopscale-root')?.classList.contains('ss-mode-jam');
+    const jamOn = $('slopscale_beta-root')?.classList.contains('ss-mode-jam');
     // Anticipation ghost: the NEXT chord's guide tones (amber dashed) as the change
     // nears — prep the target before it lands. Drawn UNDER the current target.
     const nextPcs = jamOn ? jamNextGuidePcs(currentPracticeTime) : null;
@@ -11069,7 +11069,7 @@
   // zone — see the pointer handler in bind(). Pure draw; reads tpA/tpB + time.
   const RULER_LOOP_ZONE = 18;  // px height of the top loop/cycle strip
   function rulerGeom() {
-    const canvas = $('slopscale-ruler-canvas'); if (!canvas) return null;
+    const canvas = $('slopscale_beta-ruler-canvas'); if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
     const padX = 2, usableW = Math.max(1, rect.width - padX * 2);
     const dur = activeBundle?.songInfo?.duration || 0;
@@ -11105,7 +11105,7 @@
       inView: t => t >= now - win.BEHIND - 0.06 && t <= now + win.AHEAD + 0.06 };
   }
   function drawRulerFrame() {
-    const canvas = $('slopscale-ruler-canvas');
+    const canvas = $('slopscale_beta-ruler-canvas');
     if (!canvas || canvas.offsetParent === null) return;  // hidden view
     if (!rulerCtx || rulerCtx.canvas !== canvas) rulerCtx = canvas.getContext('2d');
     const ctx = rulerCtx; if (!ctx) return;
@@ -11218,7 +11218,7 @@
   }
   let overviewCtx = null;
   function drawOverviewFrame() {
-    const canvas = $('slopscale-overview-canvas');
+    const canvas = $('slopscale_beta-overview-canvas');
     if (!canvas || canvas.offsetParent === null) return;
     if (!overviewCtx || overviewCtx.canvas !== canvas) overviewCtx = canvas.getContext('2d');
     const ctx = overviewCtx; if (!ctx) return;
@@ -11307,7 +11307,7 @@
     return (tmpl && Array.isArray(tmpl.frets) && tmpl.frets.length) ? tmpl : null;
   }
   function drawChordBoxFrame() {
-    const canvas = $('slopscale-chordbox'); if (!canvas) return;
+    const canvas = $('slopscale_beta-chordbox'); if (!canvas) return;
     const tmpl = activeBundle ? currentChordTemplate() : null;
     if (!tmpl) { if (canvas.style.display !== 'none') canvas.style.display = 'none'; return; }
     canvas.style.display = 'block';
@@ -11408,7 +11408,7 @@
       // doesn't keep running in the background. Covers the host top-nav and
       // leaving a tutorial, which bypass SlopScale's own back buttons. The rAF
       // tick only runs while playing, so this is the natural place to catch it.
-      const screenRoot = $('slopscale-root');
+      const screenRoot = $('slopscale_beta-root');
       if (screenRoot && !screenRoot.offsetParent) { stopPlayback(); return; }
       // Paused: keep the RAF alive (the nav-guard above + redraws stay armed)
       // but freeze the clock — no advance, no loop wraps, no finite-run end.
@@ -11435,10 +11435,10 @@
         // the whole rest of the chart, every few seconds.
         schedulePreviewAudio(activeBundle, segmentLoopA, AUDIO_LOOKAHEAD_SECONDS, segmentLoopB);
         if (window.slopsmith && typeof window.slopsmith.emit === 'function') {
-          window.slopsmith.emit('slopscale:loop:wrap', { a: segmentLoopA, b: segmentLoopB, time: segmentLoopA });
+          window.slopsmith.emit('slopscale_beta:loop:wrap', { a: segmentLoopA, b: segmentLoopB, time: segmentLoopA });
         }
         _loopWraps++;
-        const lc = $('slopscale-loop-count');
+        const lc = $('slopscale_beta-loop-count');
         if (lc) { lc.hidden = false; lc.textContent = 'Loop ' + _loopWraps; }
       } else if (finiteRunActive()) {
         // Finite drill (Depth Ladder slice 1): the right-sized run plays ONCE, then
@@ -11654,7 +11654,7 @@
       if (Math.abs(deltaMs) > 20) {
         const nextMs = Math.max(0, Math.min(250, Math.round(_ptLatencyS * 1000) + deltaMs));
         _ptLatencyS = nextMs / 1000;
-        try { localStorage.setItem('slopscale.latencyMs', String(nextMs)); } catch (_) {}
+        try { localStorage.setItem('slopscale_beta.latencyMs', String(nextMs)); } catch (_) {}
       }
       refreshStatusFromState();
     } catch (e) {
@@ -11816,11 +11816,11 @@
   }
   function mixerLoad() {
     try {
-      const s = JSON.parse(localStorage.getItem('slopscale.mixer') || 'null');
+      const s = JSON.parse(localStorage.getItem('slopscale_beta.mixer') || 'null');
       if (s && s.ch) { MIXER_CHANNELS.forEach(c => { if (s.ch[c.key]) Object.assign(mixerState[c.key], s.ch[c.key]); }); mixerBackingDim = !!s.dim; }
     } catch (_) {}
   }
-  function mixerSave() { try { localStorage.setItem('slopscale.mixer', JSON.stringify({ ch: mixerState, dim: mixerBackingDim })); } catch (_) {} }
+  function mixerSave() { try { localStorage.setItem('slopscale_beta.mixer', JSON.stringify({ ch: mixerState, dim: mixerBackingDim })); } catch (_) {} }
   // Effective gain for a bus given the mixer state (1.0 = no change). Solo on any
   // channel mutes the un-soloed; Backing dim ducks the backing buses.
   function mixerGainFor(name) {
@@ -11844,72 +11844,72 @@
     });
   }
   function renderMixer() {
-    const host = $('slopscale-mixer-channels'); if (!host) return;
+    const host = $('slopscale_beta-mixer-channels'); if (!host) return;
     host.innerHTML = '';
     MIXER_CHANNELS.forEach(c => {
       const st = mixerState[c.key];
       const row = document.createElement('div');
-      row.className = 'slopscale-mixer-ch';
+      row.className = 'slopscale_beta-mixer-ch';
       row.innerHTML =
-        `<span class="slopscale-mixer-ch-label">${c.label}</span>` +
+        `<span class="slopscale_beta-mixer-ch-label">${c.label}</span>` +
         (c.instr
-          ? `<select class="slopscale-mixer-instr" data-k="${c.key}" title="${c.label} instrument" aria-label="${c.label} instrument">` +
+          ? `<select class="slopscale_beta-mixer-instr" data-k="${c.key}" title="${c.label} instrument" aria-label="${c.label} instrument">` +
               MIXER_INSTRUMENTS[c.instr].map(([v, l]) => `<option value="${v}"${(st.instrument || '') === v ? ' selected' : ''}>${l}</option>`).join('') +
             `</select>`
           : c.kit
-          ? `<select class="slopscale-mixer-kit" data-k="${c.key}" title="${c.label} kit" aria-label="${c.label} kit">` +
+          ? `<select class="slopscale_beta-mixer-kit" data-k="${c.key}" title="${c.label} kit" aria-label="${c.label} kit">` +
               MIXER_KITS.map(([v, l]) => `<option value="${v}"${(st.kit || '') === v ? ' selected' : ''}>${l}</option>`).join('') +
             `</select>`
-          : `<span class="slopscale-mixer-instr-none" aria-hidden="true"></span>`) +
-        `<button type="button" class="slopscale-mixer-tog mute${st.mute ? ' active' : ''}" data-k="${c.key}" data-act="mute" title="Mute" aria-pressed="${st.mute}">M</button>` +
-        `<button type="button" class="slopscale-mixer-tog solo${st.solo ? ' active' : ''}" data-k="${c.key}" data-act="solo" title="Solo" aria-pressed="${st.solo}">S</button>` +
-        `<input type="range" class="slopscale-mixer-fader" min="0" max="1.2" step="0.01" value="${st.level}" data-k="${c.key}" aria-label="${c.label} level">` +
-        `<span class="slopscale-mixer-val" data-k="${c.key}">${Math.round(st.level * 100)}</span>`;
+          : `<span class="slopscale_beta-mixer-instr-none" aria-hidden="true"></span>`) +
+        `<button type="button" class="slopscale_beta-mixer-tog mute${st.mute ? ' active' : ''}" data-k="${c.key}" data-act="mute" title="Mute" aria-pressed="${st.mute}">M</button>` +
+        `<button type="button" class="slopscale_beta-mixer-tog solo${st.solo ? ' active' : ''}" data-k="${c.key}" data-act="solo" title="Solo" aria-pressed="${st.solo}">S</button>` +
+        `<input type="range" class="slopscale_beta-mixer-fader" min="0" max="1.2" step="0.01" value="${st.level}" data-k="${c.key}" aria-label="${c.label} level">` +
+        `<span class="slopscale_beta-mixer-val" data-k="${c.key}">${Math.round(st.level * 100)}</span>`;
       host.appendChild(row);
       // Per-channel Tone knob (the relocated "Backing tone" / brightness — §14).
-      // UI relocation only: it reads/writes the form's #slopscale-brightness value
+      // UI relocation only: it reads/writes the form's #slopscale_beta-brightness value
       // (name="brightness"), so the existing audio path (data.get('brightness'))
       // is unchanged. A second row under the Comp channel so the fader stays the
       // dominant gesture.
       if (c.tone) {
-        const bEl = $('slopscale-brightness');
+        const bEl = $('slopscale_beta-brightness');
         const bright = bEl ? Math.max(0, Math.min(1, parseFloat(bEl.value) || 0)) : 0.5;
         const tone = document.createElement('div');
-        tone.className = 'slopscale-mixer-tone';
+        tone.className = 'slopscale_beta-mixer-tone';
         tone.innerHTML =
-          `<span class="slopscale-mixer-tone-lbl">Tone</span>` +
-          `<input type="range" class="slopscale-mixer-toneknob" min="0" max="1" step="0.05" value="${bright}" aria-label="${c.label} tone (darker ↔ brighter)" title="Backing tone — darker ↔ brighter. Auto-set per style; nudge to taste.">` +
-          `<span class="slopscale-mixer-tone-end" aria-hidden="true">brighter</span>`;
+          `<span class="slopscale_beta-mixer-tone-lbl">Tone</span>` +
+          `<input type="range" class="slopscale_beta-mixer-toneknob" min="0" max="1" step="0.05" value="${bright}" aria-label="${c.label} tone (darker ↔ brighter)" title="Backing tone — darker ↔ brighter. Auto-set per style; nudge to taste.">` +
+          `<span class="slopscale_beta-mixer-tone-end" aria-hidden="true">brighter</span>`;
         host.appendChild(tone);
       }
     });
-    const dim = $('slopscale-mixer-dim'); if (dim) dim.checked = mixerBackingDim;
+    const dim = $('slopscale_beta-mixer-dim'); if (dim) dim.checked = mixerBackingDim;
   }
   // Panel toggles (M / P / ? overlays). Slide transitions + open state live in CSS
   // (reduced-motion aware); these flip the root class + aria + the button highlight.
   function toggleMixer(force) {
-    const root = $('slopscale-root'); if (!root) return;
+    const root = $('slopscale_beta-root'); if (!root) return;
     const open = force != null ? force : !root.classList.contains('ss-mixer-open');
     if (open) { root.classList.remove('ss-library-open'); root.classList.remove('ss-starters-open'); }   // mutually exclusive bottom drawers
     root.classList.toggle('ss-mixer-open', open);
-    $('slopscale-mixer')?.setAttribute('aria-hidden', open ? 'false' : 'true');
-    $('slopscale-mixer-btn')?.classList.toggle('active', open);
+    $('slopscale_beta-mixer')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    $('slopscale_beta-mixer-btn')?.classList.toggle('active', open);
     if (open) { renderMixer(); applyMixer(); }
   }
   function toggleProgressSheet(force) {
-    const root = $('slopscale-root'); if (!root) return;
+    const root = $('slopscale_beta-root'); if (!root) return;
     const open = force != null ? force : !root.classList.contains('ss-progress-open');
     root.classList.toggle('ss-progress-open', open);
-    $('slopscale-progress-sheet')?.setAttribute('aria-hidden', open ? 'false' : 'true');
-    $('slopscale-progress-strip')?.classList.toggle('chip-open', open);   // the header chip is P's affordance
+    $('slopscale_beta-progress-sheet')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    $('slopscale_beta-progress-strip')?.classList.toggle('chip-open', open);   // the header chip is P's affordance
     if (open) renderProgressSheet();
   }
   function toggleCheatSheet(force) {
-    const root = $('slopscale-root'); if (!root) return;
+    const root = $('slopscale_beta-root'); if (!root) return;
     const open = force != null ? force : !root.classList.contains('ss-cheat-open');
     root.classList.toggle('ss-cheat-open', open);
-    $('slopscale-cheatsheet')?.setAttribute('aria-hidden', open ? 'false' : 'true');
-    $('slopscale-help-btn')?.classList.toggle('active', open);
+    $('slopscale_beta-cheatsheet')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    $('slopscale_beta-help-btn')?.classList.toggle('active', open);
   }
 
   // ── Library browse drawer (Phase 9 Slice 3) ─────────────────────────────────
@@ -11926,21 +11926,21 @@
     return [...set].sort();
   }
   function toggleLibrary(force) {
-    const root = $('slopscale-root'); if (!root) return;
+    const root = $('slopscale_beta-root'); if (!root) return;
     const open = force != null ? force : !root.classList.contains('ss-library-open');
     if (open) { root.classList.remove('ss-mixer-open'); root.classList.remove('ss-starters-open'); }   // both slide up from the bottom — mutually exclusive
     root.classList.toggle('ss-library-open', open);
-    $('slopscale-library')?.setAttribute('aria-hidden', open ? 'false' : 'true');
-    $('slopscale-library-open')?.classList.toggle('active', open);
+    $('slopscale_beta-library')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    $('slopscale_beta-library-open')?.classList.toggle('active', open);
     if (open) renderLibrary();
   }
   function _libChipRow(dim, label, values) {
     const cur = _libFilters[dim];
-    const chip = (val, txt) => `<button type="button" class="slopscale-lib-chip${cur === val ? ' active' : ''}" data-filter="${dim}" data-value="${val}">${txt}</button>`;
-    return `<div class="slopscale-lib-chiprow"><span class="slopscale-lib-chiplbl">${label}</span>${chip('all', 'All')}${values.map(v => chip(v[0], v[1])).join('')}</div>`;
+    const chip = (val, txt) => `<button type="button" class="slopscale_beta-lib-chip${cur === val ? ' active' : ''}" data-filter="${dim}" data-value="${val}">${txt}</button>`;
+    return `<div class="slopscale_beta-lib-chiprow"><span class="slopscale_beta-lib-chiplbl">${label}</span>${chip('all', 'All')}${values.map(v => chip(v[0], v[1])).join('')}</div>`;
   }
   function renderLibraryFilters() {
-    const el = $('slopscale-library-filters'); if (!el) return;
+    const el = $('slopscale_beta-library-filters'); if (!el) return;
     const genres = _libGenres().map(g => [g, LIB_GENRE_LABELS[g] || g]);
     const skills = [['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced']];
     const insts  = [['guitar', 'Guitar'], ['bass', 'Bass']];
@@ -11954,18 +11954,18 @@
     let dose = '';
     try { const seg = rollSegment(t, { variantIdx: 0 }); const d = segmentEstDuration(seg); dose = d < 60 ? `~${Math.round(d)}s` : `~${Math.floor(d / 60)}m${Math.round(d % 60)}s`; } catch (_) {}
     const meta = [t.competency, t.style ? (LIB_GENRE_LABELS[t.style] || t.style) : 'all-purpose', t.instrument, dose].filter(Boolean).join(' · ');
-    return `<div class="slopscale-lib-card">
-      <div class="slopscale-segment-header">
-        <span class="slopscale-segment-badge" style="color:${color}">${esc(klabel)}</span>
-        <span class="slopscale-segment-name">${esc(t.label || id)}</span>
-        <button type="button" class="slopscale-lib-add" data-template-id="${esc(id)}" title="Add this block to your workout">+ Add</button>
+    return `<div class="slopscale_beta-lib-card">
+      <div class="slopscale_beta-segment-header">
+        <span class="slopscale_beta-segment-badge" style="color:${color}">${esc(klabel)}</span>
+        <span class="slopscale_beta-segment-name">${esc(t.label || id)}</span>
+        <button type="button" class="slopscale_beta-lib-add" data-template-id="${esc(id)}" title="Add this block to your workout">+ Add</button>
       </div>
-      <div class="slopscale-segment-meta">${esc(meta)}</div>
+      <div class="slopscale_beta-segment-meta">${esc(meta)}</div>
     </div>`;
   }
   function renderLibrary() {
     renderLibraryFilters();
-    const body = $('slopscale-library-body'), cnt = $('slopscale-library-count'); if (!body) return;
+    const body = $('slopscale_beta-library-body'), cnt = $('slopscale_beta-library-count'); if (!body) return;
     const f = _libFilters;
     const ids = Object.keys(SEGMENT_TEMPLATES);
     const match = id => { const t = SEGMENT_TEMPLATES[id];
@@ -11979,10 +11979,10 @@
     for (const role of roleOrder) {
       const inRole = shown.filter(id => SEGMENT_TEMPLATES[id].role === role);
       if (!inRole.length) continue;
-      html += `<div class="slopscale-lib-rolehead">${SEGMENT_ROLES[role].label} <span class="slopscale-lib-rolecount">${inRole.length}</span></div>`;
-      html += `<div class="slopscale-lib-grid">${inRole.map(_libCardHtml).join('')}</div>`;
+      html += `<div class="slopscale_beta-lib-rolehead">${SEGMENT_ROLES[role].label} <span class="slopscale_beta-lib-rolecount">${inRole.length}</span></div>`;
+      html += `<div class="slopscale_beta-lib-grid">${inRole.map(_libCardHtml).join('')}</div>`;
     }
-    body.innerHTML = html || `<div class="slopscale-lib-empty">No blocks match these filters — clear one to see more.</div>`;
+    body.innerHTML = html || `<div class="slopscale_beta-lib-empty">No blocks match these filters — clear one to see more.</div>`;
   }
 
   // ── Starter-workout browse drawer (Phase 9 Slice 4) ─────────────────────────
@@ -12007,21 +12007,21 @@
     return { genre, level, instrument: setup.instrument };
   }
   function toggleStarters(force) {
-    const root = $('slopscale-root'); if (!root) return;
+    const root = $('slopscale_beta-root'); if (!root) return;
     const open = force != null ? force : !root.classList.contains('ss-starters-open');
     if (open) { root.classList.remove('ss-mixer-open'); root.classList.remove('ss-library-open'); }   // mutually exclusive bottom drawers
     root.classList.toggle('ss-starters-open', open);
-    $('slopscale-starters')?.setAttribute('aria-hidden', open ? 'false' : 'true');
-    $('slopscale-starters-open')?.classList.toggle('active', open);
+    $('slopscale_beta-starters')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    $('slopscale_beta-starters-open')?.classList.toggle('active', open);
     if (open) { _pendingStarter = null; renderStarters(); }
   }
   function _starterChipRow(dim, label, values) {
     const cur = _starterFilters[dim];
-    const chip = (val, txt) => `<button type="button" class="slopscale-lib-chip${cur === val ? ' active' : ''}" data-sfilter="${dim}" data-value="${val}">${txt}</button>`;
-    return `<div class="slopscale-lib-chiprow"><span class="slopscale-lib-chiplbl">${label}</span>${chip('all', 'All')}${values.map(v => chip(v[0], v[1])).join('')}</div>`;
+    const chip = (val, txt) => `<button type="button" class="slopscale_beta-lib-chip${cur === val ? ' active' : ''}" data-sfilter="${dim}" data-value="${val}">${txt}</button>`;
+    return `<div class="slopscale_beta-lib-chiprow"><span class="slopscale_beta-lib-chiplbl">${label}</span>${chip('all', 'All')}${values.map(v => chip(v[0], v[1])).join('')}</div>`;
   }
   function renderStarterFilters() {
-    const el = $('slopscale-starters-filters'); if (!el) return;
+    const el = $('slopscale_beta-starters-filters'); if (!el) return;
     const present = new Set(Object.keys(BUILT_IN_SESSIONS).map(id => _sessionFacets(id).genre));
     const genres = ['blues','rock','metal','jazz','funk','pop','country','gospel','general'].filter(g => present.has(g))
       .map(g => [g, g === 'general' ? 'General' : (LIB_GENRE_LABELS[g] || g)]);
@@ -12031,10 +12031,10 @@
   }
   function _starterDotsHtml(id) {
     const segs = (BUILT_IN_SESSIONS[id].segments || []).map(materializeSegment).filter(Boolean);
-    return `<span class="slopscale-starter-dots">` + segs.map(s => {
+    return `<span class="slopscale_beta-starter-dots">` + segs.map(s => {
       const c = ROLE_COLORS[s.role] || KIND_COLORS[s.kind] || '#64748b';
       const lbl = (SEGMENT_ROLES[s.role] || {}).label || KIND_LABELS[s.kind] || s.kind;
-      return `<span class="slopscale-starter-dot" style="background:${c}" title="${lbl}"></span>`;
+      return `<span class="slopscale_beta-starter-dot" style="background:${c}" title="${lbl}"></span>`;
     }).join('') + `</span>`;
   }
   function _starterCardHtml(id) {
@@ -12045,26 +12045,26 @@
     const dur = segs.reduce((a, s) => a + segmentEstDuration(s), 0);
     const durStr = dur < 60 ? `~${Math.round(dur)}s` : `~${Math.floor(dur / 60)}m`;
     const meta = [`${segs.length} blocks`, f.genre === 'general' ? null : (LIB_GENRE_LABELS[f.genre] || f.genre), f.level === 'any' ? null : f.level, f.instrument, durStr].filter(Boolean).join(' · ');
-    return `<div class="slopscale-lib-card slopscale-starter-card">
-      <div class="slopscale-segment-header">
-        <span class="slopscale-segment-name">${esc(sess.name || id)}</span>
-        <button type="button" class="slopscale-lib-add slopscale-starter-load" data-starter-id="${esc(id)}" title="Load this starter into the timeline">Load</button>
+    return `<div class="slopscale_beta-lib-card slopscale_beta-starter-card">
+      <div class="slopscale_beta-segment-header">
+        <span class="slopscale_beta-segment-name">${esc(sess.name || id)}</span>
+        <button type="button" class="slopscale_beta-lib-add slopscale_beta-starter-load" data-starter-id="${esc(id)}" title="Load this starter into the timeline">Load</button>
       </div>
       ${_starterDotsHtml(id)}
-      <div class="slopscale-segment-meta">${esc(meta)}</div>
+      <div class="slopscale_beta-segment-meta">${esc(meta)}</div>
     </div>`;
   }
   function renderStarters() {
     renderStarterFilters();
-    const body = $('slopscale-starters-body'), cnt = $('slopscale-starters-count'), confirm = $('slopscale-starters-confirm');
+    const body = $('slopscale_beta-starters-body'), cnt = $('slopscale_beta-starters-count'), confirm = $('slopscale_beta-starters-confirm');
     if (!body) return;
     // Replace-guard strip (only when the draft has unsaved edits): inline, not a modal.
     if (confirm) {
       if (_pendingStarter && BUILT_IN_SESSIONS[_pendingStarter]) {
         const n = ((_workoutDraft && _workoutDraft.segments) || []).length;
         confirm.innerHTML = `<span>Replace your ${n} edited block${n === 1 ? '' : 's'} with “${BUILT_IN_SESSIONS[_pendingStarter].name}”?</span>`
-          + `<button type="button" class="slopscale-starter-confirm-yes" data-starter-id="${_pendingStarter}">Load</button>`
-          + `<button type="button" class="slopscale-starter-confirm-no">Cancel</button>`;
+          + `<button type="button" class="slopscale_beta-starter-confirm-yes" data-starter-id="${_pendingStarter}">Load</button>`
+          + `<button type="button" class="slopscale_beta-starter-confirm-no">Cancel</button>`;
         confirm.hidden = false;
       } else { confirm.hidden = true; confirm.innerHTML = ''; }
     }
@@ -12077,8 +12077,8 @@
     const shown = ids.filter(match);
     if (cnt) cnt.textContent = `${shown.length} of ${ids.length}`;
     body.innerHTML = shown.length
-      ? `<div class="slopscale-lib-grid">${shown.map(_starterCardHtml).join('')}</div>`
-      : `<div class="slopscale-lib-empty">No starters match these filters — clear one to see more.</div>`;
+      ? `<div class="slopscale_beta-lib-grid">${shown.map(_starterCardHtml).join('')}</div>`
+      : `<div class="slopscale_beta-lib-empty">No starters match these filters — clear one to see more.</div>`;
   }
   // Fork a starter into the editable timeline. Replace-guard: if the current draft
   // has edits, stage a confirm strip instead of clobbering (force=true confirms).
@@ -12100,13 +12100,13 @@
   // until Save (works on a draft copy). "Remove" = move back to Available, never delete.
   function packsLoad() {
     try {
-      const o = JSON.parse(localStorage.getItem('slopscale.packs') || '{}');
+      const o = JSON.parse(localStorage.getItem('slopscale_beta.packs') || '{}');
       return { installed: Array.isArray(o.installed) ? o.installed : [],
                order:     Array.isArray(o.order)     ? o.order     : [] };
     } catch { return { installed: [], order: [] }; }
   }
   function packsSave(state) {
-    try { localStorage.setItem('slopscale.packs', JSON.stringify({ installed: state.order.slice(), order: state.order.slice() })); }
+    try { localStorage.setItem('slopscale_beta.packs', JSON.stringify({ installed: state.order.slice(), order: state.order.slice() })); }
     catch (e) { console.warn('[SlopScale] packs save failed', e); }
   }
   const _stylePackIds = () => PATHWAY_BANDS.filter(b => b.kind === 'style').map(b => b.id);
@@ -12128,18 +12128,18 @@
   let _packsSel = null;     // { col:'available'|'installed', id } current selection
 
   function togglePackManager(force) {
-    const root = $('slopscale-root'); if (!root) return;
+    const root = $('slopscale_beta-root'); if (!root) return;
     const open = force != null ? force : !root.classList.contains('ss-packs-open');
     if (open) { _packsDraft = { order: installedStyleOrder() }; _packsSel = null; }
     root.classList.toggle('ss-packs-open', open);
-    $('slopscale-packs-modal')?.setAttribute('aria-hidden', open ? 'false' : 'true');
-    document.querySelectorAll('.slopscale-band-add').forEach(b => b.classList.toggle('active', open));
+    $('slopscale_beta-packs-modal')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    document.querySelectorAll('.slopscale_beta-band-add').forEach(b => b.classList.toggle('active', open));
     if (open) renderPackManager(); else { _packsDraft = null; _packsSel = null; }
   }
 
   function renderPackManager() {
-    const inst = $('slopscale-packs-installed');
-    const avail = $('slopscale-packs-available');
+    const inst = $('slopscale_beta-packs-installed');
+    const avail = $('slopscale_beta-packs-available');
     if (!inst || !avail || !_packsDraft) return;
     const installedStyles = _packsDraft.order.slice();
     const availableStyles = _stylePackIds().filter(id => !installedStyles.includes(id));
@@ -12147,7 +12147,7 @@
     // Installed column: Core (pinned, locked) → hairline → Style (draggable, ordered)
     inst.innerHTML = '';
     _corePackIds().forEach(id => inst.appendChild(_packRow(id, 'installed', { core: true })));
-    const hr = document.createElement('div'); hr.className = 'slopscale-pack-hairline'; inst.appendChild(hr);
+    const hr = document.createElement('div'); hr.className = 'slopscale_beta-pack-hairline'; inst.appendChild(hr);
     if (!installedStyles.length) {
       inst.appendChild(_packEmpty('No style packs installed — add one from Available.'));
     } else {
@@ -12163,28 +12163,28 @@
       const fams = PACK_FAMILY_ORDER.filter(f => availableStyles.some(id => famOf(id) === f));
       availableStyles.forEach(id => { const f = famOf(id); if (f && !fams.includes(f)) fams.push(f); });
       fams.forEach(f => {
-        const head = document.createElement('div'); head.className = 'slopscale-pack-fam'; head.textContent = f; avail.appendChild(head);
+        const head = document.createElement('div'); head.className = 'slopscale_beta-pack-fam'; head.textContent = f; avail.appendChild(head);
         availableStyles.filter(id => famOf(id) === f).forEach(id => avail.appendChild(_packRow(id, 'available', {})));
       });
     }
     _syncPackMoveButtons();
   }
 
-  function _packEmpty(msg) { const d = document.createElement('div'); d.className = 'slopscale-pack-empty'; d.textContent = msg; return d; }
+  function _packEmpty(msg) { const d = document.createElement('div'); d.className = 'slopscale_beta-pack-empty'; d.textContent = msg; return d; }
 
   function _packRow(id, col, opts) {
     const b = PATHWAY_BANDS.find(x => x.id === id) || { label: id };
     const row = document.createElement('div');
-    row.className = 'slopscale-segment-card slopscale-pack-row'
+    row.className = 'slopscale_beta-segment-card slopscale_beta-pack-row'
       + (opts.core ? ' is-core' : '')
       + (_packsSel && _packsSel.col === col && _packsSel.id === id ? ' active' : '');
     row.dataset.packId = id;
     row.dataset.col = col;
     row.setAttribute('role', 'option');
-    const lead = opts.core ? '<span class="slopscale-pack-lock" title="Core — always included" aria-hidden="true">🔒</span>'
-      : (col === 'installed' ? '<span class="slopscale-pack-grip" aria-hidden="true">⋮⋮</span>' : '');
-    const sub = (b.kind === 'style' && b.buildsOn) ? `<div class="slopscale-pw-sub">${b.buildsOn}</div>` : '';
-    row.innerHTML = `<div class="slopscale-pw-rowtop">${lead}<span class="slopscale-pw-label">${b.label}${opts.core ? ' · Core' : ''}</span></div>${sub}`;
+    const lead = opts.core ? '<span class="slopscale_beta-pack-lock" title="Core — always included" aria-hidden="true">🔒</span>'
+      : (col === 'installed' ? '<span class="slopscale_beta-pack-grip" aria-hidden="true">⋮⋮</span>' : '');
+    const sub = (b.kind === 'style' && b.buildsOn) ? `<div class="slopscale_beta-pw-sub">${b.buildsOn}</div>` : '';
+    row.innerHTML = `<div class="slopscale_beta-pw-rowtop">${lead}<span class="slopscale_beta-pw-label">${b.label}${opts.core ? ' · Core' : ''}</span></div>${sub}`;
     if (!opts.core) {
       row.tabIndex = 0;
       const select = () => { _packsSel = { col, id }; renderPackManager(); };
@@ -12214,13 +12214,13 @@
   }
   // Which installed Style row a drop at clientY lands before (null = append to end).
   function _packRowUnder(container, clientY) {
-    const rows = [...container.querySelectorAll('.slopscale-pack-row:not(.is-core)')];
+    const rows = [...container.querySelectorAll('.slopscale_beta-pack-row:not(.is-core)')];
     for (const r of rows) { const box = r.getBoundingClientRect(); if (clientY < box.top + box.height / 2) return r.dataset.packId; }
     return null;
   }
   function _syncPackMoveButtons() {
-    const toInst = $('slopscale-packs-to-installed');
-    const toAvail = $('slopscale-packs-to-available');
+    const toInst = $('slopscale_beta-packs-to-installed');
+    const toAvail = $('slopscale_beta-packs-to-available');
     if (toInst) toInst.disabled = !(_packsSel && _packsSel.col === 'available');
     if (toAvail) toAvail.disabled = !(_packsSel && _packsSel.col === 'installed');
   }
@@ -12236,14 +12236,14 @@
     const sk = s.scale ? `${s.key || ''} ${String(s.scale).replace(/_/g, ' ')}`.trim() : '';
     let tierLine = '';
     if (s.tierCleared && s.clearedTier != null) {
-      tierLine = `<div class="slopscale-ss-cleared">▲ New tier cleared — ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}</div>`;
+      tierLine = `<div class="slopscale_beta-ss-cleared">▲ New tier cleared — ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}</div>`;
     } else if (s.mode === 'pathway' && s.bpm_tier != null && s.bpm_tier >= 0) {
-      tierLine = `<div class="slopscale-ss-line">Reached ${TIER_LABELS[s.bpm_tier] || ('Tier ' + (s.bpm_tier + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}</div>`;
+      tierLine = `<div class="slopscale_beta-ss-line">Reached ${TIER_LABELS[s.bpm_tier] || ('Tier ' + (s.bpm_tier + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}</div>`;
     } else if (s.bpm) {
-      tierLine = `<div class="slopscale-ss-line">${s.bpm} BPM</div>`;
+      tierLine = `<div class="slopscale_beta-ss-line">${s.bpm} BPM</div>`;
     }
     const streakLine = s.streak > 0
-      ? `<div class="slopscale-ss-line">${s.streak === 1 ? 'Streak started — day 1' : `Day ${s.streak} streak`}</div>`
+      ? `<div class="slopscale_beta-ss-line">${s.streak === 1 ? 'Streak started — day 1' : `Day ${s.streak} streak`}</div>`
       : '';
     // Depth-ladder credit (Phase 9 Slice 5) — gained-only, surfaced from
     // _lastEndedSession.depth = { xpGained, travelKey, travelRung } | null. The
@@ -12251,9 +12251,9 @@
     // key is neutral progress; XP is a calm readout. Null in Off mode → nothing.
     const d = s.depth;
     let depthLine = '';
-    if (d && d.travelRung) depthLine = `<div class="slopscale-ss-cleared">▲ Travel rung cleared — it travels now</div>`;
-    else if (d && d.travelKey) depthLine = `<div class="slopscale-ss-line">New ground — first clean run in ${d.travelKey}</div>`;
-    const xpLine = (d && d.xpGained > 0) ? `<div class="slopscale-ss-line">+${d.xpGained} XP</div>` : '';
+    if (d && d.travelRung) depthLine = `<div class="slopscale_beta-ss-cleared">▲ Travel rung cleared — it travels now</div>`;
+    else if (d && d.travelKey) depthLine = `<div class="slopscale_beta-ss-line">New ground — first clean run in ${d.travelKey}</div>`;
+    const xpLine = (d && d.xpGained > 0) ? `<div class="slopscale_beta-ss-line">+${d.xpGained} XP</div>` : '';
     // Proof-loop (flagged, pilot): a competency CLAIM replaces the generic tier line —
     // ONLY when something was actually proven — plus a Copy-the-card affordance.
     let proofLine = '', copyBtn = '';
@@ -12266,16 +12266,16 @@
       const sub = s.proof.kind === 'guide_tones'
         ? `Your line voice-led to the guide tones (3rd &amp; 7th)${s.proof.progression ? ` through the ${s.proof.progression}` : ''}. ${s.proof.transfer || ''}`.trim()
         : (s.proof.transfer || '');
-      proofLine = `<div class="slopscale-ss-cleared">${claim}</div>` +
-        (sub ? `<div class="slopscale-ss-sub slopscale-ss-transfer">${sub}</div>` : '');
-      copyBtn = `<button type="button" class="slopscale-ss-copy" data-act="copy-proof" title="Copy a plain-text card to share">Copy progress card</button>`;
+      proofLine = `<div class="slopscale_beta-ss-cleared">${claim}</div>` +
+        (sub ? `<div class="slopscale_beta-ss-sub slopscale_beta-ss-transfer">${sub}</div>` : '');
+      copyBtn = `<button type="button" class="slopscale_beta-ss-copy" data-act="copy-proof" title="Copy a plain-text card to share">Copy progress card</button>`;
     }
-    return `<div class="slopscale-progress-sheet-section slopscale-ss-card">` +
-      `<div class="slopscale-ss-head"><h4>Last session</h4>` +
-      `<button type="button" class="slopscale-ss-dismiss" data-act="dismiss-summary" title="Dismiss" aria-label="Dismiss last-session card">✕</button></div>` +
-      `<div class="slopscale-ss-what">${s.displayName}</div>` +
-      (sk ? `<div class="slopscale-ss-sub">${sk}</div>` : '') +
-      `<div class="slopscale-ss-line">Practiced ${dur}</div>` +
+    return `<div class="slopscale_beta-progress-sheet-section slopscale_beta-ss-card">` +
+      `<div class="slopscale_beta-ss-head"><h4>Last session</h4>` +
+      `<button type="button" class="slopscale_beta-ss-dismiss" data-act="dismiss-summary" title="Dismiss" aria-label="Dismiss last-session card">✕</button></div>` +
+      `<div class="slopscale_beta-ss-what">${s.displayName}</div>` +
+      (sk ? `<div class="slopscale_beta-ss-sub">${sk}</div>` : '') +
+      `<div class="slopscale_beta-ss-line">Practiced ${dur}</div>` +
       (s.proof ? proofLine : tierLine) + depthLine + xpLine + streakLine + copyBtn +
       `</div>`;
   }
@@ -12311,7 +12311,7 @@
     return null;
   }
   function showResultsModal(s) {
-    const root = $('slopscale-root'), body = $('slopscale-results-body'), title = $('slopscale-results-title');
+    const root = $('slopscale_beta-root'), body = $('slopscale_beta-results-body'), title = $('slopscale_beta-results-title');
     if (!root || !body || !s) return;
     const r = s.results || {};
     const info = r.info || null;
@@ -12338,13 +12338,13 @@
       const psub = s.proof.kind === 'guide_tones'
         ? `Your line voice-led to the guide tones (3rd &amp; 7th)${s.proof.progression ? ` through the ${s.proof.progression}` : ''}. ${s.proof.transfer || ''}`.trim()
         : (s.proof.transfer || '');
-      verdict = `<div class="slopscale-ss-cleared slopscale-results-verdict">${claim}</div>` +
-        (psub ? `<div class="slopscale-ss-sub slopscale-ss-transfer">${psub}</div>` : '') +
-        `<button type="button" class="slopscale-ss-copy" data-act="copy-proof" title="Copy a plain-text card to share">Copy progress card</button>`;
+      verdict = `<div class="slopscale_beta-ss-cleared slopscale_beta-results-verdict">${claim}</div>` +
+        (psub ? `<div class="slopscale_beta-ss-sub slopscale_beta-ss-transfer">${psub}</div>` : '') +
+        `<button type="button" class="slopscale_beta-ss-copy" data-act="copy-proof" title="Copy a plain-text card to share">Copy progress card</button>`;
     } else if (ownTierFlip) {
-      verdict = `<div class="slopscale-ss-cleared slopscale-results-verdict">▲ Rung cleared — ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}</div>`;
+      verdict = `<div class="slopscale_beta-ss-cleared slopscale_beta-results-verdict">▲ Rung cleared — ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}</div>`;
     } else if (s.depth && s.depth.travelRung) {
-      verdict = `<div class="slopscale-ss-cleared slopscale-results-verdict">▲ Travel rung cleared — it travels now</div>`;
+      verdict = `<div class="slopscale_beta-ss-cleared slopscale_beta-results-verdict">▲ Travel rung cleared — it travels now</div>`;
     }
 
     // 2 · the % readout — ALWAYS neutral color; the sub-line keeps the
@@ -12369,9 +12369,9 @@
       const rungs = s.ladder.tiers.map((b, i) => {
         const clr = i <= s.ladder.highestCleared;
         const isNew = !xpOff && s.tierCleared && i === s.clearedTier;
-        return `<span class="slopscale-results-rung${clr ? ' cleared' : ''}${isNew ? ' rung-new' : ''}">${TIER_LABELS[i] || ('T' + (i + 1))}</span>`;
+        return `<span class="slopscale_beta-results-rung${clr ? ' cleared' : ''}${isNew ? ' rung-new' : ''}">${TIER_LABELS[i] || ('T' + (i + 1))}</span>`;
       }).join('');
-      stripBits.push(`<div class="slopscale-results-ladder">${rungs}</div>`);
+      stripBits.push(`<div class="slopscale_beta-results-ladder">${rungs}</div>`);
     }
     if (!xpOff) {
       const d = s.depth, deltas = [];
@@ -12384,51 +12384,51 @@
           deltas.push(`${s.ladder.tiers[nIdx] - s.bpm} BPM to ${TIER_LABELS[nIdx] || ('T' + (nIdx + 1))}`);
         }
       }
-      if (deltas.length) stripBits.push(`<div class="slopscale-results-deltas">${deltas.join(' · ')}</div>`);
+      if (deltas.length) stripBits.push(`<div class="slopscale_beta-results-deltas">${deltas.join(' · ')}</div>`);
       // "Best here" — a STANDING TARGET FACT (L&D ruling 2026-06-06): no "today",
       // no "was", no gap — the UI never performs the comparison for the player.
       // Suppressed on rough runs, before 3 same-spec runs, and when today IS the
       // best (the recognizer below carries that, upward).
       if (s.specBest && !rough && s.specBest.runs >= 3 && !s.specBest.isNew) {
-        stripBits.push(`<div class="slopscale-results-deltas">Best here: ${s.specBest.best}%</div>`);
+        stripBits.push(`<div class="slopscale_beta-results-deltas">Best here: ${s.specBest.best}%</div>`);
       }
       // ONE recognizer line, accent-colored (a new-best is new ground, not a clear).
       if (s.recognizer && s.recognizer.kind === 'first_clear') {
-        stripBits.push(`<div class="slopscale-results-recog">First clear on ${s.displayName}</div>`);
+        stripBits.push(`<div class="slopscale_beta-results-recog">First clear on ${s.displayName}</div>`);
       } else if (s.recognizer && s.recognizer.kind === 'fastest') {
-        stripBits.push(`<div class="slopscale-results-recog">Fastest clean run — ${s.recognizer.bpm} BPM (was ${s.recognizer.prev})</div>`);
+        stripBits.push(`<div class="slopscale_beta-results-recog">Fastest clean run — ${s.recognizer.bpm} BPM (was ${s.recognizer.prev})</div>`);
       } else if (s.recognizer && s.recognizer.kind === 'best_pct') {
-        stripBits.push(`<div class="slopscale-results-recog">New best here — ${s.recognizer.pct}% (was ${s.recognizer.prev}%)</div>`);
+        stripBits.push(`<div class="slopscale_beta-results-recog">New best here — ${s.recognizer.pct}% (was ${s.recognizer.prev}%)</div>`);
       } else if (d && d.travelKey) {
-        stripBits.push(`<div class="slopscale-results-recog">New ground — first clean run in ${d.travelKey}</div>`);
+        stripBits.push(`<div class="slopscale_beta-results-recog">New ground — first clean run in ${d.travelKey}</div>`);
       }
     }
-    const strip = stripBits.length ? `<div class="slopscale-results-strip">${stripBits.join('')}</div>` : '';
+    const strip = stripBits.length ? `<div class="slopscale_beta-results-strip">${stripBits.join('')}</div>` : '';
 
     // 6 · ▸ How this run was judged — player language ("name the capability,
     // never the implementation", 2026-06-06 copy round): the rows answer "did
     // you count everything? → why not those? → what was listening?", every
     // exemption phrased as the system's limit, never the player's fault. The
     // dev-verbatim strings (byte-comparable across detection builds) ride as
-    // dim mono tails behind the `slopscale.resultsVerbose` flag, with a Copy
+    // dim mono tails behind the `slopscale_beta.resultsVerbose` flag, with a Copy
     // diagnostics button — the field-debugging instrument.
-    let verbose = false; try { verbose = localStorage.getItem('slopscale.resultsVerbose') === 'on'; } catch (_) {}
-    const devTail = (t) => verbose ? ` <span class="slopscale-results-dev">${t}</span>` : '';
+    let verbose = false; try { verbose = localStorage.getItem('slopscale_beta.resultsVerbose') === 'on'; } catch (_) {}
+    const devTail = (t) => verbose ? ` <span class="slopscale_beta-results-dev">${t}</span>` : '';
     const rows = [];
     if (judged && r.missed > 0) rows.push(`Missed: <strong>${r.missed}</strong> judged notes`);
     if (info) {
       const exempt = info.total - info.judged;
       if (exempt > 0) {
         rows.push(`Judged: <strong>${info.judged}</strong> of <strong>${info.total}</strong> — the other ${exempt} were shown, not judged:${devTail(`(judged ${info.judged}/${info.total})`)}`);
-        if (info.exemptChords) rows.push(`<span class="slopscale-results-exrow">· <strong>${info.exemptChords}</strong> chord notes — this ear hears one note at a time${devTail('(mono detector)')}</span>`);
-        if (info.exemptSubFloor) rows.push(`<span class="slopscale-results-exrow">· <strong>${info.exemptSubFloor}</strong> notes too low for the mic to hear — play them with the click; they never count against you${devTail('(&lt; 70 Hz floor)')}</span>`);
-        if (info.exemptMuted) rows.push(`<span class="slopscale-results-exrow">· <strong>${info.exemptMuted}</strong> muted ghost notes — a good mute has no pitch to judge${devTail('(mt, pitch-exempt)')}</span>`);
-        if (info.exemptFast) rows.push(`<span class="slopscale-results-exrow">· <strong>${info.exemptFast}</strong> notes too fast for this ear to certify one-by-one — play them; the judged notes around them carry the proof${devTail(`(ring &lt; ${info.floorMs}ms floor)`)}</span>`);
-        if (info.exemptLegato) rows.push(`<span class="slopscale-results-exrow">· <strong>${info.exemptLegato}</strong> slurred notes — the pick that starts each slur is judged; the slur itself has no attack to time${devTail('(ho/po, pick-frame judged)')}</span>`);
+        if (info.exemptChords) rows.push(`<span class="slopscale_beta-results-exrow">· <strong>${info.exemptChords}</strong> chord notes — this ear hears one note at a time${devTail('(mono detector)')}</span>`);
+        if (info.exemptSubFloor) rows.push(`<span class="slopscale_beta-results-exrow">· <strong>${info.exemptSubFloor}</strong> notes too low for the mic to hear — play them with the click; they never count against you${devTail('(&lt; 70 Hz floor)')}</span>`);
+        if (info.exemptMuted) rows.push(`<span class="slopscale_beta-results-exrow">· <strong>${info.exemptMuted}</strong> muted ghost notes — a good mute has no pitch to judge${devTail('(mt, pitch-exempt)')}</span>`);
+        if (info.exemptFast) rows.push(`<span class="slopscale_beta-results-exrow">· <strong>${info.exemptFast}</strong> notes too fast for this ear to certify one-by-one — play them; the judged notes around them carry the proof${devTail(`(ring &lt; ${info.floorMs}ms floor)`)}</span>`);
+        if (info.exemptLegato) rows.push(`<span class="slopscale_beta-results-exrow">· <strong>${info.exemptLegato}</strong> slurred notes — the pick that starts each slur is judged; the slur itself has no attack to time${devTail('(ho/po, pick-frame judged)')}</span>`);
       } else {
         rows.push(`Every note judged: <strong>${info.judged}</strong> of <strong>${info.total}</strong>`);
       }
-      if (info.tremoloSpans) rows.push(`<span class="slopscale-results-exrow">· <strong>${info.tremoloSpans}</strong> tremolo run${info.tremoloSpans === 1 ? '' : 's'} (${info.tremoloNotes} notes) judged as whole runs — in tune over the run is the skill${devTail(`(tr spans, ≥${Math.round(PT_SPAN_RATIO * 100)}% presence)`)}</span>`);
+      if (info.tremoloSpans) rows.push(`<span class="slopscale_beta-results-exrow">· <strong>${info.tremoloSpans}</strong> tremolo run${info.tremoloSpans === 1 ? '' : 's'} (${info.tremoloNotes} notes) judged as whole runs — in tune over the run is the skill${devTail(`(tr spans, ≥${Math.round(PT_SPAN_RATIO * 100)}% presence)`)}</span>`);
       const earPlayer = String(info.ear || '').indexOf('verifier') === 0
         ? 'chord-aware verifier · single-note for the display meter'
         : 'single-note (the mic hears one pitch at a time)';
@@ -12449,7 +12449,7 @@
         rows.push(`Only <strong>${r.judgedPassed}</strong> notes were mic-judged this run — too few to grade; cleared on completion${devTail('(< PT_MIN_JUDGED=8 → lenient path)')}`);
       }
     }
-    let detailsOpen = false; try { detailsOpen = localStorage.getItem('slopscale.resultsDetails') === 'open'; } catch (_) {}
+    let detailsOpen = false; try { detailsOpen = localStorage.getItem('slopscale_beta.resultsDetails') === 'open'; } catch (_) {}
 
     // 7 · CTA row — close-and-arm, never autoplay; CHALLENGE voice (2026-06-06
     // copy round): the dare names the destination ("Take it to 88"), the dim
@@ -12495,29 +12495,29 @@
     }
     const btnHtml = (p) => `<span class="cta-dare">${p.label}</span>` + (p.sub ? `<span class="cta-sub">${p.sub}</span>` : '');
     const ctaHtml =
-      `<div class="slopscale-results-cta">` +
-      (primary ? `<button type="button" id="slopscale-results-primary" class="slopscale-results-primary">${btnHtml(primary)}</button>` : '') +
-      (secondaryAgain ? `<button type="button" id="slopscale-results-again" class="slopscale-results-quiet">Run it back</button>` : '') +
-      (stepdown ? `<button type="button" id="slopscale-results-stepdown" class="slopscale-results-quiet">${stepdown.label}</button>` : '') +
-      (jamStyle && !rough && !(primary && primary.act === 'jam') ? `<button type="button" id="slopscale-results-jam" class="slopscale-results-quiet">Jam this skill</button>` : '') +
-      `<button type="button" id="slopscale-results-done" class="slopscale-results-quiet">Done</button>` +
+      `<div class="slopscale_beta-results-cta">` +
+      (primary ? `<button type="button" id="slopscale_beta-results-primary" class="slopscale_beta-results-primary">${btnHtml(primary)}</button>` : '') +
+      (secondaryAgain ? `<button type="button" id="slopscale_beta-results-again" class="slopscale_beta-results-quiet">Run it back</button>` : '') +
+      (stepdown ? `<button type="button" id="slopscale_beta-results-stepdown" class="slopscale_beta-results-quiet">${stepdown.label}</button>` : '') +
+      (jamStyle && !rough && !(primary && primary.act === 'jam') ? `<button type="button" id="slopscale_beta-results-jam" class="slopscale_beta-results-quiet">Jam this skill</button>` : '') +
+      `<button type="button" id="slopscale_beta-results-done" class="slopscale_beta-results-quiet">Done</button>` +
       `</div>`;
 
     if (title) title.textContent = `Results — ${s.displayName || 'Practice'}`;
     body.innerHTML =
       verdict +
-      `<div class="slopscale-results-pct">${(judged && !reduceMotion) ? '0%' : headline}</div>` +
-      `<div class="slopscale-results-head">${sub}</div>` +
+      `<div class="slopscale_beta-results-pct">${(judged && !reduceMotion) ? '0%' : headline}</div>` +
+      `<div class="slopscale_beta-results-head">${sub}</div>` +
       strip +
-      `<div class="slopscale-results-practiced">Practiced ${dur}${s.bpm ? ` @ ${s.bpm} BPM` : ''}</div>` +
-      `<button type="button" id="slopscale-results-details-toggle" class="slopscale-results-progress-toggle" aria-expanded="${detailsOpen}">${detailsOpen ? '▾' : '▸'} How this run was judged</button>` +
-      `<div id="slopscale-results-details" class="slopscale-results-rows"${detailsOpen ? '' : ' hidden'}>${rows.map(t => `<div>${t}</div>`).join('')}` +
-      (verbose && info ? `<button type="button" id="slopscale-results-copydiag" class="slopscale-results-quiet">Copy diagnostics</button>` : '') +
+      `<div class="slopscale_beta-results-practiced">Practiced ${dur}${s.bpm ? ` @ ${s.bpm} BPM` : ''}</div>` +
+      `<button type="button" id="slopscale_beta-results-details-toggle" class="slopscale_beta-results-progress-toggle" aria-expanded="${detailsOpen}">${detailsOpen ? '▾' : '▸'} How this run was judged</button>` +
+      `<div id="slopscale_beta-results-details" class="slopscale_beta-results-rows"${detailsOpen ? '' : ' hidden'}>${rows.map(t => `<div>${t}</div>`).join('')}` +
+      (verbose && info ? `<button type="button" id="slopscale_beta-results-copydiag" class="slopscale_beta-results-quiet">Copy diagnostics</button>` : '') +
       `</div>` +
       ctaHtml;
 
     // Earned-outcome chrome (the meter-green top edge) + the entry animation.
-    const card = root.querySelector('.slopscale-results-card');
+    const card = root.querySelector('.slopscale_beta-results-card');
     if (card) {
       card.classList.toggle('ss-earned', earned && hasResult);
       card.classList.remove('ss-enter'); void card.offsetWidth; card.classList.add('ss-enter');
@@ -12525,7 +12525,7 @@
     // The % count-up — the meter-settling idiom (an LCD landing on its value).
     // Never on empty states; reduced-motion gets the final value immediately.
     if (judged && !reduceMotion) {
-      const el = body.querySelector('.slopscale-results-pct');
+      const el = body.querySelector('.slopscale_beta-results-pct');
       const t0 = performance.now(), durMs = 550;
       const step = (now) => {
         if (!el.isConnected) return;
@@ -12536,9 +12536,9 @@
       requestAnimationFrame(step);
     }
     // Wiring — all CTAs close-and-arm (load config, focus Play, start nothing).
-    const focusPlay = () => { $('slopscale-play')?.focus(); };
-    $('slopscale-results-done')?.addEventListener('click', () => closeResultsModal());
-    $('slopscale-results-primary')?.addEventListener('click', () => {
+    const focusPlay = () => { $('slopscale_beta-play')?.focus(); };
+    $('slopscale_beta-results-done')?.addEventListener('click', () => closeResultsModal());
+    $('slopscale_beta-results-primary')?.addEventListener('click', () => {
       closeResultsModal();
       if (primary && primary.act === 'next-tier') {
         activeTempoTierIdx = primary.idx;
@@ -12548,13 +12548,13 @@
         focusPlay();
       } else if (primary && primary.act === 'jam') {
         selectMode('jam');
-        document.querySelector(`#slopscale-jam-styles .slopscale-jam-style[data-style="${jamStyle}"]`)?.click();
+        document.querySelector(`#slopscale_beta-jam-styles .slopscale_beta-jam-style[data-style="${jamStyle}"]`)?.click();
       } else {
         focusPlay();
       }
     });
-    $('slopscale-results-again')?.addEventListener('click', () => { closeResultsModal(); focusPlay(); });
-    $('slopscale-results-copydiag')?.addEventListener('click', (ev) => {
+    $('slopscale_beta-results-again')?.addEventListener('click', () => { closeResultsModal(); focusPlay(); });
+    $('slopscale_beta-results-copydiag')?.addEventListener('click', (ev) => {
       // The verbatim dev block — byte-comparable across detection builds; the
       // "paste it in Discord" field-debugging instrument.
       const diag = [
@@ -12574,7 +12574,7 @@
       ].filter(Boolean).join('\n');
       try { navigator.clipboard.writeText(diag); ev.target.textContent = 'Copied ✓'; } catch (_) {}
     });
-    $('slopscale-results-stepdown')?.addEventListener('click', () => {
+    $('slopscale_beta-results-stepdown')?.addEventListener('click', () => {
       closeResultsModal();
       if (stepdown) {
         activeTempoTierIdx = stepdown.idx;
@@ -12584,19 +12584,19 @@
       }
       focusPlay();
     });
-    $('slopscale-results-jam')?.addEventListener('click', () => {
+    $('slopscale_beta-results-jam')?.addEventListener('click', () => {
       closeResultsModal();
       selectMode('jam');
-      document.querySelector(`#slopscale-jam-styles .slopscale-jam-style[data-style="${jamStyle}"]`)?.click();
+      document.querySelector(`#slopscale_beta-jam-styles .slopscale_beta-jam-style[data-style="${jamStyle}"]`)?.click();
     });
-    $('slopscale-results-details-toggle')?.addEventListener('click', () => {
-      const sec = $('slopscale-results-details'), btn = $('slopscale-results-details-toggle');
+    $('slopscale_beta-results-details-toggle')?.addEventListener('click', () => {
+      const sec = $('slopscale_beta-results-details'), btn = $('slopscale_beta-results-details-toggle');
       if (!sec || !btn) return;
       const open = sec.hidden;
       sec.hidden = !open;
       btn.setAttribute('aria-expanded', String(open));
       btn.textContent = (open ? '▾' : '▸') + ' How this run was judged';
-      try { localStorage.setItem('slopscale.resultsDetails', open ? 'open' : 'closed'); } catch (_) {}
+      try { localStorage.setItem('slopscale_beta.resultsDetails', open ? 'open' : 'closed'); } catch (_) {}
     });
     body.querySelector('[data-act="copy-proof"]')?.addEventListener('click', (ev) => {
       try { navigator.clipboard.writeText(proofCardText(s)); ev.target.textContent = 'Copied ✓'; } catch (_) {}
@@ -12607,17 +12607,17 @@
     // focusing the CTA, or the browser blocks the hidden state ("aria-hidden
     // on an element because its descendant retained focus", live console
     // report 2026-06-07).
-    $('slopscale-results-modal')?.setAttribute('aria-hidden', 'false');
-    ($('slopscale-results-primary') || $('slopscale-results-done'))?.focus();
+    $('slopscale_beta-results-modal')?.setAttribute('aria-hidden', 'false');
+    ($('slopscale_beta-results-primary') || $('slopscale_beta-results-done'))?.focus();
   }
   function closeResultsModal() {
-    const root = $('slopscale-root'); if (!root) return;
-    const modal = $('slopscale-results-modal');
+    const root = $('slopscale_beta-root'); if (!root) return;
+    const modal = $('slopscale_beta-results-modal');
     // Move focus OUT before re-hiding — aria-hidden on the focused element's
     // ancestor hides focus from assistive tech (and the browser refuses it).
     // The transport Play button is the natural close-and-arm landing spot.
     if (modal && modal.contains(document.activeElement)) {
-      const play = $('slopscale-play');
+      const play = $('slopscale_beta-play');
       if (play) play.focus(); else { try { document.activeElement.blur(); } catch (_) {} }
     }
     modal?.setAttribute('aria-hidden', 'true');
@@ -12632,24 +12632,24 @@
   }
   // Progress sheet content (gamification's slot). Renders the "Last session" card
   // (if any) + streak + per-pathway tempo-tier dots — with an honest "coming" state
-  // for XP/badges, since the slopscale.progress store is unbuilt (don't fake XP).
+  // for XP/badges, since the slopscale_beta.progress store is unbuilt (don't fake XP).
   function renderProgressSheet() {
-    const body = $('slopscale-progress-sheet-body'); if (!body) return;
+    const body = $('slopscale_beta-progress-sheet-body'); if (!body) return;
     const pt = pathwayTiersLoad();
-    const streak = (($('slopscale-streak-num') || {}).textContent || '0').trim();
+    const streak = (($('slopscale_beta-streak-num') || {}).textContent || '0').trim();
     const touched = Object.keys(pt)
       .filter(id => PATHWAYS[id] && (pt[id].highest_tier ?? -1) >= 0)
       .sort((a, b) => (pt[b].highest_tier ?? -1) - (pt[a].highest_tier ?? -1));
     const dotRow = (id) => {
       const pw = PATHWAYS[id], hi = (pt[id].highest_tier ?? -1);
       const dots = (pw.tempoTiers || []).map((_, i) => `<span class="tree-tier-dot${i <= hi ? ' cleared' : ''}"></span>`).join('');
-      return `<div class="slopscale-pm-row"><span>${pw.label}</span><span class="slopscale-pm-dots">${dots}</span></div>`;
+      return `<div class="slopscale_beta-pm-row"><span>${pw.label}</span><span class="slopscale_beta-pm-dots">${dots}</span></div>`;
     };
     body.innerHTML =
       sessionSummaryCardHtml() +
-      `<div class="slopscale-progress-sheet-section"><h4>Streak</h4><div class="slopscale-pm-row"><span>Current streak</span><strong>${streak} ${streak === '1' ? 'day' : 'days'}</strong></div></div>` +
-      `<div class="slopscale-progress-sheet-section"><h4>Tempo-tier progress</h4>${touched.length ? touched.slice(0, 8).map(dotRow).join('') : '<div class="slopscale-pm-coming">Clear a tempo tier to see progress here.</div>'}</div>` +
-      `<div class="slopscale-progress-sheet-section"><h4>XP &amp; badges</h4><div class="slopscale-pm-coming">Coming soon — your time-on-instrument and mastery will show here.</div></div>`;
+      `<div class="slopscale_beta-progress-sheet-section"><h4>Streak</h4><div class="slopscale_beta-pm-row"><span>Current streak</span><strong>${streak} ${streak === '1' ? 'day' : 'days'}</strong></div></div>` +
+      `<div class="slopscale_beta-progress-sheet-section"><h4>Tempo-tier progress</h4>${touched.length ? touched.slice(0, 8).map(dotRow).join('') : '<div class="slopscale_beta-pm-coming">Clear a tempo tier to see progress here.</div>'}</div>` +
+      `<div class="slopscale_beta-progress-sheet-section"><h4>XP &amp; badges</h4><div class="slopscale_beta-pm-coming">Coming soon — your time-on-instrument and mastery will show here.</div></div>`;
   }
   // Header Setup popover (instrument + strings + tuning). The button shows the live
   // instrument + tuning; the popover toggles open. Closing on outside-click is bound
@@ -12659,7 +12659,7 @@
     const instrSel = document.querySelector('[name="instrument"]');
     const v = instrSel ? instrSel.value : 'guitar';
     const instr = v === 'bass' ? 'Bass' : v === 'piano' ? 'Piano' : 'Guitar';
-    const tun = $('slopscale-tuning-select');
+    const tun = $('slopscale_beta-tuning-select');
     let tuning = '';
     if (tun && tun.selectedOptions && tun.selectedOptions[0]) {
       tuning = tun.selectedOptions[0].textContent.replace(/\s*\(.*\)\s*/, '').trim();
@@ -12667,20 +12667,20 @@
     return tuning ? `${instr} · ${tuning}` : instr;
   }
   function updateSetupButton() {
-    const lbl = $('slopscale-setup-label');
+    const lbl = $('slopscale_beta-setup-label');
     if (!lbl) return;
     lbl.textContent = setupLabelText();
     // Short form for the narrow-width degrade (CSS swaps to data-short via ::after).
     const instrSel = document.querySelector('[name="instrument"]');
     const v = instrSel ? instrSel.value : 'guitar';
     const short = v === 'bass' ? 'Bass' : v === 'piano' ? 'Pno' : 'Gtr';
-    const tun = $('slopscale-tuning-select');
+    const tun = $('slopscale_beta-tuning-select');
     const tShort = (tun && tun.selectedOptions && tun.selectedOptions[0])
       ? tun.selectedOptions[0].textContent.replace(/\s*\(.*\)\s*/, '').trim().slice(0, 4) : '';
     lbl.dataset.short = tShort ? `${short} · ${tShort}` : short;
   }
   function toggleSetupPopover(force) {
-    const pop = $('slopscale-setup-popover'), btn = $('slopscale-setup-btn');
+    const pop = $('slopscale_beta-setup-popover'), btn = $('slopscale_beta-setup-btn');
     if (!pop || !btn) return;
     const open = force != null ? force : pop.hidden;
     pop.hidden = !open;
@@ -12690,12 +12690,12 @@
     // The courtesy button rides the same sync: shown only when the third-party
     // floating-tuner plugin's public API is present (feature-detect, no dependency).
     if (open) {
-      const row = $('slopscale-tune-row');
+      const row = $('slopscale_beta-tune-row');
       const extOk = typeof window.tuner?.toggle === 'function';
       if (row) row.style.display = (ptAvailable() || ndVerifyAvailable() || extOk) ? '' : 'none';
-      const tuneBtn = $('slopscale-tune-btn');
+      const tuneBtn = $('slopscale_beta-tune-btn');
       if (tuneBtn) tuneBtn.style.display = ptAvailable() ? '' : 'none';
-      const ext = $('slopscale-tuner-ext');
+      const ext = $('slopscale_beta-tuner-ext');
       if (ext) ext.style.display = extOk ? '' : 'none';
     }
   }
@@ -12703,22 +12703,22 @@
   // stored default — ready for the unbuilt XP store), default count-in (seeds the
   // count-in control on load). All persisted to localStorage.
   function toggleSettingsMenu(force) {
-    const menu = $('slopscale-settings-menu'), btn = $('slopscale-settings-btn');
+    const menu = $('slopscale_beta-settings-menu'), btn = $('slopscale_beta-settings-btn');
     if (!menu || !btn) return;
     const open = force != null ? force : menu.hidden;
     menu.hidden = !open;
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
   function applyTheme(name) {
-    const root = $('slopscale-root'); if (!root) return;
+    const root = $('slopscale_beta-root'); if (!root) return;
     root.classList.remove('ss-theme-ember', 'ss-theme-violet');
     if (name) root.classList.add('ss-theme-' + name);
-    try { localStorage.setItem('slopscale.theme', name || ''); } catch (_) {}
-    document.querySelectorAll('#slopscale-theme-pick .slopscale-theme-swatch').forEach(b => b.classList.toggle('active', (b.dataset.theme || '') === (name || '')));
+    try { localStorage.setItem('slopscale_beta.theme', name || ''); } catch (_) {}
+    document.querySelectorAll('#slopscale_beta-theme-pick .slopscale_beta-theme-swatch').forEach(b => b.classList.toggle('active', (b.dataset.theme || '') === (name || '')));
   }
   function applyXpModeDefault(mode) {
-    try { localStorage.setItem('slopscale.xpMode', mode); } catch (_) {}
-    document.querySelectorAll('#slopscale-xp-mode .slopscale-mini-btn').forEach(b => b.classList.toggle('active', b.dataset.xp === mode));
+    try { localStorage.setItem('slopscale_beta.xpMode', mode); } catch (_) {}
+    document.querySelectorAll('#slopscale_beta-xp-mode .slopscale_beta-mini-btn').forEach(b => b.classList.toggle('active', b.dataset.xp === mode));
   }
   function applyCountInDefault(val) {
     setFieldSilent('countIn', String(val));   // the field is the source; syncTransport reflects the segments
@@ -12726,9 +12726,9 @@
   }
   function loadSettingsPrefs() {
     let theme = '', xp = 'casual', ci = null;
-    try { theme = localStorage.getItem('slopscale.theme') || ''; } catch (_) {}
-    try { xp = localStorage.getItem('slopscale.xpMode') || 'casual'; } catch (_) {}
-    try { ci = localStorage.getItem('slopscale.countInDefault'); } catch (_) {}
+    try { theme = localStorage.getItem('slopscale_beta.theme') || ''; } catch (_) {}
+    try { xp = localStorage.getItem('slopscale_beta.xpMode') || 'casual'; } catch (_) {}
+    try { ci = localStorage.getItem('slopscale_beta.countInDefault'); } catch (_) {}
     applyTheme(theme);
     applyXpModeDefault(xp);
     // First-run default = a 1-bar count-in, so a new player gets a gentle lead-in
@@ -12736,7 +12736,7 @@
     // thereafter (including an explicit "Off" = '0', which is non-null).
     if (ci == null) ci = '1';
     applyCountInDefault(ci);
-    const sel = $('slopscale-countin-default');
+    const sel = $('slopscale_beta-countin-default');
     if (sel) sel.value = ci;
   }
 
@@ -13385,7 +13385,7 @@
     await Promise.race([applyHostSink(), new Promise((r) => setTimeout(r, 150))]);
     // In session mode, Play builds + starts the selected session if one isn't
     // already loaded; otherwise it replays the built session from the playhead.
-    if ($('slopscale-root')?.classList.contains('slopscale-session-mode')) {
+    if ($('slopscale_beta-root')?.classList.contains('slopscale_beta-session-mode')) {
       if (!activeBundle || activeBundle.config?.mode !== 'session') { await onLaunchSession(); return; }
       await awaitVoices(activeBundle);  // start on WAF, not the oscillator
       startPlayback();
@@ -13419,7 +13419,7 @@
 
   // Per-frame light sync: scrubber position + current-time readout.
   function syncTransportTime() {
-    const cur = $('slopscale-time-cur');
+    const cur = $('slopscale_beta-time-cur');
     if (cur) cur.textContent = fmtTime(currentPracticeTime);
     updateActiveSegment();
   }
@@ -13429,20 +13429,20 @@
   // bundle change, loop change, and mode change — not every frame.
   function syncTransport() {
     const dur = activeBundle?.songInfo?.duration || 0;
-    const hudTitle = $('slopscale-hud-title');
+    const hudTitle = $('slopscale_beta-hud-title');
     if (hudTitle) hudTitle.textContent = activeBundle ? describeCurrentContent() : '';
-    const durEl = $('slopscale-time-dur'); if (durEl) durEl.textContent = fmtTime(dur);
+    const durEl = $('slopscale_beta-time-dur'); if (durEl) durEl.textContent = fmtTime(dur);
     syncTransportTime();
     paintLoopRegion();
-    $('slopscale-loop-a')?.classList.toggle('active', tpA != null);
-    $('slopscale-loop-b')?.classList.toggle('active', tpB != null);
-    const lc = $('slopscale-loop-count');
+    $('slopscale_beta-loop-a')?.classList.toggle('active', tpA != null);
+    $('slopscale_beta-loop-b')?.classList.toggle('active', tpB != null);
+    const lc = $('slopscale_beta-loop-count');
     if (lc) { const active = segmentLoopA != null && segmentLoopB != null; lc.hidden = !active || _loopWraps < 1; lc.textContent = 'Loop ' + _loopWraps; }
-    const lr = $('slopscale-loop-range');
+    const lr = $('slopscale_beta-loop-range');
     if (lr) { const txt = loopReadoutText(); lr.hidden = !txt; lr.textContent = txt || ''; }
     syncFeelControl();
-    const ci = document.querySelector('#slopscale-controls [name="countIn"]')?.value || '0';
-    document.querySelectorAll('.slopscale-tp-seg').forEach(b => b.classList.toggle('active', b.dataset.countin === ci));
+    const ci = document.querySelector('#slopscale_beta-controls [name="countIn"]')?.value || '0';
+    document.querySelectorAll('.slopscale_beta-tp-seg').forEach(b => b.classList.toggle('active', b.dataset.countin === ci));
     renderSessionProgress();
     _activeSegIdx = -1; updateActiveSegment();
   }
@@ -13520,13 +13520,13 @@
 
   // Render the proportional segment bar (chunk width ∝ segment duration).
   function renderSessionProgress() {
-    const host = $('slopscale-session-progress'); if (!host) return;
+    const host = $('slopscale_beta-session-progress'); if (!host) return;
     const b = sessionBounds(), dur = activeBundle?.songInfo?.duration || 0;
     if (!b || !b.length || dur <= 0) { host.innerHTML = ''; return; }
     host.innerHTML = b.map((seg, i) => {
       const grow = Math.max(0.0001, (seg.end - seg.start) / dur);
       const label = String(seg.name || `Seg ${i + 1}`).replace(/"/g, '&quot;').replace(/</g, '&lt;');
-      return `<button type="button" class="slopscale-progress-seg" data-seg-index="${i}" style="flex-grow:${grow.toFixed(4)}" title="${label}">${label}</button>`;
+      return `<button type="button" class="slopscale_beta-progress-seg" data-seg-index="${i}" style="flex-grow:${grow.toFixed(4)}" title="${label}">${label}</button>`;
     }).join('');
   }
 
@@ -13535,8 +13535,8 @@
     const idx = currentSegmentIndex();
     if (idx === _activeSegIdx) return;
     _activeSegIdx = idx;
-    document.querySelectorAll('#slopscale-session-progress .slopscale-progress-seg').forEach((el, i) => el.classList.toggle('active', i === idx));
-    document.querySelectorAll('#slopscale-segment-list .slopscale-segment-card').forEach((el, i) => el.classList.toggle('active', i === idx));
+    document.querySelectorAll('#slopscale_beta-session-progress .slopscale_beta-progress-seg').forEach((el, i) => el.classList.toggle('active', i === idx));
+    document.querySelectorAll('#slopscale_beta-segment-list .slopscale_beta-segment-card').forEach((el, i) => el.classList.toggle('active', i === idx));
   }
 
   function jumpToSegment(i) { const b = sessionBounds(); if (b && b[i]) seekTo(b[i].start); }
@@ -13596,12 +13596,12 @@
   // a form field is focused or a modifier is held, and never touches Escape
   // (Slopsmith owns Escape for return-to-menu). Comma/period are session-only.
   function onTransportKey(e) {
-    const root = $('slopscale-root');
+    const root = $('slopscale_beta-root');
     if (!root || !root.offsetParent) return; // screen not the active/visible one
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const tag = (e.target?.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) return;
-    const sessionMode = root.classList.contains('slopscale-session-mode');
+    const sessionMode = root.classList.contains('slopscale_beta-session-mode');
     switch (e.key) {
       case ' ':          e.preventDefault(); onPlayToggle(); break;
       case 'ArrowLeft':  e.preventDefault(); if (e.shiftKey && nudgeLoopEdge(-1)) break; nudgeBar(-1); break;
@@ -13623,15 +13623,15 @@
     }
   }
 
-  // Compact, glanceable LCD readout for #slopscale-summary. Shows only the
+  // Compact, glanceable LCD readout for #slopscale_beta-summary. Shows only the
   // GENERATED facts the left-panel controls don't already state — the readout
   // used to restate every menu selection (debug-log style); now it confirms
   // what actually got built. Returns HTML (labeled cells); set via .innerHTML.
-  // Errors/fallback messages do NOT go here — they're routed to #slopscale-status.
+  // Errors/fallback messages do NOT go here — they're routed to #slopscale_beta-status.
   function summarize(exercise) {
     const cfg = exercise.session, c = exercise.chart;
     const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const cell = (label, value) => `<div class="slopscale-lcd-cell"><span class="slopscale-lcd-lbl">${esc(label)}</span><span class="slopscale-lcd-val">${esc(value)}</span></div>`;
+    const cell = (label, value) => `<div class="slopscale_beta-lcd-cell"><span class="slopscale_beta-lcd-lbl">${esc(label)}</span><span class="slopscale_beta-lcd-val">${esc(value)}</span></div>`;
     const len = fmtTime(c.duration);
     // Sessions mix tempo/key/meter across segments, so show session-level facts
     // (name · segments · length · notes) rather than a single key/tempo/meter.
@@ -13654,14 +13654,14 @@
       // Tempo is an editable LCD cell (DAW transport convention): same glyphs as
       // a readout, commits via the delegated handler in bind() (two-way with the
       // Inspector BPM field). Sessions (above) keep no tempo cell — mixed tempos.
-      `<div class="slopscale-lcd-cell"><span class="slopscale-lcd-lbl">Tempo</span><span class="slopscale-lcd-val"><input id="slopscale-lcd-bpm" class="slopscale-lcd-input" type="number" min="30" max="260" step="1" value="${esc(cfg.bpm)}" aria-label="Tempo (BPM)" title="Click to edit the tempo — applies on Enter"> BPM</span></div>`,
+      `<div class="slopscale_beta-lcd-cell"><span class="slopscale_beta-lcd-lbl">Tempo</span><span class="slopscale_beta-lcd-val"><input id="slopscale_beta-lcd-bpm" class="slopscale_beta-lcd-input" type="number" min="30" max="260" step="1" value="${esc(cfg.bpm)}" aria-label="Tempo (BPM)" title="Click to edit the tempo — applies on Enter"> BPM</span></div>`,
       cell('Meter', `${cfg.meter.numerator}/${cfg.meter.denominator}`),
       cell('Bars', bars),
       cell('Length', len),
       cell('Notes', c.notes.length)
     ].join('');
   }
-  function showStatus(text) { const el = $('slopscale-status'); if (el) el.textContent = text; }
+  function showStatus(text) { const el = $('slopscale_beta-status'); if (el) el.textContent = text; }
   function describeCurrentContent() {
     try {
       const cfg = readConfig();
@@ -13683,7 +13683,7 @@
   }
 
   async function onGenerate() {
-    const summary = $('slopscale-summary');
+    const summary = $('slopscale_beta-summary');
     try {
       const exercise = generateExercise(withRunTarget(readConfig()));
       lastExercise = exercise;
@@ -13698,7 +13698,7 @@
   }
   async function savePreset() {
     const cfg = readConfig(), name = `${cfg.key} ${cfg.scale} ${cfg.setupLabel} ${cfg.mode}`, id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
-    const res = await fetch('/api/plugins/slopscale/presets', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ id, name, kind:cfg.mode, config:cfg }) });
+    const res = await fetch('/api/plugins/slopscale_beta/presets', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ id, name, kind:cfg.mode, config:cfg }) });
     if (!res.ok) throw new Error(await res.text());
     showStatus(`Saved preset: ${name}`);
   }
@@ -13709,16 +13709,16 @@
   // instead of stranding the player in 'position'.
   let stashedGuitarSystem = null;
   function syncInstrumentClass() {
-    const root = $('slopscale-root');
+    const root = $('slopscale_beta-root');
     const setup = document.querySelector('[name="stringSetup"]');
     if (!root || !setup) return;
     const isBass = (STRING_SETUPS[setup.value] || {}).instrument === 'bass';
-    root.classList.toggle('slopscale-bass-instrument', isBass);
+    root.classList.toggle('slopscale_beta-bass-instrument', isBass);
     // Piano is keyed off the instrument select directly (it has no string setup).
     // Drives the CSS that reveals the Piano Roll view and hides the guitar/bass
     // views. Piano can't be selected yet (chip disabled), so this is groundwork.
     const instrSel = document.querySelector('[name="instrument"]');
-    root.classList.toggle('slopscale-piano-instrument', (instrSel?.value) === 'piano');
+    root.classList.toggle('slopscale_beta-piano-instrument', (instrSel?.value) === 'piano');
     // Offer only the practice types applicable to this instrument (the ternary
     // offerable() tag — the single source of truth, replacing the old bending-only
     // hide). Hide/disable any n-a option; if the current selection becomes n-a,
@@ -13778,7 +13778,7 @@
   function syncInstrumentFamilyButtons() {
     const instr = document.querySelector('[name="instrument"]');
     const fam = instr ? instr.value : 'guitar';
-    document.querySelectorAll('.slopscale-instr-btn').forEach(btn => {
+    document.querySelectorAll('.slopscale_beta-instr-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.instrument === fam);
     });
   }
@@ -13793,11 +13793,11 @@
     // Drop any per-string custom tuning before flipping families — a guitar
     // custom tuning has the wrong string count and the wrong note ranges
     // for bass (and vice versa), so carrying it across is always wrong.
-    const hidden = $('slopscale-custom-open-midis');
+    const hidden = $('slopscale_beta-custom-open-midis');
     if (hidden) hidden.value = '';
     instr.value = family;
     instr.dispatchEvent(new Event('change', { bubbles: true }));
-    try { localStorage.setItem('slopscale.instrumentFamily', family); } catch (_) {}
+    try { localStorage.setItem('slopscale_beta.instrumentFamily', family); } catch (_) {}
     syncInstrumentFamilyButtons();
     syncStringCountChips();
     syncTuningOptions();
@@ -13840,9 +13840,9 @@
   function instrumentStoreSave() {
     try {
       const setupEl = document.querySelector('[name="stringSetup"]');
-      const hidden = $('slopscale-custom-open-midis');
+      const hidden = $('slopscale_beta-custom-open-midis');
       if (!setupEl || !STRING_SETUPS[setupEl.value]) return;
-      localStorage.setItem('slopscale.instrument', JSON.stringify({
+      localStorage.setItem('slopscale_beta.instrument', JSON.stringify({
         stringSetup: setupEl.value,
         customOpenMidis: (hidden?.value || '').trim(),
       }));
@@ -13850,7 +13850,7 @@
   }
   function instrumentStoreLoad() {
     try {
-      const o = JSON.parse(localStorage.getItem('slopscale.instrument') || 'null');
+      const o = JSON.parse(localStorage.getItem('slopscale_beta.instrument') || 'null');
       if (!o || !STRING_SETUPS[o.stringSetup]) return null;
       return { stringSetup: o.stringSetup, customOpenMidis: (o.customOpenMidis || '').trim() };
     } catch (_) { return null; }
@@ -13874,7 +13874,7 @@
     return cur.openMidis.length;
   }
   function syncStringCountChips() {
-    const row = $('slopscale-string-count-row'); if (!row) return;
+    const row = $('slopscale_beta-string-count-row'); if (!row) return;
     const family = currentFamily();
     const counts = family === 'bass' ? [4,5,6] : [6,7,8];
     const cur = currentStringCount();
@@ -13882,7 +13882,7 @@
     for (const n of counts) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'slopscale-string-count-btn' + (n === cur ? ' active' : '');
+      b.className = 'slopscale_beta-string-count-btn' + (n === cur ? ' active' : '');
       b.dataset.count = String(n);
       b.textContent = String(n);
       b.addEventListener('click', () => onStringCountClick(n));
@@ -13900,7 +13900,7 @@
     if (!setup) return;
     setup.value = setupName;
     // Clear any custom tuning.
-    const hidden = $('slopscale-custom-open-midis');
+    const hidden = $('slopscale_beta-custom-open-midis');
     if (hidden) hidden.value = '';
     setup.dispatchEvent(new Event('change', { bubbles: true }));
     syncStringCountChips();
@@ -13911,7 +13911,7 @@
   let savedTunings = [];
   async function loadSavedTunings() {
     try {
-      const r = await fetch('/api/plugins/slopscale/tunings');
+      const r = await fetch('/api/plugins/slopscale_beta/tunings');
       if (!r.ok) return;
       const body = await r.json();
       savedTunings = Array.isArray(body.tunings) ? body.tunings : [];
@@ -13921,13 +13921,13 @@
     syncTuningOptions();
   }
   function syncTuningOptions() {
-    const sel = $('slopscale-tuning-select'); if (!sel) return;
+    const sel = $('slopscale_beta-tuning-select'); if (!sel) return;
     const family = currentFamily();
     const count = currentStringCount();
     const presets = TUNING_PRESETS[`${family}_${count}`] || [];
     const setup = document.querySelector('[name="stringSetup"]');
     const setupName = setup?.value || `${family}_${count}_standard`;
-    const hidden = $('slopscale-custom-open-midis');
+    const hidden = $('slopscale_beta-custom-open-midis');
     const customStr = hidden?.value || '';
     const customMidis = customStr ? customStr.split(',').map(Number).filter(Number.isFinite) : null;
     sel.innerHTML = '';
@@ -13986,7 +13986,7 @@
   // After save, refetch the saved-tunings list so the dropdown reflects the
   // new entry immediately.
   async function onSaveTuningClick() {
-    const hidden = $('slopscale-custom-open-midis');
+    const hidden = $('slopscale_beta-custom-open-midis');
     const midisStr = hidden?.value || '';
     const midis = midisStr.split(',').map(Number).filter(Number.isFinite);
     if (!midis.length) return;
@@ -13997,7 +13997,7 @@
     const name = window.prompt('Save tuning as:', defaultName);
     if (!name) return;
     try {
-      const r = await fetch('/api/plugins/slopscale/tunings', {
+      const r = await fetch('/api/plugins/slopscale_beta/tunings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim(), family, string_count: count, midis }),
@@ -14013,10 +14013,10 @@
     }
   }
   function syncCustomTuningInputs() {
-    const sel = $('slopscale-tuning-select');
-    const wrap = $('slopscale-custom-tuning');
-    const inputs = $('slopscale-custom-tuning-inputs');
-    const hidden = $('slopscale-custom-open-midis');
+    const sel = $('slopscale_beta-tuning-select');
+    const wrap = $('slopscale_beta-custom-tuning');
+    const inputs = $('slopscale_beta-custom-tuning-inputs');
+    const hidden = $('slopscale_beta-custom-open-midis');
     if (!sel || !wrap || !inputs || !hidden) return;
     const isCustom = sel.value === 'custom';
     wrap.style.display = isCustom ? 'flex' : 'none';
@@ -14037,7 +14037,7 @@
     for (let i = 0; i < count; i++) {
       const input = document.createElement('input');
       input.type = 'text';
-      input.className = 'slopscale-custom-tuning-input';
+      input.className = 'slopscale_beta-custom-tuning-input';
       input.value = midiToNoteName(midis[i]);
       input.dataset.idx = String(i);
       input.spellcheck = false;
@@ -14050,7 +14050,7 @@
     commitCustomTuning(midis);
   }
   function readCustomTuningInputs() {
-    const inputs = Array.from(document.querySelectorAll('.slopscale-custom-tuning-input'));
+    const inputs = Array.from(document.querySelectorAll('.slopscale_beta-custom-tuning-input'));
     const midis = [];
     let allValid = true;
     for (const el of inputs) {
@@ -14061,7 +14061,7 @@
     return { midis, allValid };
   }
   function commitCustomTuning(midis) {
-    const hidden = $('slopscale-custom-open-midis');
+    const hidden = $('slopscale_beta-custom-open-midis');
     if (hidden) hidden.value = midis.join(',');
   }
   function onCustomTuningEdit(commit) {
@@ -14073,8 +14073,8 @@
     if (commit && activeBundle) onGenerate();
   }
   function onTuningPresetChange() {
-    const sel = $('slopscale-tuning-select'); if (!sel) return;
-    const hidden = $('slopscale-custom-open-midis');
+    const sel = $('slopscale_beta-tuning-select'); if (!sel) return;
+    const hidden = $('slopscale_beta-custom-open-midis');
     // Saved tunings come back as `saved:<id>`; the midis live on the option's
     // dataset.midis (set by syncTuningOptions). Apply them as a custom
     // override against the family's standard stringSetup.
@@ -14133,17 +14133,17 @@
     instrumentStoreSave();   // a preset pick = the player's L1 declaration
   }
   function syncAdvancedMode() {
-    const root = $('slopscale-root'), toggle = $('slopscale-advanced-toggle');
+    const root = $('slopscale_beta-root'), toggle = $('slopscale_beta-advanced-toggle');
     const enabled = !!toggle?.checked;
-    root?.classList.toggle('slopscale-advanced', enabled);
-    document.querySelectorAll('.slopscale-advanced-only input, .slopscale-advanced-only select, .slopscale-advanced-only textarea, .slopscale-advanced-only button').forEach(el => { el.disabled = !enabled; });
+    root?.classList.toggle('slopscale_beta-advanced', enabled);
+    document.querySelectorAll('.slopscale_beta-advanced-only input, .slopscale_beta-advanced-only select, .slopscale_beta-advanced-only textarea, .slopscale_beta-advanced-only button').forEach(el => { el.disabled = !enabled; });
   }
   function setFieldSilent(name, value) {
     // Fields living OUTSIDE the form element but associated via the form=""
     // attribute (e.g. the header Setup popover's hidden customOpenMidis input)
-    // aren't descendants of #slopscale-controls — fall back to the attribute.
-    const field = document.querySelector('#slopscale-controls [name="' + name + '"]')
-      || document.querySelector('[form="slopscale-controls"][name="' + name + '"]');
+    // aren't descendants of #slopscale_beta-controls — fall back to the attribute.
+    const field = document.querySelector('#slopscale_beta-controls [name="' + name + '"]')
+      || document.querySelector('[form="slopscale_beta-controls"][name="' + name + '"]');
     if (!field) return;
     if (field.type === 'checkbox') field.checked = !!value;
     else field.value = String(value);
@@ -14173,8 +14173,8 @@
   // explicit subdivision pick afterwards — and every regenerate, preset, and
   // share-link (which set fields silently) — is preserved.
   function meterAwareSubdivisionBump() {
-    const mEl = document.querySelector('#slopscale-controls [name="meter"]');
-    const sEl = document.querySelector('#slopscale-controls [name="subdivision"]');
+    const mEl = document.querySelector('#slopscale_beta-controls [name="meter"]');
+    const sEl = document.querySelector('#slopscale_beta-controls [name="subdivision"]');
     if (!mEl || !sEl) return;
     const den = parseMeter(mEl.value).denominator;
     const pulse = pulseSubdivisionForDenominator(den);
@@ -14188,9 +14188,9 @@
   // from the same core timing helpers the chart uses, so it can't drift from the
   // real output. BPM cancels in the ratio, so the constant here is irrelevant.
   function syncDivisionHelp() {
-    const el = $('slopscale-division-help'); if (!el) return;
-    const mEl = document.querySelector('#slopscale-controls [name="meter"]');
-    const sEl = document.querySelector('#slopscale-controls [name="subdivision"]');
+    const el = $('slopscale_beta-division-help'); if (!el) return;
+    const mEl = document.querySelector('#slopscale_beta-controls [name="meter"]');
+    const sEl = document.querySelector('#slopscale_beta-controls [name="subdivision"]');
     if (!mEl || !sEl) { el.textContent = ''; return; }
     const m = parseMeter(mEl.value);
     const pulseGlyph = m.denominator >= 8 ? '♪' : '♩';   // ♪ eighth-denom · ♩ quarter-denom
@@ -14230,9 +14230,9 @@
   // cagedShape input. Only meaningful when the active system is CAGED — for
   // other systems the chord-template helpers aren't called.
   function syncShapeDropdownSelectionToHidden() {
-    const sysEl = $('slopscale-fretboard-system');
-    const shapeEl = $('slopscale-shape');
-    const hidden = $('slopscale-caged-shape-value');
+    const sysEl = $('slopscale_beta-fretboard-system');
+    const shapeEl = $('slopscale_beta-shape');
+    const hidden = $('slopscale_beta-caged-shape-value');
     if (!shapeEl || !hidden) return;
     if (sysEl && sysEl.value === 'caged' && shapeEl.value) hidden.value = shapeEl.value;
   }
@@ -14289,7 +14289,7 @@
     // into the next pathway selected. (readConfig also length-validates the CSV
     // against the stringSetup, so a stale mismatch degrades to standard tuning.)
     // NOTE this anti-leak clears RUNG-scoped (L3) tunings only — the player's
-    // own tuning lives in the durable L1 store (slopscale.instrument) and is
+    // own tuning lives in the durable L1 store (slopscale_beta.instrument) and is
     // re-composed per-rung by applyTuningAdaptL1, never stored in this field.
     setFieldSilent('customOpenMidis', config.customOpenMidis || '');
     // L1 tuning-adapt metadata: anti-leak defaulted like the CSV (set only when
@@ -14336,9 +14336,9 @@
   }
 
   function setPathwayModeClass(isPathway) {
-    const root = $('slopscale-root');
+    const root = $('slopscale_beta-root');
     if (!root) return;
-    root.classList.toggle('slopscale-pathway-mode', !!isPathway);
+    root.classList.toggle('slopscale_beta-pathway-mode', !!isPathway);
     syncModeBar();
   }
 
@@ -14354,19 +14354,19 @@
   // jam-mode wins; else session-mode ⇒ Workout; else pathway-mode ⇒ Pathways; else
   // Custom. Also sets the single forward-compat ss-mode-* class + the mode-desc line.
   function syncModeBar() {
-    const root = $('slopscale-root'); if (!root) return;
-    const mode = root.classList.contains('slopscale-jam-mode') ? 'jam'
-      : root.classList.contains('slopscale-session-mode') ? 'session'
-      : root.classList.contains('slopscale-pathway-mode') ? 'guided' : 'custom';
-    document.querySelectorAll('.slopscale-mode-bar .slopscale-mode-btn').forEach(b => {
+    const root = $('slopscale_beta-root'); if (!root) return;
+    const mode = root.classList.contains('slopscale_beta-jam-mode') ? 'jam'
+      : root.classList.contains('slopscale_beta-session-mode') ? 'session'
+      : root.classList.contains('slopscale_beta-pathway-mode') ? 'guided' : 'custom';
+    document.querySelectorAll('.slopscale_beta-mode-bar .slopscale_beta-mode-btn').forEach(b => {
       const on = b.dataset.mode === mode;
       b.classList.toggle('active', on);
       b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
-    const ms = $('slopscale-mode-select'); if (ms && ms.value !== mode) ms.value = mode;   // narrow-width fallback
+    const ms = $('slopscale_beta-mode-select'); if (ms && ms.value !== mode) ms.value = mode;   // narrow-width fallback
     // Forward-compat single mode class (the locked ss-mode-* mechanic) for future CSS.
     ['pathways','custom','workout','jam'].forEach(s => root.classList.toggle('ss-mode-' + s, MODE_META[mode] && MODE_META[mode].ss === s));
-    const desc = $('slopscale-mode-desc');
+    const desc = $('slopscale_beta-mode-desc');
     if (desc && MODE_META[mode]) desc.textContent = MODE_META[mode].desc;
   }
 
@@ -14374,17 +14374,17 @@
   // one marks it active for now. Backing playback + live target-highlight land in the
   // post-checkpoint pass (Jam is a mirror, never a song generator — north star).
   function renderJamStyles() {
-    const host = $('slopscale-jam-styles');
+    const host = $('slopscale_beta-jam-styles');
     if (!host) return;
     host.innerHTML = '';
     Object.keys(STYLE_PALETTES).forEach((id, i) => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'slopscale-jam-style' + (i === 0 ? ' active' : '');
+      btn.className = 'slopscale_beta-jam-style' + (i === 0 ? ' active' : '');
       btn.dataset.style = id;
       btn.textContent = STYLE_PALETTES[id].label;
       btn.addEventListener('click', () => {
-        host.querySelectorAll('.slopscale-jam-style').forEach(b => b.classList.remove('active'));
+        host.querySelectorAll('.slopscale_beta-jam-style').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
       });
       host.appendChild(btn);
@@ -14397,10 +14397,10 @@
   // reference line and the progression comp is the backing band. Loops [leadIn,
   // duration] so it keeps going. A MIRROR — no score, no rank (north star).
   async function jamPlay() {
-    const styleBtn = document.querySelector('#slopscale-jam-styles .slopscale-jam-style.active');
+    const styleBtn = document.querySelector('#slopscale_beta-jam-styles .slopscale_beta-jam-style.active');
     const styleId = (styleBtn && styleBtn.dataset.style) || Object.keys(STYLE_PALETTES)[0];
-    const jamKey = ($('slopscale-jam-key') || {}).value || 'A';
-    const jamTempo = Math.max(40, Math.min(220, parseInt(($('slopscale-jam-tempo') || {}).value || '90', 10) || 90));
+    const jamKey = ($('slopscale_beta-jam-key') || {}).value || 'A';
+    const jamTempo = Math.max(40, Math.min(220, parseInt(($('slopscale_beta-jam-tempo') || {}).value || '90', 10) || 90));
     const palette = stylePaletteConfig(styleId, { key: jamKey });
     if (!palette) return;
     const base = readConfig();   // instrument / tuning / renderer / audio defaults
@@ -14446,14 +14446,14 @@
     if (playing) stopPlayback();
     try { localStorage.setItem(MODE_STORAGE_KEY, mode); } catch (_) {}   // resume-last-mode
     toggleLibrary(false); toggleStarters(false);   // the browse drawers are Workout-only — never linger over another mode
-    const root = $('slopscale-root');
-    if (root) root.classList.remove('slopscale-jam-mode');   // default: not jam (jam re-adds below)
+    const root = $('slopscale_beta-root');
+    if (root) root.classList.remove('slopscale_beta-jam-mode');   // default: not jam (jam re-adds below)
     if (mode === 'jam') {
       // Jam = the 4th mode: not session, not pathway. Skeleton — style grid + a
       // placeholder Inspector; playback/target-highlight wiring is post-checkpoint.
       syncSessionMode('single');
       setPathwayModeClass(false);          // clears pathway-mode (calls syncModeBar)
-      if (root) root.classList.add('slopscale-jam-mode');
+      if (root) root.classList.add('slopscale_beta-jam-mode');
       syncModeBar();                       // re-derive now that jam-mode is set
       return;
     }
@@ -14464,7 +14464,7 @@
       return;
     }
     syncSessionMode('single');
-    const sel = $('slopscale-pathway');
+    const sel = $('slopscale_beta-pathway');
     if (!sel) { setPathwayModeClass(mode === 'guided'); return; }
     if (mode === 'custom') {
       sel.value = 'custom';
@@ -14563,10 +14563,10 @@
   }
 
   function updatePathwayGoalCard(pathwayId, modified, favoritePreset) {
-    const card = $('slopscale-pathway-goal-card');
-    const tag = $('slopscale-pathway-tag');
-    const title = $('slopscale-pathway-title');
-    const goal = $('slopscale-pathway-goal');
+    const card = $('slopscale_beta-pathway-goal-card');
+    const tag = $('slopscale_beta-pathway-tag');
+    const title = $('slopscale_beta-pathway-title');
+    const goal = $('slopscale_beta-pathway-goal');
     if (!card) return;
     if (favoritePreset) {
       if (title) title.textContent = favoritePreset.name || favoritePreset.id || 'Favorite';
@@ -14586,11 +14586,11 @@
     // (the lossless uniform-offset path adapts silently except for this note —
     // it names the transposition instead of hiding it, the Division-caption
     // precedent). Reads the hidden adapt fields applyPathwayConfig just wrote.
-    const note = $('slopscale-pathway-tuning-note');
+    const note = $('slopscale_beta-pathway-tuning-note');
     if (note) {
-      const off = parseInt($('slopscale-tuning-offset')?.value || '0', 10) || 0;
-      const station = $('slopscale-anchor-station')?.value || '';
-      const concertKey = document.querySelector('#slopscale-controls [name="key"]')?.value || '';
+      const off = parseInt($('slopscale_beta-tuning-offset')?.value || '0', 10) || 0;
+      const station = $('slopscale_beta-anchor-station')?.value || '';
+      const concertKey = document.querySelector('#slopscale_beta-controls [name="key"]')?.value || '';
       if (pw && station) {
         // Anchor rung: name the anchor + the derived pitch (keyless ≠ pitch-
         // anonymous — the player should always know what note they're making).
@@ -14624,7 +14624,7 @@
     }
     // Form cue (hand-marks Slice 2; ergonomics ruling): ONE quiet pre-run
     // sentence — goal-card only, never fades, never detection-triggered.
-    const cueEl = $('slopscale-pathway-form-cue');
+    const cueEl = $('slopscale_beta-pathway-form-cue');
     if (cueEl) {
       let cue = null;
       if (pw && pathwayId) { try { cue = formCueForRung(pathwayId, activeTempoTierIdx, readConfig()); } catch (_) {} }
@@ -14634,7 +14634,7 @@
     // Backing primitive naming (steps 3–4, L&D): when a comp cell and/or a
     // bass figure drives the backing, name them — the player should know the
     // grammar they're hearing ("Charleston comp + walking bass").
-    const bk = $('slopscale-pathway-backing-note');
+    const bk = $('slopscale_beta-pathway-backing-note');
     if (bk) {
       let bkLabel = null;
       try {
@@ -14654,7 +14654,7 @@
     // Clean depth rung's first concrete mechanic): offered once the Speed climb
     // is cleared and Clean isn't credited, while hand-marks are ON. Clicking is
     // the PLAYER flipping the pill — the toggle is never auto-flipped.
-    const prove = $('slopscale-prove-clean');
+    const prove = $('slopscale_beta-prove-clean');
     if (prove) {
       let show = false;
       if (pw && pathwayId && handMarksOn()) {
@@ -14780,10 +14780,10 @@
   // never the disabled attribute (disabled fields drop out of FormData and
   // readConfig would lose the key). The hint lives on the wrapping label.
   function syncAnchorKeyLock() {
-    const keyEl = document.querySelector('#slopscale-controls [name="key"]');
+    const keyEl = document.querySelector('#slopscale_beta-controls [name="key"]');
     if (!keyEl) return;
-    const locked = !!($('slopscale-anchor-station')?.value) && activePathwayId && activePathwayId !== 'custom';
-    keyEl.classList.toggle('slopscale-key-locked', locked);
+    const locked = !!($('slopscale_beta-anchor-station')?.value) && activePathwayId && activePathwayId !== 'custom';
+    keyEl.classList.toggle('slopscale_beta-key-locked', locked);
     keyEl.setAttribute('aria-disabled', locked ? 'true' : 'false');
     const label = keyEl.closest('label');
     if (label) label.title = locked ? 'This lesson anchors on your lowest string — the key is derived from your tuning (change it in Setup).' : '';
@@ -14821,10 +14821,10 @@
     if (merged.anchor === 'open_lowest') {
       // Derive from the form's CURRENT effective opens (the player's declaration
       // — or the rung step's own L3 CSV, which also lives in the form).
-      const setupName = document.querySelector('#slopscale-controls [name="stringSetup"]')?.value;
+      const setupName = document.querySelector('#slopscale_beta-controls [name="stringSetup"]')?.value;
       const setup = STRING_SETUPS[setupName] || STRING_SETUPS.guitar_6_standard;
       let opens = setup.openMidis;
-      const csv = ($('slopscale-custom-open-midis')?.value || '').trim();
+      const csv = ($('slopscale_beta-custom-open-midis')?.value || '').trim();
       if (csv) {
         const list = csv.split(',').map(s => parseInt(s, 10)).filter(Number.isFinite);
         if (list.length === setup.openMidis.length) opens = list;
@@ -14853,7 +14853,7 @@
     } else {
       return;   // no derived pitch fields on this rung — nothing to refresh
     }
-    updatePathwayGoalCard(activePathwayId, $('slopscale-pathway-goal-card')?.classList.contains('modified'));
+    updatePathwayGoalCard(activePathwayId, $('slopscale_beta-pathway-goal-card')?.classList.contains('modified'));
     syncAnchorKeyLock();
   }
 
@@ -14899,7 +14899,7 @@
       // guitar-coded bands (the djent chug rungs: bass djent = lock the same cell on
       // the low fundamental — bass-pedagogy ruling, memory project_djent_ladder_design).
       if (pathwayBandId(id) === 'concept_rhythm' || pw.instAgnostic) {
-        const formSetup = document.querySelector('#slopscale-controls [name="stringSetup"]')?.value;
+        const formSetup = document.querySelector('#slopscale_beta-controls [name="stringSetup"]')?.value;
         const fs = formSetup && STRING_SETUPS[formSetup];
         const rungInst = (STRING_SETUPS[tieredConfig.stringSetup] || {}).instrument;
         if (fs && fs.instrument !== rungInst) {
@@ -14928,10 +14928,10 @@
       // Resolve the pathway's intended shape. New-style pathways can set
       // `fretboardSystem` + `shape` directly; legacy pathways pass `fretMin`
       // (and we pick the closest shape on the current key).
-      const shapeEl = $('slopscale-shape');
+      const shapeEl = $('slopscale_beta-shape');
       if (shapeEl) {
         const system = tieredConfig.fretboardSystem || 'caged';
-        const keyEl = $('slopscale-controls')?.querySelector('[name="key"]');
+        const keyEl = $('slopscale_beta-controls')?.querySelector('[name="key"]');
         const keyPc = keyEl ? (NOTE_ALIASES[keyEl.value] ?? 0) : 0;
         const scale = tieredConfig.scale || 'major';
         const openMidis = STRING_SETUPS.guitar_6_standard.openMidis;
@@ -14954,7 +14954,7 @@
       syncAnchorKeyLock();   // anchor rungs: the key select is a derived readout
       return;
     }
-    const preset = window.__slopscaleFavorites && window.__slopscaleFavorites[id];
+    const preset = window.__slopscale_betaFavorites && window.__slopscale_betaFavorites[id];
     if (preset && preset.config) {
       applyPathwayConfig(preset.config);
       setPathwayModeClass(true);
@@ -14966,17 +14966,17 @@
   // ── The universal Position / variation stepper ─────────────────────────────
   // The ◄ [select/readout] ► row walks the active pathway's variation axis. For a
   // shape-aware guitar pathway the axis is the fretboard Position (CAGED/3NPS) and
-  // the #slopscale-shape select drives it. For everything else the axis is the
+  // the #slopscale_beta-shape select drives it. For everything else the axis is the
   // pathway's curated vary[] list, stepped through applyPathwayById(). This
   // replaces the old bottom "Next variation" button (its ► was redundant with
   // this row's ►), so non-shape pathways must be steppable HERE.
 
   // Is the active row stepping shapes (true) or vary[] entries (false)?
   function positionStepperIsShapeMode() {
-    const sysEl = $('slopscale-fretboard-system');
-    const shapeEl = $('slopscale-shape');
-    const root = $('slopscale-root');
-    const isBass = root && root.classList.contains('slopscale-bass-instrument');
+    const sysEl = $('slopscale_beta-fretboard-system');
+    const shapeEl = $('slopscale_beta-shape');
+    const root = $('slopscale_beta-root');
+    const isBass = root && root.classList.contains('slopscale_beta-bass-instrument');
     const system = sysEl ? sysEl.value : 'caged';
     // Shapes are a guitar concept and only render when the select has ≥2 options.
     return !isBass && isShapeAwareSystem(system) && shapeEl && shapeEl.options.length > 1;
@@ -15017,10 +15017,10 @@
   // Update the stepper row: label by axis, show the right control (select vs
   // readout), and hide the whole row when there is nothing to step.
   function updatePositionStepper() {
-    const row = $('slopscale-position-row');
-    const label = $('slopscale-position-label');
-    const select = $('slopscale-shape');
-    const readout = $('slopscale-position-readout');
+    const row = $('slopscale_beta-position-row');
+    const label = $('slopscale_beta-position-label');
+    const select = $('slopscale_beta-shape');
+    const readout = $('slopscale_beta-position-readout');
     if (!row || !label || !select || !readout) return;
 
     const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
@@ -15056,11 +15056,11 @@
   // the shape select; otherwise rotates the curated vary[] list.
   function positionStep(dir) {
     if (positionStepperIsShapeMode()) {
-      const sel = $('slopscale-shape');
+      const sel = $('slopscale_beta-shape');
       if (!sel || !sel.options.length) return;
       const n = sel.options.length;
       sel.selectedIndex = (sel.selectedIndex + dir + n) % n;
-      // The delegated #slopscale-controls change handler mirrors + regenerates.
+      // The delegated #slopscale_beta-controls change handler mirrors + regenerates.
       sel.dispatchEvent(new Event('change', { bubbles: true }));
       updatePositionStepper();
       return;
@@ -15075,17 +15075,17 @@
     onGenerate();
   }
   function loadPathwayFavorites() {
-    const select = $('slopscale-pathway'); if (!select) return;
+    const select = $('slopscale_beta-pathway'); if (!select) return;
     const favoritesGroup = select.querySelector('optgroup[label="Favorites"]'); if (!favoritesGroup) return;
-    const picker = $('slopscale-preset-picker');
-    fetch('/api/plugins/slopscale/presets').then(r => r.ok ? r.json() : null).then(data => {
+    const picker = $('slopscale_beta-preset-picker');
+    fetch('/api/plugins/slopscale_beta/presets').then(r => r.ok ? r.json() : null).then(data => {
       const presets = (data && Array.isArray(data.presets)) ? data.presets : [];
       if (!presets.length) return;
-      window.__slopscaleFavorites = window.__slopscaleFavorites || {};
+      window.__slopscale_betaFavorites = window.__slopscale_betaFavorites || {};
       presets.forEach(p => {
         if (!p || !p.id) return;
         const key = 'fav__' + p.id;
-        window.__slopscaleFavorites[key] = p;
+        window.__slopscale_betaFavorites[key] = p;
         if (!favoritesGroup.querySelector('option[value="' + key + '"]')) {
           const opt = document.createElement('option'); opt.value = key; opt.textContent = p.name || p.id;
           favoritesGroup.appendChild(opt);
@@ -15097,12 +15097,12 @@
         }
       });
       if (favoritesGroup.children.length) favoritesGroup.hidden = false;
-      const wrap = $('slopscale-preset-picker-wrap');
+      const wrap = $('slopscale_beta-preset-picker-wrap');
       if (wrap && picker && picker.options.length > 1) wrap.hidden = false;
     }).catch(() => {});
   }
   function applyInitialPathway() {
-    const select = $('slopscale-pathway'); if (!select) return;
+    const select = $('slopscale_beta-pathway'); if (!select) return;
     let stored = null; try { stored = localStorage.getItem(PATHWAY_STORAGE_KEY); } catch (_) {}
     // 'custom' means the user opted out of any pathway; treat it as a non-choice
     // on plugin open so beginners always land on a real exercise. The user can
@@ -15141,7 +15141,7 @@
   // the follow-on increments; here we only ship the smallest atom that proves the
   // invite model where the grinder currently hits a wall.
   const SEQ_SUPPORTING = new Set(['scale', 'chord_scales']);   // the practice types that consume cfg.sequence
-  function depthSequenceField() { return document.querySelector('#slopscale-controls [name="sequence"]'); }
+  function depthSequenceField() { return document.querySelector('#slopscale_beta-controls [name="sequence"]'); }
   function depthIsPatterned() { const f = depthSequenceField(); return !!(f && f.value && f.value !== 'none'); }
   // The pattern to OFFER at the speed summit, or null when the rung can't sequence
   // (non-scale type; advancedMode OFF → readConfig strips sequence to 'none', so
@@ -15152,19 +15152,19 @@
   function depthPatternOffer(pw) {
     const pt = pw && pw.base && pw.base.practiceType;
     if (!SEQ_SUPPORTING.has(pt)) return null;
-    const adv = document.querySelector('#slopscale-controls [name="advancedMode"]');
+    const adv = document.querySelector('#slopscale_beta-controls [name="advancedMode"]');
     if (!adv || !adv.checked) return null;                 // would be stripped → never offer a no-op
     if (depthIsPatterned()) return null;                   // already on a pattern — next axis is the follow-on slice
-    const scaleField = document.querySelector('#slopscale-controls [name="scale"]');
+    const scaleField = document.querySelector('#slopscale_beta-controls [name="scale"]');
     const scale = (scaleField && scaleField.value) || (pw.base && pw.base.scale) || 'major';
     const sevenNote = (SCALE_INTERVALS[scale] || []).length === 7;
     return sevenNote ? { seq: 'thirds', label: 'in 3rds' } : { seq: 'fours', label: 'in 4ths' };
   }
   function syncTempoTierButtons() {
-    const container = $('slopscale-tier-buttons');
+    const container = $('slopscale_beta-tier-buttons');
     if (!container) return;
     container.innerHTML = '';
-    const signpost = $('slopscale-climb-next');
+    const signpost = $('slopscale_beta-climb-next');
     if (signpost) { signpost.textContent = ''; signpost.classList.remove('summit'); }
     const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
     const tiers = pw && pw.tempoTiers ? pw.tempoTiers : null;
@@ -15174,7 +15174,7 @@
     tiers.forEach((bpm, i) => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      let cls = 'slopscale-tier-btn';
+      let cls = 'slopscale_beta-tier-btn';
       if (i === activeTempoTierIdx) cls += ' active';
       if (i <= highestCleared) cls += ' cleared';
       if (i === _newlyUnlockedTier) cls += ' tier-glow';
@@ -15202,7 +15202,7 @@
         if (offer) {
           // The live invite: the dead-end becomes the next depth step, armed on click.
           signpost.innerHTML = `<span class="climb-arrow">✓</span>All speeds cleared. ` +
-            `<button type="button" class="slopscale-climb-cta" data-act="depth-pattern" data-seq="${offer.seq}">Now play it ${offer.label} ▸</button>`;
+            `<button type="button" class="slopscale_beta-climb-cta" data-act="depth-pattern" data-seq="${offer.seq}">Now play it ${offer.label} ▸</button>`;
         } else if (SEQ_SUPPORTING.has(pw && pw.base && pw.base.practiceType) && depthIsPatterned()) {
           // Already on a pattern — forward hook (the always-visible roadmap signal),
           // naming the next axis without yet shipping its control.
@@ -15281,8 +15281,8 @@
   // + L2 bounded, ordered list for the active band. Full labels, tier-dot progress,
   // "you are here" on the active row, one "→ next" cue, a soft "Builds on …" sub-line.
   function renderPathwayList() {
-    const bandBar = $('slopscale-band-bar');
-    const list = $('slopscale-pathway-list');
+    const bandBar = $('slopscale_beta-band-bar');
+    const list = $('slopscale_beta-pathway-list');
     if (!bandBar || !list) return;
     const ptData = pathwayTiersLoad();
     // Visible bands = Core packs (pinned, fixed order) + installed Style packs in
@@ -15299,7 +15299,7 @@
       // should always have content, but a future instrument without a Core spine
       // would otherwise blank here). Points the player at the Pack manager.
       bandBar.innerHTML = '';
-      list.innerHTML = '<div class="slopscale-lib-empty">No pathways for this instrument yet — tap <strong>+</strong> to browse packs.</div>';
+      list.innerHTML = '<div class="slopscale_beta-lib-empty">No pathways for this instrument yet — tap <strong>+</strong> to browse packs.</div>';
       return;
     }
     // Which band to show = the user's selected band (_activeBandId), defaulting to the
@@ -15319,13 +15319,13 @@
     bands.forEach(b => {
       if (_prevKind === 'core' && b.kind !== 'core') {
         const sep = document.createElement('span');
-        sep.className = 'slopscale-band-sep';
+        sep.className = 'slopscale_beta-band-sep';
         sep.setAttribute('aria-hidden', 'true');
         bandBar.appendChild(sep);
       }
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'slopscale-band-btn slopscale-band-' + (b.kind || 'style') + (b.id === activeBand.id ? ' active' : '');
+      btn.className = 'slopscale_beta-band-btn slopscale_beta-band-' + (b.kind || 'style') + (b.id === activeBand.id ? ' active' : '');
       btn.textContent = b.label;
       btn.setAttribute('role', 'tab');
       btn.setAttribute('aria-selected', b.id === activeBand.id ? 'true' : 'false');
@@ -15337,8 +15337,8 @@
     // action, not a tab (no role=tab / aria-selected); right-aligned via CSS.
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
-    addBtn.className = 'slopscale-band-btn slopscale-band-add'
-      + ($('slopscale-root')?.classList.contains('ss-packs-open') ? ' active' : '');
+    addBtn.className = 'slopscale_beta-band-btn slopscale_beta-band-add'
+      + ($('slopscale_beta-root')?.classList.contains('ss-packs-open') ? ' active' : '');
     addBtn.textContent = '+';
     addBtn.title = 'Manage pathway packs';
     addBtn.setAttribute('aria-label', 'Manage pathway packs');
@@ -15351,7 +15351,7 @@
     states.forEach(({ id, st }) => {
       const pw = PATHWAYS[id];
       const row = document.createElement('div');
-      row.className = 'slopscale-segment-card slopscale-pw-row'
+      row.className = 'slopscale_beta-segment-card slopscale_beta-pw-row'
         + (id === activePathwayId ? ' active' : '') + (st.cleared ? ' cleared' : '');
       row.setAttribute('role', 'option');
       row.setAttribute('aria-selected', id === activePathwayId ? 'true' : 'false');
@@ -15362,14 +15362,14 @@
         const lbl = TIER_LABELS[i] || ('Tier ' + (i + 1));
         return `<span class="tree-tier-dot${done ? ' cleared' : ''}" title="${lbl} — ${done ? 'cleared' : 'not yet'}" aria-label="${lbl}, ${done ? 'cleared' : 'not cleared'}"></span>`;
       }).join('');
-      const marker = id === activePathwayId ? '<span class="slopscale-pw-here">you are here</span>'
-        : id === nextId ? '<span class="slopscale-pw-next">→ next</span>' : '';
+      const marker = id === activePathwayId ? '<span class="slopscale_beta-pw-here">you are here</span>'
+        : id === nextId ? '<span class="slopscale_beta-pw-next">→ next</span>' : '';
       // Soft "Builds on …" hint — only when the prereq is in ANOTHER band (a Style
       // pathway pointing back to its Core foundation). Within a band the top→bottom
       // order already communicates sequence, so the hint there is just noise.
       const crossBandPrereq = st.prereq && pathwayBandId(st.prereq) !== activeBand.id;
       const sub = (st.prereqUnmet && crossBandPrereq && PATHWAYS[st.prereq])
-        ? `<div class="slopscale-pw-sub">Builds on ${PATHWAYS[st.prereq].label} — suggested first</div>` : '';
+        ? `<div class="slopscale_beta-pw-sub">Builds on ${PATHWAYS[st.prereq].label} — suggested first</div>` : '';
       // Depth-ladder pip (Phase 9 Slice 5): a 5-rung mastery overview from the
       // progress store — Speed → Travel → Clean → Ears-off → Master. Off mode →
       // no pip (st.depth is null; the whole layer collapses). A filled rung means
@@ -15383,13 +15383,13 @@
           ['Master',   st.depth.mastered,  'owned'],
         ];
         const pips = rungs.map(([name, done, hint]) =>
-          `<span class="slopscale-pw-pip${done ? ' done' : ''}" title="${name} — ${done ? 'cleared' : 'not yet'} (${hint})" aria-label="${name}, ${done ? 'cleared' : 'not cleared'}"></span>`).join('');
-        return `<div class="slopscale-pw-depth"><span class="slopscale-pw-depth-lbl">Depth</span>${pips}</div>`;
+          `<span class="slopscale_beta-pw-pip${done ? ' done' : ''}" title="${name} — ${done ? 'cleared' : 'not yet'} (${hint})" aria-label="${name}, ${done ? 'cleared' : 'not cleared'}"></span>`).join('');
+        return `<div class="slopscale_beta-pw-depth"><span class="slopscale_beta-pw-depth-lbl">Depth</span>${pips}</div>`;
       })() : '';
-      row.innerHTML = `<div class="slopscale-pw-rowtop"><span class="slopscale-pw-label">${pw.label}</span>${marker}</div>`
-        + `<div class="slopscale-pw-dots">${dots}</div>${depthPip}${sub}`;
+      row.innerHTML = `<div class="slopscale_beta-pw-rowtop"><span class="slopscale_beta-pw-label">${pw.label}</span>${marker}</div>`
+        + `<div class="slopscale_beta-pw-dots">${dots}</div>${depthPip}${sub}`;
       row.addEventListener('click', () => {
-        const sel = $('slopscale-pathway');
+        const sel = $('slopscale_beta-pathway');
         if (sel) { sel.value = id; sel.dispatchEvent(new Event('change')); }
       });
       list.appendChild(row);
@@ -15410,16 +15410,16 @@
       }
       if (cross && PATHWAYS[cross.id]) {
         const cue = document.createElement('div');
-        cue.className = 'slopscale-pw-nextband';
+        cue.className = 'slopscale_beta-pw-nextband';
         cue.setAttribute('role', 'button');
         cue.tabIndex = 0;
         cue.title = `Go to ${PATHWAYS[cross.id].label} in ${cross.band.label}`;
-        cue.innerHTML = `<span class="slopscale-pw-next">→ next</span>`
-          + `<span class="slopscale-pw-nextband-label">${PATHWAYS[cross.id].label}</span>`
-          + `<span class="slopscale-pw-nextband-band">in ${cross.band.label}</span>`;
+        cue.innerHTML = `<span class="slopscale_beta-pw-next">→ next</span>`
+          + `<span class="slopscale_beta-pw-nextband-label">${PATHWAYS[cross.id].label}</span>`
+          + `<span class="slopscale_beta-pw-nextband-band">in ${cross.band.label}</span>`;
         const go = () => {
           _activeBandId = cross.band.id; renderPathwayList();
-          const sel = $('slopscale-pathway'); if (sel) { sel.value = cross.id; sel.dispatchEvent(new Event('change')); }
+          const sel = $('slopscale_beta-pathway'); if (sel) { sel.value = cross.id; sel.dispatchEvent(new Event('change')); }
         };
         cue.addEventListener('click', go);
         cue.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
@@ -15427,7 +15427,7 @@
       }
     }
     // Keep the active row visible — scroll the LIST only (never the outer panel).
-    const activeRow = list.querySelector('.slopscale-pw-row.active');
+    const activeRow = list.querySelector('.slopscale_beta-pw-row.active');
     if (activeRow) {
       const lr = list.getBoundingClientRect(), ar = activeRow.getBoundingClientRect();
       if (ar.top < lr.top || ar.bottom > lr.bottom) list.scrollTop += (ar.top - lr.top);
@@ -15436,16 +15436,16 @@
 
   function renderSkillTree() {
     renderPathwayList();   // the live picker; the SVG tree below is shelved-but-kept
-    const container = $('slopscale-skill-tree');
-    if (!container || container.classList.contains('slopscale-tree-shelved')) return;
+    const container = $('slopscale_beta-skill-tree');
+    if (!container || container.classList.contains('slopscale_beta-tree-shelved')) return;
     const ptData = pathwayTiersLoad();
     const hiddenNode = isHiddenNode;
     // Build inner wrapper + SVG edge layer + node buttons
-    container.innerHTML = '<div class="slopscale-tree-inner" id="slopscale-tree-inner"></div>';
+    container.innerHTML = '<div class="slopscale_beta-tree-inner" id="slopscale_beta-tree-inner"></div>';
     const inner = container.firstChild;
     const NS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('class', 'slopscale-tree-edges');
+    svg.setAttribute('class', 'slopscale_beta-tree-edges');
     svg.setAttribute('viewBox', '0 0 100 100');
     svg.setAttribute('preserveAspectRatio', 'none');
     // Draw edges first so nodes render on top
@@ -15467,7 +15467,7 @@
       const highestTier = (ptData[node.id] || {}).highest_tier ?? -1;
       const isActive = node.id === activePathwayId;
       const wrapper = document.createElement('div');
-      wrapper.className = 'slopscale-tree-node' + (isActive ? ' active' : '');
+      wrapper.className = 'slopscale_beta-tree-node' + (isActive ? ' active' : '');
       wrapper.style.left = node.x + '%';
       wrapper.style.top  = node.y + '%';
       const tiers = (pw.tempoTiers || []).map((_, i) =>
@@ -15475,11 +15475,11 @@
       ).join('');
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'slopscale-tree-node-btn';
+      btn.className = 'slopscale_beta-tree-node-btn';
       btn.title = pw.label;
       btn.innerHTML = `<span>${node.short}</span><span class="tree-node-tiers">${tiers}</span>`;
       btn.addEventListener('click', () => {
-        const sel = $('slopscale-pathway');
+        const sel = $('slopscale_beta-pathway');
         if (sel) { sel.value = node.id; sel.dispatchEvent(new Event('change')); }
       });
       wrapper.appendChild(btn);
@@ -15488,8 +15488,8 @@
   }
 
   function syncScaleDropdown(pathwayId) {
-    const el = $('slopscale-pathway-scale');
-    const wrap = $('slopscale-pathway-scale-wrap');
+    const el = $('slopscale_beta-pathway-scale');
+    const wrap = $('slopscale_beta-pathway-scale-wrap');
     if (!el) return;
     const pw = pathwayId && pathwayId !== 'custom' ? PATHWAYS[pathwayId] : null;
     const scales = pw && pw.scales ? pw.scales : [];
@@ -15519,13 +15519,13 @@
   function syncChromaticVisibility() {
     const practiceTypeEl = document.querySelector('[name="practiceType"]');
     const mode = practiceTypeEl ? practiceTypeEl.value : '';
-    document.querySelectorAll('.slopscale-chromatic-only').forEach(el => {
+    document.querySelectorAll('.slopscale_beta-chromatic-only').forEach(el => {
       el.style.display = mode === 'chromatic' ? '' : 'none';
     });
-    document.querySelectorAll('.slopscale-guide-tones-only').forEach(el => {
+    document.querySelectorAll('.slopscale_beta-guide-tones-only').forEach(el => {
       el.style.display = mode === 'guide_tones' ? '' : 'none';
     });
-    document.querySelectorAll('.slopscale-bending-only').forEach(el => {
+    document.querySelectorAll('.slopscale_beta-bending-only').forEach(el => {
       el.style.display = mode === 'bending' ? '' : 'none';
     });
   }
@@ -15663,7 +15663,7 @@
       if (prev && prev.label === label && n.t - prev.t1 <= 0.25) prev.t1 = Math.max(prev.t1, t1);
       else _ptExemptIv.push({ t0: n.t, t1, label });
     }
-    const _jn = $('slopscale-judge-note'); if (_jn) _jn.style.display = 'none';   // the idle line yields to the live strip
+    const _jn = $('slopscale_beta-judge-note'); if (_jn) _jn.style.display = 'none';   // the idle line yields to the live strip
 
     // Verifier-backed scoring (host note_detect timing-free verify, notedetect
     // #61): score against the PLAYER's real tuning (openMidis), polyphonic +
@@ -15853,7 +15853,7 @@
     _ptWin = []; _ptWinByKey = new Map(); _ptWinLo = 0; _ptWinLastT = -Infinity; _ptWinPassedNotes = [];
     _ptScoredUnits = 0; _ptSpanPending = []; _ptDevs = []; _ptNearMiss = 0; _ptSpanCount = 0; _ptExempt = null;
     _ptExemptIv = []; _ptChipIdx = 0; _ptChipLastT = -Infinity; _ptCalLog = []; _ptJamRun = false;
-    { const jc = $('slopscale-judge-chip'); if (jc) jc.style.display = 'none'; }
+    { const jc = $('slopscale_beta-judge-chip'); if (jc) jc.style.display = 'none'; }
     _ptMeterEma = { key: null, cents: NaN };
     // Return to the resting state instead of hiding — the strip stays a
     // standing affordance between runs (hidden only on detector-less hosts).
@@ -15895,7 +15895,7 @@
   // (the same etiquette we expect of them). Runs on the strip's hidden→shown
   // transition and on the debounced window resize in bind().
   function ptDodgeOverlays() {
-    const meter = $('slopscale-pitch-meter');
+    const meter = $('slopscale_beta-pitch-meter');
     if (!meter || meter.style.display === 'none' || !meter.offsetParent) return;
     const mr = meter.getBoundingClientRect();
     if (!mr.width) return;
@@ -15920,14 +15920,14 @@
   }
 
   function ptUpdateMeter({ show, active, cents, note, hits, total }) {
-    const meter = $('slopscale-pitch-meter');
+    const meter = $('slopscale_beta-pitch-meter');
     if (!meter) return;
     if (!show) { meter.style.display = 'none'; return; }
     const wasHidden = meter.style.display !== 'flex';
     meter.style.display = 'flex';
     if (wasHidden) ptDodgeOverlays();
-    const noteEl = $('slopscale-pitch-note'), centsEl = $('slopscale-pitch-cents');
-    const needleEl = $('slopscale-cents-needle'), accEl = $('slopscale-pitch-accuracy');
+    const noteEl = $('slopscale_beta-pitch-note'), centsEl = $('slopscale_beta-pitch-cents');
+    const needleEl = $('slopscale_beta-cents-needle'), accEl = $('slopscale_beta-pitch-accuracy');
     if (noteEl) noteEl.textContent = active ? note : '--';
     const cc = Math.max(-100, Math.min(100, cents || 0));
     const color = !active ? '#475569' : Math.abs(cents) <= 25 ? '#22c55e' : Math.abs(cents) <= 50 ? '#eab308' : '#ef4444';
@@ -16002,7 +16002,7 @@
     ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: 0, total: 0 });
     // The pre-run denominator line ("Judging 20 of 24 notes — …") — disclosure
     // BEFORE play, so the player never discovers an exemption from the score.
-    const jn = $('slopscale-judge-note');
+    const jn = $('slopscale_beta-judge-note');
     if (jn) {
       const p = activeBundle ? ptPreviewJudgeCounts(activeBundle) : null;
       if (p && p.judged < p.total) {
@@ -16019,7 +16019,7 @@
         jn.style.display = '';
       } else { jn.style.display = 'none'; }
     }
-    const jc = $('slopscale-judge-chip'); if (jc) jc.style.display = 'none';
+    const jc = $('slopscale_beta-judge-chip'); if (jc) jc.style.display = 'none';
     syncStripTuneBtn();
   }
   // Dwell chip (Slice-2 disclosure): while the playhead sits on a MERGED run of
@@ -16027,7 +16027,7 @@
   // per run by startPitchTracker; advanced by tick.
   let _ptExemptIv = [], _ptChipIdx = 0, _ptChipLastT = -Infinity;
   function ptUpdateJudgeChip(now) {
-    const el = $('slopscale-judge-chip'); if (!el) return;
+    const el = $('slopscale_beta-judge-chip'); if (!el) return;
     if (now < _ptChipLastT - 0.25) _ptChipIdx = 0;   // loop wrap / seek-back
     _ptChipLastT = now;
     while (_ptChipIdx < _ptExemptIv.length && _ptExemptIv[_ptChipIdx].t1 < now) _ptChipIdx++;
@@ -16045,7 +16045,7 @@
   // exists (the tuner needs the mic detector specifically — the verifier can't
   // drive per-string cents).
   function syncStripTuneBtn() {
-    const btn = $('slopscale-strip-tune');
+    const btn = $('slopscale_beta-strip-tune');
     if (btn) btn.style.display = (!playing && !_tunerHandle && ptAvailable()) ? '' : 'none';
   }
   // ── Target-aware tuner (Setup popover "Tune…" — UX panel 2026-06-05) ────────
@@ -16077,15 +16077,15 @@
     _tunerHandle.on('pitch', tunerOnPitch);
     _tunerHandle.on('end', () => { _tunerHandle = null; });
     syncStripTuneBtn();   // the tuner owns the strip — Done replaces the idle Tune…
-    const meter = $('slopscale-pitch-meter');
-    if (meter) { meter.classList.add('slopscale-pm-tuner'); meter.style.display = 'flex'; }
-    const chips = $('slopscale-tuner-chips'), done = $('slopscale-tuner-done');
+    const meter = $('slopscale_beta-pitch-meter');
+    if (meter) { meter.classList.add('slopscale_beta-pm-tuner'); meter.style.display = 'flex'; }
+    const chips = $('slopscale_beta-tuner-chips'), done = $('slopscale_beta-tuner-done');
     if (chips) {
       chips.style.display = 'inline-flex';
       chips.innerHTML = '';
       _tunerTargets.forEach((t, i) => {
         const c = document.createElement('span');
-        c.className = 'slopscale-tuner-chip';
+        c.className = 'slopscale_beta-tuner-chip';
         c.dataset.idx = String(i);
         c.textContent = t.name;
         c.title = `String ${i + 1} (low → high): tune to ${t.name}`;
@@ -16099,7 +16099,7 @@
 
   function tunerOnPitch({ freqHz, confidence }) {
     // Self-heal: SlopScale backgrounded or playback started → the tuner ends.
-    if (!$('slopscale-root')?.offsetParent || playing) { stopTuner(); return; }
+    if (!$('slopscale_beta-root')?.offsetParent || playing) { stopTuner(); return; }
     if (!(freqHz > 0) || confidence < 0.55) { tunerPaint(null, 0, false); return; }
     const midiF = 69 + 12 * Math.log2(freqHz / 440);
     // Nearest target — with an OCTAVE FOLD for sub-floor strings (70 Hz plan):
@@ -16123,7 +16123,7 @@
   }
 
   function tunerPaint(idx, cents, active) {
-    const noteEl = $('slopscale-pitch-note'), centsEl = $('slopscale-pitch-cents'), needleEl = $('slopscale-cents-needle');
+    const noteEl = $('slopscale_beta-pitch-note'), centsEl = $('slopscale_beta-pitch-cents'), needleEl = $('slopscale_beta-cents-needle');
     const t = (idx != null && _tunerTargets[idx]) || null;
     if (noteEl) noteEl.textContent = t ? t.name : '--';
     const cc = Math.max(-100, Math.min(100, cents || 0));
@@ -16132,7 +16132,7 @@
       : Math.abs(cents) <= 25 ? '#eab308' : '#ef4444';
     if (needleEl) { needleEl.style.left = `${50 + cc / 2}%`; needleEl.style.background = color; }
     if (centsEl) { centsEl.textContent = active ? `${cents >= 0 ? '+' : ''}${cents}¢` : ''; centsEl.style.color = color; }
-    const chips = $('slopscale-tuner-chips');
+    const chips = $('slopscale_beta-tuner-chips');
     if (chips) {
       for (const c of chips.children) {
         const i = Number(c.dataset.idx);
@@ -16144,11 +16144,11 @@
 
   function stopTuner() {
     if (_tunerHandle) { try { _tunerHandle.stop(); } catch (_) {} _tunerHandle = null; }
-    const meter = $('slopscale-pitch-meter');
-    if (meter && meter.classList.contains('slopscale-pm-tuner')) {
-      meter.classList.remove('slopscale-pm-tuner');
+    const meter = $('slopscale_beta-pitch-meter');
+    if (meter && meter.classList.contains('slopscale_beta-pm-tuner')) {
+      meter.classList.remove('slopscale_beta-pm-tuner');
     }
-    const chips = $('slopscale-tuner-chips'), done = $('slopscale-tuner-done');
+    const chips = $('slopscale_beta-tuner-chips'), done = $('slopscale_beta-tuner-done');
     if (chips) { chips.style.display = 'none'; chips.innerHTML = ''; }
     if (done) done.style.display = 'none';
     _tunerTargets = []; _tunerHold = { idx: -1, count: 0 }; _tunerLocked = new Set();
@@ -16165,12 +16165,12 @@
   //           practice_type, duration_ms, hit_count, miss_count }
 
   function sessionsLoad() {
-    try { return JSON.parse(localStorage.getItem('slopscale.sessions') || '[]'); }
+    try { return JSON.parse(localStorage.getItem('slopscale_beta.sessions') || '[]'); }
     catch { return []; }
   }
 
   function sessionsSave(arr) {
-    try { localStorage.setItem('slopscale.sessions', JSON.stringify(arr.slice(0, 500))); }
+    try { localStorage.setItem('slopscale_beta.sessions', JSON.stringify(arr.slice(0, 500))); }
     catch (e) { console.warn('[SlopScale] session save failed', e); }
   }
 
@@ -16180,13 +16180,13 @@
   // Accuracy gate: if pitch tracker ran (hit+miss > 0) and accuracy < 65%, skip.
   // Passive attribution: custom sessions within ±5 BPM of a pathway tier BPM
   // count toward that pathway.
-  // SDK: emits window.slopsmith 'slopscale:tier:unlocked' when a new high is set.
+  // SDK: emits window.slopsmith 'slopscale_beta:tier:unlocked' when a new high is set.
   function pathwayTiersLoad() {
-    try { return JSON.parse(localStorage.getItem('slopscale.pathway_tiers') || '{}'); }
+    try { return JSON.parse(localStorage.getItem('slopscale_beta.pathway_tiers') || '{}'); }
     catch { return {}; }
   }
   function pathwayTiersSave(obj) {
-    try { localStorage.setItem('slopscale.pathway_tiers', JSON.stringify(obj)); }
+    try { localStorage.setItem('slopscale_beta.pathway_tiers', JSON.stringify(obj)); }
     catch (e) { console.warn('[SlopScale] pathway tier save failed', e); }
   }
   function _updatePathwayTier(pathwayId, tier) {
@@ -16196,7 +16196,7 @@
     all[pathwayId] = { highest_tier: tier };
     pathwayTiersSave(all);
     if (window.slopsmith && typeof window.slopsmith.emit === 'function') {
-      window.slopsmith.emit('slopscale:tier:unlocked', {
+      window.slopsmith.emit('slopscale_beta:tier:unlocked', {
         pathway: pathwayId, tier, label: TIER_LABELS[tier] || `T${tier + 1}`
       });
     }
@@ -16216,7 +16216,7 @@
   // tones across the changes (the Connect engine, the same landing smoke-connect
   // asserts). The card / claim / share-text branch on the kind. Add a pilot by id.
   const PROOF_PILOTS = new Map([['blues_foundation', 'tempo'], ['vl_connect', 'guide_tones']]);
-  function proofLoopOn() { try { return localStorage.getItem('slopscale.proofloop') === 'on'; } catch { return false; } }
+  function proofLoopOn() { try { return localStorage.getItem('slopscale_beta.proofloop') === 'on'; } catch { return false; } }
   function proofPilot(id) { return proofLoopOn() && !!id && PROOF_PILOTS.has(id); }
   function proofKind(id) { return PROOF_PILOTS.get(id) || 'tempo'; }
   // The settling-tax window: the run must have HELD the standard — ≥ max(20s, 85% of
@@ -16305,7 +16305,7 @@
   }
   // ── End pathway tier progress ───────────────────────────────────────────────
 
-  // ── Depth Ladder + XP (slopscale.progress) — Phase 8 ───────────────────────
+  // ── Depth Ladder + XP (slopscale_beta.progress) — Phase 8 ───────────────────────
   // The second mastery axis ABOVE the shipped Speed Climb (pathway_tiers). Locked
   // design: gamification-architect project_replay_depth_ladder_xp_verdict +
   // project_refresh_variety_loop_verdict. A reward is a gained-only false→true flip
@@ -16317,7 +16317,7 @@
   //     it never gates.
   //   • Nothing is ever shown LOST; reps stay a silent stat; no scores/ranks/combos.
   // Speed stays in pathway_tiers (NOT duplicated); nodeProgressState reads both.
-  const PROGRESS_KEY = 'slopscale.progress';
+  const PROGRESS_KEY = 'slopscale_beta.progress';
   function progressLoad() {
     try {
       const o = JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}');
@@ -16338,13 +16338,13 @@
     if (mode !== 'off' && mode !== 'casual' && mode !== 'hardcore') return;
     const o = progressLoad(); o.mode = mode; progressSave(o);
   }
-  // Outbound host-XP seam — mirrors the shipped slopscale:tier:unlocked emit. No-op
+  // Outbound host-XP seam — mirrors the shipped slopscale_beta:tier:unlocked emit. No-op
   // until the host subscribes; the internal store NEVER depends on it. (The host's
   // actual XP-intake surface is for slopsmith-host-expert to verify when the live
   // hook lands; this only defines the outbound shape.)
   function emitProgress(kind, nodeId, extra) {
     if (window.slopsmith && typeof window.slopsmith.emit === 'function') {
-      try { window.slopsmith.emit('slopscale:progress', Object.assign({ source:'slopscale', kind, nodeId, at:Date.now() }, extra || {})); } catch (_) {}
+      try { window.slopsmith.emit('slopscale_beta:progress', Object.assign({ source:'slopscale_beta', kind, nodeId, at:Date.now() }, extra || {})); } catch (_) {}
     }
   }
   // A run is "clean" by the same signal the Speed climb uses (≥65% of judged notes
@@ -16416,7 +16416,7 @@
   // ── End depth ladder ────────────────────────────────────────────────────────
 
   function sessionBegin() {
-    const isSessionMode = $('slopscale-root')?.classList.contains('slopscale-session-mode');
+    const isSessionMode = $('slopscale_beta-root')?.classList.contains('slopscale_beta-session-mode');
     let mode, pathway_id, bpm, bpm_tier, scale, key, practice_type;
     // Tuning-adapt credit fields (panel 2026-06-05): `key` stays CONCERT (what
     // sounded — display honesty); key_credit = the rung's nominal key (what
@@ -16519,7 +16519,7 @@
         if (Math.abs(estMs - prevMs) >= 8) {
           const nextMs = Math.round(prevMs * 0.7 + estMs * 0.3);
           _ptLatencyS = nextMs / 1000;
-          try { localStorage.setItem('slopscale.latencyMs', String(nextMs)); } catch (_) {}
+          try { localStorage.setItem('slopscale_beta.latencyMs', String(nextMs)); } catch (_) {}
         }
         _ptRunInfo.calMs = estMs; _ptRunInfo.calMatched = cal.matched; _ptRunInfo.latencyMs = Math.round(_ptLatencyS * 1000);
       } else {
@@ -16571,13 +16571,13 @@
             : (_activeSession.mode + ':' + (_activeSession.practice_type || '')),
           _activeSession.bpm ?? '', _activeSession.key_credit || _activeSession.key || ''
         ].join('|');
-        let store = {}; try { store = JSON.parse(localStorage.getItem('slopscale.spec_best') || '{}'); } catch (_) {}
+        let store = {}; try { store = JSON.parse(localStorage.getItem('slopscale_beta.spec_best') || '{}'); } catch (_) {}
         const cur = store[specKey] || { best: 0, runs: 0 };
         cur.runs += 1;
         const isNew = pctNow > cur.best, prevBestPct = cur.best;
         if (isNew) cur.best = pctNow;
         store[specKey] = cur;
-        try { localStorage.setItem('slopscale.spec_best', JSON.stringify(store)); } catch (_) {}
+        try { localStorage.setItem('slopscale_beta.spec_best', JSON.stringify(store)); } catch (_) {}
         specBest = { best: cur.best, runs: cur.runs, isNew, prev: prevBestPct };
         // New-best recognizer — below first_clear/fastest in precedence; upward
         // past-printing is the established gained-only grammar.
@@ -16687,17 +16687,17 @@
   function syncProgressStrip() {
     const sessions = sessionsLoad();
     const streak = streakCount(sessions);
-    const numEl = $('slopscale-streak-num');
+    const numEl = $('slopscale_beta-streak-num');
     if (numEl) {
       numEl.textContent = streak;
       numEl.classList.toggle('active', streak > 0);
     }
-    const calEl = $('slopscale-cal-dots');
+    const calEl = $('slopscale_beta-cal-dots');
     if (!calEl) return;
     calEl.innerHTML = last7Days(sessions).map(d =>
-      `<div class="slopscale-cal-day${d.isToday ? ' today' : ''}">` +
-      `<div class="slopscale-cal-dot${d.practiced ? ' practiced' : ''}"></div>` +
-      `<span class="slopscale-cal-lbl">${d.letter}</span>` +
+      `<div class="slopscale_beta-cal-day${d.isToday ? ' today' : ''}">` +
+      `<div class="slopscale_beta-cal-dot${d.practiced ? ' practiced' : ''}"></div>` +
+      `<span class="slopscale_beta-cal-lbl">${d.letter}</span>` +
       `</div>`
     ).join('');
   }
@@ -16753,15 +16753,15 @@
     const tmpl = seg.templateId ? SEGMENT_TEMPLATES[seg.templateId] : null;
     const canReroll = !!(tmpl && tmpl.vary && tmpl.vary.length > 1);
     const canRemove = ((_workoutDraft && _workoutDraft.segments) || []).length > 1;
-    return `<div class="slopscale-segment-card" data-kind="${esc(seg.kind)}" data-seg-index="${index}" draggable="true" title="Drag to reorder · click to preview from here">
-      <div class="slopscale-segment-header">
-        <span class="slopscale-segment-grip" data-act="grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
-        <span class="slopscale-segment-badge" style="color:${color}">${esc(label)}</span>
-        <span class="slopscale-segment-name">${esc(seg.name || '')}</span>
-        <button type="button" class="slopscale-segment-menu-btn" data-act="menu" aria-label="Block actions" title="Block actions">⋯</button>
+    return `<div class="slopscale_beta-segment-card" data-kind="${esc(seg.kind)}" data-seg-index="${index}" draggable="true" title="Drag to reorder · click to preview from here">
+      <div class="slopscale_beta-segment-header">
+        <span class="slopscale_beta-segment-grip" data-act="grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+        <span class="slopscale_beta-segment-badge" style="color:${color}">${esc(label)}</span>
+        <span class="slopscale_beta-segment-name">${esc(seg.name || '')}</span>
+        <button type="button" class="slopscale_beta-segment-menu-btn" data-act="menu" aria-label="Block actions" title="Block actions">⋯</button>
       </div>
-      <div class="slopscale-segment-meta">${esc(parts.join(' · '))}</div>
-      <div class="slopscale-segment-actions" hidden>
+      <div class="slopscale_beta-segment-meta">${esc(parts.join(' · '))}</div>
+      <div class="slopscale_beta-segment-actions" hidden>
         <button type="button" data-act="dup" title="Add a copy of this block below">Duplicate</button>
         <button type="button" data-act="reroll"${canReroll ? '' : ' disabled'} title="${canReroll ? 'Re-roll just this block into a fresh variation' : 'This block has no variations to re-roll'}">↻ Re-roll</button>
         <button type="button" data-act="remove"${canRemove ? '' : ' disabled'} title="${canRemove ? 'Remove this block' : 'A workout needs at least one block'}">Remove</button>
@@ -16774,10 +16774,10 @@
   // design-your-own editing) operate on this, NEVER on the shipped BUILT_IN_SESSIONS
   // (loading a starter = a fork/copy). Template-ref slots are materialized for DISPLAY
   // (cards show the rolled key/scale/shape) while the draft keeps the refs so Refresh
-  // can re-roll their vary[] cursor. UX spec: slopscale-ux-designer
+  // can re-roll their vary[] cursor. UX spec: slopscale_beta-ux-designer
   // project_workout_browse_design_refresh.
   // The selected starter id — the single source of truth for which Workout is
-  // loaded (replaces the old #slopscale-session-select value; the dropdown was
+  // loaded (replaces the old #slopscale_beta-session-select value; the dropdown was
   // dropped in Phase 9 Slice 4, BUILT_IN_SESSIONS is the option source).
   let _selectedStarterId = Object.keys(BUILT_IN_SESSIONS)[0];
   let _workoutDraft = null, _workoutDraftId = null;
@@ -16793,7 +16793,7 @@
   }
   function renderWorkoutDraft() {
     const session = _workoutDraft;
-    const info = $('slopscale-session-info'), list = $('slopscale-segment-list');
+    const info = $('slopscale_beta-session-info'), list = $('slopscale_beta-segment-list');
     if (!info || !list) return;
     if (!session) { info.innerHTML = ''; list.innerHTML = ''; return; }
     // Materialise per RAW index (template-ref → concrete), keeping nulls in place so
@@ -16811,27 +16811,27 @@
     const presetSec = lengthPresetSec(session.lengthPreset);
     const durStr = presetSec ? `≈ ${Math.round(presetSec / 60)} min`
       : (totalDur < 60 ? `${Math.round(totalDur)}s` : `${Math.floor(totalDur / 60)}m ${Math.round(totalDur % 60)}s`);
-    const lenSel = $('slopscale-length-preset');
+    const lenSel = $('slopscale_beta-length-preset');
     if (lenSel) lenSel.value = session.lengthPreset || '';
     const tags = (session.tags || []).join(', ');
     // No hard cap on blocks (charette) — just a calm, non-blocking note past a long
     // set, so a sprawling workout informs without policing. Informational, not green.
     const longNote = displaySegs.length >= 10
-      ? `<div class="slopscale-session-longnote">That's a long set — every block can loop or be trimmed, and you never have to finish it all in one sitting.</div>`
+      ? `<div class="slopscale_beta-session-longnote">That's a long set — every block can loop or be trimmed, and you never have to finish it all in one sitting.</div>`
       : '';
     info.innerHTML = `
-      <div class="slopscale-session-info-name">${session.name}</div>
-      <div class="slopscale-session-info-desc">${session.description || ''}</div>
-      <div class="slopscale-session-info-stats">
-        <span class="slopscale-session-info-stat">${displaySegs.length} segments</span>
-        <span class="slopscale-session-info-stat">${durStr}</span>
-        ${bpmStr ? `<span class="slopscale-session-info-stat">${bpmStr}</span>` : ''}
-        ${tags ? `<span class="slopscale-session-info-stat">${tags}</span>` : ''}
+      <div class="slopscale_beta-session-info-name">${session.name}</div>
+      <div class="slopscale_beta-session-info-desc">${session.description || ''}</div>
+      <div class="slopscale_beta-session-info-stats">
+        <span class="slopscale_beta-session-info-stat">${displaySegs.length} segments</span>
+        <span class="slopscale_beta-session-info-stat">${durStr}</span>
+        ${bpmStr ? `<span class="slopscale_beta-session-info-stat">${bpmStr}</span>` : ''}
+        ${tags ? `<span class="slopscale_beta-session-info-stat">${tags}</span>` : ''}
       </div>${longNote}`;
     list.innerHTML = materialized.map((m, i) => m ? buildSegmentCard(m, i) : '').join('');
-    const breathe = $('slopscale-breathe-toggle');
+    const breathe = $('slopscale_beta-breathe-toggle');
     if (breathe) breathe.checked = (session.interBlockBreak || 'auto') !== 'off';   // default on (auto)
-    const btn = $('slopscale-workout-refresh');
+    const btn = $('slopscale_beta-workout-refresh');
     if (btn) {
       const can = workoutHasRefs(session);
       btn.disabled = !can;
@@ -16875,15 +16875,15 @@
     return lines;
   }
   function clearRefreshSummary() {
-    const el = $('slopscale-refresh-summary'); if (el) { el.hidden = true; el.innerHTML = ''; }
+    const el = $('slopscale_beta-refresh-summary'); if (el) { el.hidden = true; el.innerHTML = ''; }
   }
   function showRefreshSummary(lines) {
-    const el = $('slopscale-refresh-summary'); if (!el) return;
+    const el = $('slopscale_beta-refresh-summary'); if (!el) return;
     if (!lines.length) {
-      el.innerHTML = `<span>Refreshed — nothing changed this pass.</span><button type="button" class="slopscale-refresh-summary-close" aria-label="Dismiss" title="Dismiss">✕</button>`;
+      el.innerHTML = `<span>Refreshed — nothing changed this pass.</span><button type="button" class="slopscale_beta-refresh-summary-close" aria-label="Dismiss" title="Dismiss">✕</button>`;
     } else {
       const shown = lines.slice(0, 2), more = lines.length - shown.length;
-      el.innerHTML = `<span>Re-rolled — ${shown.join(' · ')}${more > 0 ? ` · +${more} more` : ''}</span><button type="button" class="slopscale-refresh-summary-close" aria-label="Dismiss" title="Dismiss">✕</button>`;
+      el.innerHTML = `<span>Re-rolled — ${shown.join(' · ')}${more > 0 ? ` · +${more} more` : ''}</span><button type="button" class="slopscale_beta-refresh-summary-close" aria-label="Dismiss" title="Dismiss">✕</button>`;
     }
     el.hidden = false;
   }
@@ -16894,7 +16894,7 @@
     _workoutDirty = true;
     showRefreshSummary(describeRefreshDiff(before, _workoutDraft));
     renderWorkoutDraft();
-    const btn = $('slopscale-workout-refresh');
+    const btn = $('slopscale_beta-workout-refresh');
     if (btn && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       btn.classList.remove('ss-refresh-tick'); void btn.offsetWidth; btn.classList.add('ss-refresh-tick');
     }
@@ -16911,7 +16911,7 @@
   function _draftSegs() { return (_workoutDraft && _workoutDraft.segments) || null; }
   // The card a drag at clientY should drop BEFORE (its raw index), or null = append.
   function _segCardUnder(container, clientY) {
-    const cards = [...container.querySelectorAll('.slopscale-segment-card')];
+    const cards = [...container.querySelectorAll('.slopscale_beta-segment-card')];
     for (const c of cards) {
       const box = c.getBoundingClientRect();
       if (clientY < box.top + box.height / 2) return parseInt(c.dataset.segIndex, 10);
@@ -16964,18 +16964,18 @@
   }
   // Toggle a card's inline action row (the `⋯` menu), closing any other open one.
   function toggleSegMenu(card) {
-    const list = $('slopscale-segment-list'); if (!list) return;
-    const menu = card.querySelector('.slopscale-segment-actions'); if (!menu) return;
+    const list = $('slopscale_beta-segment-list'); if (!list) return;
+    const menu = card.querySelector('.slopscale_beta-segment-actions'); if (!menu) return;
     const willOpen = menu.hidden;
-    list.querySelectorAll('.slopscale-segment-actions').forEach(m => { if (m !== menu) m.hidden = true; });
-    list.querySelectorAll('.slopscale-segment-card.menu-open').forEach(c => { if (c !== card) c.classList.remove('menu-open'); });
+    list.querySelectorAll('.slopscale_beta-segment-actions').forEach(m => { if (m !== menu) m.hidden = true; });
+    list.querySelectorAll('.slopscale_beta-segment-card.menu-open').forEach(c => { if (c !== card) c.classList.remove('menu-open'); });
     menu.hidden = !willOpen;
     card.classList.toggle('menu-open', willOpen);
   }
 
   function syncSessionMode(mode) {
-    const root = $('slopscale-root'); if (!root) return;
-    root.classList.toggle('slopscale-session-mode', mode === 'session');
+    const root = $('slopscale_beta-root'); if (!root) return;
+    root.classList.toggle('slopscale_beta-session-mode', mode === 'session');
     syncModeBar();
   }
 
@@ -16983,12 +16983,12 @@
     const sessionId = _selectedStarterId || Object.keys(BUILT_IN_SESSIONS)[0];
     const baseSession = BUILT_IN_SESSIONS[sessionId];
     if (!baseSession) return;
-    const btn = $('slopscale-launch-session');
-    const summary = $('slopscale-summary');
+    const btn = $('slopscale_beta-launch-session');
+    const summary = $('slopscale_beta-summary');
     const audio = {
-      notes:      !!document.getElementById('slopscale-session-audio-notes')?.checked,
-      metronome:  !!document.getElementById('slopscale-session-audio-metronome')?.checked,
-      harmony:    !!document.getElementById('slopscale-session-audio-harmony')?.checked,
+      notes:      !!document.getElementById('slopscale_beta-session-audio-notes')?.checked,
+      metronome:  !!document.getElementById('slopscale_beta-session-audio-metronome')?.checked,
+      harmony:    !!document.getElementById('slopscale_beta-session-audio-harmony')?.checked,
     };
     // Pre-warm the AudioContext while still in the button-click user-gesture context
     // (before any await). Without this, new AudioContext() created inside the
@@ -17042,39 +17042,39 @@
   // ── End Session UI ──────────────────────────────────────────────────────────
 
   function syncViewSwitcher(kind) {
-    document.querySelectorAll('.slopscale-view-btn').forEach(btn => {
+    document.querySelectorAll('.slopscale_beta-view-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.renderer === kind);
     });
     // Theme toggle is only meaningful for the themed renderers (Tab,
     // Notation); the highway renderers have their own visual identity.
-    const root = $('slopscale-root');
+    const root = $('slopscale_beta-root');
     if (root) {
-      root.classList.toggle('slopscale-theme-renderer', kind === 'tab_2d' || kind === 'notation_2d');
+      root.classList.toggle('slopscale_beta-theme-renderer', kind === 'tab_2d' || kind === 'notation_2d');
       // Fretboard strip is offered on every stringed-instrument view — 3D
       // Highway, Jumping Tab, Tab, and Notation; the user can toggle it off.
       // (Always hidden for the Piano instrument via CSS.)
-      root.classList.toggle('slopscale-fb-capable',
+      root.classList.toggle('slopscale_beta-fb-capable',
         kind === 'highway_3d' || kind === 'builtin_2d' || kind === 'tab_2d' || kind === 'notation_2d');
       // The HUD title only shows for 3D Highway — every other renderer draws
       // the exercise name in-canvas itself, so showing it here too would double.
-      root.classList.toggle('slopscale-hud-title-on', kind === 'highway_3d');
+      root.classList.toggle('slopscale_beta-hud-title-on', kind === 'highway_3d');
     }
   }
   function syncThemeButtons() {
-    document.querySelectorAll('.slopscale-theme-btn').forEach(btn => {
+    document.querySelectorAll('.slopscale_beta-theme-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.theme === currentRenderTheme);
     });
   }
 
   async function onViewSwitch(kind) {
     syncViewSwitcher(kind);
-    localStorage.setItem('slopscale.renderer', kind);
+    localStorage.setItem('slopscale_beta.renderer', kind);
     // Keep the Advanced renderer dropdown in sync (if visible / accessible)
     const rendererSel = document.querySelector('[name="renderer"]');
     if (rendererSel && rendererSel.value !== kind) rendererSel.value = kind;
     if (!lastExercise) return;
     lastExercise.session.renderer = kind;
-    const summary = $('slopscale-summary');
+    const summary = $('slopscale_beta-summary');
     // Switching views stops playback by design — the user explicitly chose a
     // new view, so we treat that as a transport break. stopPlayback() resets
     // the playhead, kills audio, AND updates the Play button label back to
@@ -17111,11 +17111,11 @@
   // ── Deep-link / shareable URL ──────────────────────────────────────────
   // Serialises the active form state to a URL hash so a user can copy a link
   // that restores the exact exercise on another machine. We snapshot the
-  // entire #slopscale-controls FormData — small enough to fit comfortably in
+  // entire #slopscale_beta-controls FormData — small enough to fit comfortably in
   // a hash, and stays in sync with whatever fields the form happens to expose.
   const SHARE_HASH_KEY = 's';
   function snapshotFormState() {
-    const form = $('slopscale-controls'); if (!form) return null;
+    const form = $('slopscale_beta-controls'); if (!form) return null;
     const data = new FormData(form);
     const out = {};
     for (const [k, v] of data.entries()) out[k] = v;
@@ -17129,7 +17129,7 @@
     return out;
   }
   function applyFormState(state) {
-    const form = $('slopscale-controls'); if (!form || !state || typeof state !== 'object') return;
+    const form = $('slopscale_beta-controls'); if (!form || !state || typeof state !== 'object') return;
     for (const [name, value] of Object.entries(state)) {
       // form.elements[name] reaches form-associated controls regardless of DOM
       // position (the relocated audio mute pills), and never throws on a crafted
@@ -17170,7 +17170,7 @@
   }
   async function onCopyShareLink() {
     writeShareHash();
-    const btn = $('slopscale-share');
+    const btn = $('slopscale_beta-share');
     try {
       await navigator.clipboard.writeText(location.href);
       if (btn) {
@@ -17187,7 +17187,7 @@
   // #s=<base64> param, or just the raw base64 string. Restores form state,
   // refreshes every dependent control, and triggers a regenerate.
   function onPasteShareLink(raw) {
-    const el = $('slopscale-paste-share');
+    const el = $('slopscale_beta-paste-share');
     if (!raw || !raw.trim()) { if (el) el.classList.remove('flash-ok', 'flash-bad'); return; }
     let encoded = raw.trim();
     // Try to extract #s=... from a URL; fall back to treating the input as
@@ -17229,22 +17229,22 @@
   // bind() wires all DOM events once on DOMContentLoaded.
   // ===========================================================================
   function bind() {
-    const root = $('slopscale-root'); if (!root || root.dataset.slopscaleInit === '1') return false; root.dataset.slopscaleInit = '1';
-    { const verEl = $('slopscale-version'); if (verEl) verEl.textContent = 'v' + SLOPSCALE_VERSION; }   // header version badge (mirrors plugin.json)
-    const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'), advancedToggle = $('slopscale-advanced-toggle');
+    const root = $('slopscale_beta-root'); if (!root || root.dataset.slopscale_betaInit === '1') return false; root.dataset.slopscale_betaInit = '1';
+    { const verEl = $('slopscale_beta-version'); if (verEl) verEl.textContent = 'v' + SLOPSCALE_VERSION; }   // header version badge (mirrors plugin.json)
+    const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'), advancedToggle = $('slopscale_beta-advanced-toggle');
     // LCD tempo is EDITABLE in place (DAW transport convention) — two-way with
     // the Inspector BPM field. Delegated on the strip (the LCD re-renders on
     // every generate); commit on change (Enter/blur): clamp to the form's
     // 30–260 bounds, write the form field (dispatching change so dependent
     // logic runs), regenerate — the same path a tier-button click takes.
-    const lcdHost = $('slopscale-summary');
-    const formBpm = document.querySelector('#slopscale-controls [name="bpm"]');
+    const lcdHost = $('slopscale_beta-summary');
+    const formBpm = document.querySelector('#slopscale_beta-controls [name="bpm"]');
     if (lcdHost) {
       lcdHost.addEventListener('keydown', (e) => {
-        if (e.target && e.target.id === 'slopscale-lcd-bpm' && e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+        if (e.target && e.target.id === 'slopscale_beta-lcd-bpm' && e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
       });
       lcdHost.addEventListener('change', (e) => {
-        if (!e.target || e.target.id !== 'slopscale-lcd-bpm') return;
+        if (!e.target || e.target.id !== 'slopscale_beta-lcd-bpm') return;
         const v = Math.max(30, Math.min(260, parseInt(e.target.value, 10) || 0));
         if (!v || !formBpm) { if (formBpm) e.target.value = formBpm.value; return; }
         e.target.value = String(v);
@@ -17256,7 +17256,7 @@
       });
       // Mirror Inspector→LCD live, so the two boxes always agree between generates.
       formBpm?.addEventListener('input', () => {
-        const lcd = $('slopscale-lcd-bpm'); if (lcd) lcd.value = formBpm.value;
+        const lcd = $('slopscale_beta-lcd-bpm'); if (lcd) lcd.value = formBpm.value;
       });
     }
     instrument?.addEventListener('change', () => {
@@ -17265,7 +17265,7 @@
       // A per-string custom tuning from the old family has the wrong string count /
       // ranges for the new one — clear it so the saved L1 store reflects the family
       // standard (mirrors onInstrumentFamilyClick).
-      const hidden = $('slopscale-custom-open-midis'); if (hidden) hidden.value = '';
+      const hidden = $('slopscale_beta-custom-open-midis'); if (hidden) hidden.value = '';
       syncInstrumentClass();
       syncStringCountChips();   // a direct instrument-select change (not via the chips) must refresh these too
       syncTuningOptions();
@@ -17303,20 +17303,20 @@
       if (activeBundle) onGenerate();
     });
     // Top-level instrument-family chips (Bass / Guitar / Piano).
-    document.querySelectorAll('.slopscale-instr-btn').forEach(btn => {
+    document.querySelectorAll('.slopscale_beta-instr-btn').forEach(btn => {
       btn.addEventListener('click', () => onInstrumentFamilyClick(btn.dataset.instrument));
     });
     // Tuning preset dropdown — wired here since the chip row populates its
     // contents dynamically and we still want a single change handler.
-    $('slopscale-tuning-select')?.addEventListener('change', () => {
+    $('slopscale_beta-tuning-select')?.addEventListener('change', () => {
       onTuningPresetChange();
       if (activeBundle) onGenerate();
     });
-    $('slopscale-save-tuning')?.addEventListener('click', onSaveTuningClick);
+    $('slopscale_beta-save-tuning')?.addEventListener('click', onSaveTuningClick);
     // The Climb signpost's summit invite (depth slice — the summit-invite atom):
     // arm the offered next-depth pattern on the live form, then regenerate. The
     // signpost re-renders its innerHTML each sync, so delegate from the container.
-    $('slopscale-climb-next')?.addEventListener('click', (e) => {
+    $('slopscale_beta-climb-next')?.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-act="depth-pattern"]');
       if (!btn) return;
       setFieldSilent('sequence', btn.dataset.seq || 'thirds');
@@ -17336,10 +17336,10 @@
       if (inst) {
         if (setup) setup.value = inst.stringSetup;
         if (instrument) instrument.value = STRING_SETUPS[inst.stringSetup].instrument;
-        const hidden = $('slopscale-custom-open-midis');
+        const hidden = $('slopscale_beta-custom-open-midis');
         if (hidden) hidden.value = inst.customOpenMidis || '';
       } else {
-        const saved = localStorage.getItem('slopscale.instrumentFamily');
+        const saved = localStorage.getItem('slopscale_beta.instrumentFamily');
         if (saved === 'bass' || saved === 'guitar') {
           if (instrument && instrument.value !== saved) {
             instrument.value = saved;
@@ -17353,9 +17353,9 @@
     syncStringCountChips();
     syncTuningOptions();
     advancedToggle?.addEventListener('change', syncAdvancedMode); syncAdvancedMode(); syncChromaticVisibility();
-    $('slopscale-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', ev.target.value); if (activeBundle) onGenerate(); });
-    $('slopscale-play').addEventListener('click', onPlayToggle);
-    $('slopscale-stop')?.addEventListener('click', onStop);
+    $('slopscale_beta-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', ev.target.value); if (activeBundle) onGenerate(); });
+    $('slopscale_beta-play').addEventListener('click', onPlayToggle);
+    $('slopscale_beta-stop')?.addEventListener('click', onStop);
     // Unified DAW ruler: one canvas handles BOTH scrub and A–B loop.
     //   • Lower track → scrub/seek (drag the playhead through the chart).
     //   • Top strip (loop zone) → loop/cycle: drag empty = paint a new loop,
@@ -17363,7 +17363,7 @@
     //   • Loop edges are grabbable from anywhere in the ruler height (±6px).
     // Loop drags snap to bar lines (Alt = free) and feed the same tpA/tpB +
     // commitLoop() the A/B buttons use — one loop system. Seek is continuous.
-    const rulerCanvas = $('slopscale-ruler-canvas');
+    const rulerCanvas = $('slopscale_beta-ruler-canvas');
     if (rulerCanvas) {
       let mode = null, anchorT = 0, startTpA = 0, startTpB = 0, prevA = null, prevB = null;
       const dur = () => activeBundle?.songInfo?.duration || 0;
@@ -17438,9 +17438,9 @@
     }
     // Overview/marker strip (lane 2): fit-to-width — click = seek anywhere, drag =
     // author the A–B loop (the off-screen-safe authoring surface), edge-drag = resize.
-    const ovCanvas = $('slopscale-overview-canvas');
+    const ovCanvas = $('slopscale_beta-overview-canvas');
     if (ovCanvas) {
-      const ovGeom = () => { const c = $('slopscale-overview-canvas'); if (!c) return null; const rect = c.getBoundingClientRect(); const padX = 2, usableW = Math.max(1, rect.width - padX * 2); const d = activeBundle?.songInfo?.duration || 0; return { rect, padX, usableW, dur: d }; };
+      const ovGeom = () => { const c = $('slopscale_beta-overview-canvas'); if (!c) return null; const rect = c.getBoundingClientRect(); const padX = 2, usableW = Math.max(1, rect.width - padX * 2); const d = activeBundle?.songInfo?.duration || 0; return { rect, padX, usableW, dur: d }; };
       const ovT = (cx) => { const g = ovGeom(); if (!g || g.dur <= 0) return 0; return Math.max(0, Math.min(g.dur, (cx - g.rect.left - g.padX) / g.usableW * g.dur)); };
       const ovEdge = (cx) => { if (tpA == null || tpB == null) return null; const g = ovGeom(); if (!g || g.dur <= 0) return null; const xa = g.rect.left + g.padX + Math.min(tpA, tpB) / g.dur * g.usableW; const xb = g.rect.left + g.padX + Math.max(tpA, tpB) / g.dur * g.usableW; if (Math.abs(cx - xa) <= 6) return 'resizeA'; if (Math.abs(cx - xb) <= 6) return 'resizeB'; return null; };
       let ovMode = null, ovAnchor = 0, ovDownX = 0, ovPrevA = null, ovPrevB = null, ovMoved = false;
@@ -17471,14 +17471,14 @@
       ovCanvas.addEventListener('pointerup', ovEnd);
       ovCanvas.addEventListener('pointercancel', ovEnd);
     }
-    $('slopscale-to-start')?.addEventListener('click', () => seekTo(0));
-    $('slopscale-nudge-back')?.addEventListener('click', () => nudgeBar(-1));
-    $('slopscale-nudge-fwd')?.addEventListener('click', () => nudgeBar(1));
-    if (!window.__slopscaleKeysBound) { window.__slopscaleKeysBound = true; document.addEventListener('keydown', onTransportKey); }
-    $('slopscale-loop-a')?.addEventListener('click', () => { tpA = currentPracticeTime; commitLoop(); });
-    $('slopscale-loop-b')?.addEventListener('click', () => { tpB = currentPracticeTime; commitLoop(); });
-    $('slopscale-loop-clear')?.addEventListener('click', resetTransportLoop);
-    document.querySelectorAll('.slopscale-tp-seg').forEach(btn => {
+    $('slopscale_beta-to-start')?.addEventListener('click', () => seekTo(0));
+    $('slopscale_beta-nudge-back')?.addEventListener('click', () => nudgeBar(-1));
+    $('slopscale_beta-nudge-fwd')?.addEventListener('click', () => nudgeBar(1));
+    if (!window.__slopscale_betaKeysBound) { window.__slopscale_betaKeysBound = true; document.addEventListener('keydown', onTransportKey); }
+    $('slopscale_beta-loop-a')?.addEventListener('click', () => { tpA = currentPracticeTime; commitLoop(); });
+    $('slopscale_beta-loop-b')?.addEventListener('click', () => { tpB = currentPracticeTime; commitLoop(); });
+    $('slopscale_beta-loop-clear')?.addEventListener('click', resetTransportLoop);
+    document.querySelectorAll('.slopscale_beta-tp-seg').forEach(btn => {
       // Count-in is baked into the chart as lead-in rest bars (applyCountIn in
       // makeBundle), so changing it rebuilds the bundle — a re-attach, not just
       // a playback tweak. Stop playback and re-attach the current exercise so
@@ -17492,19 +17492,19 @@
         try { await attachRenderer(lastExercise); } catch (e) { console.error('[SlopScale] count-in re-attach failed', e); }
       });
     });
-    document.querySelector('#slopscale-controls [name="countIn"]')?.addEventListener('change', syncTransport);
+    document.querySelector('#slopscale_beta-controls [name="countIn"]')?.addEventListener('change', syncTransport);
     // Session transport: segment nav, per-segment loop, and click-to-jump on
     // both the progress bar and the left-panel segment cards.
-    $('slopscale-prev-seg')?.addEventListener('click', prevSegment);
-    $('slopscale-next-seg')?.addEventListener('click', nextSegment);
-    $('slopscale-loop-seg')?.addEventListener('click', loopCurrentSegment);
-    $('slopscale-session-progress')?.addEventListener('click', (e) => {
-      const seg = e.target.closest('.slopscale-progress-seg');
+    $('slopscale_beta-prev-seg')?.addEventListener('click', prevSegment);
+    $('slopscale_beta-next-seg')?.addEventListener('click', nextSegment);
+    $('slopscale_beta-loop-seg')?.addEventListener('click', loopCurrentSegment);
+    $('slopscale_beta-session-progress')?.addEventListener('click', (e) => {
+      const seg = e.target.closest('.slopscale_beta-progress-seg');
       if (seg) jumpToSegment(parseInt(seg.dataset.segIndex, 10));
     });
-    const _segList = $('slopscale-segment-list');
+    const _segList = $('slopscale_beta-segment-list');
     _segList?.addEventListener('click', async (e) => {
-      const card = e.target.closest('.slopscale-segment-card');
+      const card = e.target.closest('.slopscale_beta-segment-card');
       if (!card) return;
       const i = parseInt(card.dataset.segIndex, 10);
       const ctl = e.target.closest('[data-act]');
@@ -17525,7 +17525,7 @@
     if (_segList) {
       let _segDragFrom = -1;
       _segList.addEventListener('dragstart', (e) => {
-        const card = e.target.closest('.slopscale-segment-card'); if (!card) return;
+        const card = e.target.closest('.slopscale_beta-segment-card'); if (!card) return;
         _segDragFrom = parseInt(card.dataset.segIndex, 10);
         e.dataTransfer.effectAllowed = 'move';
         try { e.dataTransfer.setData('text/plain', String(_segDragFrom)); } catch (_) {}
@@ -17540,7 +17540,7 @@
         e.preventDefault(); e.dataTransfer.dropEffect = 'move';
         const under = _segCardUnder(_segList, e.clientY);
         _segList.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
-        if (under != null) { const t = _segList.querySelector(`.slopscale-segment-card[data-seg-index="${under}"]`); if (t) t.classList.add('drop-target'); }
+        if (under != null) { const t = _segList.querySelector(`.slopscale_beta-segment-card[data-seg-index="${under}"]`); if (t) t.classList.add('drop-target'); }
       });
       _segList.addEventListener('drop', (e) => {
         if (_segDragFrom < 0) return;
@@ -17549,17 +17549,17 @@
         _segDragFrom = -1;
       });
     }
-    // #slopscale-regenerate is now a HIDDEN refresh bridge (no longer a visible
+    // #slopscale_beta-regenerate is now a HIDDEN refresh bridge (no longer a visible
     // UI button) — the bootstrap settings-watcher .click()s it to silently
     // re-render on host look-setting changes. The handler stays.
-    $('slopscale-regenerate')?.addEventListener('click', onGenerate);
+    $('slopscale_beta-regenerate')?.addEventListener('click', onGenerate);
     // Save-preset was cut from Custom (the share link covers single-config
     // portability; "Save as Workout block" will be the future save bridge).
     // savePreset() is kept (dormant) for that future reuse.
-    $('slopscale-share')?.addEventListener('click', onCopyShareLink);
+    $('slopscale_beta-share')?.addEventListener('click', onCopyShareLink);
     // Paste-share-link: fire on actual paste events AND on plain typing
     // (some users will type a base64 payload in directly).
-    const pasteEl = $('slopscale-paste-share');
+    const pasteEl = $('slopscale_beta-paste-share');
     if (pasteEl) {
       pasteEl.addEventListener('paste', (ev) => {
         // Read the clipboard data directly so we don't depend on the input
@@ -17569,13 +17569,13 @@
       });
       pasteEl.addEventListener('change', () => onPasteShareLink(pasteEl.value));
     }
-    $('slopscale-go-library')?.addEventListener('click', () => { stopRenderer(); goScreen('home'); });
-    $('slopscale-go-plugins')?.addEventListener('click', () => { stopRenderer(); goScreen('plugins'); });
-    $('slopscale-controls').addEventListener('change', (ev) => {
+    $('slopscale_beta-go-library')?.addEventListener('click', () => { stopRenderer(); goScreen('home'); });
+    $('slopscale_beta-go-plugins')?.addEventListener('click', () => { stopRenderer(); goScreen('plugins'); });
+    $('slopscale_beta-controls').addEventListener('change', (ev) => {
       const name = ev && ev.target ? ev.target.name : '';
       if (name === 'shape') syncShapeDropdownSelectionToHidden();
       if (name === 'practiceType') syncChromaticVisibility();
-      if (name === 'keyCycle') { const h = $('slopscale-keycycle-help'); if (h) h.style.display = ev.target.value !== 'none' ? '' : 'none'; }
+      if (name === 'keyCycle') { const h = $('slopscale_beta-keycycle-help'); if (h) h.style.display = ev.target.value !== 'none' ? '' : 'none'; }
       if (name === 'renderer') syncViewSwitcher(ev.target.value);
       // Meter-aware Division default: a user meter change bumps a too-coarse pick
       // up to the pulse (quarter→eighth under an /8) BEFORE the share-hash + the
@@ -17590,48 +17590,48 @@
     });
     syncDivisionHelp();   // paint the Division pulse caption on first load
     // Practice mute pills (Notes / Backing / Click) live in the stage view-bar but
-    // are form-associated (form="slopscale-controls"), so their change events do
-    // NOT bubble to the #slopscale-controls listener above — wire them directly to
+    // are form-associated (form="slopscale_beta-controls"), so their change events do
+    // NOT bubble to the #slopscale_beta-controls listener above — wire them directly to
     // the same effect (audio flags are pure playback mutes, so a regenerate picks
     // them up cleanly on the next scheduled pass). All default checked = un-muted.
-    document.querySelectorAll('.slopscale-practice-pill input').forEach(inp => {
+    document.querySelectorAll('.slopscale_beta-practice-pill input').forEach(inp => {
       inp.addEventListener('change', () => { writeShareHash(); if (activeBundle) onGenerate(); });
     });
     // View switcher buttons in the render stage — independent of exercise mode
-    document.querySelectorAll('.slopscale-view-btn').forEach(btn => {
+    document.querySelectorAll('.slopscale_beta-view-btn').forEach(btn => {
       btn.addEventListener('click', () => onViewSwitch(btn.dataset.renderer));
     });
     // Hand-marks pill (hand-marks Slice 1): default ON, persisted, never
     // auto-flipped. Renderers + the strip read handMarksOn() per frame, so a
     // flip shows on the next draw with no re-attach.
-    const hmToggle = $('slopscale-handmarks-toggle');
+    const hmToggle = $('slopscale_beta-handmarks-toggle');
     if (hmToggle) {
       hmToggle.setAttribute('aria-checked', String(handMarksOn()));
       hmToggle.addEventListener('click', () => {
         const next = !handMarksOn();
-        try { localStorage.setItem('slopscale.showHandMarks', next ? 'on' : 'off'); } catch (_) {}
+        try { localStorage.setItem('slopscale_beta.showHandMarks', next ? 'on' : 'off'); } catch (_) {}
         hmToggle.setAttribute('aria-checked', String(next));
       });
     }
     // Clean-rung proving affordance: the click IS the player opting into the
     // supports-off run (never auto-flipped). Flips the pill OFF and hides
     // itself; the player turns the pill back on themselves.
-    const proveBtn = $('slopscale-prove-clean');
+    const proveBtn = $('slopscale_beta-prove-clean');
     if (proveBtn) proveBtn.addEventListener('click', () => {
-      try { localStorage.setItem('slopscale.showHandMarks', 'off'); } catch (_) {}
+      try { localStorage.setItem('slopscale_beta.showHandMarks', 'off'); } catch (_) {}
       hmToggle?.setAttribute('aria-checked', 'false');
       proveBtn.style.display = 'none';
     });
-    const fbToggle = $('slopscale-fretboard-toggle');
+    const fbToggle = $('slopscale_beta-fretboard-toggle');
     if (fbToggle) fbToggle.addEventListener('click', () => {
       fretboardOn = !fretboardOn;
-      try { localStorage.setItem('slopscale.fretboard', fretboardOn ? '1' : '0'); } catch (_) {}
+      try { localStorage.setItem('slopscale_beta.fretboard', fretboardOn ? '1' : '0'); } catch (_) {}
       syncFretboardUI();
       // Showing/hiding the strip changes the render-host height. Re-fit the
       // active renderer so a borrowed viz (Jumping Tab) re-lays-out to the new
       // size instead of stretching its old canvas to fill the gap.
       if (renderer && typeof renderer.resize === 'function') {
-        const host = $('slopscale-render-host');
+        const host = $('slopscale_beta-render-host');
         if (host) { const r = host.getBoundingClientRect(); renderer.resize(Math.round(r.width), Math.round(r.height)); }
       }
       drawOnce();
@@ -17639,25 +17639,25 @@
     // Keep-looping toggle: off (default) = a drill plays its right-sized run once then
     // ends; on = loop it forever for open practice. Read live by finiteRunActive() each
     // frame, so toggling mid-run takes effect at the next loop seam (no restart needed).
-    const klToggle = $('slopscale-keeploop-toggle');
+    const klToggle = $('slopscale_beta-keeploop-toggle');
     if (klToggle) klToggle.addEventListener('click', () => {
       keepLooping = !keepLooping;
-      try { localStorage.setItem('slopscale.keepLooping', keepLooping ? '1' : '0'); } catch (_) {}
+      try { localStorage.setItem('slopscale_beta.keepLooping', keepLooping ? '1' : '0'); } catch (_) {}
       syncKeepLoopUI();
     });
-    document.querySelectorAll('.slopscale-modeview-btn').forEach(b =>
+    document.querySelectorAll('.slopscale_beta-modeview-btn').forEach(b =>
       b.addEventListener('click', () => setPanelCollapsed(b.dataset.modeview === 'play')));
-    $('slopscale-focus-btn')?.addEventListener('click', toggleFocus);
+    $('slopscale_beta-focus-btn')?.addEventListener('click', toggleFocus);
     document.addEventListener('fullscreenchange', onFullscreenChange);
     // Feel control: write the hidden swing field + bubble a change so the
-    // delegated #slopscale-controls handler regenerates with the new feel.
-    document.querySelectorAll('.slopscale-feel-btn').forEach(b => b.addEventListener('click', () => {
-      const sw = $('slopscale-swing'); if (!sw) return;
+    // delegated #slopscale_beta-controls handler regenerates with the new feel.
+    document.querySelectorAll('.slopscale_beta-feel-btn').forEach(b => b.addEventListener('click', () => {
+      const sw = $('slopscale_beta-swing'); if (!sw) return;
       sw.value = b.dataset.feel; syncFeelControl();
       sw.dispatchEvent(new Event('change', { bubbles: true }));
     }));
     // Theme toggle (Light / Dark) for Tab + Notation.
-    document.querySelectorAll('.slopscale-theme-btn').forEach(btn => {
+    document.querySelectorAll('.slopscale_beta-theme-btn').forEach(btn => {
       btn.addEventListener('click', () => { setRenderTheme(btn.dataset.theme); syncThemeButtons(); });
     });
     syncThemeButtons();
@@ -17667,23 +17667,23 @@
     // default returns; explicit view choices made afterward still persist
     // (bass no longer writes the preference).
     try {
-      if (!localStorage.getItem('slopscale.rendererMigratedV1')) {
-        if (localStorage.getItem('slopscale.renderer') === 'builtin_2d') localStorage.removeItem('slopscale.renderer');
-        localStorage.setItem('slopscale.rendererMigratedV1', '1');
+      if (!localStorage.getItem('slopscale_beta.rendererMigratedV1')) {
+        if (localStorage.getItem('slopscale_beta.renderer') === 'builtin_2d') localStorage.removeItem('slopscale_beta.renderer');
+        localStorage.setItem('slopscale_beta.rendererMigratedV1', '1');
       }
     } catch (_) {}
     // Restore last-used renderer from localStorage
-    const savedRenderer = localStorage.getItem('slopscale.renderer');
+    const savedRenderer = localStorage.getItem('slopscale_beta.renderer');
     if (savedRenderer) {
       syncViewSwitcher(savedRenderer);
       const rendererSel = document.querySelector('[name="renderer"]');
       if (rendererSel) rendererSel.value = savedRenderer;
     }
     // Restore the fretboard-strip toggle (defaults on).
-    try { const fb = localStorage.getItem('slopscale.fretboard'); if (fb != null) fretboardOn = fb === '1'; } catch (_) {}
+    try { const fb = localStorage.getItem('slopscale_beta.fretboard'); if (fb != null) fretboardOn = fb === '1'; } catch (_) {}
     syncFretboardUI();
     // Restore the keep-looping toggle (defaults OFF = finite, right-sized runs).
-    try { const kl = localStorage.getItem('slopscale.keepLooping'); if (kl != null) keepLooping = kl === '1'; } catch (_) {}
+    try { const kl = localStorage.getItem('slopscale_beta.keepLooping'); if (kl != null) keepLooping = kl === '1'; } catch (_) {}
     syncKeepLoopUI();
     // The sidebar always starts expanded on plugin startup/selection (it's a
     // transient view affordance, not a saved pref) — also reset on screen:changed.
@@ -17694,12 +17694,12 @@
     // Position / variation stepper: ◄ / ► walk the pathway's variation axis
     // (shapes when shape-aware; otherwise the curated vary[] list). See
     // positionStep() / updatePositionStepper().
-    $('slopscale-shape-prev')?.addEventListener('click', () => positionStep(-1));
-    $('slopscale-shape-next')?.addEventListener('click', () => positionStep(1));
-    $('slopscale-fretboard-system')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
-    $('slopscale-controls')?.querySelector('[name="key"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
-    $('slopscale-controls')?.querySelector('[name="scale"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
-    const pathwaySelect = $('slopscale-pathway');
+    $('slopscale_beta-shape-prev')?.addEventListener('click', () => positionStep(-1));
+    $('slopscale_beta-shape-next')?.addEventListener('click', () => positionStep(1));
+    $('slopscale_beta-fretboard-system')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
+    $('slopscale_beta-controls')?.querySelector('[name="key"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
+    $('slopscale_beta-controls')?.querySelector('[name="scale"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
+    const pathwaySelect = $('slopscale_beta-pathway');
     pathwaySelect?.addEventListener('change', () => {
       applyPathwayById(pathwaySelect.value);
       try { localStorage.setItem(PATHWAY_STORAGE_KEY, pathwaySelect.value); } catch (_) {}
@@ -17711,57 +17711,57 @@
     // Four-mode shell switcher: Pathways / Custom / Workout / Jam (data-mode tokens
     // stay guided/custom/session/jam).
     ['guided', 'custom', 'session', 'jam'].forEach(m => {
-      $('slopscale-mode-' + m)?.addEventListener('click', () => selectMode(m));
+      $('slopscale_beta-mode-' + m)?.addEventListener('click', () => selectMode(m));
     });
-    $('slopscale-mode-select')?.addEventListener('change', (e) => selectMode(e.target.value));   // narrow-width fallback
+    $('slopscale_beta-mode-select')?.addEventListener('change', (e) => selectMode(e.target.value));   // narrow-width fallback
     renderJamStyles();
     // Jam controls: feel toggle + the Jam action.
-    document.querySelectorAll('#slopscale-jam-feel .slopscale-jam-feel-btn').forEach(b => {
+    document.querySelectorAll('#slopscale_beta-jam-feel .slopscale_beta-jam-feel-btn').forEach(b => {
       b.addEventListener('click', () => {
-        document.querySelectorAll('#slopscale-jam-feel .slopscale-jam-feel-btn').forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('#slopscale_beta-jam-feel .slopscale_beta-jam-feel-btn').forEach(x => x.classList.remove('active'));
         b.classList.add('active');
         jamFeel = b.dataset.feel || 'straight';
       });
     });
-    $('slopscale-jam-go')?.addEventListener('click', jamPlay);
+    $('slopscale_beta-jam-go')?.addEventListener('click', jamPlay);
     // Jam target-highlight selector (chord / guide / scale / off). Reflects the
     // persisted mode, repaints the strip live on change.
-    document.querySelectorAll('#slopscale-jam-hl .slopscale-jam-hl-btn').forEach(b => {
+    document.querySelectorAll('#slopscale_beta-jam-hl .slopscale_beta-jam-hl-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.hl === jamHighlightMode);
       b.addEventListener('click', () => {
-        document.querySelectorAll('#slopscale-jam-hl .slopscale-jam-hl-btn').forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('#slopscale_beta-jam-hl .slopscale_beta-jam-hl-btn').forEach(x => x.classList.remove('active'));
         b.classList.add('active');
         jamHighlightMode = b.dataset.hl || 'chord';
-        try { localStorage.setItem('slopscale.jamHighlight', jamHighlightMode); } catch (_) {}
+        try { localStorage.setItem('slopscale_beta.jamHighlight', jamHighlightMode); } catch (_) {}
         drawOnce();
       });
     });
     // First-run primed START CTA — starts the selected pathway (the one lit primary).
-    $('slopscale-start-cta')?.addEventListener('click', () => onPlayToggle());
+    $('slopscale_beta-start-cta')?.addEventListener('click', () => onPlayToggle());
     // Shell panels (M / P / [ / ?): visible buttons + the mixer's own controls.
     mixerLoad();
-    $('slopscale-mixer-btn')?.addEventListener('click', () => toggleMixer());
+    $('slopscale_beta-mixer-btn')?.addEventListener('click', () => toggleMixer());
     // The header progress chip opens P (de-dups the old view-bar Progress button).
-    const progChip = $('slopscale-progress-strip');
+    const progChip = $('slopscale_beta-progress-strip');
     progChip?.addEventListener('click', () => toggleProgressSheet());
     progChip?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleProgressSheet(); } });
     // Collapse is the labelled Setup/Play pill + the [ hotkey; the duplicate
     // ⟨ ⟩ icon button was removed (GUI audit B1). The [ binding lives in the
     // keydown handler; setPanelCollapsed is unchanged.
-    $('slopscale-help-btn')?.addEventListener('click', () => toggleCheatSheet());
-    $('slopscale-mixer-close')?.addEventListener('click', () => toggleMixer(false));
-    $('slopscale-progress-close')?.addEventListener('click', () => toggleProgressSheet(false));
+    $('slopscale_beta-help-btn')?.addEventListener('click', () => toggleCheatSheet());
+    $('slopscale_beta-mixer-close')?.addEventListener('click', () => toggleMixer(false));
+    $('slopscale_beta-progress-close')?.addEventListener('click', () => toggleProgressSheet(false));
     // Library browse drawer (Phase 9 Slice 3): open from the timeline "+ Browse",
     // close via ▾, chip-filter, and [+ Add] a template-ref to the draft (multi-add).
-    $('slopscale-library-open')?.addEventListener('click', () => toggleLibrary());
-    $('slopscale-library-close')?.addEventListener('click', () => toggleLibrary(false));
-    $('slopscale-library-filters')?.addEventListener('click', (e) => {
+    $('slopscale_beta-library-open')?.addEventListener('click', () => toggleLibrary());
+    $('slopscale_beta-library-close')?.addEventListener('click', () => toggleLibrary(false));
+    $('slopscale_beta-library-filters')?.addEventListener('click', (e) => {
       const chip = e.target.closest('[data-filter]'); if (!chip) return;
       _libFilters[chip.dataset.filter] = chip.dataset.value;
       renderLibrary();
     });
-    $('slopscale-library-body')?.addEventListener('click', (e) => {
-      const add = e.target.closest('.slopscale-lib-add'); if (!add) return;
+    $('slopscale_beta-library-body')?.addEventListener('click', (e) => {
+      const add = e.target.closest('.slopscale_beta-lib-add'); if (!add) return;
       addSegmentToDraft(add.dataset.templateId);
       const orig = add.textContent;                          // "Added ✓" flash — visual only (§5/§13), drawer stays open
       add.classList.add('added'); add.textContent = 'Added ✓';
@@ -17769,23 +17769,23 @@
     });
     // Starter browse drawer (Phase 9 Slice 4): the primary starter picker (the
     // dropdown is hidden). Open / close / chip-filter / Load (with replace-guard).
-    $('slopscale-starters-open')?.addEventListener('click', () => toggleStarters());
-    $('slopscale-starters-close')?.addEventListener('click', () => toggleStarters(false));
-    $('slopscale-starters-filters')?.addEventListener('click', (e) => {
+    $('slopscale_beta-starters-open')?.addEventListener('click', () => toggleStarters());
+    $('slopscale_beta-starters-close')?.addEventListener('click', () => toggleStarters(false));
+    $('slopscale_beta-starters-filters')?.addEventListener('click', (e) => {
       const chip = e.target.closest('[data-sfilter]'); if (!chip) return;
       _starterFilters[chip.dataset.sfilter] = chip.dataset.value;
       renderStarters();
     });
-    $('slopscale-starters-body')?.addEventListener('click', (e) => {
-      const load = e.target.closest('.slopscale-starter-load'); if (!load) return;
+    $('slopscale_beta-starters-body')?.addEventListener('click', (e) => {
+      const load = e.target.closest('.slopscale_beta-starter-load'); if (!load) return;
       loadStarter(load.dataset.starterId);
     });
-    $('slopscale-starters-confirm')?.addEventListener('click', (e) => {
-      if (e.target.closest('.slopscale-starter-confirm-yes')) loadStarter(e.target.closest('.slopscale-starter-confirm-yes').dataset.starterId, true);
-      else if (e.target.closest('.slopscale-starter-confirm-no')) { _pendingStarter = null; renderStarters(); }
+    $('slopscale_beta-starters-confirm')?.addEventListener('click', (e) => {
+      if (e.target.closest('.slopscale_beta-starter-confirm-yes')) loadStarter(e.target.closest('.slopscale_beta-starter-confirm-yes').dataset.starterId, true);
+      else if (e.target.closest('.slopscale_beta-starter-confirm-no')) { _pendingStarter = null; renderStarters(); }
     });
     // "Last session" card dismiss (delegated — the sheet body is re-rendered each open).
-    $('slopscale-progress-sheet-body')?.addEventListener('click', (e) => {
+    $('slopscale_beta-progress-sheet-body')?.addEventListener('click', (e) => {
       if (e.target.closest('[data-act="dismiss-summary"]')) { _lastEndedSession = null; renderProgressSheet(); }
       else if (e.target.closest('[data-act="copy-proof"]')) {
         // Copy the shareable card to the clipboard — silent (no sound/toast), per the
@@ -17797,24 +17797,24 @@
         setTimeout(() => { if (btn.isConnected) btn.textContent = 'Copy progress card'; }, 1600);
       }
     });
-    $('slopscale-cheat-close')?.addEventListener('click', () => toggleCheatSheet(false));
+    $('slopscale_beta-cheat-close')?.addEventListener('click', () => toggleCheatSheet(false));
     // Pack manager (the band-bar "+"). Open is wired on the "+" chip in
     // renderPathwayList. Close/Cancel discard the draft; Save commits + re-renders.
-    $('slopscale-packs-close')?.addEventListener('click', () => togglePackManager(false));
-    $('slopscale-packs-cancel')?.addEventListener('click', () => togglePackManager(false));
-    $('slopscale-packs-modal')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) togglePackManager(false); });  // scrim → cancel
-    $('slopscale-packs-save')?.addEventListener('click', () => {
+    $('slopscale_beta-packs-close')?.addEventListener('click', () => togglePackManager(false));
+    $('slopscale_beta-packs-cancel')?.addEventListener('click', () => togglePackManager(false));
+    $('slopscale_beta-packs-modal')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) togglePackManager(false); });  // scrim → cancel
+    $('slopscale_beta-packs-save')?.addEventListener('click', () => {
       if (_packsDraft) packsSave(_packsDraft);
       togglePackManager(false);
       renderPathwayList();
     });
-    $('slopscale-packs-to-installed')?.addEventListener('click', () => {
+    $('slopscale_beta-packs-to-installed')?.addEventListener('click', () => {
       if (_packsSel && _packsSel.col === 'available') { _packInstall(_packsSel.id); _packsSel = { col: 'installed', id: _packsSel.id }; renderPackManager(); }
     });
-    $('slopscale-packs-to-available')?.addEventListener('click', () => {
+    $('slopscale_beta-packs-to-available')?.addEventListener('click', () => {
       if (_packsSel && _packsSel.col === 'installed') { _packUninstall(_packsSel.id); _packsSel = null; renderPackManager(); }
     });
-    const _instCol = $('slopscale-packs-installed'), _availCol = $('slopscale-packs-available');
+    const _instCol = $('slopscale_beta-packs-installed'), _availCol = $('slopscale_beta-packs-available');
     _instCol?.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
     _instCol?.addEventListener('drop', (e) => {
       e.preventDefault();
@@ -17830,13 +17830,13 @@
       const id = e.dataTransfer.getData('text/plain'); if (!id || !_packsDraft) return;
       _packUninstall(id); _packsSel = null; renderPackManager();
     });
-    const mixCh = $('slopscale-mixer-channels');
+    const mixCh = $('slopscale_beta-mixer-channels');
     mixCh?.addEventListener('input', (ev) => {
       // Tone knob (relocated "Backing tone" / brightness) — writes the form's
-      // hidden #slopscale-brightness value; the audio path reads it unchanged.
-      const tk = ev.target.closest && ev.target.closest('.slopscale-mixer-toneknob');
+      // hidden #slopscale_beta-brightness value; the audio path reads it unchanged.
+      const tk = ev.target.closest && ev.target.closest('.slopscale_beta-mixer-toneknob');
       if (tk) {
-        const bEl = $('slopscale-brightness');
+        const bEl = $('slopscale_beta-brightness');
         if (bEl) { bEl.value = tk.value; writeShareHash(); }
         // Re-schedule from the playhead so the new tone takes effect cleanly
         // (mirrors the per-channel instrument change below; no full regen needed).
@@ -17848,13 +17848,13 @@
         }
         return;
       }
-      const f = ev.target.closest && ev.target.closest('.slopscale-mixer-fader'); if (!f) return;
+      const f = ev.target.closest && ev.target.closest('.slopscale_beta-mixer-fader'); if (!f) return;
       const k = f.dataset.k; mixerState[k].level = parseFloat(f.value);
-      const val = mixCh.querySelector(`.slopscale-mixer-val[data-k="${k}"]`); if (val) val.textContent = Math.round(mixerState[k].level * 100);
+      const val = mixCh.querySelector(`.slopscale_beta-mixer-val[data-k="${k}"]`); if (val) val.textContent = Math.round(mixerState[k].level * 100);
       applyMixer(); mixerSave();
     });
     mixCh?.addEventListener('click', (ev) => {
-      const t = ev.target.closest && ev.target.closest('.slopscale-mixer-tog'); if (!t) return;
+      const t = ev.target.closest && ev.target.closest('.slopscale_beta-mixer-tog'); if (!t) return;
       const k = t.dataset.k, act = t.dataset.act;
       mixerState[k][act] = !mixerState[k][act];
       t.classList.toggle('active', mixerState[k][act]);
@@ -17864,8 +17864,8 @@
     // Per-channel instrument select (Phase C) — set the override, load the voice,
     // and (if playing) re-schedule from the playhead so it switches on WAF cleanly.
     mixCh?.addEventListener('change', async (ev) => {
-      const kitSel = ev.target.closest && ev.target.closest('.slopscale-mixer-kit');
-      const sel = kitSel || (ev.target.closest && ev.target.closest('.slopscale-mixer-instr')); if (!sel) return;
+      const kitSel = ev.target.closest && ev.target.closest('.slopscale_beta-mixer-kit');
+      const sel = kitSel || (ev.target.closest && ev.target.closest('.slopscale_beta-mixer-instr')); if (!sel) return;
       if (kitSel) mixerState[sel.dataset.k].kit = sel.value || null;
       else mixerState[sel.dataset.k].instrument = sel.value || null;
       mixerSave();
@@ -17878,66 +17878,66 @@
         }
       }
     });
-    $('slopscale-mixer-dim')?.addEventListener('change', (ev) => { mixerBackingDim = ev.target.checked; applyMixer(); mixerSave(); });
+    $('slopscale_beta-mixer-dim')?.addEventListener('change', (ev) => { mixerBackingDim = ev.target.checked; applyMixer(); mixerSave(); });
     // Header Setup popover: toggle on the button, close on outside click, label tracks tuning.
-    $('slopscale-setup-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSetupPopover(); });
+    $('slopscale_beta-setup-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSetupPopover(); });
     // Target-aware tuner: entry in the Setup popover; Done chip on the strip.
-    $('slopscale-tune-btn')?.addEventListener('click', () => { toggleSetupPopover(false); startTuner(); });
-    $('slopscale-strip-tune')?.addEventListener('click', () => startTuner());
+    $('slopscale_beta-tune-btn')?.addEventListener('click', () => { toggleSetupPopover(false); startTuner(); });
+    $('slopscale_beta-strip-tune')?.addEventListener('click', () => startTuner());
     // Results modal: close on ✕ or an overlay click (never Escape — host-owned).
-    $('slopscale-results-close')?.addEventListener('click', closeResultsModal);
-    $('slopscale-results-modal')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeResultsModal(); });
+    $('slopscale_beta-results-close')?.addEventListener('click', closeResultsModal);
+    $('slopscale_beta-results-modal')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeResultsModal(); });
     // Show the resting-state strip on load; the delayed retry covers plugin
     // load order (the minigames / note_detect surfaces may register after us).
     ptShowIdleStrip();
     setTimeout(ptShowIdleStrip, 2000);
-    $('slopscale-tuner-done')?.addEventListener('click', () => stopTuner());
+    $('slopscale_beta-tuner-done')?.addEventListener('click', () => stopTuner());
     // Courtesy hook for the third-party floating tuner (never touch its DOM —
     // its own public API only; the click is impossible unless feature-detect
     // showed the button).
-    $('slopscale-tuner-ext')?.addEventListener('click', () => {
+    $('slopscale_beta-tuner-ext')?.addEventListener('click', () => {
       toggleSetupPopover(false);
       try { window.tuner?.toggle?.(); } catch (_) {}
     });
-    $('slopscale-tuning-select')?.addEventListener('change', updateSetupButton);
+    $('slopscale_beta-tuning-select')?.addEventListener('change', updateSetupButton);
     document.addEventListener('click', (e) => {
-      const pop = $('slopscale-setup-popover'); if (!pop || pop.hidden) return;
-      const btn = $('slopscale-setup-btn');
+      const pop = $('slopscale_beta-setup-popover'); if (!pop || pop.hidden) return;
+      const btn = $('slopscale_beta-setup-btn');
       if (!pop.contains(e.target) && btn && !btn.contains(e.target)) toggleSetupPopover(false);
     });
     updateSetupButton();
     // Header settings menu (⚙): toggle, items, close-on-outside-click.
-    $('slopscale-settings-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSettingsMenu(); });
-    $('slopscale-settings-shortcuts')?.addEventListener('click', () => { toggleSettingsMenu(false); toggleCheatSheet(true); });
-    $('slopscale-settings-host')?.addEventListener('click', () => {
+    $('slopscale_beta-settings-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSettingsMenu(); });
+    $('slopscale_beta-settings-shortcuts')?.addEventListener('click', () => { toggleSettingsMenu(false); toggleCheatSheet(true); });
+    $('slopscale_beta-settings-host')?.addEventListener('click', () => {
       toggleSettingsMenu(false);
       try { if (window.slopsmith && typeof window.slopsmith.navigate === 'function') window.slopsmith.navigate('settings'); } catch (_) {}
     });
     // Settings prefs: accent theme · default XP mode · default count-in.
-    document.querySelectorAll('#slopscale-theme-pick .slopscale-theme-swatch').forEach(b => b.addEventListener('click', () => applyTheme(b.dataset.theme || '')));
-    document.querySelectorAll('#slopscale-xp-mode .slopscale-mini-btn').forEach(b => b.addEventListener('click', () => applyXpModeDefault(b.dataset.xp)));
-    $('slopscale-countin-default')?.addEventListener('change', (e) => { try { localStorage.setItem('slopscale.countInDefault', e.target.value); } catch (_) {} applyCountInDefault(e.target.value); });
+    document.querySelectorAll('#slopscale_beta-theme-pick .slopscale_beta-theme-swatch').forEach(b => b.addEventListener('click', () => applyTheme(b.dataset.theme || '')));
+    document.querySelectorAll('#slopscale_beta-xp-mode .slopscale_beta-mini-btn').forEach(b => b.addEventListener('click', () => applyXpModeDefault(b.dataset.xp)));
+    $('slopscale_beta-countin-default')?.addEventListener('change', (e) => { try { localStorage.setItem('slopscale_beta.countInDefault', e.target.value); } catch (_) {} applyCountInDefault(e.target.value); });
     loadSettingsPrefs();
     document.addEventListener('click', (e) => {
-      const menu = $('slopscale-settings-menu'); if (!menu || menu.hidden) return;
-      const btn = $('slopscale-settings-btn');
+      const menu = $('slopscale_beta-settings-menu'); if (!menu || menu.hidden) return;
+      const btn = $('slopscale_beta-settings-btn');
       if (!menu.contains(e.target) && btn && !btn.contains(e.target)) toggleSettingsMenu(false);
     });
     // Preset picker (Custom): load a saved preset's config into the form.
-    $('slopscale-preset-picker')?.addEventListener('change', (ev) => {
+    $('slopscale_beta-preset-picker')?.addEventListener('change', (ev) => {
       const key = ev.target.value; if (!key) return;
-      const preset = window.__slopscaleFavorites && window.__slopscaleFavorites[key];
+      const preset = window.__slopscale_betaFavorites && window.__slopscale_betaFavorites[key];
       if (preset && preset.config) { applyPathwayConfig(preset.config); if (activeBundle) onGenerate(); }
     });
-    $('slopscale-launch-session')?.addEventListener('click', onLaunchSession);
-    $('slopscale-workout-refresh')?.addEventListener('click', onRefreshWorkout);   // Phase 9: re-roll blocks
-    $('slopscale-breathe-toggle')?.addEventListener('change', (e) => {             // inter-block break on/off
+    $('slopscale_beta-launch-session')?.addEventListener('click', onLaunchSession);
+    $('slopscale_beta-workout-refresh')?.addEventListener('click', onRefreshWorkout);   // Phase 9: re-roll blocks
+    $('slopscale_beta-breathe-toggle')?.addEventListener('change', (e) => {             // inter-block break on/off
       if (_workoutDraft) _workoutDraft.interBlockBreak = e.target.checked ? 'auto' : 'off';
     });
-    $('slopscale-length-preset')?.addEventListener('change', (e) => {              // opt-in session length
+    $('slopscale_beta-length-preset')?.addEventListener('change', (e) => {              // opt-in session length
       if (_workoutDraft) { _workoutDraft.lengthPreset = e.target.value || null; renderWorkoutDraft(); }
     });
-    $('slopscale-refresh-summary')?.addEventListener('click', e => { if (e.target.closest('.slopscale-refresh-summary-close')) clearRefreshSummary(); });
+    $('slopscale_beta-refresh-summary')?.addEventListener('click', e => { if (e.target.closest('.slopscale_beta-refresh-summary-close')) clearRefreshSummary(); });
     syncSessionSummary(Object.keys(BUILT_IN_SESSIONS)[0]);
 
     loadPathwayFavorites();
@@ -17999,7 +17999,7 @@
     let fireInitialGenerate = null; // set by fireInitialGenerateWhenLaidOut below; idempotent
     if (window.slopsmith && typeof window.slopsmith.on === 'function') {
       window.slopsmith.on('screen:changed', (ev) => {
-        if (ev?.detail?.id !== 'plugin-slopscale') return;
+        if (ev?.detail?.id !== 'plugin-slopscale_beta') return;
         // Sidebar always shows when the plugin is (re)selected.
         panelCollapsed = false; syncPanelToggle();
         if (lastExercise) {
@@ -18017,7 +18017,7 @@
     // still being laid out; if attachRenderer runs against a 0x0 canvas,
     // nothing visible draws. A double-rAF wasn't enough on its own.
     (function fireInitialGenerateWhenLaidOut() {
-      const host = $('slopscale-render-host');
+      const host = $('slopscale_beta-render-host');
       if (!host || typeof ResizeObserver === 'undefined') { onGenerate(); return; }
       let fired = false;
       const fire = () => { if (fired) return; fired = true; try { ro.disconnect(); } catch (_) {} onGenerate(); };
@@ -18072,7 +18072,7 @@
       drawOnce();
     }
     if (window.slopsmith && typeof window.slopsmith.emit === 'function') {
-      window.slopsmith.emit('slopscale:loop:set', { a: aNum, b: bNum });
+      window.slopsmith.emit('slopscale_beta:loop:set', { a: aNum, b: bNum });
     }
   }
   function clearSegmentLoop() {
@@ -18080,7 +18080,7 @@
     segmentLoopA = null;
     segmentLoopB = null;
     if (window.slopsmith && typeof window.slopsmith.emit === 'function') {
-      window.slopsmith.emit('slopscale:loop:clear', {});
+      window.slopsmith.emit('slopscale_beta:loop:clear', {});
     }
   }
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }

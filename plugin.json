@@ -1,19 +1,19 @@
 {
-  "id": "slopscale",
-  "name": "SlopScale",
-  "version": "0.7.6-dev",
+  "id": "slopscale_beta",
+  "name": "SlopScale (Beta)",
+  "version": "0.7.6-beta.1",
   "license": "AGPL-3.0-only",
   "nav": {
-    "label": "SlopScale - Practice",
-    "screen": "slopscale"
+    "label": "SlopScale (Beta) - Practice",
+    "screen": "slopscale_beta"
   },
   "screen": "screen.html",
   "script": "screen.js",
   "settings": {
     "html": "settings.html",
     "server_files": [
-      "plugin_data/slopscale/presets.json",
-      "plugin_data/slopscale/tunings.json"
+      "plugin_data/slopscale_beta/presets.json",
+      "plugin_data/slopscale_beta/tunings.json"
     ]
   },
   "routes": "routes.py"
