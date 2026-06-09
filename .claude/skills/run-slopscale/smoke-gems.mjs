@@ -24,7 +24,15 @@ try {
   const r = await fetch(`${HOST}/api/plugins/slopscale/status`).catch(() => null);
   if (!r || !r.ok) throw new Error(`Host not reachable at ${HOST}. launch.ps1 first.`);
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  await ctx.addInitScript(() => { globalThis.__SS_HARNESS__ = true; });   // row 6 reads __ss_debug (playhead + window table)
+  await ctx.addInitScript(() => {
+    globalThis.__SS_HARNESS__ = true;   // row 6 reads __ss_debug (playhead + window table)
+    // This suite drives a FAKE scorer with NO real audio, so the host-mirror
+    // input-level/onset gate (which requires real input energy) must stay
+    // INACTIVE here — it's covered with REAL audio in smoke-scoring-e2e + the
+    // fake-getLevels row below. Reject getUserMedia so the level meter finds no
+    // source → mode 'none' → gate off (the gem/timing MODEL is what this tests).
+    try { if (navigator.mediaDevices) navigator.mediaDevices.getUserMedia = () => Promise.reject(new Error("smoke-gems: no mic by design")); } catch (_) {}
+  });
   const p = await ctx.newPage();
   const errs = [];
   p.on("pageerror", e => { if (!isBenign(e.message)) errs.push(e.message); });
