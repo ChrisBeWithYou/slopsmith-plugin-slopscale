@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.12-dev';
+  const SLOPSCALE_VERSION = '0.7.13-dev';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -12776,8 +12776,10 @@
         : (s.proof.transfer || '');
       proofLine = `<div class="slopscale-ss-cleared">${claim}</div>` +
         (sub ? `<div class="slopscale-ss-sub slopscale-ss-transfer">${sub}</div>` : '');
-      copyBtn = `<button type="button" class="slopscale-ss-copy" data-act="copy-proof" title="Copy a plain-text card to share">Copy progress card</button>`;
     }
+    // Tier C: the cooperative share card is offered for ANY shareworthy run (a tier/
+    // depth flip, a completed Workout, a new badge — not only the proof pilot).
+    if (isShareworthy(s)) copyBtn = `<button type="button" class="slopscale-ss-copy" data-act="copy-proof" title="Copy a plain-text card to share">Copy progress card</button>`;
     return `<div class="slopscale-progress-sheet-section slopscale-ss-card">` +
       `<div class="slopscale-ss-head"><h4>Last session</h4>` +
       `<button type="button" class="slopscale-ss-dismiss" data-act="dismiss-summary" title="Dismiss" aria-label="Dismiss last-session card">✕</button></div>` +
@@ -12915,6 +12917,10 @@
       } else if (d && d.travelKey) {
         stripBits.push(`<div class="slopscale-results-recog">New ground — first clean run in ${d.travelKey}</div>`);
       }
+      // Tier C — quiet AMBIENT deltas (never the accent recognizer slot, never the
+      // hero, never green): a woodshed level-up + any new competency badge(s).
+      if (s.levelUp) stripBits.push(`<div class="slopscale-results-deltas">Reached Level ${s.levelUp.level} — ${s.levelUp.name}</div>`);
+      if (s.badgesNew && s.badgesNew.length) stripBits.push(`<div class="slopscale-results-deltas">${s.badgesNew.length === 1 ? 'New badge' : 'New badges'}: ${s.badgesNew.map(b => b.name).join(' · ')}</div>`);
     }
     const strip = stripBits.length ? `<div class="slopscale-results-strip">${stripBits.join('')}</div>` : '';
 
@@ -13070,18 +13076,27 @@
       chaptersHtml = `<div class="slopscale-results-chapters">${rows2}</div>`;
     }
 
+    // Tier C share card (cooperative): a "Copy progress card" affordance on any
+    // shareworthy run that doesn't already carry the proof Copy button (the proof
+    // verdict renders its own). Covers a completed Workout recap + earned non-proof
+    // runs; ordinary/rough runs get nothing (anti-inflation).
+    const shareBtn = (isShareworthy(s) && !s.proof)
+      ? `<button type="button" class="slopscale-ss-copy" data-act="copy-proof" title="Copy a plain-text card to share">Copy progress card</button>`
+      : '';
+
     if (title) title.textContent = `Results — ${s.displayName || 'Practice'}`;
     // The judged-detail rows still carry honest counts/ear, but a Workout shows NO
     // % anywhere (incl. here) — reframe the toggle label and drop the "Practiced @
     // BPM" line (a session spans many tempos).
     body.innerHTML =
       (isWorkout
-        ? sessionHeadHtml + chaptersHtml + strip
+        ? sessionHeadHtml + chaptersHtml + strip + shareBtn
         : verdict +
           `<div class="slopscale-results-pct">${(judged && !reduceMotion) ? '0%' : headline}</div>` +
           `<div class="slopscale-results-head">${sub}</div>` +
           strip +
-          `<div class="slopscale-results-practiced">Practiced ${dur}${s.bpm ? ` @ ${s.bpm} BPM` : ''}</div>`) +
+          `<div class="slopscale-results-practiced">Practiced ${dur}${s.bpm ? ` @ ${s.bpm} BPM` : ''}</div>` +
+          shareBtn) +
       `<button type="button" id="slopscale-results-details-toggle" class="slopscale-results-progress-toggle" aria-expanded="${detailsOpen}">${detailsOpen ? '▾' : '▸'} How this ${isWorkout ? 'Workout' : 'run'} was judged</button>` +
       `<div id="slopscale-results-details" class="slopscale-results-rows"${detailsOpen ? '' : ' hidden'}>${rows.map(t => `<div>${t}</div>`).join('')}` +
       (verbose && info ? `<button type="button" id="slopscale-results-copydiag" class="slopscale-results-quiet">Copy diagnostics</button>` : '') +
@@ -13172,9 +13187,9 @@
       btn.textContent = (open ? '▾' : '▸') + ' How this run was judged';
       try { localStorage.setItem('slopscale.resultsDetails', open ? 'open' : 'closed'); } catch (_) {}
     });
-    body.querySelector('[data-act="copy-proof"]')?.addEventListener('click', (ev) => {
-      try { navigator.clipboard.writeText(proofCardText(s)); ev.target.textContent = 'Copied ✓'; } catch (_) {}
-    });
+    body.querySelectorAll('[data-act="copy-proof"]').forEach(btn => btn.addEventListener('click', (ev) => {
+      try { navigator.clipboard.writeText(shareCardText(s)); ev.target.textContent = 'Copied ✓'; } catch (_) {}
+    }));
     root.classList.add('ss-results-open');
     // The dialog ships aria-hidden="true" in the markup (every other panel
     // toggles it in its open/close fns — this one was missed): flip it BEFORE
@@ -13205,8 +13220,9 @@
     }
   }
   // Progress sheet content (gamification's slot). Renders the "Last session" card
-  // (if any) + streak + per-pathway tempo-tier dots — with an honest "coming" state
-  // for XP/badges, since the slopscale.progress store is unbuilt (don't fake XP).
+  // (if any) + streak + the woodshed log (time / your numbers / travels / level —
+  // Tier A+C) + the competency badge rack (Tier C) + per-pathway tempo-tier dots.
+  // All gained-only; the woodshed + badges collapse entirely in XP-Off.
   // ── Woodshed log (engagement Tier A — cross-session accumulation) ───────────
   // The "your practice over time" surface that makes the Workout feel like a
   // CAMPAIGN, not a stopwatch — the single biggest "kills the timer feeling" lever
@@ -13246,6 +13262,12 @@
     const rows = [`<div class="slopscale-pm-row"><span>On the instrument</span><strong>${fmtMins(w.totalMin)}</strong></div>`];
     if (w.weekMin > 0) rows.push(`<div class="slopscale-pm-row"><span>This week</span><strong>${fmtMins(w.weekMin)}</strong></div>`);
     rows.push(`<div class="slopscale-pm-row"><span>Practice days</span><strong>${w.days}</strong></div>`);
+    // Tier C — the visible woodshed LEVEL (a legible readout of the accrued time×
+    // difficulty XP, never a featured headline; the forward hint is opportunity, not
+    // a grind bar). Behind XP-Off with the rest of this section.
+    const lv = xpLevelInfo(w.xp);
+    rows.push(`<div class="slopscale-pm-row"><span>Woodshed level</span><strong>Lv ${lv.level} · ${lv.name}</strong></div>`);
+    if (lv.nextName) rows.push(`<div class="slopscale-pm-coming">${(lv.nextAt - lv.xp).toLocaleString()} XP of practice to ${lv.nextName}.</div>`);
     // "Your numbers" — the clean-tempo PBs to beat (gained-only; the come-back hook).
     let numbersHtml = '';
     if (w.numbers.length) {
@@ -13259,6 +13281,19 @@
         w.travels.slice(0, 5).map(t => `<div class="slopscale-pm-row"><span>${t.label}${t.mastered ? ' ★' : ''}</span><strong>${t.keys} ${t.keys === 1 ? 'key' : 'keys'}</strong></div>`).join('');
     }
     return `<div class="slopscale-progress-sheet-section"><h4>Woodshed</h4>${rows.join('')}${numbersHtml}${travelHtml}</div>`;
+  }
+  // Competency BADGE rack (Tier C) — earned-only, gained-only (a badge is a one-time
+  // false→true on a real competency artifact; nothing is ever shown locked-with-a-bar
+  // or lost). Collapses entirely in XP-Off; no empty rack to nag a new player.
+  function badgesSectionHtml() {
+    let xpOff = false; try { xpOff = progressLoad().mode === 'off'; } catch (_) {}
+    if (xpOff) return '';
+    const store = progressLoad();
+    const earned = Object.keys(store.badges || {});
+    if (!earned.length) return '';
+    const chips = BADGES.filter(b => earned.includes(b.id))
+      .map(b => `<span class="slopscale-badge" title="${b.desc}">${b.name}</span>`).join('');
+    return `<div class="slopscale-progress-sheet-section"><h4>Badges</h4><div class="slopscale-badge-rack">${chips}</div></div>`;
   }
   function renderProgressSheet() {
     const body = $('slopscale-progress-sheet-body'); if (!body) return;
@@ -13282,6 +13317,7 @@
       sessionSummaryCardHtml() +
       `<div class="slopscale-progress-sheet-section"><h4>Streak</h4>${streakLine}</div>` +
       woodshedSectionHtml() +
+      badgesSectionHtml() +
       `<div class="slopscale-progress-sheet-section"><h4>Tempo-tier progress</h4>${touched.length ? touched.slice(0, 8).map(dotRow).join('') : '<div class="slopscale-pm-coming">Clear a tempo tier to see progress here.</div>'}</div>`;
   }
   // Header Setup popover (instrument + strings + tuning). The button shows the live
@@ -13351,7 +13387,12 @@
   }
   function applyXpModeDefault(mode) {
     try { localStorage.setItem('slopscale.xpMode', mode); } catch (_) {}
+    // Tier C: this IS the live XP-Off switch — drive the real progress-store mode
+    // that gates the whole engagement layer (XP/level/badges/woodshed/depth), not
+    // just a settings default. Off genuinely collapses the layer everywhere.
+    try { progressSetMode(mode); } catch (_) {}
     document.querySelectorAll('#slopscale-xp-mode .slopscale-mini-btn').forEach(b => b.classList.toggle('active', b.dataset.xp === mode));
+    try { renderProgressSheet(); } catch (_) {}
   }
   // Count-in is always ≥1 bar (no 0-bar drop-in — a DAW recording convenience, not
   // a practice need). The setting picks the LENGTH (1/2/4); a stale '0' floors to 1.
@@ -17084,18 +17125,48 @@
   };
   // The shareable plaintext card — Discord-ready, rendered only on a real flip.
   // Kind-aware: a guide-tones pilot leads with the musical claim, then the tempo.
-  function proofCardText(s) {
-    if (!s || !s.proof) return '';
-    const p = s.proof, mins = Math.floor(s.duration_ms / 60000), secs = Math.round((s.duration_ms % 60000) / 1000);
-    const lines = [`SlopScale — ${p.label}`];
-    if (p.kind === 'guide_tones') {
-      lines.push(`✓ Voice-led the changes (3rd & 7th)${p.progression ? ` through the ${p.progression}` : ''}${p.key ? ` in ${p.key}` : ''}`);
+  // The COOPERATIVE share card (engagement Tier C — extends the proof-loop card to
+  // the whole earned surface). "Share and cheer", never a leaderboard/rank/score and
+  // never auto-posted (a Copy button — consent). Anti-inflation: a card exists ONLY
+  // for a run that actually accomplished something real (a proof, a tier/depth flip,
+  // a NEW badge, or a completed multi-block Workout — "I did the map"); an ordinary
+  // or rough single run produces no card (sharing nothing = inflation, per the
+  // run-end celebration spec). The Level line is behind the XP-Off switch.
+  function isShareworthy(s) {
+    if (!s) return false;
+    if (s.proof) return true;
+    if (s.tierCleared) return true;
+    if (s.depth && (s.depth.travelRung || s.depth.cleanRung || s.depth.travelKey)) return true;
+    if (s.badgesNew && s.badgesNew.length) return true;
+    if (s.mode === 'session' && Array.isArray(s.chapters) && s.chapters.length > 1) return true;
+    return false;
+  }
+  function shareCardText(s) {
+    if (!isShareworthy(s)) return '';
+    let xpOff = false; try { xpOff = progressLoad().mode === 'off'; } catch (_) {}
+    const mins = Math.floor(s.duration_ms / 60000), secs = Math.round((s.duration_ms % 60000) / 1000);
+    const dur = `${mins}:${String(secs).padStart(2, '0')}`;
+    const isWorkout = s.mode === 'session' && Array.isArray(s.chapters) && s.chapters.length > 1;
+    const lines = [`SlopScale — ${s.proof ? s.proof.label : (s.displayName || 'Practice')}`];
+    if (s.proof) {
+      const p = s.proof;
+      if (p.kind === 'guide_tones') lines.push(`✓ Voice-led the changes (3rd & 7th)${p.progression ? ` through the ${p.progression}` : ''}${p.key ? ` in ${p.key}` : ''}`);
+      lines.push(`✓ Holds at ${p.tierName} tempo${p.bpm ? ` (${p.bpm} BPM)` : ''}`);
+    } else if (s.tierCleared && s.clearedTier != null) {
+      lines.push(`✓ Cleared ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}${s.bpm ? ` (${s.bpm} BPM)` : ''}`);
     }
-    lines.push(`✓ Holds at ${p.tierName} tempo${p.bpm ? ` (${p.bpm} BPM)` : ''}`);
+    if (isWorkout) lines.push(`✓ Completed the ${s.displayName} workout — ${s.chapters.length} blocks`);
     if (s.depth && s.depth.travelKey) lines.push(`✓ Travels — first clean run in ${s.depth.travelKey}`);
-    lines.push(`Practiced ${mins}:${String(secs).padStart(2, '0')}${s.streak > 0 ? ` · Day ${s.streak}` : ''}`);
+    if (s.depth && s.depth.cleanRung) lines.push(`✓ Clean — a supports-off pass`);
+    if (s.badgesNew && s.badgesNew.length) s.badgesNew.forEach(b => lines.push(`🏅 ${b.name} — ${b.desc}`));
+    const tail = [`Practiced ${dur}`];
+    if (s.streak > 0) tail.push(`Day ${s.streak}`);
+    if (!xpOff) { try { const lv = xpLevelInfo(progressLoad().xp); tail.push(`Level ${lv.level} · ${lv.name}`); } catch (_) {} }
+    lines.push(tail.join(' · '));
     return lines.join('\n');
   }
+  // Back-compat alias — earlier call sites referenced proofCardText.
+  function proofCardText(s) { return shareCardText(s); }
   function advancePathwayTier(session) {
     const total = (session.hit_count || 0) + (session.miss_count || 0);
     // Below PT_MIN_JUDGED the evidence can't grade — lenient self-confirm,
@@ -17281,6 +17352,90 @@
   }
   // ── End depth ladder ────────────────────────────────────────────────────────
 
+  // ── XP LEVEL + competency BADGES (engagement Tier C) ────────────────────────
+  // The purity-flex SPEND (gamification: the closest the layer gets to the cynical
+  // line) — kept deliberately UNDERSTATED and entirely behind the XP-Off switch.
+  // Two surfaces, both READOUTS of artifacts that already exist, never new currency:
+  //   • a visible LEVEL = a legible skill-tier name derived from the accumulated XP
+  //     (time-on-instrument × difficulty — already accrued by advanceDepthLadder).
+  //     XP stays derived / never-spent / never-gates; the level just makes the climb
+  //     legible. NOT a featured headline — its home is the woodshed/P-sheet (STATE);
+  //     a level-up shows in the run-end modal only as a quiet ambient delta (W0/W1).
+  //   • collectible BADGES = one-time false→true markers for real competency EVENTS
+  //     (a rung cleared, Push reached, a skill that travels, a supports-off pass),
+  //     computed PURELY from the gained-only stores (pathway_tiers + progress.byNode).
+  //     They name SKILLS, never rounds/time/attendance (showing-up ≠ a badge), so a
+  //     badge is never lost and never farmable — the only way to earn one is to play
+  //     better. NO leaderboard, NO rank, NO RNG. Off mode collapses both.
+  const WOODSHED_LEVELS = [
+    { at: 0,      name: 'First Steps' },
+    { at: 1500,   name: 'Picking It Up' },
+    { at: 5000,   name: 'Woodshedder' },
+    { at: 12000,  name: 'Regular' },
+    { at: 25000,  name: 'Journeyman' },
+    { at: 45000,  name: 'Roadworn' },
+    { at: 75000,  name: 'Seasoned' },
+    { at: 120000, name: 'Veteran' },
+    { at: 180000, name: 'Old Hand' },
+    { at: 300000, name: 'Lifer' },
+  ];
+  function xpLevelInfo(xp) {
+    xp = Math.max(0, xp || 0);
+    let idx = 0;
+    for (let i = 0; i < WOODSHED_LEVELS.length; i++) if (xp >= WOODSHED_LEVELS[i].at) idx = i;
+    const cur = WOODSHED_LEVELS[idx], next = WOODSHED_LEVELS[idx + 1] || null;
+    return {
+      level: idx + 1, name: cur.name, xp, at: cur.at,
+      nextName: next ? next.name : null, nextAt: next ? next.at : null,
+      into: xp - cur.at, span: next ? (next.at - cur.at) : 0,
+    };
+  }
+  // Competency badges — every test reads ONLY the gained-only artifact stores, so
+  // the set is a pure function of real competency (no rep/time/streak inputs).
+  const BADGES = [
+    { id: 'first_clear', name: 'On the Board',   desc: 'Cleared your first tempo rung.',          test: (c) => c.clearedPathways >= 1 },
+    { id: 'push',        name: 'Up to Speed',    desc: 'Reached Push — the top rung — on a skill.', test: (c) => c.pushPathways >= 1 },
+    { id: 'travels',     name: 'It Travels',     desc: 'Held a skill clean in a second key.',      test: (c) => c.anyTravel },
+    { id: 'clean',       name: 'Clean Hands',    desc: 'A supports-off clean pass.',               test: (c) => c.anyClean },
+    { id: 'breadth',     name: 'Broad Strokes',  desc: 'Cleared a rung on five different skills.',  test: (c) => c.clearedPathways >= 5 },
+    { id: 'polyglot',    name: 'Well-Traveled',  desc: 'Carried your skills into five keys.',       test: (c) => c.totalKeys >= 5 },
+  ];
+  function badgeContext() {
+    const pt = pathwayTiersLoad(), store = progressLoad(), byNode = store.byNode || {};
+    let clearedPathways = 0, pushPathways = 0, totalKeys = 0, anyTravel = false, anyClean = false;
+    for (const id of Object.keys(pt)) {
+      if (!PATHWAYS[id]) continue;
+      const hi = pt[id].highest_tier ?? -1;
+      if (hi >= 0) clearedPathways++;
+      const top = (PATHWAYS[id].tempoTiers || []).length - 1;
+      if (top >= 0 && hi >= top) pushPathways++;
+    }
+    for (const id of Object.keys(byNode)) {
+      const n = byNode[id] || {};
+      totalKeys += (n.keysCleared || []).length;
+      if (n.depth && n.depth.travel) anyTravel = true;
+      if (n.depth && n.depth.clean) anyClean = true;
+    }
+    return { clearedPathways, pushPathways, totalKeys, anyTravel, anyClean };
+  }
+  function computeBadges() {
+    const c = badgeContext();
+    return BADGES.filter(b => { try { return b.test(c); } catch (_) { return false; } }).map(b => b.id);
+  }
+  const badgeMeta = (id) => { const b = BADGES.find(x => x.id === id); return { id, name: b ? b.name : id, desc: b ? b.desc : '' }; };
+  // Persist earned badges (gained-only) + return the NEW-this-run diff. Null in Off
+  // mode (the layer is collapsed). Called from sessionEnd AFTER the tier/depth stores
+  // are updated, so this run's competency is reflected.
+  function creditBadges() {
+    const store = progressLoad();
+    if (store.mode === 'off') return null;
+    store.badges = store.badges || {};
+    const fresh = [];
+    for (const id of computeBadges()) if (!store.badges[id]) { store.badges[id] = Date.now(); fresh.push(id); }
+    if (fresh.length) progressSave(store);
+    return { newBadges: fresh.map(badgeMeta), all: Object.keys(store.badges).map(badgeMeta) };
+  }
+
   function sessionBegin() {
     const isSessionMode = $('slopscale-root')?.classList.contains('slopscale-session-mode');
     let mode, pathway_id, bpm, bpm_tier, scale, key, practice_type;
@@ -17417,8 +17572,18 @@
     const sessions = sessionsLoad();
     sessions.unshift(_activeSession);
     sessionsSave(sessions);
+    const _prevXp = (function () { try { return progressLoad().xp || 0; } catch (_) { return 0; } })();
     const unlock = advancePathwayTier(_activeSession);
     const depthGain = advanceDepthLadder(_activeSession);   // XP + Travel axis (Phase 8)
+    // Tier C readouts (behind XP-Off): a quiet LEVEL-UP delta when this run's XP gain
+    // crossed a woodshed-level boundary, + any NEW competency badges (computed AFTER
+    // the tier/depth stores above are updated, so this run's competency is reflected).
+    let levelUp = null;
+    try {
+      const _newXp = progressLoad().xp || 0;
+      const a = xpLevelInfo(_prevXp), b = xpLevelInfo(_newXp);
+      if (b.level > a.level) levelUp = { level: b.level, name: b.name };
+    } catch (_) {}
     // Recognizers (gamification spec): DETERMINISTIC new-bests on stored artifacts —
     // the honest "variable" reward (unpredictable because the player's growth is;
     // zero RNG). One line max, precedence first-clear > fastest-clean; "new ground"
@@ -17526,6 +17691,11 @@
         }
       }
     }
+    // Competency badges (Tier C) — computed LAST, after both the solo tier/depth
+    // flips above AND the Workout per-block creditBlockTier flips inside `chapters`
+    // have written the ledger, so a badge earned via a Workout block fires the same
+    // run. Null in Off mode. Gained-only diff.
+    const badgeGain = creditBadges();
     _lastEndedSession = {
       mode: _activeSession.mode, scale: _activeSession.scale, key: _activeSession.key,
       bpm: _activeSession.bpm, bpm_tier: _activeSession.bpm_tier,
@@ -17538,6 +17708,8 @@
       chapters,                    // Workout recap chapter list (Tier 3) | null — descriptive per-block rows
       recognizer,                  // { kind:'first_clear' } | { kind:'fastest', bpm, prev } | { kind:'best_pct', pct, prev } | null
       specBest,                    // { best, runs, isNew, prev } | null — the standing-target "Best here" line
+      levelUp,                     // { level, name } | null — Tier C: a woodshed level boundary crossed this run (quiet)
+      badgesNew: badgeGain ? badgeGain.newBadges : null,   // [{ id, name, desc }] | null — Tier C: competency badges earned this run
       // Mini rung-ladder context for the modal's progress strip (post-update state).
       ladder: (_pw && PATHWAYS[_pw]) ? {
         tiers: PATHWAYS[_pw].tempoTiers || [],
@@ -18733,7 +18905,7 @@
         // Copy the shareable card to the clipboard — silent (no sound/toast), per the
         // proof-loop guardrails. A brief inline "Copied ✓" is the only feedback.
         const btn = e.target.closest('[data-act="copy-proof"]');
-        const txt = proofCardText(_lastEndedSession);
+        const txt = shareCardText(_lastEndedSession);
         try { navigator.clipboard?.writeText(txt); } catch (_) {}
         btn.textContent = 'Copied ✓';
         setTimeout(() => { if (btn.isConnected) btn.textContent = 'Copy progress card'; }, 1600);
@@ -19028,7 +19200,7 @@
   }
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
-  window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier };
+  window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier, xpLevelInfo, computeBadges, creditBadges, shareCardText, isShareworthy };
   if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();

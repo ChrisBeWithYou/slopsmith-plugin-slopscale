@@ -92,12 +92,60 @@ function runProgressInPage() {
     JSON.stringify({ rClean, rClean2 }));
   if (hmPrev == null) localStorage.removeItem("slopscale.showHandMarks"); else localStorage.setItem("slopscale.showHandMarks", hmPrev);
 
-  // ── Off mode collapses the layer (no xp/depth/return) ──────────────────────
+  // ── Tier C — XP LEVEL readout (legible skill-tier, gained-only/monotonic) ───
+  if (typeof S.xpLevelInfo === "function") {
+    const l0 = S.xpLevelInfo(0), lMid = S.xpLevelInfo(30000), lTop = S.xpLevelInfo(10000000);
+    ok("xpLevelInfo(0) = Level 1, named, has a next", l0.level === 1 && !!l0.name && l0.nextName && l0.nextAt > 0, JSON.stringify(l0));
+    ok("xpLevelInfo rises with XP (monotonic)", lMid.level > l0.level && lTop.level >= lMid.level, `${l0.level}<${lMid.level}<=${lTop.level}`);
+    ok("top level has no next (no infinite grind)", lTop.nextName === null && lTop.nextAt === null, JSON.stringify(lTop));
+  } else ok("xpLevelInfo exposed", false, "missing on window.SlopScale");
+
+  // ── Tier C — competency BADGES (pure over the gained-only stores) ───────────
+  if (typeof S.computeBadges === "function" && typeof S.creditBadges === "function") {
+    // A fully-owned pathway (Push + Travel rung + 5 keys + Clean) lights the set.
+    localStorage.setItem("slopscale.pathway_tiers", JSON.stringify({ pent_foundation: { highest_tier: 3 } }));
+    localStorage.setItem("slopscale.progress", JSON.stringify({
+      mode: "casual", xp: 0,
+      byNode: { pent_foundation: { keysCleared: ["A", "E", "C", "G", "D"], depth: { travel: 1, clean: 1 } } },
+    }));
+    const earned = S.computeBadges();
+    ok("badges derive from real artifacts (first_clear/push/travels/clean/polyglot)",
+      ["first_clear", "push", "travels", "clean", "polyglot"].every(id => earned.includes(id)), JSON.stringify(earned));
+    ok("breadth badge NOT earned on a single pathway", !earned.includes("breadth"), JSON.stringify(earned));
+    // creditBadges persists + diffs gained-only: first call is fresh, repeat is empty.
+    const c1 = S.creditBadges();
+    const c2 = S.creditBadges();
+    ok("creditBadges returns the new-this-run diff", c1 && c1.newBadges.length >= 5, JSON.stringify(c1 && c1.newBadges.map(b => b.id)));
+    ok("badges are gained-only (a repeat run earns no new badge)", c2 && c2.newBadges.length === 0, JSON.stringify(c2 && c2.newBadges));
+    ok("earned badges persist on the store", Object.keys(S.progressLoad().badges || {}).length >= 5, JSON.stringify(S.progressLoad().badges));
+    // No competency yet → no badges (a fresh player isn't handed one for showing up).
+    localStorage.setItem("slopscale.pathway_tiers", JSON.stringify({}));
+    localStorage.setItem("slopscale.progress", JSON.stringify({ mode: "casual", xp: 0, byNode: {} }));
+    ok("no badges without any cleared competency", S.computeBadges().length === 0, JSON.stringify(S.computeBadges()));
+  } else ok("computeBadges/creditBadges exposed", false, "missing on window.SlopScale");
+
+  // ── Tier C — cooperative SHARE CARD (shareworthy gating + no leaderboard) ────
+  if (typeof S.shareCardText === "function" && typeof S.isShareworthy === "function") {
+    const ordinary = { mode: "pathway", displayName: "Pentatonic", duration_ms: 60000, bpm: 90 };
+    const earnedRun = { mode: "pathway", displayName: "Pentatonic", duration_ms: 60000, bpm: 120, tierCleared: true, clearedTier: 3 };
+    const workoutRun = { mode: "session", displayName: "Morning Warm-up", duration_ms: 600000, chapters: [{}, {}, {}] };
+    ok("ordinary run is NOT shareworthy (anti-inflation)", !S.isShareworthy(ordinary) && S.shareCardText(ordinary) === "", `card="${S.shareCardText(ordinary)}"`);
+    const eCard = S.shareCardText(earnedRun);
+    ok("an earned run yields a cooperative card", S.isShareworthy(earnedRun) && /SlopScale/.test(eCard) && /Cleared/.test(eCard), eCard);
+    ok("a completed Workout is shareworthy", S.isShareworthy(workoutRun) && /Completed the Morning Warm-up/.test(S.shareCardText(workoutRun)), S.shareCardText(workoutRun));
+    ok("share card is cooperative — no leaderboard/rank/beat-me", !/leaderboard|\brank\b|beat me|#\d+\b/i.test(eCard + S.shareCardText(workoutRun)), eCard);
+  } else ok("shareCardText/isShareworthy exposed", false, "missing on window.SlopScale");
+
+  // ── Off mode collapses the layer (no xp/depth/return; no badge credit) ──────
   S.progressSetMode("off");
   const xpBefore = S.progressLoad().xp;
   const rOff = S.advanceDepthLadder(sess("D"));
   ok("Off mode returns null (no advance)", rOff === null, JSON.stringify(rOff));
   ok("Off mode accrues no XP", S.progressLoad().xp === xpBefore, `xp ${xpBefore}→${S.progressLoad().xp}`);
+  if (typeof S.creditBadges === "function") {
+    localStorage.setItem("slopscale.pathway_tiers", JSON.stringify({ pent_foundation: { highest_tier: 3 } }));
+    ok("Off mode credits no badges (layer collapsed)", S.creditBadges() === null, "creditBadges should be null in Off");
+  }
   S.progressSetMode("casual");
 
   return out;
