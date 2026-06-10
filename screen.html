@@ -310,6 +310,7 @@
     text-transform: uppercase; color: #93c5fd;
   }
   .slopscale-pathway-goal-card.modified .pathway-tag { color: #fbbf24; }
+  #slopscale-pathway-pb { margin-top: 6px; font-size: 11.5px; font-weight: 700; color: var(--ss-accent-edge, #60a5fa); }
   #slopscale-pathway-tuning-note { margin-top: 6px; font-size: 11px; color: var(--ss-text-muted, #94a3b8); font-style: italic; }
   /* Form cue (hand-marks Slice 2): same quiet one-liner family as the tuning note. */
   #slopscale-pathway-form-cue { margin-top: 6px; font-size: 11px; color: var(--ss-text-muted, #94a3b8); font-style: italic; }
@@ -511,6 +512,16 @@
   .slopscale-hud { position: absolute; top: 60px; left: 0; right: 0; z-index: 12; display: flex; align-items: flex-start; gap: 12px; padding: 4px 13px; pointer-events: none; }
   .slopscale-hud-title { margin-right: auto; display: none; font-size: 12px; font-weight: 600; color: #e2e8f0; text-shadow: 0 1px 4px rgba(0,0,0,0.85); }
   .slopscale-root.slopscale-hud-title-on .slopscale-hud-title { display: inline; }
+  /* Per-block SEAM VERDICT card (Tier 3): stage lower-third, centered, non-
+     interactive; fades in on the inter-block breath and out on the downbeat. The
+     ✓-done line is a COMPLETION readout (never a score); the next line is the
+     forward breadcrumb. Token-driven; no meter-green. */
+  .slopscale-seam-caption { position: absolute; left: 0; right: 0; bottom: 26%; z-index: 13; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 0 16px; text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.16s ease; text-shadow: 0 1px 5px rgba(0,0,0,0.9); }
+  .slopscale-seam-caption.is-on { opacity: 1; }
+  .slopscale-seam-done { font-size: 13px; font-weight: 600; color: var(--ss-text-muted, #94a3b8); }
+  .slopscale-seam-next { font-size: 15px; font-weight: 800; color: var(--ss-text, #e8eef7); }
+  .slopscale-seam-next .slopscale-seam-pos { font-size: 11.5px; font-weight: 600; color: var(--ss-text-muted, #94a3b8); }
+  @media (prefers-reduced-motion: reduce) { .slopscale-seam-caption { transition: none; } }
   /* Live fretboard strip docked under the highway. Hidden by default; shown only
      for fretboard-capable views (Jumping Tab + Notation) when the toggle is on.
      Always hidden for the Piano instrument. */
@@ -679,6 +690,29 @@
   .slopscale-results-deltas { font-size: 12px; color: #cbd5e1; }
   .slopscale-results-recog { font-size: 12px; font-weight: 600; color: var(--ss-accent-edge, #60a5fa); }
   .slopscale-results-practiced { text-align: center; font-size: 11.5px; color: #94a3b8; padding: 7px 16px 0; }
+  /* Workout RECAP (Tier 3): the per-block chapter list REPLACES the aggregate % for a
+     multi-block Workout (a session has no single grade). Descriptive rows grouped by
+     role so the player sees the arc they traveled; the dot + ✓ are NEVER --ss-meter
+     green (completion / role ≠ a cleared competency — §8). The list caps + scrolls so
+     the modal never grows (the add-arc only adds rows). */
+  .slopscale-results-session-head { text-align: center; padding: 12px 16px 2px; }
+  .slopscale-results-session-title { font-size: 15px; font-weight: 800; color: var(--ss-text, #e2e8f0); }
+  .slopscale-results-session-meta { font-size: 12px; color: var(--ss-text-muted, #94a3b8); padding-top: 2px; }
+  .slopscale-results-session-arc { font-size: 11.5px; color: var(--ss-text-faint, #64748b); padding-top: 4px; }
+  .slopscale-results-chapters { display: flex; flex-direction: column; gap: 0; max-height: 248px; overflow-y: auto; padding: 6px 14px 2px; margin-top: 8px; border-top: 1px solid rgba(51,65,85,0.5); }
+  .slopscale-results-chapter-role { font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ss-text-faint, #64748b); padding: 8px 2px 2px; }
+  .slopscale-results-chapter { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 9px; min-height: 30px; padding: 3px 2px; border-top: 1px solid rgba(51,65,85,0.28); }
+  .slopscale-results-chapter:first-child { border-top: none; }
+  .slopscale-results-chapter-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .slopscale-results-chapter-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .slopscale-results-chapter-name { font-size: 12.5px; color: var(--ss-text, #e2e8f0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .slopscale-results-chapter-comp { font-size: 10.5px; color: var(--ss-text-faint, #64748b); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .slopscale-results-chapter-dur { font-size: 11px; color: var(--ss-text-muted, #94a3b8); font-variant-numeric: tabular-nums; }
+  .slopscale-results-chapter-done { font-size: 12px; font-weight: 700; color: var(--ss-accent-edge, #60a5fa); width: 14px; text-align: center; }
+  .slopscale-results-chapter.is-unreached { opacity: 0.5; }
+  .slopscale-results-chapter.is-unreached .slopscale-results-chapter-done { color: var(--ss-text-faint, #64748b); font-weight: 400; }
+  /* ○ touched (reached but silent while the mic was live) — neutral, never red; ● played keeps the accent. */
+  .slopscale-results-chapter.is-touched .slopscale-results-chapter-done { color: var(--ss-text-muted, #94a3b8); font-weight: 400; }
   .slopscale-results-cta { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px 14px; }
   .slopscale-results-primary { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 16px; border-radius: 9px; border: 1px solid var(--ss-accent-edge, #4080e0); background: var(--ss-accent-grad); color: #f8fafc; font-size: 12.5px; font-weight: 700; cursor: pointer; max-width: 360px; }
   .slopscale-results-primary:hover { filter: brightness(1.12); }
@@ -718,6 +752,8 @@
   .slopscale-pm-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0; }
   .slopscale-pm-dots { display: flex; gap: 3px; }
   .slopscale-pm-coming { font-size: 11.5px; color: #64748b; font-style: italic; }
+  /* Woodshed sub-header ("Your numbers" / "Traveled") — a quiet group label. */
+  .slopscale-pm-sub { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ss-text-faint, #64748b); padding: 8px 0 2px; }
   /* "Last session" card — a calm, dismissible mirror of the run that just ended.
      Descriptive + gained-only (no score/rank); meter-green ONLY for a cleared tier
      (see docs/design-system.md §8/§13). */
@@ -1514,6 +1550,9 @@
         <div class="slopscale-pathway-goal-card" id="slopscale-pathway-goal-card">
           <div class="slopscale-goal-head"><span class="pathway-tag" id="slopscale-pathway-tag">Goal</span><span class="pathway-title" id="slopscale-pathway-title">Pentatonic Foundation</span></div>
           <div id="slopscale-pathway-goal">Pick a focused routine. Use Custom for full control.</div>
+          <!-- "Your number" (engagement Tier A): the clean-tempo PB to beat for this
+               pathway — the come-back hook, surfaced at the moment you pick a drill. -->
+          <div id="slopscale-pathway-pb" style="display:none"></div>
           <!-- One calm line when the rung was adapted to the player's saved tuning
                (uniform offset only — the lossless path adapts silently except for this
                informative note; see the tuning-panel layered model). -->
@@ -2245,6 +2284,17 @@
              chart has chord templates — scales have none, so it stays hidden. -->
         <canvas id="slopscale-chordbox" class="slopscale-chordbox" aria-hidden="true"></canvas>
         <canvas id="slopscale-canvas"></canvas>
+
+        <!-- Per-block SEAM VERDICT (Workout-love Tier 3): during an inter-block
+             breath the notes pause, so the stage lower-third briefly shows a
+             descriptive closure for the block JUST finished (line 1, dim) + the
+             next block name & position breadcrumb (line 2, bright). The ruler owns
+             the countdown digit; this card owns the NAMES. pointer-events:none,
+             reduced-motion-aware, no audio. Workout inter-block breaks only. -->
+        <div id="slopscale-seam-caption" class="slopscale-seam-caption" aria-hidden="true">
+          <div class="slopscale-seam-done"></div>
+          <div class="slopscale-seam-next"></div>
+        </div>
 
         <!-- Mixer (M): slides UP over the stage. Per-bus faders/mute/solo for the
              player + backing buses, plus a "Backing dim". Overlay, not relayout —

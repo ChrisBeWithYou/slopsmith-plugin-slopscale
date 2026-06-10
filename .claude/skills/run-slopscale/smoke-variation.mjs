@@ -132,6 +132,41 @@ function runVariationInPage() {
     out.push({ label: "SEGMENT_TEMPLATES", ok: false, fatal: ["registry is empty"], notes: 0 });
   }
 
+  // ── Workout-love Tier 3 — the length-preset ADD-ARC ─────────────────────────
+  // A longer preset must mean a better ARC (more context-cycling passes), never the
+  // SAME blocks stretched longer (the massing this replaced). Guards: Quick adds
+  // nothing; Woodshed grows + interleaves a Review before the application + adds no
+  // single bloated block (≤4min) + doesn't compound on re-apply.
+  if (typeof S.applyLengthPreset === "function" && S.BUILT_IN_SESSIONS) {
+    const fatal = [];
+    const sessions = S.BUILT_IN_SESSIONS;
+    const pickId = Object.keys(sessions).find((id) => {
+      const segs = (sessions[id].segments || []).map(S.materializeSegment).filter(Boolean);
+      return segs.length >= 3 && segs.map((s) => s.role || null).some((r) => r === "application" || r === "jam");
+    });
+    if (!pickId) { fatal.push("no multi-block session with an application/jam block to test"); }
+    else {
+      const base = sessions[pickId];
+      const mk = () => Object.assign({}, base, { segments: (base.segments || []).map(S.materializeSegment).filter(Boolean).map((s) => Object.assign({}, s)) });
+      const origN = mk().segments.length;
+      const quick = S.applyLengthPreset(mk(), "quick");
+      if (quick.segments.length !== origN || quick.segments.some((s) => s._added)) fatal.push(`quick changed the arc (${origN} -> ${quick.segments.length}, added ${quick.segments.filter((s) => s._added).length})`);
+      const wood = S.applyLengthPreset(mk(), "woodshed");
+      if (wood.segments.length <= origN) fatal.push(`woodshed did not grow the arc (${origN} -> ${wood.segments.length})`);
+      if (!wood.segments.some((s) => s._added && s.role === "review")) fatal.push("woodshed added no Review block");
+      const revIdx = wood.segments.findIndex((s) => s._added && s.role === "review");
+      const appIdx = wood.segments.findIndex((s) => (s.role === "application" || s.role === "jam") && !s._added);
+      if (!(revIdx >= 0 && appIdx >= 0 && revIdx < appIdx)) fatal.push("Review not interleaved before the application");
+      const wood2 = S.applyLengthPreset(wood, "woodshed");
+      if (wood2.segments.length !== wood.segments.length) fatal.push(`compounds on re-apply (${wood.segments.length} -> ${wood2.segments.length})`);
+      const ex = S.generateSession(wood);
+      const sb = (ex.chart && ex.chart.segmentBounds) || [];
+      if (!sb.length || !sb.every((b) => typeof b.competency === "string" && b.competency)) fatal.push("segmentBounds missing competency (recap data)");
+      if (sb.filter((b) => b.added).some((b) => b.end - b.start > 240)) fatal.push("an added block masses (>4min)");
+      out.push({ label: `addArc(${pickId}: ${origN}->${wood.segments.length})`, ok: fatal.length === 0, fatal, notes: 0 });
+    }
+  }
+
   return out;
 }
 

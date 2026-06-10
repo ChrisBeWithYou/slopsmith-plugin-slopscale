@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.8-dev';
+  const SLOPSCALE_VERSION = '0.7.10-dev';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -2954,6 +2954,23 @@
   // wrapped seamlessly). { fromT, atMs } | null; reduced-motion + tiny loops skip it.
   let _wrapAnim = null;
   const WRAP_ANIM_MS = 300;
+  // Reached-tracking for the end-of-Workout recap (Tier 3): a chapter shows
+  // "practiced" only if the run actually reached it. _runMaxChartTime = furthest
+  // chart time seen in the current pass; _runLooped = a loop wrap happened (so the
+  // whole session was reached). Reset on each fresh start. Pure display state.
+  let _runMaxChartTime = 0, _runLooped = false;
+  // Per-block INPUT tracking (engagement Tier A — the foundational per-block
+  // measurement). _blockHadInput[i] = real mic input arrived inside segmentBounds[i]'s
+  // window this run → the recap can show "played ●" vs "scrolled past ○" honestly,
+  // and the seam can drop a "done" claim on a block the player never sounded. Reset
+  // per run; marked from the level path (the same gate that arms _ptHadInput).
+  let _blockHadInput = [];
+  function markBlockInput() {
+    const sb = activeBundle && activeBundle.segmentBounds;
+    if (!sb || sb.length < 2) return;
+    const t = currentPracticeTime;
+    for (let i = 0; i < sb.length; i++) { if (t >= sb[i].start - 1e-3 && t < sb[i].end + 1e-3) { _blockHadInput[i] = true; return; } }
+  }
   function triggerWrapRewind(fromT, toT) {
     if (Math.abs(fromT - toT) < 2.5) return;   // a short A–B loop would strobe — only animate a meaningful span
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -4452,6 +4469,33 @@
     if (rawSeg.keyCycle) seg.keyCycle = rawSeg.keyCycle;
     if (rawSeg.targetSec != null) seg.targetSec = rawSeg.targetSec;
     return seg;
+  }
+
+  // ── Competency-naming layer (Workout-love Tier 3) ───────────────────────────
+  // The end-of-Workout recap chapter list AND the per-block seam verdict both name
+  // the TRANSFERABLE SKILL a block builds, in goal-card voice ("play the changes",
+  // not "block 3: arpeggios" — L&D). Template-ref slots carry `competency` on their
+  // SEGMENT_TEMPLATE; inline BUILT_IN_SESSIONS segments don't, so fall back by kind,
+  // then a cleaned kind. Pure (no DOM/host) — used by buildSessionChart to enrich
+  // segmentBounds, which both display surfaces then read.
+  const KIND_COMPETENCY = {
+    chromatic:'finger independence', scale:'scale fluency', arpeggios:'arpeggio shapes',
+    diatonic_arpeggios:'seventh-chord vocabulary', chord_scales:'play the changes',
+    guide_tones:'voice-lead the changes', pedal_riff:'riff lock', legato:'hammer/pull fluency',
+    bending:'bend intonation', sweep_arpeggios:'clean sweep picking', strum_comp:'comping feel',
+    shell_voicings:'shell voicings', rhythm_pulse:'subdivision + feel', herta:'burst control',
+    concept_chords:'chord concepts', walking_bass:'walking lines', root_fifth_octave:'root-fifth lock',
+    octave_groove:'octave groove', dead_note_groove:'dead-note feel', slap_pop:'slap & pop',
+    right_hand_technique:'right-hand control', tapping:'tapping fluency', hybrid_picking:'hybrid picking',
+    tremolo_picking:'tremolo control', vibrato:'vibrato control',
+  };
+  function prettyKind(kind) { return String(kind || 'practice').replace(/_/g, ' '); }
+  // The transferable skill a session block builds, in goal-card voice.
+  function segmentCompetency(rawSeg, segment) {
+    const tmpl = rawSeg && rawSeg.templateId ? SEGMENT_TEMPLATES[rawSeg.templateId] : null;
+    if (tmpl && tmpl.competency) return tmpl.competency;
+    const kind = segment && segment.kind;
+    return KIND_COMPETENCY[kind] || prettyKind(kind);
   }
 
   // Startup integrity guard (mirrors validateStylePalettes + the no-unison guard):
@@ -9045,25 +9089,152 @@
     return null;
   }
 
-  // ── Workout length presets (pacing charette) ────────────────────────────────
-  // OPT-IN session length — never the default (the natural "As built" length is
-  // preserved when no preset is set). A preset distributes a total wall-clock
-  // target across the blocks PROPORTIONAL to each block's natural cell duration
-  // (so the warm-up stays relatively short and the arc's shape is preserved), via
-  // each block's targetSec → fillBlockToDuration tiles whole reps. Duration is a
-  // setup PLAN shown as a sum, never a graded countdown. See memory
-  // project_workout_pacing_charette.
+  // ── Workout length presets — the ADD-ARC (Workout-love Tier 3) ──────────────
+  // OPT-IN session length — never the default ("As built" preserved when unset). A
+  // longer preset must mean a better ARC, not the SAME blocks stretched longer
+  // (L&D's "biggest pacing gap": scaling one drill ~5× = mindless massing). So:
+  //   composeAddArc()  → structurally ADD blocks derived from the player's own arc
+  //   then dose         → the ORIGINAL arc is capped near natural; the spare time
+  //                       funds the added blocks, never a single bloated run.
+  // The cap (most the original arc may stretch) is the forcing function. Added
+  // blocks are DERIVED, never invented: a template block re-rolls to its NEXT vary
+  // context (key/shape); an inline block transposes a circle-of-5ths. Returns a NEW
+  // session with reordered+extended segments[] — NEVER a chart splice (so it
+  // composes with the inter-block breaks / segmentBounds / per-block backing / wrap
+  // for free, and keeps smoke-session-sync + smoke-variation coverage). Recomputes
+  // from the CANONICAL arc (strips prior _added blocks) so presets don't compound.
+  // Spec: docs/workout-love-roundtable.md (Tier 3); memory project_workout_love.
   const LENGTH_PRESETS = { quick: 10, standard: 20, woodshed: 30 };   // minutes
+  const LENGTH_CAP = { quick: 1.25, standard: 1.5, woodshed: 1.75 };  // most the ORIGINAL arc may stretch (rhythm-meter)
+  // Per-category single-run dose ceiling (L&D) — the forcing function: a block
+  // can't soak the extra minutes by stretching ONE run; the spare time funds more
+  // CONTEXT-CYCLING passes (not a 14-min single-key block = the massing we kill).
+  const DOSE_CEILING = { warmup: 75, technique: 90, scale_arp: 90, application: 120, jam: 150, review: 90, cooldown: 60 };
+  function doseCeiling(role) { return DOSE_CEILING[role] || 90; }
+  const REVIEW_MAX_PASSES = 4, APP_MAX_PASSES = 3;   // bound the added-arc band count
   function lengthPresetSec(preset) { return LENGTH_PRESETS[preset] ? LENGTH_PRESETS[preset] * 60 : null; }
+  // Role inference for inline session blocks (no `role`); template blocks carry it.
+  const KIND_ROLE = {
+    chromatic:'warmup', scale:'scale_arp', arpeggios:'scale_arp', diatonic_arpeggios:'scale_arp',
+    guide_tones:'application', chord_scales:'application', strum_comp:'application', modal_vamp:'jam',
+    legato:'technique', bending:'technique', sweep_arpeggios:'technique', pedal_riff:'technique',
+    rhythm_pulse:'technique', herta:'technique', concept_chords:'application',
+  };
+  function blockRole(seg) {
+    if (seg.role) return seg.role;
+    if (seg.templateId && SEGMENT_TEMPLATES[seg.templateId]) return SEGMENT_TEMPLATES[seg.templateId].role;
+    return KIND_ROLE[seg.kind] || null;
+  }
+  const CIRCLE_OF_FIFTHS = ['C','G','D','A','E','B','F#','Db','Ab','Eb','Bb','F'];
+  function nextFifthKey(key) {
+    const norm = { 'Gb':'F#','C#':'Db','D#':'Eb','G#':'Ab','A#':'Bb' };
+    const k = norm[key] || key;
+    const i = CIRCLE_OF_FIFTHS.indexOf(k);
+    return i < 0 ? key : CIRCLE_OF_FIFTHS[(i + 1) % CIRCLE_OF_FIFTHS.length];
+  }
+  function segNatDur(s) { const m = materializeSegment(s); return m ? segmentEstDuration(m) : 0; }
+  // A spaced REVIEW pass of the primary skill block, advanced `step` CONTEXTS —
+  // re-rolled to a later vary context (template: key/shape) or transposed `step+1`
+  // fifths (inline). Same competency, new context = transfer (NOT the same cell
+  // tiled longer). Each pass is ceiling-sized, so a long budget = MORE contexts.
+  function deriveReviewBlock(src, step) {
+    step = step || 0;
+    const comp = segmentCompetency(src, src);
+    let block, key;
+    if (src.templateId && SEGMENT_TEMPLATES[src.templateId]) {
+      const tmpl = SEGMENT_TEMPLATES[src.templateId];
+      const nVar = (tmpl.vary && tmpl.vary.length) ? tmpl.vary.length : 1;
+      block = materializeSegment({ templateId: src.templateId, variantIdx: (((src.variantIdx || 0) + 1 + step) % nVar) });
+      key = block && block.config && block.config.key;
+    } else {
+      const cfg = Object.assign({}, src.config || {});
+      let k = cfg.key;
+      for (let i = 0; i <= step; i++) if (k) k = nextFifthKey(k);
+      if (k) cfg.key = k;
+      key = k; block = { kind: src.kind, config: cfg };
+    }
+    if (!block) return null;
+    return Object.assign({}, block, {
+      id: (src.id || 'blk') + '_review' + (step ? '_' + step : ''),
+      name: `Revisited — ${comp}${key ? ` in ${key}` : ''}`, role: 'review', _added: true,
+      config: Object.assign({}, block.config, { audio: (src.config || {}).audio }),
+    });
+  }
+  // A 2nd APPLICATION of the last application/jam block, transposed `step+1` fifths.
+  function deriveApplicationBlock(src, step) {
+    step = step || 0;
+    const cfg = Object.assign({}, src.config || {});
+    let k = cfg.key;
+    for (let i = 0; i <= step; i++) if (k) k = nextFifthKey(k);
+    if (k) cfg.key = k;
+    return Object.assign({}, src, {
+      id: (src.id || 'blk') + '_app2' + (step ? '_' + step : ''),
+      name: `Apply again${k ? ` in ${k}` : ''}`, role: src.role || blockRole(src) || 'application', _added: true, config: cfg,
+    });
+  }
+  // The structural add-arc: which blocks to ADD + where + how big (`share` sec).
+  // Quick adds nothing; Standard adds a closing Review only if the session ends
+  // cold; Woodshed adds a Review arc (interleaved before the application) + a 2nd
+  // application arc (appended). Each arc is FILLED with ceiling-sized, context-
+  // cycling passes — so the spare time buys more KEYS/SHAPES (Travel), never a
+  // single bloated run. anchorIdx = the original-arc index to insert before
+  // (origLen = append).
+  function composeAddArc(origSegs, preset, addBudget) {
+    if (preset === 'quick' || addBudget <= 1) return [];
+    const roles = origSegs.map(blockRole);
+    const appIdx = roles.findIndex(r => r === 'application' || r === 'jam');
+    let skillIdx = roles.findIndex(r => r === 'technique' || r === 'scale_arp');
+    if (skillIdx < 0) skillIdx = roles.findIndex(r => r !== 'warmup' && r !== 'cooldown' && r !== 'jam');
+    let lastApp = -1; for (let i = 0; i < roles.length; i++) if (roles[i] === 'application' || roles[i] === 'jam') lastApp = i;
+    const endsCold = !(roles.includes('application') || roles.includes('jam') || roles.includes('cooldown') || roles.includes('review'));
+    const wantReview = preset === 'woodshed' || (preset === 'standard' && endsCold);
+    const doApp = preset === 'woodshed' && lastApp >= 0;
+    const revBudget = doApp ? addBudget * 0.6 : addBudget;
+    const appBudget = doApp ? addBudget * 0.4 : 0;
+    const out = [];
+    if (wantReview && skillIdx >= 0) {
+      const ceil = doseCeiling('review');
+      const n = Math.max(1, Math.min(REVIEW_MAX_PASSES, Math.round(revBudget / ceil)));
+      for (let i = 0; i < n; i++) { const b = deriveReviewBlock(origSegs[skillIdx], i); if (b) out.push({ seg: b, anchorIdx: appIdx >= 0 ? appIdx : origSegs.length, share: revBudget / n }); }
+    }
+    if (doApp) {
+      const ceil = doseCeiling(roles[lastApp] || 'application');
+      const n = Math.max(1, Math.min(APP_MAX_PASSES, Math.round(appBudget / ceil)));
+      for (let i = 0; i < n; i++) { const b = deriveApplicationBlock(origSegs[lastApp], i); if (b) out.push({ seg: b, anchorIdx: origSegs.length, share: appBudget / n }); }
+    }
+    return out;
+  }
   function applyLengthPreset(session, preset) {
     const totalSec = lengthPresetSec(preset);
     if (!totalSec || !session) return session;
-    const segs = session.segments || [];
-    if (!segs.length) return session;
-    const nat = segs.map(s => { const m = materializeSegment(s); return m ? segmentEstDuration(m) : 0; });
-    const sum = nat.reduce((a, b) => a + b, 0) || 1;
-    const scaled = segs.map((s, i) => Object.assign({}, s, { targetSec: Math.max(20, (nat[i] / sum) * totalSec) }));   // ≥20s/block
-    return Object.assign({}, session, { segments: scaled });
+    // Recompute from the CANONICAL arc — strip any prior _added blocks so changing
+    // presets never compounds review passes (rhythm-meter). Non-mutating.
+    const origSegs = (session.segments || []).filter(s => !s._added);
+    if (!origSegs.length) return session;
+    const nat = origSegs.map(segNatDur);
+    const natSum = nat.reduce((a, b) => a + b, 0) || 1;
+    const cap = LENGTH_CAP[preset] || 1.5;
+    const originalBudget = Math.min(totalSec, natSum * cap);
+    const addBudget = totalSec - originalBudget;
+    const adds = composeAddArc(origSegs, preset, addBudget);
+    if (!adds.length) {
+      // No add-arc (Quick, the preset fits a gentle stretch, or nothing to derive)
+      // → dose the original arc across the WHOLE total proportionally (the prior
+      // behaviour; a clean degrade so the realized length still ≈ the preset).
+      const scaled = origSegs.map((s, i) => Object.assign({}, s, { targetSec: Math.max(20, (nat[i] / natSum) * totalSec) }));
+      return Object.assign({}, session, { segments: scaled });
+    }
+    // Dose the original arc to originalBudget (≈ natural × cap — no massing). Each
+    // added pass takes its `share`, CLAMPED at ~1.6× its category ceiling so a
+    // thin source + a long preset can't bloat one pass (it under-fills with varied
+    // contexts instead — honest length over massing).
+    const origScaled = origSegs.map((s, i) => Object.assign({}, s, { targetSec: Math.max(20, (nat[i] / natSum) * originalBudget) }));
+    adds.forEach(a => { const ceil = doseCeiling(blockRole(a.seg)); a.seg = Object.assign({}, a.seg, { targetSec: Math.max(20, Math.min(a.share, ceil * 1.6)) }); });
+    // Splice added blocks at their anchors (descending so earlier inserts don't
+    // shift later anchors). The result is a reordered+extended segments[] array.
+    const segs = origScaled.slice();
+    adds.slice().sort((a, b) => b.anchorIdx - a.anchorIdx).forEach(a => { segs.splice(a.anchorIdx, 0, a.seg); });
+    return Object.assign({}, session, { segments: segs });
   }
 
   // ── Inter-block transition break (Workout pacing charette, 2026-06-02) ───────
@@ -9206,7 +9377,11 @@
       segBeats.forEach(b => beats.push(Object.assign({}, b, { time:Number((b.time + t).toFixed(6)) })));
       swung.backing.forEach(ev => backingEvents.push(Object.assign({}, ev, { t:Number((ev.t + t).toFixed(6)), end:Number((ev.end + t).toFixed(6)) })));
       tplOffset += (chart.chordTemplates || []).length;
-      segmentBounds.push({ name:segment.name, kind:segment.kind, role:segment.role, start:Number(t.toFixed(6)), end:Number((t + dur).toFixed(6)) });
+      segmentBounds.push({ name:segment.name, kind:segment.kind, role:(blockRole(segment) || segment.role || null),
+        competency:segmentCompetency(rawSeg, segment),
+        templateId:(rawSeg.templateId || null), variantIdx:(rawSeg.variantIdx != null ? rawSeg.variantIdx : null),
+        added:!!rawSeg._added, key:(segCfg.key || null), bpm:(segCfg.bpm || null),
+        start:Number(t.toFixed(6)), end:Number((t + dur).toFixed(6)) });
       const blkBar = measureSeconds(segCfg);
       beatOff += (dur / blkBar) * Math.max(1, segCfg.meter.numerator);
       barOff += Math.round(dur / blkBar);
@@ -11250,12 +11425,37 @@
     }
     if (target == null || target <= now + 1e-4) return null;
     // The digit holds across its own beat: count from the current beat (inclusive)
-    // to the downbeat (exclusive) → 4,3,2,1 then clear on the downbeat.
+    // to the downbeat (exclusive) → 4,3,2,1 then clear on the downbeat. Count only
+    // within the CURRENT bar (to the next bar-start), not the whole break — a 3–4
+    // bar verdict seam (Tier 3) would otherwise read "12 11 10…" (rhythm-meter
+    // ruling). Multi-bar breaks then count 4·3·2·1 per bar, the DAW convention.
     let cbs = now;
     for (let i = beats.length - 1; i >= 0; i--) { if (beats[i].time <= now + 1e-4) { cbs = beats[i].time; break; } }
+    let barEnd = target;
+    for (let i = 0; i < beats.length; i++) {
+      if (beats[i].time > cbs + 1e-4 && (beats[i].measure ?? -1) >= 0) { barEnd = Math.min(target, beats[i].time); break; }
+    }
     let remain = 0;
-    for (let i = 0; i < beats.length; i++) { if (beats[i].time >= cbs - 1e-4 && beats[i].time < target - 1e-4) remain++; }
+    for (let i = 0; i < beats.length; i++) { if (beats[i].time >= cbs - 1e-4 && beats[i].time < barEnd - 1e-4) remain++; }
     return { kind, target, start: cbs, remain: Math.max(1, remain) };
+  }
+  // The per-block SEAM VERDICT (Tier 3): at a genuine inter-block break in a
+  // multi-block Workout, which block just ended + which is next. Drives the DOM
+  // breath card (the NAMES) and the ruler's "NEXT ▸ <name>" label. Excludes the
+  // head count-in / resume runway (kind != 'break'), the trailing loop-wrap break
+  // (target = the loop point, ≥ dur), Jam, and single-drill charts (< 2 blocks).
+  function seamVerdictInfo(seam) {
+    seam = seam || seamCountInfo();
+    if (!seam || seam.kind !== 'break' || isJamMode()) return null;
+    const b = activeBundle; if (!b) return null;
+    const dur = b.songInfo?.duration || 0;
+    if (seam.target >= dur - 1e-3) return null;            // trailing loop-wrap, not an inter-block transition
+    const sb = Array.isArray(b.segmentBounds) ? b.segmentBounds : [];
+    if (sb.length < 2) return null;
+    let nextIdx = -1;
+    for (let i = 0; i < sb.length; i++) { if (sb[i].start >= seam.target - 0.05) { nextIdx = i; break; } }
+    if (nextIdx <= 0) return null;                          // no prior block to close
+    return { done: sb[nextIdx - 1], next: sb[nextIdx], idx: nextIdx, total: sb.length };
   }
   function drawRulerFrame() {
     const canvas = $('slopscale-ruler-canvas');
@@ -11337,7 +11537,12 @@
       const rx0 = Math.max(0, px), rx1 = Math.min(W, xAt(seam.target));
       if (rx1 > rx0) { ctx.fillStyle = 'rgba(245,180,80,0.12)'; ctx.fillRect(rx0, lz, rx1 - rx0, H - lz); }
       ctx.fillStyle = 'rgba(245,180,80,0.20)'; ctx.fillRect(0, 0, W, lz);
-      const label = seam.kind === 'countin' ? 'COUNT-IN' : seam.kind === 'resume' ? 'RESUME' : 'NEXT ▸';
+      // The incoming block name rides the NEXT ▸ label (so 2D/Tab/Notation get it
+      // even when the overview band is too narrow to render text) — the ruler owns
+      // the digit, the DOM seam card owns the fuller closure. (Tier 3.)
+      const sv = seamVerdictInfo(seam);
+      let label = seam.kind === 'countin' ? 'COUNT-IN' : seam.kind === 'resume' ? 'RESUME' : 'NEXT ▸';
+      if (sv && sv.next && sv.next.name) label = `NEXT ▸ ${sv.next.name}`;
       ctx.fillStyle = 'rgba(247,206,140,0.95)'; ctx.font = 'bold 8px ui-sans-serif, sans-serif';
       ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
       ctx.fillText(label, padX + 4, lz / 2 + 0.5);
@@ -11564,7 +11769,31 @@
     }
   }
 
-  function drawOnce() { drawFretboardFrame(); drawRulerFrame(); drawOverviewFrame(); drawChordBoxFrame(); if (!renderer || !activeBundle) return; const vb = rendererBundle || activeBundle; vb.currentTime = currentPracticeTime; syncHighwaySettings(vb); try { renderer.draw(vb); } catch (e) { console.warn('[SlopScale] renderer draw failed', e); } syncTransportTime(); }
+  // Per-block SEAM VERDICT card (Tier 3): during a Workout inter-block breath, show
+  // the just-finished block's closure + the next block breadcrumb in the stage
+  // lower-third; hide otherwise. Text is written once per seam (keyed) so the frame
+  // loop doesn't thrash the DOM; the fade is CSS. Cleared on stop (drawOnce runs
+  // there too). The ruler owns the countdown digit — this card owns the NAMES.
+  let _seamCapKey = '';
+  function updateSeamCaption() {
+    const el = $('slopscale-seam-caption'); if (!el) return;
+    const v = (playing && !paused) ? seamVerdictInfo() : null;
+    if (!v) { if (_seamCapKey) { el.classList.remove('is-on'); _seamCapKey = ''; } return; }
+    const key = `${v.idx}/${v.total}`;
+    if (key !== _seamCapKey) {
+      const doneEl = el.querySelector('.slopscale-seam-done');
+      const nextEl = el.querySelector('.slopscale-seam-next');
+      // Honest closure (Tier A): if the mic was live this run but the just-ended
+      // block got NO input, the player skipped/watched it — don't claim "✓ done"
+      // (silence is never narrated). Mic-less runs keep the plain completion line.
+      const blockSilent = _ptHadInput && !_blockHadInput[v.idx - 1];
+      if (doneEl) doneEl.textContent = blockSilent ? '' : `✓ ${v.done.name || 'Block'} — done`;
+      if (nextEl) nextEl.innerHTML = `Next ▸ ${v.next.name || 'next'} <span class="slopscale-seam-pos">· block ${v.idx + 1} of ${v.total}</span>`;
+      el.classList.add('is-on');
+      _seamCapKey = key;
+    }
+  }
+  function drawOnce() { drawFretboardFrame(); drawRulerFrame(); drawOverviewFrame(); updateSeamCaption(); drawChordBoxFrame(); if (!renderer || !activeBundle) return; const vb = rendererBundle || activeBundle; vb.currentTime = currentPracticeTime; syncHighwaySettings(vb); try { renderer.draw(vb); } catch (e) { console.warn('[SlopScale] renderer draw failed', e); } syncTransportTime(); }
   // "Keep looping" — when on, a finite drill restores the old infinite loop (open
   // practice). Default off (finite). Persisted; loaded in bind(). An A–B loop and Jam
   // are unaffected (they loop via the segment-loop branch above, never this one).
@@ -11627,6 +11856,7 @@
         ? Math.max(0, (audioCtx.currentTime - playAnchorCtx) * 1000)
         : Math.max(0, nowMs - playAnchorMs);
       currentPracticeTime = playAnchorChartTime + elapsedMs / 1000;
+      if (currentPracticeTime > _runMaxChartTime) _runMaxChartTime = currentPracticeTime;   // recap reached-tracking (furthest this pass)
       if (_preRollUntil > 0 && currentPracticeTime >= _preRollUntil) _preRollUntil = 0;   // resume pre-roll done → normal play (notes audible, judge live)
       const duration = activeBundle.songInfo.duration || 1;
       // A-B segment loop wins over whole-chart wrap when both endpoints are
@@ -11635,6 +11865,7 @@
       // for the count-in / rewind plan.)
       if (segmentLoopA != null && segmentLoopB != null && currentPracticeTime >= segmentLoopB) {
         triggerWrapRewind(segmentLoopB, segmentLoopA);   // visible rewind tell on the overview
+        _runLooped = true;                               // recap: a wrap means the loop region was fully reached
         currentPracticeTime = segmentLoopA;
         anchorPlayClock(segmentLoopA);
         stopAudio();
@@ -11675,6 +11906,7 @@
           // phase so the loop stays drift-free.
           const contentLen = duration - (activeBundle.leadIn || 0);
           triggerWrapRewind(currentPracticeTime, currentPracticeTime - contentLen);   // visible rewind tell (the clock keeps phase-carry; this is draw-only)
+          _runLooped = true;                              // recap: a whole-chart wrap = every block reached
           playAnchorChartTime -= contentLen;
           currentPracticeTime -= contentLen;
           // Scoring hygiene across the wrap is inherent: the window cursor
@@ -12538,6 +12770,11 @@
     const earned = !!(s.proof || ownTierFlip || (s.depth && s.depth.travelRung));
     const rough = judged && pct < 65 && !earned;
     let xpOff = false; try { xpOff = (progressLoad().mode === 'off'); } catch (_) {}
+    // Workout RECAP branch (Tier 3): a multi-block Workout has no single grade — the
+    // chapter list REPLACES the aggregate % and the verdict slot becomes a
+    // descriptive session header (no earned-green edge). Built from s.chapters
+    // (descriptive, no per-block scoring). Single-config modes are unaffected.
+    const isWorkout = s.mode === 'session' && Array.isArray(s.chapters) && s.chapters.length > 1;
 
     // 1 · VERDICT slot — earned outcomes only; ONE hero (proof > tier > travel).
     let verdict = '';
@@ -12710,17 +12947,75 @@
       (secondaryAgain ? `<button type="button" id="slopscale-results-again" class="slopscale-results-quiet">Run it back</button>` : '') +
       (stepdown ? `<button type="button" id="slopscale-results-stepdown" class="slopscale-results-quiet">${stepdown.label}</button>` : '') +
       (jamStyle && !rough && !(primary && primary.act === 'jam') ? `<button type="button" id="slopscale-results-jam" class="slopscale-results-quiet">Jam this skill</button>` : '') +
+      (isWorkout ? `<button type="button" id="slopscale-results-build" class="slopscale-results-quiet">Build another</button>` : '') +
       `<button type="button" id="slopscale-results-done" class="slopscale-results-quiet">Done</button>` +
       `</div>`;
 
+    // ── Workout recap session HTML (Tier 3) — header + chapter list ─────────────
+    // Descriptive: a session header (no earned green) + a per-block chapter list
+    // grouped by role so the player sees the arc they traveled. No aggregate %,
+    // no per-block %/score — the chapter list IS the readout.
+    let sessionHeadHtml = '', chaptersHtml = '';
+    if (isWorkout) {
+      const fmtMS = (sec) => { const m = Math.floor(sec / 60), x = Math.round(sec % 60); return `${m}:${String(x).padStart(2, '0')}`; };
+      const roleLabel = (role) => (SEGMENT_ROLES[role] && SEGMENT_ROLES[role].label) || (role ? prettyKind(role) : '');
+      // Arc line — the distinct roles traveled, in curriculum order.
+      const seenRoles = [];
+      s.chapters.forEach(c => { if (c.role && !seenRoles.includes(c.role)) seenRoles.push(c.role); });
+      seenRoles.sort((a, b) => ((SEGMENT_ROLES[a]?.order ?? 9) - (SEGMENT_ROLES[b]?.order ?? 9)));
+      const arc = seenRoles.map(roleLabel).filter(Boolean).join(' → ');
+      sessionHeadHtml =
+        `<div class="slopscale-results-session-head">` +
+        `<div class="slopscale-results-session-title">Workout complete</div>` +
+        `<div class="slopscale-results-session-meta">${s.chapters.length} blocks · ${dur} practiced</div>` +
+        (arc ? `<div class="slopscale-results-session-arc">You traveled the arc: ${arc}</div>` : '') +
+        `</div>`;
+      // Chapter rows, role-divider grouped (a divider when the role changes from the
+      // prior row — shows the real sequence). dot/✓ NEVER --ss-meter green.
+      let lastRole = null;
+      const rows2 = s.chapters.map(c => {
+        const out = [];
+        if (c.role !== lastRole) { out.push(`<div class="slopscale-results-chapter-role">${roleLabel(c.role)}</div>`); lastRole = c.role; }
+        const color = ROLE_COLORS[c.role] || KIND_COLORS[c.kind] || '#64748b';
+        // Added review/2nd-app rows carry their context in the NAME ("Revisited —
+        // …") — so suppress the competency sub-line for them (no double-naming).
+        const comp = c.added ? '' : (c.competency || '');
+        // Per-block glyph (Tier A measurement): ● played (reached + you sounded it
+        // — or no mic reached the scorer this run, so we can't distinguish and
+        // default to practiced, never shaming a DI/mic-less player) · ○ touched
+        // (reached but silent while the mic WAS live on other blocks) · — unreached.
+        // Never red; ✓ stays reserved for a proved flip (per-block credit, later).
+        const touched = c.reached && r.hadInput && !c.hadInput;
+        const glyph = !c.reached ? '—' : (touched ? '○' : '●');
+        const stateCls = !c.reached ? ' is-unreached' : (touched ? ' is-touched' : ' is-played');
+        out.push(
+          `<div class="slopscale-results-chapter${stateCls}">` +
+          `<span class="slopscale-results-chapter-dot" style="background:${color}"></span>` +
+          `<span class="slopscale-results-chapter-main">` +
+          `<span class="slopscale-results-chapter-name">${c.name || roleLabel(c.role)}</span>` +
+          (comp ? `<span class="slopscale-results-chapter-comp">${comp}</span>` : '') +
+          `</span>` +
+          `<span class="slopscale-results-chapter-dur">${fmtMS(c.durSec)}</span>` +
+          `<span class="slopscale-results-chapter-done">${glyph}</span>` +
+          `</div>`);
+        return out.join('');
+      }).join('');
+      chaptersHtml = `<div class="slopscale-results-chapters">${rows2}</div>`;
+    }
+
     if (title) title.textContent = `Results — ${s.displayName || 'Practice'}`;
+    // The judged-detail rows still carry honest counts/ear, but a Workout shows NO
+    // % anywhere (incl. here) — reframe the toggle label and drop the "Practiced @
+    // BPM" line (a session spans many tempos).
     body.innerHTML =
-      verdict +
-      `<div class="slopscale-results-pct">${(judged && !reduceMotion) ? '0%' : headline}</div>` +
-      `<div class="slopscale-results-head">${sub}</div>` +
-      strip +
-      `<div class="slopscale-results-practiced">Practiced ${dur}${s.bpm ? ` @ ${s.bpm} BPM` : ''}</div>` +
-      `<button type="button" id="slopscale-results-details-toggle" class="slopscale-results-progress-toggle" aria-expanded="${detailsOpen}">${detailsOpen ? '▾' : '▸'} How this run was judged</button>` +
+      (isWorkout
+        ? sessionHeadHtml + chaptersHtml + strip
+        : verdict +
+          `<div class="slopscale-results-pct">${(judged && !reduceMotion) ? '0%' : headline}</div>` +
+          `<div class="slopscale-results-head">${sub}</div>` +
+          strip +
+          `<div class="slopscale-results-practiced">Practiced ${dur}${s.bpm ? ` @ ${s.bpm} BPM` : ''}</div>`) +
+      `<button type="button" id="slopscale-results-details-toggle" class="slopscale-results-progress-toggle" aria-expanded="${detailsOpen}">${detailsOpen ? '▾' : '▸'} How this ${isWorkout ? 'Workout' : 'run'} was judged</button>` +
       `<div id="slopscale-results-details" class="slopscale-results-rows"${detailsOpen ? '' : ' hidden'}>${rows.map(t => `<div>${t}</div>`).join('')}` +
       (verbose && info ? `<button type="button" id="slopscale-results-copydiag" class="slopscale-results-quiet">Copy diagnostics</button>` : '') +
       `</div>` +
@@ -12729,12 +13024,13 @@
     // Earned-outcome chrome (the meter-green top edge) + the entry animation.
     const card = root.querySelector('.slopscale-results-card');
     if (card) {
-      card.classList.toggle('ss-earned', earned && hasResult);
+      card.classList.toggle('ss-earned', earned && hasResult && !isWorkout);   // a Workout never earns the green edge (it's "I did the map", not a cleared competency)
       card.classList.remove('ss-enter'); void card.offsetWidth; card.classList.add('ss-enter');
     }
     // The % count-up — the meter-settling idiom (an LCD landing on its value).
-    // Never on empty states; reduced-motion gets the final value immediately.
-    if (judged && !reduceMotion) {
+    // Never on empty states or a Workout (no % element); reduced-motion gets the
+    // final value immediately.
+    if (judged && !reduceMotion && !isWorkout) {
       const el = body.querySelector('.slopscale-results-pct');
       const t0 = performance.now(), durMs = 550;
       const step = (now) => {
@@ -12748,6 +13044,7 @@
     // Wiring — all CTAs close-and-arm (load config, focus Play, start nothing).
     const focusPlay = () => { $('slopscale-play')?.focus(); };
     $('slopscale-results-done')?.addEventListener('click', () => closeResultsModal());
+    $('slopscale-results-build')?.addEventListener('click', () => { closeResultsModal(); selectMode('session'); });
     $('slopscale-results-primary')?.addEventListener('click', () => {
       closeResultsModal();
       if (primary && primary.act === 'next-tier') {
@@ -12843,10 +13140,69 @@
   // Progress sheet content (gamification's slot). Renders the "Last session" card
   // (if any) + streak + per-pathway tempo-tier dots — with an honest "coming" state
   // for XP/badges, since the slopscale.progress store is unbuilt (don't fake XP).
+  // ── Woodshed log (engagement Tier A — cross-session accumulation) ───────────
+  // The "your practice over time" surface that makes the Workout feel like a
+  // CAMPAIGN, not a stopwatch — the single biggest "kills the timer feeling" lever
+  // (gamification). Aggregates REAL artifacts only, GAINED-ONLY, upward-only, no
+  // decay/quota/vanity-rank: time on the instrument (sessions), the clean-tempo PBs
+  // ("your numbers" — the guitar denomination, from pathway_tiers.bestBpm), and the
+  // keys traveled (depth). Built on OUR competency-typed stores (host-check: BUILD
+  // — the host ships no practice-history surface). Pure read; no DOM.
+  function woodshedLog() {
+    const sessions = sessionsLoad();
+    const pt = pathwayTiersLoad();
+    let store = { byNode: {}, xp: 0 }; try { store = progressLoad(); } catch (_) {}
+    const now = Date.now(), DAY = 86400000;
+    let totalMs = 0, weekMs = 0; const days = new Set();
+    for (const s of sessions) {
+      const ms = s.duration_ms || 0; totalMs += ms;
+      if (s.date) { days.add(s.date); const t = Date.parse(s.date); if (Number.isFinite(t) && (now - t) < 7 * DAY + DAY) weekMs += ms; }
+    }
+    const numbers = Object.keys(pt)
+      .filter(id => PATHWAYS[id] && pt[id].bestBpm)
+      .map(id => ({ label: PATHWAYS[id].label, bpm: pt[id].bestBpm }))
+      .sort((a, b) => b.bpm - a.bpm);
+    const byNode = store.byNode || {}, travels = [];
+    for (const id of Object.keys(byNode)) {
+      const keys = (byNode[id].keysCleared || []).length;
+      if (PATHWAYS[id] && keys > 0) travels.push({ label: PATHWAYS[id].label, keys, mastered: !!byNode[id].masteredAt });
+    }
+    travels.sort((a, b) => b.keys - a.keys);
+    return { totalMin: Math.round(totalMs / 60000), weekMin: Math.round(weekMs / 60000), sessions: sessions.length, days: days.size, xp: store.xp || 0, numbers, travels };
+  }
+  function fmtMins(min) { return min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min}m`; }
+  function woodshedSectionHtml() {
+    let xpOff = false; try { xpOff = progressLoad().mode === 'off'; } catch (_) {}
+    if (xpOff) return '';   // Off collapses the whole layer
+    const w = woodshedLog();
+    if (w.sessions === 0) return `<div class="slopscale-progress-sheet-section"><h4>Woodshed</h4><div class="slopscale-pm-coming">Your practice will accumulate here — time on the instrument, your tempo PBs, and the keys you've traveled.</div></div>`;
+    const rows = [`<div class="slopscale-pm-row"><span>On the instrument</span><strong>${fmtMins(w.totalMin)}</strong></div>`];
+    if (w.weekMin > 0) rows.push(`<div class="slopscale-pm-row"><span>This week</span><strong>${fmtMins(w.weekMin)}</strong></div>`);
+    rows.push(`<div class="slopscale-pm-row"><span>Practice days</span><strong>${w.days}</strong></div>`);
+    // "Your numbers" — the clean-tempo PBs to beat (gained-only; the come-back hook).
+    let numbersHtml = '';
+    if (w.numbers.length) {
+      numbersHtml = `<div class="slopscale-pm-sub">Your numbers — clean tempo to beat</div>` +
+        w.numbers.slice(0, 5).map(n => `<div class="slopscale-pm-row"><span>${n.label}</span><strong>${n.bpm} BPM</strong></div>`).join('');
+    }
+    // Traveled — keys cleared (portability; the depth axis made visible).
+    let travelHtml = '';
+    if (w.travels.length) {
+      travelHtml = `<div class="slopscale-pm-sub">Traveled — held in new keys</div>` +
+        w.travels.slice(0, 5).map(t => `<div class="slopscale-pm-row"><span>${t.label}${t.mastered ? ' ★' : ''}</span><strong>${t.keys} ${t.keys === 1 ? 'key' : 'keys'}</strong></div>`).join('');
+    }
+    return `<div class="slopscale-progress-sheet-section"><h4>Woodshed</h4>${rows.join('')}${numbersHtml}${travelHtml}</div>`;
+  }
   function renderProgressSheet() {
     const body = $('slopscale-progress-sheet-body'); if (!body) return;
     const pt = pathwayTiersLoad();
-    const streak = (($('slopscale-streak-num') || {}).textContent || '0').trim();
+    // Forgiving streak, framed to celebrate the return (never punish the break).
+    const _sessions = sessionsLoad();
+    const streakN = streakCount(_sessions);
+    const todayDone = new Set(_sessions.map(s => s.date)).has(localDateStr());
+    const streakLine = streakN > 0
+      ? `<div class="slopscale-pm-row"><span>${todayDone ? 'Current streak' : 'Streak — alive today'}</span><strong>${streakN} ${streakN === 1 ? 'day' : 'days'}</strong></div>${todayDone ? '' : '<div class="slopscale-pm-coming">Practice today to extend it.</div>'}`
+      : `<div class="slopscale-pm-coming">Practice today to start a streak — and a single rest day won’t break it.</div>`;
     const touched = Object.keys(pt)
       .filter(id => PATHWAYS[id] && (pt[id].highest_tier ?? -1) >= 0)
       .sort((a, b) => (pt[b].highest_tier ?? -1) - (pt[a].highest_tier ?? -1));
@@ -12857,9 +13213,9 @@
     };
     body.innerHTML =
       sessionSummaryCardHtml() +
-      `<div class="slopscale-progress-sheet-section"><h4>Streak</h4><div class="slopscale-pm-row"><span>Current streak</span><strong>${streak} ${streak === '1' ? 'day' : 'days'}</strong></div></div>` +
-      `<div class="slopscale-progress-sheet-section"><h4>Tempo-tier progress</h4>${touched.length ? touched.slice(0, 8).map(dotRow).join('') : '<div class="slopscale-pm-coming">Clear a tempo tier to see progress here.</div>'}</div>` +
-      `<div class="slopscale-progress-sheet-section"><h4>XP &amp; badges</h4><div class="slopscale-pm-coming">Coming soon — your time-on-instrument and mastery will show here.</div></div>`;
+      `<div class="slopscale-progress-sheet-section"><h4>Streak</h4>${streakLine}</div>` +
+      woodshedSectionHtml() +
+      `<div class="slopscale-progress-sheet-section"><h4>Tempo-tier progress</h4>${touched.length ? touched.slice(0, 8).map(dotRow).join('') : '<div class="slopscale-pm-coming">Clear a tempo tier to see progress here.</div>'}</div>`;
   }
   // Header Setup popover (instrument + strings + tuning). The button shows the live
   // instrument + tuning; the popover toggles open. Closing on outside-click is bound
@@ -13533,6 +13889,7 @@
     stopAudio(); syncHighwaySettings(activeBundle);
     playing = true;
     paused = false; _pausedAccumMs = 0; _pauseBeganMs = 0; _preRollUntil = 0; _wrapAnim = null;
+    _runMaxChartTime = currentPracticeTime; _runLooped = false; _blockHadInput = [];   // recap reached + per-block input tracking, fresh per run
     acquireWakeLock();   // hold the screen awake for the duration of this play
     // With an active A–B loop, playback begins at the loop start — not wherever
     // the playhead happens to sit (DAW cycle behavior; the playhead is just a
@@ -14833,6 +15190,21 @@
       if (tag) tag.textContent = modified ? 'Modified' : 'Goal';
       card.classList.toggle('modified', !!modified);
     }
+    // "Your number" (engagement Tier A): the clean-tempo PB to beat for this
+    // pathway — guitar-ped's "a number to beat tomorrow," surfaced at SELECT so it
+    // pulls the player back. Reads pathway_tiers.bestBpm (a clean run only); points
+    // toward the next rung. Hidden until a PB exists (no clutter on a fresh drill).
+    const pbEl = $('slopscale-pathway-pb');
+    if (pbEl) {
+      const best = (pw && pathwayId) ? (pathwayTiersLoad()[pathwayId] || {}).bestBpm : null;
+      if (pw && best) {
+        const next = (pw.tempoTiers || []).find(t => t > best);
+        pbEl.textContent = next
+          ? `Your clean best here: ${best} BPM — beat it (next rung at ${next})`
+          : `Your clean best here: ${best} BPM — the top rung is yours`;
+        pbEl.style.display = '';
+      } else { pbEl.textContent = ''; pbEl.style.display = 'none'; }
+    }
     // One calm line when this rung was adapted to the player's saved tuning
     // (the lossless uniform-offset path adapts silently except for this note —
     // it names the transposition instead of hiding it, the Division-caption
@@ -15823,7 +16195,7 @@
     if (L >= _lvlFloor && L / Math.max(_lvlBaseline, _lvlFloor) >= PT_ONSET_RATIO && jt - _lvlLastOnset > PT_ONSET_REFRACT) {
       _lvlLastOnset = jt; _lvlOnsets.push(jt); if (_lvlOnsets.length > 256) _lvlOnsets.shift();
     }
-    if (L >= _lvlFloor) _ptHadInput = true;   // real input present → misses may light (replaces the circular / confidence arming)
+    if (L >= _lvlFloor) { _ptHadInput = true; markBlockInput(); }   // real input present → misses may light (replaces the circular / confidence arming); credit the block (recap ●/○)
     _lvlSamples.push({ jt, L }); if (_lvlSamples.length > 512) _lvlSamples.shift();
   }
   function ptPeakLevelIn(lo, hi) {
@@ -16127,7 +16499,7 @@
     // Input-presence: the level meter owns _ptHadInput when a host level source
     // exists (a confident YIN lock can come from a steady inaudible residual —
     // the bug). Fall back to confidence only when there is NO level source.
-    if (_lvlMode === 'none' && confidence >= PT_CONF_INPUT) _ptHadInput = true;
+    if (_lvlMode === 'none' && confidence >= PT_CONF_INPUT) { _ptHadInput = true; markBlockInput(); }   // no level source: confidence arms input (+ credit the block, recap ●/○)
     if (confidence < PT_CONF_INPUT) {
       ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: _ptScoredUnits, total: passedTotal });
       return;
@@ -16863,6 +17235,24 @@
     _sessionStartMs = performance.now();
   }
 
+  // Per-block MEASUREMENT (engagement Tier A): bucket the run's settled scoring
+  // windows by which segment they fall in → per-block hits (credited units) +
+  // judged (units whose window fully passed = the denominator). A looped run
+  // judged the whole chart; a partial run only up to where it reached. Pure read
+  // of _ptWin + segmentBounds; target-independent. Feeds the recap chapters.
+  function perBlockScore(sb) {
+    const out = sb.map(() => ({ hits: 0, judged: 0 }));
+    const findBlock = (t) => { for (let i = 0; i < sb.length; i++) if (t >= sb[i].start - 1e-3 && t < sb[i].end + 1e-3) return i; return -1; };
+    const maxJudge = _runLooped ? Infinity : (currentPracticeTime - ptLatency());
+    for (const w of _ptWin) {
+      const bi = findBlock(w.t); if (bi < 0) continue;
+      const units = w.span ? 1 : (w.notes ? w.notes.length : 1);
+      if (w.matchEnd <= maxJudge) out[bi].judged += units;
+      if (w.credited) out[bi].hits += units;
+    }
+    return out;
+  }
+
   function sessionEnd() {
     if (!_activeSession) return;
     // Paused wall-time is not practice time: it must not inflate the
@@ -16972,6 +17362,26 @@
     if (_activeSession.mode === 'pathway' && PATHWAYS[_activeSession.pathway_id]) displayName = PATHWAYS[_activeSession.pathway_id].label;
     else if (_activeSession.mode === 'session') displayName = (BUILT_IN_SESSIONS[_selectedStarterId]?.name || 'Session practice');
     else displayName = 'Custom practice';
+    // Workout RECAP chapters (Tier 3 + engagement Tier A) — the per-block chapter
+    // list. Built from the bundle's enriched segmentBounds. A block is "reached" if
+    // the run got to it (looped past everything); unreached read neutral (never
+    // red). Tier A adds the per-block MEASUREMENT (hits/judged bucketed from _ptWin
+    // by segment + hadInput) — the substrate for the played●/touched○ honesty, the
+    // per-block PR, and (later) per-block credit. Only for multi-block Workouts.
+    let chapters = null;
+    if (_activeSession.mode === 'session') {
+      const sb = (activeBundle && Array.isArray(activeBundle.segmentBounds)) ? activeBundle.segmentBounds : [];
+      if (sb.length > 1) {
+        const pbs = perBlockScore(sb);
+        chapters = sb.map((b, i) => ({
+          name: b.name, kind: b.kind, role: b.role, competency: b.competency || null,
+          added: !!b.added, key: b.key || null,
+          durSec: Math.max(0, (b.end || 0) - (b.start || 0)),
+          reached: _runLooped || (b.start <= _runMaxChartTime + 0.05),
+          hits: pbs[i].hits, judged: pbs[i].judged, hadInput: !!_blockHadInput[i],
+        }));
+      }
+    }
     // Proof-loop competency claim (flagged, pilot, ONLY on a real flip — the
     // anti-inflation spine: a "you proved" claim exists only when something was proven).
     let proof = null;
@@ -17007,6 +17417,7 @@
       proof,              // proof-loop competency claim | null (flagged, pilot, on-flip only)
       streak: streakCount(sessions),
       jam: !!_activeSession.jam,   // Jam = mirror: the deliberate-end modal is suppressed
+      chapters,                    // Workout recap chapter list (Tier 3) | null — descriptive per-block rows
       recognizer,                  // { kind:'first_clear' } | { kind:'fastest', bpm, prev } | { kind:'best_pct', pct, prev } | null
       specBest,                    // { best, runs, isNew, prev } | null — the standing-target "Best here" line
       // Mini rung-ladder context for the modal's progress strip (post-update state).
@@ -17039,17 +17450,24 @@
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
 
+  // FORGIVING practice streak (engagement Tier A — the #1 DAU lever, non-toxic
+  // form): a day counts when a real session happened (the 2s blip floor already
+  // filters non-practice; unit-based, never minutes/app-open). It SURVIVES a single
+  // rest day (an auto-freeze) — only TWO consecutive missed days end the run — so a
+  // bad day never nukes weeks of work (the market/gamification ruling against
+  // streak-guilt). `count` = practiced days in the surviving run (rest days don't
+  // increment it). The display celebrates the return, never punishes the break.
   function streakCount(sessions) {
+    const DAY = 86400000;
     const practiced = new Set(sessions.map(s => s.date));
-    const today = localDateStr();
-    const yesterday = localDateStr(new Date(Date.now() - 86400000));
-    // Streak is alive if today or yesterday has a session (grace until midnight)
-    if (!practiced.has(today) && !practiced.has(yesterday)) return 0;
-    let count = 0;
-    let d = practiced.has(today) ? new Date() : new Date(Date.now() - 86400000);
-    while (practiced.has(localDateStr(d))) {
-      count++;
-      d = new Date(d.getTime() - 86400000);
+    const today = localDateStr(), yesterday = localDateStr(new Date(Date.now() - DAY));
+    if (!practiced.has(today) && !practiced.has(yesterday)) return 0;   // grace until midnight
+    let count = 0, miss = 0, guard = 0;
+    let d = practiced.has(today) ? new Date() : new Date(Date.now() - DAY);
+    while (guard++ < 1000) {
+      if (practiced.has(localDateStr(d))) { count++; miss = 0; }
+      else { if (count === 0) break; if (++miss >= 2) break; }   // one rest day is frozen; two in a row ends the run
+      d = new Date(d.getTime() - DAY);
     }
     return count;
   }
@@ -18472,7 +18890,7 @@
   }
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
-  window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState };
+  window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount };
   if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
