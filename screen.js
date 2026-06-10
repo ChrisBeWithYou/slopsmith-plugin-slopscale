@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.14-dev';
+  const SLOPSCALE_VERSION = '0.7.15-dev';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -9541,12 +9541,15 @@
       currentTime:0,
       songInfo:{ title:exerciseTitle(cfg), artist:'SlopScale', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'slopscale-practice', fretboardSystem:cfg.fretboardSystem },
       config:cfg,
-      // Finite-run eligibility (Depth Ladder slice 1): a single-exercise DRILL
-      // (Pathways/Custom) plays its right-sized run ONCE then ends with the session
-      // summary, instead of looping forever — unless the user flips "keep looping".
-      // A Workout session (mode 'session') keeps its segment-advance/looping; Jam
-      // (mode undefined, + its own A–B loop) stays endless. So: eligible = a drill.
-      finiteRun: cfg.mode != null && cfg.mode !== 'session',
+      // Finite-run eligibility (Depth Ladder slice 1): a run with a real mode
+      // (Pathways/Custom AND a Workout session) plays its tiled length ONCE then
+      // ENDS with the recap, instead of looping forever — unless the user flips
+      // "keep looping". A Workout MUST be finite: it is the engagement Tier-3 recap's
+      // trigger, and looping it re-walked already-credited windows → every note past
+      // the first pass painted a STALE "hit" while the counter froze (the ~250-note
+      // dogfood bug, 2026-06-09). Jam (mode undefined + its own A–B segment loop)
+      // stays endless and never judges. So: eligible = anything with a mode.
+      finiteRun: cfg.mode != null,
     isReady:true, notes:notesWithTail, chords:c.chords, anchors:c.anchors, beats:beatsWithTail, sections:c.sections, chordTemplates:c.chordTemplates, handShapes:c.handShapes, segmentBounds:c.segmentBounds || null,
       leadIn:lead,
       // Backing comp/bass + drums cover the music only ([lead, duration]); generate
@@ -11904,9 +11907,13 @@
           _runLooped = true;                              // recap: a whole-chart wrap = every block reached
           playAnchorChartTime -= contentLen;
           currentPracticeTime -= contentLen;
-          // Scoring hygiene across the wrap is inherent: the window cursor
-          // re-searches on the backward clock jump (ptWinSeek), and credit is
-          // one-shot per window key — a prior pass can't re-credit this one.
+          // NOTE — this branch is now keepLooping-only (a Workout is FINITE, see
+          // makeBundle's finiteRun). Credit is one-shot per window, so on a manual
+          // loop the re-walked windows stay credited → they paint a STALE "hit" and
+          // the counter holds at pass-1's count (the ~250 dogfood bug, when sessions
+          // still looped). Acceptable for the opt-in loop toggle; a true per-loop
+          // re-judge (reset each window's credit/miss + the counter on wrap) is a
+          // flagged follow-up that needs the per-loop-vs-cumulative score decision.
         }
       }
       // Verifier scoring: refresh the harmonic-comb verify target for the

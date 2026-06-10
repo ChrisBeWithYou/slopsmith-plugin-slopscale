@@ -137,6 +137,7 @@ try {
       offBrk: brk(mk({ countInBars: 1, interBlockBreak: "off" })).length,
       ddOpen0: (mk({ countInBars: 1, customOpenMidis: "38,45,50,55,59,64" }).openMidis || [])[0],
       stOpen0: (mk({ countInBars: 1 }).openMidis || [])[0],
+      finiteRun: mk({ countInBars: 1 }).finiteRun,   // a Workout must END (→ recap), not loop into stale credit
     };
   });
   console.log(`\n== Workout-love Tier 1 ==`);
@@ -145,6 +146,7 @@ try {
   ok(wl.autoBrk > 0, "'auto' breathes every seam (1-bar floor — was 0 for flowing seams)", `auto=${wl.autoBrk}`);
   ok(wl.offBrk === 0, "'off' inserts no break (respects the toggle)", `off=${wl.offBrk}`);
   ok(wl.ddOpen0 === 38 && wl.stOpen0 === 40, "alt-tuning threads into the Workout (drop-D low string = 38/D; standard = 40/E)", `dd=${wl.ddOpen0} std=${wl.stOpen0}`);
+  ok(wl.finiteRun === true, "a Workout is FINITE — it ends (→ Tier-3 recap), never loops into stale-credit hits (the ~250 dogfood bug)", `finiteRun=${wl.finiteRun}`);
 
   // ---- Control: single exercise (Pathways/Custom/Jam are single-config) ----
   const sc = await page.evaluate(() => {
