@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.11-dev';
+  const SLOPSCALE_VERSION = '0.7.12-dev';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -12518,9 +12518,11 @@
           && (f.instrument === 'all' || x.instrument === f.instrument); };
     const shown = ids.filter(match);
     if (cnt) cnt.textContent = `${shown.length} of ${ids.length}`;
-    body.innerHTML = shown.length
-      ? `<div class="slopscale-lib-grid">${shown.map(_starterCardHtml).join('')}</div>`
+    const routinesHtml = routinesSectionHtml();   // the user's saved routines, above the built-in starters
+    const startersHtml = shown.length
+      ? `${routinesHtml ? '<div class="slopscale-lib-group-title">Starters</div>' : ''}<div class="slopscale-lib-grid">${shown.map(_starterCardHtml).join('')}</div>`
       : `<div class="slopscale-lib-empty">No starters match these filters — clear one to see more.</div>`;
+    body.innerHTML = routinesHtml + startersHtml;
   }
   // Fork a starter into the editable timeline. Replace-guard: if the current draft
   // has edits, stage a confirm strip instead of clobbering (force=true confirms).
@@ -12531,6 +12533,70 @@
     _workoutDraft = workoutDraftFor(id); _workoutDraftId = id; _workoutDirty = false; _pendingStarter = null;
     clearRefreshSummary(); renderWorkoutDraft();
     toggleStarters(false);
+  }
+
+  // ── Named ROUTINES (engagement Tier B — a returnable Workout you OWN) ────────
+  // A saved Workout = a `kind:'workout'` preset whose `config_json` holds the whole
+  // session (the backend already stores arbitrary JSON). "My morning warmup" becomes
+  // a returnable object that lives in the starter picker — gamification's #1 "studio
+  // not a timer" move (persistence + identity + ritual). Host-check verdict: BUILD on
+  // our preset CRUD (the host ships no program/routine surface). Guardrails: no
+  // streak-on-the-routine, no "you haven't run this in N days" nag — it's a
+  // convenience, not an obligation.
+  let _savedRoutines = null;   // cache of the user's kind:'workout' presets
+  async function loadSavedRoutines() {
+    try {
+      const r = await fetch('/api/plugins/slopscale/presets');
+      const data = r.ok ? await r.json() : null;
+      const all = (data && Array.isArray(data.presets)) ? data.presets : [];
+      _savedRoutines = all.filter(p => p && p.kind === 'workout' && p.config && Array.isArray(p.config.segments));
+    } catch (_) { _savedRoutines = _savedRoutines || []; }
+    return _savedRoutines;
+  }
+  function routineSlug(name) { return 'rt_' + String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) + '_' + Date.now().toString(36); }
+  async function saveRoutine(name) {
+    const draft = _workoutDraft;
+    if (!draft || !(draft.segments || []).length) { showStatus('Build a Workout first.'); return false; }
+    name = (name || '').trim() || 'My routine';
+    const session = Object.assign({}, draft, { version: 1, name });   // the editable draft IS the session
+    const id = routineSlug(name);
+    try {
+      const res = await fetch('/api/plugins/slopscale/presets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name, kind: 'workout', config: session }) });
+      if (!res.ok) throw new Error(await res.text());
+    } catch (_) { showStatus('Could not save the routine.'); return false; }
+    showStatus(`Saved routine: ${name}`);
+    await loadSavedRoutines(); renderStarters();
+    return true;
+  }
+  function loadRoutine(id) {
+    const rt = (_savedRoutines || []).find(p => p.id === id); if (!rt) return;
+    _selectedStarterId = id;
+    _workoutDraft = JSON.parse(JSON.stringify(rt.config)); _workoutDraftId = id; _workoutDirty = false; _pendingStarter = null;
+    clearRefreshSummary(); renderWorkoutDraft(); toggleStarters(false);
+  }
+  async function deleteRoutine(id) {
+    try { await fetch('/api/plugins/slopscale/presets/' + encodeURIComponent(id), { method: 'DELETE' }); } catch (_) {}
+    if (_savedRoutines) _savedRoutines = _savedRoutines.filter(p => p.id !== id);
+    renderStarters();
+  }
+  function routinesSectionHtml() {
+    const rts = _savedRoutines || [];
+    if (!rts.length) return '';
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const cards = rts.map(rt => {
+      const n = (rt.config.segments || []).length;
+      return `<div class="slopscale-lib-card slopscale-routine-card">
+        <div class="slopscale-segment-header">
+          <span class="slopscale-segment-name">${esc(rt.name || rt.id)}</span>
+          <span class="slopscale-routine-card-actions">
+            <button type="button" class="slopscale-lib-add slopscale-routine-load" data-routine-id="${esc(rt.id)}" title="Load this routine into the timeline">Load</button>
+            <button type="button" class="slopscale-routine-del" data-routine-id="${esc(rt.id)}" title="Delete this routine" aria-label="Delete routine">✕</button>
+          </span>
+        </div>
+        <div class="slopscale-segment-meta">${n} block${n === 1 ? '' : 's'} · your routine</div>
+      </div>`;
+    }).join('');
+    return `<div class="slopscale-lib-group-title">Your routines</div><div class="slopscale-lib-grid slopscale-routines-grid">${cards}</div>`;
   }
 
   // ── Pack manager (the band-bar "+") ─────────────────────────────────────────
@@ -18634,9 +18700,28 @@
       renderStarters();
     });
     $('slopscale-starters-body')?.addEventListener('click', (e) => {
+      const rload = e.target.closest('.slopscale-routine-load');
+      if (rload) { loadRoutine(rload.dataset.routineId); return; }
+      const rdel = e.target.closest('.slopscale-routine-del');
+      if (rdel) { deleteRoutine(rdel.dataset.routineId); return; }
       const load = e.target.closest('.slopscale-starter-load'); if (!load) return;
       loadStarter(load.dataset.starterId);
     });
+    // "Save routine" — reveal the inline name affordance; save on go/Enter.
+    $('slopscale-save-routine')?.addEventListener('click', () => {
+      const row = $('slopscale-routine-save-row'), input = $('slopscale-routine-name');
+      const draft = _workoutDraft;
+      if (!draft || !(draft.segments || []).length) { showStatus('Build a Workout first.'); return; }
+      if (row) row.hidden = false;
+      if (input) { input.value = (draft.name && draft.name !== 'Session practice') ? draft.name : ''; input.focus(); input.select(); }
+    });
+    $('slopscale-routine-save-cancel')?.addEventListener('click', () => { const r = $('slopscale-routine-save-row'); if (r) r.hidden = true; });
+    $('slopscale-routine-save-go')?.addEventListener('click', async () => {
+      const input = $('slopscale-routine-name'), row = $('slopscale-routine-save-row');
+      const ok = await saveRoutine(input ? input.value : '');
+      if (ok && row) row.hidden = true;
+    });
+    $('slopscale-routine-name')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('slopscale-routine-save-go')?.click(); } });
     $('slopscale-starters-confirm')?.addEventListener('click', (e) => {
       if (e.target.closest('.slopscale-starter-confirm-yes')) loadStarter(e.target.closest('.slopscale-starter-confirm-yes').dataset.starterId, true);
       else if (e.target.closest('.slopscale-starter-confirm-no')) { _pendingStarter = null; renderStarters(); }
@@ -18798,6 +18883,7 @@
     syncSessionSummary(Object.keys(BUILT_IN_SESSIONS)[0]);
 
     loadPathwayFavorites();
+    loadSavedRoutines().then(() => { if ($('slopscale-root')?.classList.contains('slopscale-session-mode')) renderStarters(); });   // surface the user's saved routines in the starter picker
     // Populate the Shape dropdown for the initial (key, system) before any
     // pathway runs — applyInitialPathway may set the shape value, but it
     // can't select an option that doesn't exist yet.

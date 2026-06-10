@@ -614,6 +614,19 @@
   .slopscale-lib-rolehead { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ss-text-dim, #94a3b8); margin: 13px 0 6px; display: flex; align-items: center; gap: 7px; }
   .slopscale-lib-rolecount { font-size: 10px; font-weight: 600; color: var(--ss-text-muted, #64748b); background: var(--ss-inset, #0b1220); border-radius: 999px; padding: 1px 7px; }
   .slopscale-lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+  /* Named routines (engagement Tier B): the user's saved Workouts, above the
+     built-in starters. A returnable object you own, never a streak/nag. */
+  .slopscale-lib-group-title { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ss-text-faint, #64748b); padding: 6px 2px 3px; }
+  .slopscale-routine-card-actions { display: inline-flex; gap: 4px; align-items: center; }
+  .slopscale-routine-del { background: none; border: none; color: #64748b; font-size: 12px; cursor: pointer; padding: 2px 5px; line-height: 1; border-radius: 5px; }
+  .slopscale-routine-del:hover { color: #f87171; background: rgba(248,113,113,0.12); }
+  .slopscale-save-routine-btn { padding: 7px 12px; border-radius: 8px; border: 1px solid var(--ss-border, #334155); background: #131c2e; color: #cbd5e1; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .slopscale-save-routine-btn:hover { background: #1a2438; color: #e2e8f0; }
+  .slopscale-routine-save-row { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+  .slopscale-routine-save-row[hidden] { display: none; }
+  .slopscale-routine-save-row input { flex: 1; min-width: 0; padding: 6px 9px; border-radius: 7px; border: 1px solid var(--ss-border, #334155); background: #0d1424; color: #e2e8f0; font-size: 12px; }
+  .slopscale-routine-cancel { background: none; border: none; color: #94a3b8; font-size: 12px; cursor: pointer; padding: 6px 4px; }
+  .slopscale-routine-cancel:hover { color: #e2e8f0; text-decoration: underline; }
   .slopscale-lib-card { border: 1px solid rgba(75, 85, 99, 0.5); border-radius: 9px; padding: 8px 10px; background: rgba(2, 6, 23, 0.4); display: flex; flex-direction: column; gap: 3px; }
   .slopscale-lib-add { margin-left: auto; flex-shrink: 0; padding: 3px 10px; font-size: 10.5px; font-weight: 700; border-radius: 6px; border: 1px solid var(--ss-accent-edge, #60a5fa); background: var(--ss-inset, #0b1220); color: var(--ss-accent-edge, #60a5fa); cursor: pointer; transition: background 0.12s, color 0.12s; }
   .slopscale-lib-add:hover { background: rgba(37, 99, 235, 0.3); color: #fff; }
@@ -2137,6 +2150,15 @@
 
         <div class="slopscale-actions">
           <button type="button" id="slopscale-launch-session" class="primary">▶ Start Workout</button>
+          <button type="button" id="slopscale-save-routine" class="slopscale-save-routine-btn" title="Save this Workout as a named routine you can come back to">Save routine</button>
+        </div>
+        <!-- Inline name affordance for "Save routine" (no native prompt). A routine
+             is a returnable owned object ("My morning warmup") that lives in the
+             starter picker. -->
+        <div id="slopscale-routine-save-row" class="slopscale-routine-save-row" hidden>
+          <input id="slopscale-routine-name" type="text" maxlength="60" placeholder="Name this routine…" aria-label="Routine name">
+          <button type="button" id="slopscale-routine-save-go" class="slopscale-save-routine-btn">Save</button>
+          <button type="button" id="slopscale-routine-save-cancel" class="slopscale-routine-cancel">Cancel</button>
         </div>
 
       </div><!-- end .slopscale-session-only -->
