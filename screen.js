@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.20-dev';
+  const SLOPSCALE_VERSION = '0.7.21-dev';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -11194,12 +11194,10 @@
   // (drives the layout) and the chevron button (glyph + a11y).
   function syncPanelToggle() {
     $('slopscale-root')?.classList.toggle('slopscale-collapsed', panelCollapsed);
-    // Setup|Play segmented control: Play == collapsed (rail hidden, stage widened).
-    document.querySelectorAll('.slopscale-modeview-btn').forEach(b => {
-      const on = (b.dataset.modeview === 'play') === panelCollapsed;
-      b.classList.toggle('active', on);
-      b.setAttribute('aria-pressed', String(on));
-    });
+    // « collapse (in the pane) / » expand (floats when collapsed) — CSS shows the
+    // right one off .slopscale-collapsed; just keep a11y state honest.
+    $('slopscale-pane-collapse-btn')?.setAttribute('aria-expanded', String(!panelCollapsed));
+    $('slopscale-pane-expand-btn')?.setAttribute('aria-expanded', String(!panelCollapsed));
   }
   function setPanelCollapsed(v) {
     panelCollapsed = !!v;  // session-only; startup/selection always resets to expanded
@@ -19046,8 +19044,8 @@
       try { localStorage.setItem('slopscale.keepLooping', keepLooping ? '1' : '0'); } catch (_) {}
       syncKeepLoopUI();
     });
-    document.querySelectorAll('.slopscale-modeview-btn').forEach(b =>
-      b.addEventListener('click', () => setPanelCollapsed(b.dataset.modeview === 'play')));
+    $('slopscale-pane-collapse-btn')?.addEventListener('click', () => setPanelCollapsed(true));
+    $('slopscale-pane-expand-btn')?.addEventListener('click', () => setPanelCollapsed(false));
     $('slopscale-focus-btn')?.addEventListener('click', toggleFocus);
     document.addEventListener('fullscreenchange', onFullscreenChange);
     // Feel control: write the hidden swing field + bubble a change so the

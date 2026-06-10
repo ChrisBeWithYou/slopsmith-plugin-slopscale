@@ -179,7 +179,7 @@
      tracks both states so it interpolates. The pane fades + clips (overflow-x) as the
      column shrinks (display:none would kill the transition). refitStageDuring re-fits
      the renderer across the slide. */
-  .slopscale-layout { display: grid; grid-template-columns: minmax(340px, 460px) 1fr; grid-template-rows: minmax(0, 1fr); gap: 16px; align-items: stretch; flex: 1; min-height: 0; transition: grid-template-columns 0.3s cubic-bezier(0.22,1,0.36,1); }
+  .slopscale-layout { position: relative; display: grid; grid-template-columns: minmax(340px, 460px) 1fr; grid-template-rows: minmax(0, 1fr); gap: 16px; align-items: stretch; flex: 1; min-height: 0; transition: grid-template-columns 0.3s cubic-bezier(0.22,1,0.36,1); }
   /* Only the controls rail scrolls — and only when its content exceeds the
      available height (Guided mode on short viewports). */
   .slopscale-controls { padding: 16px; display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; transition: opacity 0.2s ease; }
@@ -429,13 +429,14 @@
      controls stay centered in the bar. */
   .slopscale-collapse-wrap { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 7px; z-index: 1; }
   .slopscale-collapse-label { font-size: 12px; font-weight: 600; color: #94a3b8; white-space: nowrap; }
-  /* Setup | Play view-mode switch — flat segmented control (DAW mode pattern),
-     absolutely placed left of the transport so the play cluster stays centered. */
-  .slopscale-modeview { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); z-index: 1; display: inline-flex; border-radius: var(--ss-r-control); overflow: hidden; background: #141d33; }
-  .slopscale-modeview-btn { min-height: 28px; padding: 0 13px; border: none; background: transparent; color: var(--ss-text-dim); font-weight: 600; font-size: 12px; letter-spacing: 0.01em; cursor: pointer; transition: background 0.12s, color 0.12s; }
-  .slopscale-modeview-btn + .slopscale-modeview-btn { box-shadow: inset 1px 0 0 rgba(2,6,23,0.55); }
-  .slopscale-modeview-btn:hover:not(.active) { background: #24324a; }
-  .slopscale-modeview-btn.active { background: var(--ss-accent); color: #fff; }
+  /* Left-pane collapse — a « icon at the top of the controls (replaces the old
+     Setup/Play transport pill). The pane slides shut; a » floats at its old edge to
+     re-open (the « is inside the pane, which is 0-width when collapsed). */
+  .slopscale-pane-collapse { position: sticky; top: 0; z-index: 3; display: flex; justify-content: flex-end; margin: -16px -16px 6px; padding: 8px 12px; background: var(--ss-surface, #0d1424); border-bottom: 1px solid var(--ss-hairline, rgba(148,163,184,0.12)); }
+  .slopscale-pane-collapse-btn, .slopscale-pane-expand { width: 30px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--ss-border, #334155); background: var(--ss-inset, #0b1220); color: var(--ss-text-dim, #94a3b8); border-radius: 8px; font-size: 16px; line-height: 1; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
+  .slopscale-pane-collapse-btn:hover, .slopscale-pane-expand:hover { background: #1e293b; color: #e2e8f0; border-color: var(--ss-accent, #4080e0); }
+  .slopscale-pane-expand { position: absolute; left: 8px; top: 8px; z-index: 4; display: none; }
+  .slopscale-root.slopscale-collapsed .slopscale-pane-expand { display: inline-flex; }
   /* Focus (fullscreen) button — absolute right of the transport, mirroring the
      Setup|Play switch at left; lit when the stage is fullscreen. */
   .slopscale-focus-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); z-index: 1; min-height: 28px; min-width: 32px; padding: 0 9px; border: none; border-radius: var(--ss-r-control); background: #141d33; color: var(--ss-text-dim); font-size: 14px; line-height: 1; cursor: pointer; transition: background 0.12s, color 0.12s; }
@@ -1376,7 +1377,13 @@
   </section>
 
   <section class="slopscale-layout">
+    <!-- Re-open the pane when collapsed (the « lives INSIDE the pane, which is 0-width
+         when collapsed, so the » floats at the pane's old edge). Shown via .slopscale-collapsed. -->
+    <button type="button" id="slopscale-pane-expand-btn" class="slopscale-pane-expand" title="Show controls" aria-label="Show controls">»</button>
     <form id="slopscale-controls" class="slopscale-panel slopscale-controls">
+      <div class="slopscale-pane-collapse">
+        <button type="button" id="slopscale-pane-collapse-btn" class="slopscale-pane-collapse-btn" title="Collapse controls — widen the stage" aria-label="Collapse controls">«</button>
+      </div>
 
       <!-- (Instrument + strings + tuning moved to the header Setup popover; the
            four-mode switcher moved to the header top bar — see above.) -->
@@ -2268,13 +2275,8 @@
            render (DAW transport-bar pattern; never covers the chart). The
            scrub/loop TIMELINE lives as a ruler pinned inside the render below. -->
       <div id="slopscale-transport-bar" class="slopscale-transport-bar" aria-label="Playback transport">
-        <!-- View mode: Setup (full controls) ⇄ Play (rail hidden, stage widened).
-             A DAW-style mode switch over the existing .slopscale-collapsed
-             mechanism; absolutely placed left so the play cluster stays centered. -->
-        <div class="slopscale-modeview" role="group" aria-label="View mode">
-          <button type="button" class="slopscale-modeview-btn active" data-modeview="setup" aria-pressed="true" title="Setup — full controls">Setup</button>
-          <button type="button" class="slopscale-modeview-btn" data-modeview="play" aria-pressed="false" title="Play — hide the controls, widen the stage">Play</button>
-        </div>
+        <!-- The Setup/Play view-mode pill moved into the left pane as a « collapse
+             icon (+ a » to re-open when collapsed). See #slopscale-pane-collapse-btn. -->
         <button type="button" id="slopscale-focus-btn" class="slopscale-focus-btn" title="Focus mode — fullscreen the stage (Esc to exit)" aria-label="Focus mode" aria-pressed="false">⛶</button>
         <div id="slopscale-session-progress" class="slopscale-session-progress slopscale-session-only" role="group" aria-label="Session segments"></div>
         <div class="slopscale-tp-controls">
