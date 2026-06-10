@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.22-dev';
+  const SLOPSCALE_VERSION = '0.7.22';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
