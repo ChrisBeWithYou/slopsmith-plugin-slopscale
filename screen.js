@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.10-dev';
+  const SLOPSCALE_VERSION = '0.7.11-dev';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -3994,7 +3994,7 @@
       vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ],
     },
     g_blues_scale: {
-      role:'scale_arp', label:'Blues scale', competency:'blues vocabulary',
+      role:'scale_arp', label:'Blues scale', competency:'blues vocabulary', creditsPathway:'blues_foundation',
       band:'beginner', instrument:'guitar', style:'blues', kind:'scale',
       base:{ scale:'blues', meter:'4/4', subdivision:'eighth', bars:12, direction:'up_down', sequence:'none', fretboardSystem:'caged' },
       vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ],
@@ -4041,7 +4041,7 @@
       vary:[ { key:'A', shape:'E', bendTarget:'whole' }, { key:'A', shape:'E', bendTarget:'half' }, { key:'E', shape:'E', bendTarget:'whole' }, { key:'D', shape:'E', bendTarget:'mixed' } ],
     },
     g_tech_sweep: {
-      role:'technique', label:'Sweep arpeggio primer', competency:'clean sweep picking',
+      role:'technique', label:'Sweep arpeggio primer', competency:'clean sweep picking', creditsPathway:'arp_sweeps',
       band:'advanced', instrument:'guitar', style:null, kind:'sweep_arpeggios',
       base:{ scale:'natural_minor', meter:'4/4', subdivision:'sixteenth', bars:8, direction:'up_down', fretboardSystem:'caged', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII' },
       vary:[ { key:'A', shape:'E' }, { key:'A', shape:'A' }, { key:'D', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'G' } ],
@@ -4066,7 +4066,7 @@
       vary:[ { key:'C', shape:'E' }, { key:'C', shape:'A' }, { key:'C', shape:'G' }, { key:'C', shape:'C' }, { key:'C', shape:'D' } ],
     },
     g_scale_dorian: {
-      role:'scale_arp', label:'Dorian groove', competency:'the raised-6th colour',
+      role:'scale_arp', label:'Dorian groove', competency:'the raised-6th colour', creditsPathway:'dorian_groove',
       band:'intermediate', instrument:'guitar', style:null, kind:'scale',
       base:{ scale:'dorian', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', sequence:'none', fretboardSystem:'caged', progression:'i-VII-VI-VII', chordDepth:'seventh', chordOverride:'min7' },
       vary:[ { key:'A', shape:'E' }, { key:'D', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ],
@@ -4217,7 +4217,7 @@
     },
     // Review role (resurface an earlier skill)
     g_review_pentatonic: {
-      role:'review', label:'Pentatonic review', competency:'recall the box',
+      role:'review', label:'Pentatonic review', competency:'recall the box', creditsPathway:'pent_foundation',
       band:'beginner', instrument:'guitar', style:null, kind:'scale',
       base:{ scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', sequence:'none', fretboardSystem:'caged' },
       vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'E' }, { key:'D', shape:'E' } ],
@@ -4320,20 +4320,20 @@
       vary:[ { key:'A' }, { key:'E' }, { key:'G' }, { key:'D' } ],
     },
     b_arp_triads: {
-      role:'scale_arp', label:'Triad arpeggios', competency:'chord-tone targeting',
+      role:'scale_arp', label:'Triad arpeggios', competency:'chord-tone targeting', creditsPathway:'bass_arp_triads',
       band:'beginner', instrument:'bass', style:null, kind:'diatonic_arpeggios',
       base:{ scale:'major', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', fretboardSystem:'position', chordDepth:'triad', chordOverride:'auto', fretMin:0, fretMax:7 },
       vary:[ { key:'C' }, { key:'G' }, { key:'A' }, { key:'E' } ],
     },
     b_arp_sevenths: {
-      role:'scale_arp', label:'Seventh arpeggios', competency:'7th chord tones',
+      role:'scale_arp', label:'Seventh arpeggios', competency:'7th chord tones', creditsPathway:'bass_arp_sevenths',
       band:'intermediate', instrument:'bass', style:null, kind:'diatonic_arpeggios',
       base:{ scale:'natural_minor', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', fretboardSystem:'position', chordDepth:'seventh', chordOverride:'auto', fretMin:0, fretMax:7 },
       vary:[ { key:'A' }, { key:'E' }, { key:'D' }, { key:'C' } ],
     },
     // Application (over the changes)
     b_app_walking: {
-      role:'application', label:'Walking bass — ii–V–I', competency:'walk the changes',
+      role:'application', label:'Walking bass — ii–V–I', competency:'walk the changes', creditsPathway:'bass_walking',
       band:'intermediate', instrument:'bass', style:'jazz', kind:'walking_bass',
       base:{ scale:'major', meter:'4/4', subdivision:'quarter', bars:8, direction:'up_down', fretboardSystem:'position', chordDepth:'seventh', chordOverride:'auto', fretMin:0, fretMax:7 },
       vary:[ { key:'C', progression:'ii-V-I' }, { key:'F', progression:'ii-V-I' }, { key:'C', progression:'vi-ii-V-I' }, { key:'G', progression:'ii-V-I' } ],
@@ -12979,15 +12979,16 @@
         const color = ROLE_COLORS[c.role] || KIND_COLORS[c.kind] || '#64748b';
         // Added review/2nd-app rows carry their context in the NAME ("Revisited —
         // …") — so suppress the competency sub-line for them (no double-naming).
-        const comp = c.added ? '' : (c.competency || '');
-        // Per-block glyph (Tier A measurement): ● played (reached + you sounded it
-        // — or no mic reached the scorer this run, so we can't distinguish and
-        // default to practiced, never shaming a DI/mic-less player) · ○ touched
-        // (reached but silent while the mic WAS live on other blocks) · — unreached.
-        // Never red; ✓ stays reserved for a proved flip (per-block credit, later).
+        // Per-block glyph: ✓ PROVED (earned a real tier flip — the ONE place
+        // meter-green is allowed, a cleared competency) > ● played (reached + you
+        // sounded it, or no mic this run → default practiced, never shaming a
+        // DI/mic-less player) > ○ touched (reached but silent while the mic WAS
+        // live elsewhere) > — unreached. Never red.
+        const earned = c.earned;
+        const comp = earned ? `Cleared ${earned.tierName}` : (c.added ? '' : (c.competency || ''));
         const touched = c.reached && r.hadInput && !c.hadInput;
-        const glyph = !c.reached ? '—' : (touched ? '○' : '●');
-        const stateCls = !c.reached ? ' is-unreached' : (touched ? ' is-touched' : ' is-played');
+        const glyph = earned ? '✓' : (!c.reached ? '—' : (touched ? '○' : '●'));
+        const stateCls = earned ? ' is-earned' : (!c.reached ? ' is-unreached' : (touched ? ' is-touched' : ' is-played'));
         out.push(
           `<div class="slopscale-results-chapter${stateCls}">` +
           `<span class="slopscale-results-chapter-dot" style="background:${color}"></span>` +
@@ -17057,6 +17058,53 @@
   }
   // ── End pathway tier progress ───────────────────────────────────────────────
 
+  // ── Per-block CREDIT (engagement Tier A — the earned ✓ "proved") ────────────
+  // A WORKOUT block flips the SAME pathway tier a solo Ladder run would — but ONLY
+  // through a CONSERVATIVE front door (L&D mapping ruling project_workout_perblock_
+  // credit_mapping), never the fuzzy bpm-match (which would credit a generic block
+  // to whatever rung shares a tempo). Predicate, ALL must hold:
+  //   1. the source SEGMENT_TEMPLATE carries an authored `creditsPathway` (the
+  //      curatorial "this block IS this rung's drill"); no tag → "practiced" only;
+  //   2. its role is credit-eligible + its kind isn't an excluded primitive;
+  //   3. STRICT evidence in the block's window — ≥PT_MIN_JUDGED judged AND ≥65% hit
+  //      (the lenient mic-less self-confirm a solo run allows is FORBIDDEN per-block
+  //      — this clamp is the anti-inflation spine AND makes the bass caveat self-
+  //      enforce: a felt/sub-floor block can't muster 8 judged units, so it never
+  //      flips, only logs "practiced");
+  //   4. credited tier = the highest tempoTier the block's bpm meets (below tier 0
+  //      → practiced only; never skip-credit);
+  //   5. ONE ledger (pathway_tiers via _updatePathwayTier — idempotent, flips only
+  //      an UNcleared rung), tier flips ONLY, NO per-block XP (XP is session-level,
+  //      once per sitting), zero bonus. Returns the flip {pathwayId,…} or null.
+  const CREDIT_ROLES = new Set(['technique', 'scale_arp', 'application', 'review']);
+  const CREDIT_KIND_EXCLUDE = new Set(['chromatic', 'modal_vamp']);
+  function creditBlockTier(templateId, bpm, score) {
+    const tmpl = templateId ? SEGMENT_TEMPLATES[templateId] : null;
+    if (!tmpl || !tmpl.creditsPathway) return null;                      // (1) no tag → practiced only
+    if (!CREDIT_ROLES.has(tmpl.role) || CREDIT_KIND_EXCLUDE.has(tmpl.kind)) return null;   // (2)
+    const pw = PATHWAYS[tmpl.creditsPathway]; if (!pw) return null;
+    if (!score || score.judged < PT_MIN_JUDGED || (score.hits / score.judged) < 0.65) return null;   // (3) strict, no lenient path
+    const tiers = pw.tempoTiers || []; let tier = -1;                     // (4) bpm-reached tier
+    tiers.forEach((t, i) => { if ((bpm || 0) >= t) tier = i; });
+    if (tier < 0) return null;
+    if (proofPilot(tmpl.creditsPathway) && !proofHeld({ bpm, hit_count: score.hits, miss_count: Math.max(0, score.judged - score.hits) })) return null;
+    const r = _updatePathwayTier(tmpl.creditsPathway, tier);             // (5) one ledger, idempotent
+    return r ? { pathwayId: tmpl.creditsPathway, pathwayLabel: pw.label, tier, tierName: TIER_LABELS[tier] || ('Tier ' + (tier + 1)) } : null;
+  }
+  // Startup integrity guard (mirrors validateSegmentTemplates / the anchor guard) —
+  // throws at LOAD if a `creditsPathway` tag is mis-authored, so a bad mapping can
+  // never ship a false flip: the target must be a real PATHWAYS id, the role must be
+  // credit-eligible (a tagged warmup/cooldown/jam is a contradiction), the kind must
+  // not be an excluded primitive.
+  (function assertCreditTagsValid() {
+    for (const [id, t] of Object.entries(SEGMENT_TEMPLATES)) {
+      if (!t.creditsPathway) continue;
+      if (!PATHWAYS[t.creditsPathway]) throw new Error(`[SlopScale credit-tag] ${id}: creditsPathway "${t.creditsPathway}" is not a PATHWAYS id`);
+      if (!CREDIT_ROLES.has(t.role)) throw new Error(`[SlopScale credit-tag] ${id}: role "${t.role}" cannot credit (warmup/cooldown/jam never flip)`);
+      if (CREDIT_KIND_EXCLUDE.has(t.kind)) throw new Error(`[SlopScale credit-tag] ${id}: kind "${t.kind}" cannot credit a flip`);
+    }
+  })();
+
   // ── Depth Ladder + XP (slopscale.progress) — Phase 8 ───────────────────────
   // The second mastery axis ABOVE the shipped Speed Climb (pathway_tiers). Locked
   // design: gamification-architect project_replay_depth_ladder_xp_verdict +
@@ -17379,6 +17427,10 @@
           durSec: Math.max(0, (b.end || 0) - (b.start || 0)),
           reached: _runLooped || (b.start <= _runMaxChartTime + 0.05),
           hits: pbs[i].hits, judged: pbs[i].judged, hadInput: !!_blockHadInput[i],
+          // Per-block CREDIT (the earned ✓): a clean strict pass on a credit-tagged
+          // block flips its pathway rung through the conservative front door. null
+          // = no flip (untagged, ineligible, weak evidence, or already cleared).
+          earned: creditBlockTier(b.templateId, b.bpm, pbs[i]),
         }));
       }
     }
@@ -18890,7 +18942,7 @@
   }
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
-  window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount };
+  window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier };
   if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
