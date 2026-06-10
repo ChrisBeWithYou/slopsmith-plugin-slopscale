@@ -20,19 +20,19 @@ You keep your normal SlopScale; the beta appears as a **second** entry, **SlopSc
 - (Other platforms: the `plugins/` dir of your Slopsmith install.)
 
 **2. Clone the beta branch into it** (one time):
-```
+```bash
 git clone -b slopscale-beta https://github.com/ChrisBeWithYou/slopsmith-plugin-slopscale slopscale_beta
 ```
 Restart Slopsmith. You'll now see **SlopScale** and **SlopScale (Beta)** in the menu. The beta's version badge reads `…-beta.N`.
 
 **3. Update to the latest beta** whenever asked:
-```
+```bash
 git -C slopscale_beta pull
 ```
 …then restart Slopsmith.
 
 **If it ever gets stuck / won't load:**
-```
+```bash
 git -C slopscale_beta fetch origin
 git -C slopscale_beta reset --hard origin/slopscale-beta
 ```
@@ -47,7 +47,7 @@ git -C slopscale_beta reset --hard origin/slopscale-beta
 ## For the maintainer — cutting & promoting
 
 **Cut / refresh a beta** (after committing your dev work):
-```
+```bash
 git push origin slopscale-dev          # beta is built from the latest COMMIT on dev
 node scripts/cut-beta.mjs --push        # regenerate the renamed tree → commit + push slopscale-beta
 ```

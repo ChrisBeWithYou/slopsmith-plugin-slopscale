@@ -4,6 +4,14 @@
 
 **Decision: BUILD.** v1 from the data we already collect (no new DSP); the low-string limitation is a documented host-ask, not a blocker.
 
+## HOST CHECK
+
+- **Capability:** bass felt-hold verdict (Locked / Settling / Dragging / Rushing) + the `feltBpm` ledger — derived from the onset-timing spread/trend the scorer already collects (no new DSP).
+- **What the host has:** nothing found — the host's detector surface is pitch/level (note-detection primitives) only; there is no groove / pocket / feel / timing-spread analysis domain to borrow.
+- **Evidence + date:** 2026-06-09, the 3-lane design panel (bass-pedagogy · rhythm-meter · gamification) + host-check; confirmed the host exposes no qualitative-feel analysis.
+- **Verdict: BUILD** — greenfield, on our competency-typed store. "Held the tempo in the pocket" is not a host concept, and the qualitative bass-feel verdict is SlopScale's USP, not host territory.
+- **Flips if:** the host ships a groove/pocket/timing-spread analysis API (then borrow the analysis) or the §9 onset/transient channel lands (tightens sub-floor independence) — both tracked as host-asks.
+
 > **HEADLINE FORK RESOLVED → Option A** (verdict WORD is the hero, tempo demoted). All three design lanes + the market-analyst (`.claude/agent-memory/market-analyst/bass-felt-hold-headline-verdict.md`, HIGH confidence) converged: bass BPM is a confound (rewards faster-and-sloppier), so `feltBpm` (the tempo held *Locked*) lives in the woodshed PB, never the run-end headline; "Locked the pocket" is a *state* (cooperative/shareable) not a *rank* (leaderboard-bait at tiny-N); and naming the pocket as a word is a real differentiator (no rival grades bass feel qualitatively). Copy note: "Settling" is the one soft word — kept for v1, flag for a Discord A/B ("on-your-way" vs "meh"); one-word fix = "Settling in".
 >
 > **AS-BUILT v1 (2026-06-09, committed, @ 0.7.16-dev):** data model `_ptDevs` → `{d,t}`; `feltHoldAnalyze` (Theil-Sen drift + MAD jitter + the gates/bucketing) + `creditFeltRung` (`feltBpm` ledger, `_updatePathwayTier` merge-fixed) on `window.SlopScale`; `feltGate:true` on **bass_walking** (the pilot — fixes the rung that could never fire); `sessionEnd` routes feltGate runs through the felt verdict (and suppresses the %-recognizers/bestBpm for bass); surfaces = the modal felt-word hero (Option A, no %), the woodshed **"Grooves owned"** + **"In the Pocket"** badge, the verdict-led share card. 11 durable `smoke-progress` rows; net 16/16. **Deferred:** per-block felt-credit in a Workout (needs `_ptDevs` bucketed by segment — the engine handoff gamification flagged); the v1.1 speak-budget lean correction (D3); extending `feltGate` to the other bass feel rungs (a bass-ped pass, like the `creditsPathway` tag rollout); the live drift-bubble + hollow-exempt rendering (sound-design).

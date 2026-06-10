@@ -80,7 +80,7 @@ Promoted from patterns in past-session feedback — the things Christian kept ha
 | `docs/ui-session.md` | Session UI design notes. |
 | `docs/design-system.md` | GUI style guide (tokens, hierarchy, primary-action parity, theme-safe color rules) — **read before any GUI change**. |
 | `docs/session-2026-05-26-shape-system.md` | Shape-system unification session log. |
-| `docs/backing-engine-roundtable.md` / `triad-mastery-ladder.md` / `proof-loop-slice.md` / `rhythm-ladder-roundtable.md` / `timing-judging-roundtable.md` / `hand-marks-roundtable.md` | Charette/spec docs for in-flight initiatives (backing-engine rebuild, triad-mastery pathway, proof-loop slice, rhythm/time ladder, timing-judging rework, hand-marks/fingering display) — see `ROADMAP.md` + project memory for status. |
+| `docs/*-roundtable.md`, `docs/triad-mastery-ladder.md`, `docs/proof-loop-slice.md`, `docs/beta-testing.md` | Charette/spec docs for in-flight initiatives (one per initiative — e.g. backing-engine, grading-rebuild, workout-love/engagement, programs-ladder, rhythm/timing-judging, hand-marks, bass-technique/felt-hold). The set grows each session; **`ROADMAP.md` + project memory are authoritative for which exist and their status** — don't enumerate them all here. |
 | `docs/sources/` | Source PDFs — reference material only. |
 | `README.md` | User-facing feature list + install steps. |
 | `ROADMAP.md` | Phase plan; **read at session start**. Authoritative for "what's shipped vs planned". |

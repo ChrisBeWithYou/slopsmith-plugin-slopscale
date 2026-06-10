@@ -17,6 +17,10 @@
 //   7. Rolling-window scheduler ceiling — Play on a 30-min Woodshed creates a
 //      bounded number of audio nodes (was 39k whole-pass) with no second-long
 //      main-thread block. Guards backing-engine step 0.
+//   8. DRUM_GROOVES (backing-engine step 5) — the groove library tiles to valid
+//      events; routing by style/profile; jazz constraints (feathered kick, hat
+//      foot, no backbeat); fills (toms, hat-mute, crash); seeded determinism;
+//      odd-meter fallback.
 import { chromium } from "playwright";
 const HOST = process.env.SLOPSCALE_HOST || "http://127.0.0.1:8765";
 let pass = 0, fail = 0;
@@ -484,8 +488,8 @@ try {
   ok(JSON.stringify(c5.charlestonAcc) === "[1.5]", "Charleston accent sits on the '&-of-2' push, not beat 1", JSON.stringify(c5.charlestonAcc));
   ok(JSON.stringify(c5.boogieAcc) === "[1.5,3.5]", "boogie stabs accent '&-of-2'/'&-of-4' (backbeat-side)", JSON.stringify(c5.boogieAcc));
 
-  // ── (8) DRUM_GROOVES (step 5): the groove library + fills + humanization ────
-  step("drum grooves (step 5)");
+  // ── (8) DRUM_GROOVES — backing-engine step 5: the groove library + fills + humanization ──
+  step("drum grooves — backing step 5");
   const d5 = await page.evaluate(() => {
     const D = globalThis.__ss_debug;
     const mk = (over) => Object.assign({ meter: { numerator: 4, denominator: 4, grouping: [] }, bpm: 120, swing: "straight", humanSeed: 12345, audio: {} }, over);
