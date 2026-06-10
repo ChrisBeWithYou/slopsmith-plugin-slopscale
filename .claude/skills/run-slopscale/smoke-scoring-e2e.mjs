@@ -1,17 +1,22 @@
 #!/usr/bin/env node
 // REAL-audio end-to-end guard for the SCORING system. The only suite that
-// exercises the HOST's actual pitch detector + the host-mirror input-level/onset
-// GATE (grading rebuild 2026-06-08) with actual audio. smoke-gems injects a fake
-// scorer to stay target-independent; this suite is the opposite — it asserts real
-// scoring works on CURRENT Slopsmith, AND that the false-positive bug is dead.
+// exercises the HOST's actual pitch detector + the host-mirror input-level
+// silence GATE with actual audio. smoke-gems injects a fake scorer to stay
+// target-independent; this suite is the opposite — it asserts real scoring works
+// on CURRENT Slopsmith, the false-positive bug is dead, AND (2026-06-09 P0 fix)
+// that SUSTAINED real playing scores. The host's gate is a level-only ONE-WAY
+// veto with NO onset requirement (note_detect :5550-5588), so a held note must
+// credit — the onset gate the 2026-06-08 rebuild added rejected sustained/DI
+// playing ("graded in Slopsmith, not SlopScale"); this guards against its return.
 //
-// TWO fake-audio sources (Chromium takes one file per launch → two browsers):
-//   • PLUCKED 110 Hz (A2): sharp attack + ring + gap, repeating — a REAL note
-//     has onsets, so it must SCORE (positive + chord + the wrong-key negative).
-//   • STEADY 110 Hz (A2), FADE-IN, no attack anywhere — the false-positive bug
-//     (an inaudible/steady residual at the target pitch). It must credit NOTHING
-//     (the onset gate has no rising edge to fire). Also feeds the tuner (a
-//     sustained tone locks the chip). This is the "hands-off → 0 credit" invariant.
+// THREE fake-audio sources (Chromium takes one file per launch → three browsers):
+//   • PLUCKED 110 Hz (A2): sharp attack + ring + gap — a transient note must SCORE
+//     (positive + chord + the wrong-pitch negative).
+//   • STEADY 110 Hz (A2) at full level, NO attack edge — SUSTAINED real playing.
+//     It MUST score (the regression guard: the host needs no onset). Also locks
+//     the tuner (a sustained tone holds the chip).
+//   • SUB-FLOOR 110 Hz (A2) below the 0.02 silence floor — the inaudible-residual
+//     false-positive. The level veto must credit ~nothing ("hands-off → 0 credit").
 //
 // Policy (dev-ops): an SDK-less host is a hard FAIL, not a skip. (host up via
 // launch.ps1 — checkout target has the Minigames SDK + note_detect verifier.)
@@ -40,14 +45,19 @@ function writeWav(path, env) {
   h.write("data", 36); h.writeUInt32LE(pcm.length, 40);
   writeFileSync(path, Buffer.concat([h, pcm]));
 }
-// PLUCKED: period 0.4s — 4ms attack (the onset) → decaying ring to 0.33s → gap.
+// PLUCKED: period 0.4s — 4ms attack → decaying ring to 0.33s → gap (a transient note).
 const pluckWav = join(tmpdir(), `slopscale-pluck-a2-${process.pid}.wav`);
 writeWav(pluckWav, (t) => { const ph = t % 0.4; if (ph < 0.004) return (ph / 0.004) * 0.7; if (ph < 0.33) return 0.7 * (1 - 0.5 * (ph - 0.004) / 0.326); return 0; });
-// STEADY: CONSTANT amplitude — the floor-follower baseline seeds at the first
-// (already-high) sample, so there is never a rising edge → never an onset. This
-// is the truest "inaudible/steady residual at the target pitch" shape (the bug).
+// STEADY (full level): a CONSTANT-amplitude A2 — no per-note attack edge anywhere,
+// the shape of SUSTAINED real playing (esp. a high-gain/compressed DI). The host's
+// gate is level-only, so this MUST score (the 2026-06-09 regression guard); it also
+// locks the tuner.
 const steadyWav = join(tmpdir(), `slopscale-steady-a2-${process.pid}.wav`);
 writeWav(steadyWav, () => 0.5);
+// SUB-FLOOR: a steady A2 far below the 0.02 silence floor (web-tap level ≈ rms×5 ≈
+// 0.014) — the inaudible idle-residual. The level veto must credit ~nothing.
+const subFloorWav = join(tmpdir(), `slopscale-subfloor-a2-${process.pid}.wav`);
+writeWav(subFloorWav, () => 0.004);
 
 const launchArgs = (wav) => ([
   "--use-fake-ui-for-media-stream",
@@ -240,20 +250,22 @@ try {
   ok(pageErrs.length === 0, "no uncaught page errors (pluck ctx)", pageErrs.slice(0, 2).join(" | "));
   await browser.close();
 
-  // ══ CONTEXT B — STEADY A2 (fade-in, NO onset): the false-positive bug. ══════
-  // Hands-off / inaudible-residual shape: right pitch, above the floor, but no
-  // attack transient. The gate must credit NOTHING. Same tone locks the tuner.
+  // ══ CONTEXT B — STEADY A2 (full level, NO attack edge): SUSTAINED real playing. ══
+  // The host gate is level-only (no onset), so a HELD on-pitch note MUST score —
+  // the 2026-06-09 P0 regression guard (the rebuild's onset gate made this 0, which
+  // rejected sustained/DI playing). The same sustained tone also locks the tuner.
   const browserB = await chromium.launch({ headless: true, args: launchArgs(steadyWav) });
   try {
     const { page: pageB } = await openScreen(browserB);
     await pageB.waitForFunction(() => typeof window.slopsmithMinigames?.scoring?.createContinuous === "function", { timeout: 5000 });
     const expS = await setDrill(pageB, { ...baseDrill, key: "A" });
-    ok(expS.midi === 45, "(8·pre) steady-negative drill note[0] expects A2 (the tone's pitch)", `midi=${expS.midi}`);
+    ok(expS.midi === 45, "(8·pre) sustained drill note[0] expects A2 (the tone's pitch)", `midi=${expS.midi}`);
     await pageB.click("#slopscale-play");
     const steady = await pageB.evaluate(async () => {
       const b = window.__e2eBundle;
-      const out = { provider: false, meterNote: "", credited: 0, total: b.notes.length };
-      for (let i = 0; i < 110; i++) {   // ~11s: several note windows pass under the steady tone
+      const a2count = b.notes.filter((n) => (b.openMidis[n.s] || 0) + n.f === 45).length;
+      const out = { provider: false, meterNote: "", credited: 0, total: b.notes.length, a2count };
+      for (let i = 0; i < 110; i++) {   // ~11s: several A2 note windows pass under the steady tone
         if (b.getNoteStateProvider() !== null) out.provider = true;
         const noteEl = document.getElementById("slopscale-pitch-note");
         if (noteEl && /A2/.test(noteEl.textContent)) out.meterNote = noteEl.textContent;
@@ -264,12 +276,12 @@ try {
       return out;
     });
     ok(steady.provider, "(8a) scorer runs on the steady tone (so the pass below is meaningful)");
-    ok(!!steady.meterNote, "(8b) the detector DOES hear the steady A2 (it is real, audible signal)", steady.meterNote || "(meter never showed A2)");
-    // The BUG credited WHOLESALE (30/288, 70+). The level+onset gate kills that.
-    // A residual ≤2 here is web-tap analyser jitter under headless load (a multi-
-    // frame dropout can fabricate one stray onset); the real desktop getLevels
-    // meter is stable. ≤2 cleanly distinguishes "bug dead" from the wholesale bug.
-    ok(steady.credited <= 2, "(8c) HANDS-OFF INVARIANT: a steady on-pitch tone is NOT wholesale-credited (the bug is dead)", `credited=${steady.credited} of ${steady.total || "?"} (bug was wholesale; ≤2 = web-tap jitter, desktop meter is stable)`);
+    ok(!!steady.meterNote, "(8b) the detector hears the sustained A2 (real, audible signal)", steady.meterNote || "(meter never showed A2)");
+    ok(steady.a2count >= 2, "(8·pre2) the chart has ≥2 A2 notes the held tone can match (test is meaningful)", `a2count=${steady.a2count}`);
+    // P0 REGRESSION GUARD: the host gate is level-only (no onset), so SUSTAINED on-
+    // pitch notes must SCORE. The 2026-08 onset gate made this 0 — it had no rising
+    // edge to fire — which is exactly how it rejected real sustained/DI playing.
+    ok(steady.credited >= 2, "(8c) SUSTAINED-NOTE GUARD: held on-pitch notes SCORE with no onset (onset-gate regression dead)", `credited=${steady.credited} of ${steady.a2count} A2 notes (was 0 under the onset gate)`);
     await pageB.evaluate(() => { document.getElementById("slopscale-stop")?.click(); document.getElementById("slopscale-results-close")?.click(); });
     await pageB.waitForTimeout(200);
 
@@ -296,6 +308,31 @@ try {
   } finally {
     await browserB.close();
   }
+
+  // ══ CONTEXT C — SUB-FLOOR A2 (below the 0.02 silence floor): false-positive. ══
+  // The inaudible idle-residual the rebuild targeted. The host-mirror level veto
+  // forces a miss on any window whose peak is < 0.02 — so this credits ~nothing,
+  // WITHOUT needing an onset (the level floor alone kills the residual).
+  const browserC = await chromium.launch({ headless: true, args: launchArgs(subFloorWav) });
+  try {
+    const { page: pageC } = await openScreen(browserC);
+    await pageC.waitForFunction(() => typeof window.slopsmithMinigames?.scoring?.createContinuous === "function", { timeout: 5000 });
+    await setDrill(pageC, { ...baseDrill, key: "A" });
+    await pageC.click("#slopscale-play");
+    const sub = await pageC.evaluate(async () => {
+      const b = window.__e2eBundle;
+      const out = { credited: 0, total: b.notes.length };
+      for (let i = 0; i < 90; i++) {
+        let c = 0; for (const nn of b.notes) { const st = b.getNoteState(nn); if (st === "hit" || st === "active") c++; }
+        if (c > out.credited) out.credited = c;
+        await new Promise((r2) => setTimeout(r2, 100));
+      }
+      return out;
+    });
+    ok(sub.credited <= 2, "(9) FALSE-POSITIVE GUARD: a sub-floor (inaudible) on-pitch tone credits ~nothing (level veto)", `credited=${sub.credited} of ${sub.total} (≤2 = web-tap jitter; the level veto killed the residual)`);
+  } finally {
+    await browserC.close();
+  }
 } catch (e) {
   console.error("SUITE ERROR:", e.message);
   fails++;
@@ -303,6 +340,7 @@ try {
   try { await browser.close(); } catch (_) {}
   try { unlinkSync(pluckWav); } catch (_) {}
   try { unlinkSync(steadyWav); } catch (_) {}
+  try { unlinkSync(subFloorWav); } catch (_) {}
 }
 console.log(`\n${fails === 0 ? "PASS" : "FAIL"}  scoring-e2e: ${fails} failure(s)`);
 process.exit(fails ? 1 : 0);

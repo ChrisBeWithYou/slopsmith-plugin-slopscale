@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.13-dev';
+  const SLOPSCALE_VERSION = '0.7.14-dev';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -3137,32 +3137,27 @@
   let _ptExempt = null;         // Slice-2 class counts { legato, fast, spanNotes, floorMs } (set per run)
   let _ptJamRun = false;        // Jam run: scorer may run for the meter, but no note ever paints judged
   let _deliberateStop = false;  // true only across an explicit Stop / finite-run end — gates the results modal
-  // ── Input-level / onset gate (2026-06-08 grading rebuild — MIRROR the host's
-  //    own silence gate; docs/grading-rebuild-roundtable.md) ──────────────────
-  // The host's note_detect VERIFY side-door has NO absolute level floor (its
-  // comb is scale-invariant), so an inaudible idle residual (induced signal,
-  // hum) on a direct-interface/DI rig credits HANDS-OFF. The host's REAL grader
-  // gates exactly this — it forces a miss when inputLevel < 0.02 across ±200ms
-  // of a note (note_detect _ND_SILENCE_THRESHOLD). We MIRROR that gate here, fed
-  // by the host's OWN input meter (getLevels) — interface-AGNOSTIC by following
-  // the host: it reports whatever device the player configured in Slopsmith. A
-  // credit ALSO needs an attack ONSET in-window: a steady residual (even above
-  // the floor) has no rising edge and never fires one. No host level source →
-  // gate INACTIVE (no input path to police; fail-open-to-honest).
+  // ── Input-level SILENCE gate (2026-06-09 grading FIX — mirror the host's
+  //    ACTUAL gate; supersedes the 2026-06-08 onset gate) ─────────────────────
+  // P0 (host-expert diff `project_grading_regression_diff_2026-06-09`, confirmed
+  // twice against the live note_detect 1.10 consumer): the host's real grader
+  // (note_detect :5550-5588) is a PURE ONE-WAY VETO — it runs ONLY on an already-
+  // detected pitch verdict and, over ±200ms of the note, forces a MISS iff samples
+  // are present AND peak inputLevel < 0.02 (_ND_SILENCE_THRESHOLD). It does NOT
+  // require an attack onset, and SKIPS the veto when no samples cover the window
+  // ("no telemetry ≠ silent"). The 2026-08 rebuild wrongly made the gate a POSITIVE
+  // precondition that ALSO demanded a +11dB onset edge + inflated the floor (rest×4)
+  // — on a high-gain/compressed/sustained DI the level envelope is flat, so a
+  // re-pick is only a few dB over the ringing baseline → no onset fired → every note
+  // after the first was rejected ("graded in Slopsmith, not SlopScale"). The fix:
+  // match the host EXACTLY — a one-way level veto at fixed 0.02, NO onset, skip-when-
+  // no-samples. The sub-0.02 idle-residual false-positive the rebuild targeted stays
+  // dead (a residual below 0.02 is vetoed when the meter is live — and his is: the
+  // host grades on the same getLevels source). No host level source → gate INACTIVE
+  // (fail-open-to-honest; the detector's pitch/comb evidence still has to fire).
   const PT_LVL_FLOOR_MIN = 0.02;     // host's _ND_SILENCE_THRESHOLD (−34 dBFS on the host's 0..1 meter)
-  const PT_LVL_REST_MULT = 4;        // levelFloor = max(restingFloor × 4 [+12 dB], FLOOR_MIN)
-  const PT_ONSET_RATIO   = 3.5;      // onset fires when level / baseline ≥ this (≈+11 dB rising edge)
-  const PT_ONSET_REFRACT = 0.080;    // suppress onset re-fire for 80ms (attack rise + ring decay)
-  const PT_LVL_WARMUP    = 0.25;     // meter-start warm-up: baseline glued to level (no onset) while the tap settles
   let _lvlMode = 'none';             // 'desktop' (getLevels) | 'web' (own analyser) | 'none' (gate inactive)
   let _lvlSamples = [];              // ring of { jt: judge-time, L } (bounded 512)
-  let _lvlOnsets = [];               // ring of onset judge-times (bounded 256)
-  let _lvlBaseline = 0;              // floor-follower (down-fast / up-slow)
-  let _lvlFloor = PT_LVL_FLOOR_MIN;  // calibrated credit floor (host 0..1 scale)
-  let _lvlRestBuf = [];              // count-in resting samples → the 90th-pct floor
-  let _lvlCalibrated = false;        // count-in calibration done this run
-  let _lvlWarmEnd = null;            // judge-time the meter-start warm-up ends (anti analyser-warmup / steady-tone false onset)
-  let _lvlLastOnset = -Infinity;     // last onset judge-time (refractory)
   let _lvlPoll = null;               // desktop getLevels interval
   let _lvlRaf = 0;                   // web analyser RAF handle
   let _lvlStream = null, _lvlAnalyser = null, _lvlData = null;   // web tap
@@ -16272,39 +16267,10 @@
   function _lvlPushSample(raw) {
     if (!(raw >= 0)) raw = 0;
     const jt = currentPracticeTime - ptLatency();
-    if (_lvlWarmEnd == null) _lvlWarmEnd = jt + PT_LVL_WARMUP;   // meter-start warm-up window (set on the very first sample)
-    const L = raw;   // raw level — an instant-down baseline catches a real attack's sharp rise reliably (no false-miss); a stray harness-jitter frame is tolerated by the test's "not wholesale" assertion, and the real desktop getLevels meter is stable
-    const lead = (activeBundle && activeBundle.leadIn) || 0;
-    if (!_lvlCalibrated) {
-      // Count-in [0, leadIn) is player-silent → pure resting residual. Floor =
-      // max(90th-pct(resting) × 4, 0.02). (For countIn>0 the warm-up window above
-      // elapses during the count-in, so the first PLAYED note fires normally.)
-      if (currentPracticeTime < lead) { _lvlRestBuf.push(L); if (L >= _lvlFloor) _ptHadInput = true; _lvlSamples.push({ jt, L }); if (_lvlSamples.length > 512) _lvlSamples.shift(); return; }
-      if (_lvlRestBuf.length) {
-        const sorted = _lvlRestBuf.slice().sort((a, b) => a - b);
-        const rest = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.9))];
-        _lvlFloor = Math.max(rest * PT_LVL_REST_MULT, PT_LVL_FLOOR_MIN);
-        _lvlBaseline = rest;
-      } else { _lvlFloor = PT_LVL_FLOOR_MIN; _lvlBaseline = L; }
-      _lvlCalibrated = true;
-    }
-    // Warm-up glue: while the tap settles (0→signal) — or a STEADY tone is already
-    // present at scoring start (an inaudible residual) — snap the baseline to the
-    // level so it never reads as a rising-edge onset. Only a LATER sharp rise
-    // (after a gap/decay) fires. count-in absorbs this; for countIn=0 it costs
-    // only note-0's onset (precision bias).
-    if (jt < _lvlWarmEnd) {
-      _lvlBaseline = L;
-      if (L >= _lvlFloor) _ptHadInput = true;
-      _lvlSamples.push({ jt, L }); if (_lvlSamples.length > 512) _lvlSamples.shift();
-      return;
-    }
-    if (L < _lvlBaseline) _lvlBaseline = L; else _lvlBaseline += 0.05 * (L - _lvlBaseline);   // floor-follower (on smoothed L): down fast, up slow
-    if (L >= _lvlFloor && L / Math.max(_lvlBaseline, _lvlFloor) >= PT_ONSET_RATIO && jt - _lvlLastOnset > PT_ONSET_REFRACT) {
-      _lvlLastOnset = jt; _lvlOnsets.push(jt); if (_lvlOnsets.length > 256) _lvlOnsets.shift();
-    }
-    if (L >= _lvlFloor) { _ptHadInput = true; markBlockInput(); }   // real input present → misses may light (replaces the circular / confidence arming); credit the block (recap ●/○)
-    _lvlSamples.push({ jt, L }); if (_lvlSamples.length > 512) _lvlSamples.shift();
+    // Input-presence (arms miss gems + the recap ●/○): real signal ≥ the host
+    // floor. No onset/baseline/calibration — the host's gate is level-only.
+    if (raw >= PT_LVL_FLOOR_MIN) { _ptHadInput = true; markBlockInput(); }
+    _lvlSamples.push({ jt, L: raw }); if (_lvlSamples.length > 512) _lvlSamples.shift();
   }
   function ptPeakLevelIn(lo, hi) {
     let pk = 0;
@@ -16315,30 +16281,30 @@
     }
     return pk;
   }
-  function ptOnsetIn(lo, hi) {
-    for (let i = _lvlOnsets.length - 1; i >= 0; i--) {
-      const t = _lvlOnsets[i];
-      if (t < lo - 0.5) break;
-      if (t >= lo && t <= hi) return true;
+  function ptHasSamplesIn(lo, hi) {               // did the level meter cover this window at all?
+    for (let i = _lvlSamples.length - 1; i >= 0; i--) {
+      const s = _lvlSamples[i];
+      if (s.jt < lo - 0.5) break;
+      if (s.jt >= lo && s.jt <= hi) return true;
     }
     return false;
   }
-  // The gate both ears pass through (in ptCreditWindow): real input energy
-  // in-window AND (for per-note windows) an attack onset in-window. Tremolo
-  // spans ride level + their own presence ratio (many attacks — onset is less
-  // meaningful; audio-engine ruling).
+  // The host's silence gate, mirrored — a ONE-WAY VETO, not a positive precondition
+  // (host note_detect :5550-5588). Credit is forced to a MISS only when the meter
+  // SAW the window and it was genuinely silent (peak < 0.02). No samples covering
+  // the window → SKIP (pass), exactly like the host ("no telemetry ≠ silent"). NO
+  // onset requirement (the host has none); the detector's pitch/comb evidence is
+  // what credits. Tremolo spans ride the same level veto over their own span.
   function ptCreditGatePasses(w) {
     if (_lvlMode === 'none') return true;         // no host level source → gate inactive
     const lo = w.span ? w.t : w.matchStart;
     const hi = w.span ? w.spanEnd : w.matchEnd;
-    if (ptPeakLevelIn(lo, hi) < _lvlFloor) return false;
-    if (!w.span && !ptOnsetIn(lo, hi)) return false;
-    return true;
+    if (!ptHasSamplesIn(lo, hi)) return true;     // host SKIPS the veto when no samples cover the window
+    return ptPeakLevelIn(lo, hi) >= PT_LVL_FLOOR_MIN;   // silent window → forced miss; else credit stands
   }
   function startLevelMeter() {
     stopLevelMeter();
-    _lvlMode = 'none'; _lvlSamples = []; _lvlOnsets = []; _lvlBaseline = 0;
-    _lvlFloor = PT_LVL_FLOOR_MIN; _lvlRestBuf = []; _lvlCalibrated = false; _lvlWarmEnd = null; _lvlLastOnset = -Infinity;
+    _lvlMode = 'none'; _lvlSamples = [];
     const bridge = window.slopsmithDesktop && window.slopsmithDesktop.audio;
     if (bridge && typeof bridge.getLevels === 'function') {
       let okOnce = false;
