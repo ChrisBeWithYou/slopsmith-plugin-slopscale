@@ -124,16 +124,26 @@ function runProgressInPage() {
     ok("no badges without any cleared competency", S.computeBadges().length === 0, JSON.stringify(S.computeBadges()));
   } else ok("computeBadges/creditBadges exposed", false, "missing on window.SlopScale");
 
-  // ── Tier C — cooperative SHARE CARD (shareworthy gating + no leaderboard) ────
+  // ── SHARE CARD (honest mirror on EVERY run; no %/rank; image renders) ────────
+  // Anti-inflation moved from the BUTTON to the CONTENT (gamification ruling): every
+  // logged run is shareable, but an ordinary run is a dignified descriptive log (no
+  // ✓, no fabricated claim) while an earned run leads with the green ✓.
   if (typeof S.shareCardText === "function" && typeof S.isShareworthy === "function") {
-    const ordinary = { mode: "pathway", displayName: "Pentatonic", duration_ms: 60000, bpm: 90 };
-    const earnedRun = { mode: "pathway", displayName: "Pentatonic", duration_ms: 60000, bpm: 120, tierCleared: true, clearedTier: 3 };
-    const workoutRun = { mode: "session", displayName: "Morning Warm-up", duration_ms: 600000, chapters: [{}, {}, {}] };
-    ok("ordinary run is NOT shareworthy (anti-inflation)", !S.isShareworthy(ordinary) && S.shareCardText(ordinary) === "", `card="${S.shareCardText(ordinary)}"`);
-    const eCard = S.shareCardText(earnedRun);
-    ok("an earned run yields a cooperative card", S.isShareworthy(earnedRun) && /SlopScale/.test(eCard) && /Cleared/.test(eCard), eCard);
-    ok("a completed Workout is shareworthy", S.isShareworthy(workoutRun) && /Completed the Morning Warm-up/.test(S.shareCardText(workoutRun)), S.shareCardText(workoutRun));
-    ok("share card is cooperative — no leaderboard/rank/beat-me", !/leaderboard|\brank\b|beat me|#\d+\b/i.test(eCard + S.shareCardText(workoutRun)), eCard);
+    const ordinary = { mode: "custom", scale: "minor_pentatonic", key: "A", duration_ms: 60000, bpm: 90 };
+    const earnedRun = { mode: "pathway", displayName: "Pentatonic", duration_ms: 60000, bpm: 120, tierCleared: true, clearedTier: 3, key: "A" };
+    const workoutRun = { mode: "session", displayName: "Morning Warm-up", duration_ms: 600000, chapters: [{ role: "warmup" }, { role: "technique" }, { role: "cooldown" }] };
+    const jamRun = { jam: true, style: "Blues", scale: "blues", key: "A", bpm: 90, duration_ms: 240000 };
+    const oCard = S.shareCardText(ordinary), eCard = S.shareCardText(earnedRun);
+    ok("ordinary run STILL produces a card (every run is shareable) — but an HONEST log (no ✓, no fabricated claim)", oCard !== "" && !/✓/.test(oCard) && !/proved|cleared/i.test(oCard) && /Practiced/.test(oCard), `card="${oCard}"`);
+    ok("an earned run LEADS with the green ✓ (isShareworthy = leads-with-achievement)", S.isShareworthy(earnedRun) && /✓/.test(eCard) && /Cleared/.test(eCard), eCard);
+    ok("a completed Workout card reads 'Completed …' (descriptive, no green hero)", /Completed Morning Warm-up/.test(S.shareCardText(workoutRun)), S.shareCardText(workoutRun));
+    ok("Jam card is descriptive (mirror — never a judge)", /Jammed over/.test(S.shareCardText(jamRun)) && !/✓/.test(S.shareCardText(jamRun)), S.shareCardText(jamRun));
+    const all = [oCard, eCard, S.shareCardText(workoutRun), S.shareCardText(jamRun)].join("\n");
+    ok("NO %/rank/leaderboard on ANY card (public-artifact rule)", !/\d%/.test(all) && !/leaderboard|\brank\b|beat me|#\d+\b/i.test(all), all.replace(/\n/g, " | "));
+    if (typeof S.renderShareCardImage === "function") {
+      const cv = S.renderShareCardImage(earnedRun);
+      ok("renderShareCardImage returns a 1200×630 canvas", cv && cv.width === 1200 && cv.height === 630, cv ? `${cv.width}x${cv.height}` : "null");
+    }
   } else ok("shareCardText/isShareworthy exposed", false, "missing on window.SlopScale");
 
   // ── Bass FELT-HOLD analyzer + credit (the engagement foundations build) ─────

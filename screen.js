@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.17-dev';
+  const SLOPSCALE_VERSION = '0.7.18-dev';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -12788,7 +12788,7 @@
     }
     // Tier C: the cooperative share card is offered for ANY shareworthy run (a tier/
     // depth flip, a completed Workout, a new badge — not only the proof pilot).
-    if (isShareworthy(s)) copyBtn = `<button type="button" class="slopscale-ss-copy" data-act="copy-proof" title="Copy a plain-text card to share">Copy progress card</button>`;
+    copyBtn = shareRowHtml();   // Copy card + Save — every run (incl. Jam's descriptive card)
     return `<div class="slopscale-progress-sheet-section slopscale-ss-card">` +
       `<div class="slopscale-ss-head"><h4>Last session</h4>` +
       `<button type="button" class="slopscale-ss-dismiss" data-act="dismiss-summary" title="Dismiss" aria-label="Dismiss last-session card">✕</button></div>` +
@@ -12874,8 +12874,8 @@
         ? `Your line voice-led to the guide tones (3rd &amp; 7th)${s.proof.progression ? ` through the ${s.proof.progression}` : ''}. ${s.proof.transfer || ''}`.trim()
         : (s.proof.transfer || '');
       verdict = `<div class="slopscale-ss-cleared slopscale-results-verdict">${claim}</div>` +
-        (psub ? `<div class="slopscale-ss-sub slopscale-ss-transfer">${psub}</div>` : '') +
-        `<button type="button" class="slopscale-ss-copy" data-act="copy-proof" title="Copy a plain-text card to share">Copy progress card</button>`;
+        (psub ? `<div class="slopscale-ss-sub slopscale-ss-transfer">${psub}</div>` : '');
+        // (the share card now rides the unified shareRow below — every run)
     } else if (ownTierFlip && !isFelt) {
       verdict = `<div class="slopscale-ss-cleared slopscale-results-verdict">▲ Rung cleared — ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}</div>`;
     } else if (s.depth && s.depth.travelRung) {
@@ -13096,13 +13096,10 @@
       chaptersHtml = `<div class="slopscale-results-chapters">${rows2}</div>`;
     }
 
-    // Tier C share card (cooperative): a "Copy progress card" affordance on any
-    // shareworthy run that doesn't already carry the proof Copy button (the proof
-    // verdict renders its own). Covers a completed Workout recap + earned non-proof
-    // runs; ordinary/rough runs get nothing (anti-inflation).
-    const shareBtn = (isShareworthy(s) && !s.proof)
-      ? `<button type="button" class="slopscale-ss-copy" data-act="copy-proof" title="Copy a plain-text card to share">Copy progress card</button>`
-      : '';
+    // Cooperative share card (Copy card + Save): on EVERY results page, every run —
+    // the card is an honest mirror (earned → green ✓; ordinary → descriptive log), so
+    // it can't inflate (gamification: the gate moved from the button to the content).
+    const shareBtn = shareRowHtml();
 
     // Bass FELT body (Option A): the verdict WORD replaces the % entirely. A flip
     // reuses the green hero `verdict`; otherwise a calm descriptive word (no green,
@@ -13226,9 +13223,7 @@
       btn.textContent = (open ? '▾' : '▸') + ' How this run was judged';
       try { localStorage.setItem('slopscale.resultsDetails', open ? 'open' : 'closed'); } catch (_) {}
     });
-    body.querySelectorAll('[data-act="copy-proof"]').forEach(btn => btn.addEventListener('click', (ev) => {
-      try { navigator.clipboard.writeText(shareCardText(s)); ev.target.textContent = 'Copied ✓'; } catch (_) {}
-    }));
+    body.querySelectorAll('[data-act="copy-card"], [data-act="download-card"]').forEach(btn => btn.addEventListener('click', () => shareCardClick(btn, s)));
     root.classList.add('ss-results-open');
     // The dialog ships aria-hidden="true" in the markup (every other panel
     // toggles it in its open/close fns — this one was missed): flip it BEFORE
@@ -17225,55 +17220,188 @@
     blues_foundation: 'Next time you play a blues, reach for the ♭5 and resolve it up to the 5th — that one note is the blues.',
     vl_connect: 'Next time you solo over a ii–V–I, aim your line at the next chord\'s 3rd or 7th across the bar line — that is playing the changes.',
   };
-  // The shareable plaintext card — Discord-ready, rendered only on a real flip.
-  // Kind-aware: a guide-tones pilot leads with the musical claim, then the tempo.
-  // The COOPERATIVE share card (engagement Tier C — extends the proof-loop card to
-  // the whole earned surface). "Share and cheer", never a leaderboard/rank/score and
-  // never auto-posted (a Copy button — consent). Anti-inflation: a card exists ONLY
-  // for a run that actually accomplished something real (a proof, a tier/depth flip,
-  // a NEW badge, or a completed multi-block Workout — "I did the map"); an ordinary
-  // or rough single run produces no card (sharing nothing = inflation, per the
-  // run-end celebration spec). The Level line is behind the XP-Off switch.
+  // ── COOPERATIVE SHARE CARD (engagement Tier C) — text + IMAGE, every lane ─────
+  // "Share and cheer", never a leaderboard/rank/score, never auto-posted (a Copy
+  // button — consent). ONE content model feeds BOTH the plain-text card and the
+  // canvas image (the image is a styled render of the SAME lines — never a superset,
+  // so a %/chart can't sneak into the public artifact). Gamification rulings
+  // (project_share_card_everywhere_and_jam): EVERY logged run is shareable (the ~2s
+  // session floor is the only gate — _lastEndedSession only exists past it); the card
+  // is a strict honest MIRROR — an earned run LEADS with a green ✓, an ordinary run
+  // is a dignified descriptive log (no ✓, no fabricated claim); NO %/grade/rank on
+  // ANY card, any mode; Jam is DESCRIPTIVE only (form/key/style/time — the mirror,
+  // never a judge); a Custom passive ±5 flip is NEVER the public hero. Level behind
+  // XP-Off. `isShareworthy` is repurposed: it now means "leads with an achievement"
+  // (the content fork), not "does the card exist".
+  function _scaleLabel(sc) { return sc ? String(sc).replace(/_/g, ' ') : ''; }
   function isShareworthy(s) {
     if (!s) return false;
-    if (s.proof) return true;
-    if (s.tierCleared) return true;
-    if (s.depth && (s.depth.travelRung || s.depth.cleanRung || s.depth.travelKey)) return true;
-    if (s.badgesNew && s.badgesNew.length) return true;
-    if (s.mode === 'session' && Array.isArray(s.chapters) && s.chapters.length > 1) return true;
-    return false;
+    return !!(s.proof || (s.tierCleared && s.mode === 'pathway') || (s.feltResult && s.feltResult.flip)
+      || (s.depth && (s.depth.travelRung || s.depth.cleanRung || s.depth.travelKey)) || (s.badgesNew && s.badgesNew.length));
+  }
+  // The single content model — { lane, eyebrow, hero, heroGreen, sub, dur, stats[], extra[] }.
+  function shareCardModel(s) {
+    if (!s) return null;
+    const isWorkout = s.mode === 'session' && Array.isArray(s.chapters) && s.chapters.length > 1;
+    const lane = s.jam ? 'JAM' : isWorkout ? 'WORKOUT' : s.mode === 'pathway' ? 'LADDER' : 'CUSTOM';
+    const mins = Math.floor((s.duration_ms || 0) / 60000), secs = Math.round(((s.duration_ms || 0) % 60000) / 1000);
+    const dur = `${mins}:${String(secs).padStart(2, '0')}`;
+    const m = { lane, dur, eyebrow: '', hero: '', heroGreen: false, sub: '', stats: [], extra: [] };
+    const stat = (label, value) => { if (value != null && value !== '') m.stats.push({ label, value: String(value) }); };
+    if (lane === 'JAM') {
+      m.eyebrow = 'JAMMED';
+      const style = s.style || _scaleLabel(s.scale) || 'a groove';
+      m.hero = `${style}${s.key ? ` in ${s.key}` : ''}`;
+      stat('STYLE', s.style || _scaleLabel(s.scale)); stat('KEY', s.key);
+      stat('TEMPO', s.bpm ? s.bpm + ' BPM' : null); stat('TIME', dur);
+      return m;
+    }
+    if (lane === 'WORKOUT') {
+      m.eyebrow = 'COMPLETED'; m.hero = s.displayName || 'Workout';
+      try {
+        const seen = []; s.chapters.forEach(c => { if (c.role && !seen.includes(c.role)) seen.push(c.role); });
+        const arc = seen.map(r => (SEGMENT_ROLES[r] && SEGMENT_ROLES[r].label) || r).filter(Boolean).join(' → ');
+        if (arc) m.sub = arc;
+      } catch (_) {}
+      const cleared = (s.chapters || []).filter(c => c.earned).length;
+      stat('BLOCKS', s.chapters.length); stat('TIME', dur); if (cleared > 0) stat('CLEARED', cleared);
+      return m;
+    }
+    // LADDER / CUSTOM — earned-led (green) or honest descriptive
+    if (s.feltResult && s.feltResult.flip) {
+      m.eyebrow = 'LOCKED IN'; m.heroGreen = true;
+      m.hero = (s.felt && s.felt.verdict === 'locked') ? 'Locked the pocket' : 'Settled into the pocket';
+      if (s.feltResult.feltBpm) m.sub = `held in the pocket to ${s.feltResult.feltBpm} BPM`;
+      stat('SKILL', s.feltResult.pathwayLabel || s.displayName); stat('KEY', s.key); stat('TIME', dur);
+    } else if (s.proof) {
+      m.eyebrow = 'PROVED'; m.heroGreen = true;
+      m.hero = s.proof.kind === 'guide_tones' ? 'Connected the changes' : s.proof.label;
+      m.sub = s.proof.kind === 'guide_tones'
+        ? `voice-led to the guide tones${s.proof.progression ? ` through the ${s.proof.progression}` : ''}`
+        : `holds at ${s.proof.tierName} tempo`;
+      stat('TEMPO', (s.proof.bpm || s.bpm) ? (s.proof.bpm || s.bpm) + ' BPM' : null); stat('KEY', s.proof.key || s.key); stat('TIME', dur);
+    } else if (s.tierCleared && s.clearedTier != null && s.mode === 'pathway') {
+      m.eyebrow = 'CLEARED'; m.heroGreen = true;
+      m.hero = `Cleared ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}`;
+      if (s.displayName) m.sub = s.displayName;
+      stat('TEMPO', s.bpm ? s.bpm + ' BPM' : null); stat('KEY', s.key); stat('TIME', dur);
+    } else if (s.depth && s.depth.travelRung) {
+      m.eyebrow = 'TRAVELS'; m.heroGreen = true; m.hero = 'It travels now';
+      if (s.displayName) m.sub = s.displayName;
+      stat('KEY', s.depth.travelKey || s.key); stat('TIME', dur);
+    } else {
+      // No earned event → an honest descriptive log (no ✓, no fabricated claim).
+      m.eyebrow = 'PRACTICED';
+      m.hero = `${_scaleLabel(s.scale) || (s.displayName || 'Practice')}${s.key ? ` in ${s.key}` : ''}`;
+      stat('TEMPO', s.bpm ? s.bpm + ' BPM' : null); stat('KEY', s.key); stat('TIME', dur);
+    }
+    // Secondary earned ✓ lines (text card only — the image keeps one hero).
+    if (s.depth && s.depth.travelKey && !s.depth.travelRung) m.extra.push(`Travels — first clean run in ${s.depth.travelKey}`);
+    if (s.depth && s.depth.cleanRung) m.extra.push('Clean — a supports-off pass');
+    if (s.badgesNew && s.badgesNew.length) s.badgesNew.forEach(b => m.extra.push(`${b.name} — ${b.desc}`));
+    return m;
   }
   function shareCardText(s) {
-    if (!isShareworthy(s)) return '';
+    const m = shareCardModel(s); if (!m) return '';
     let xpOff = false; try { xpOff = progressLoad().mode === 'off'; } catch (_) {}
-    const mins = Math.floor(s.duration_ms / 60000), secs = Math.round((s.duration_ms % 60000) / 1000);
-    const dur = `${mins}:${String(secs).padStart(2, '0')}`;
-    const isWorkout = s.mode === 'session' && Array.isArray(s.chapters) && s.chapters.length > 1;
-    const lines = [`SlopScale — ${s.proof ? s.proof.label : (s.displayName || 'Practice')}`];
-    if (s.feltResult && s.feltResult.flip) {
-      // Bass felt: lead with the WORD (the pocket is the achievement), tempo a fact.
-      const w = (s.felt && s.felt.verdict === 'locked') ? 'Locked the pocket' : 'Settled into the pocket';
-      lines.push(`✓ ${w} — ${s.feltResult.pathwayLabel || s.displayName}`);
-      if (s.feltResult.feltBpm) lines.push(`Held in the pocket to ${s.feltResult.feltBpm} BPM`);
-    } else if (s.proof) {
-      const p = s.proof;
-      if (p.kind === 'guide_tones') lines.push(`✓ Voice-led the changes (3rd & 7th)${p.progression ? ` through the ${p.progression}` : ''}${p.key ? ` in ${p.key}` : ''}`);
-      lines.push(`✓ Holds at ${p.tierName} tempo${p.bpm ? ` (${p.bpm} BPM)` : ''}`);
-    } else if (s.tierCleared && s.clearedTier != null) {
-      lines.push(`✓ Cleared ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}${s.bpm ? ` (${s.bpm} BPM)` : ''}`);
-    }
-    if (isWorkout) lines.push(`✓ Completed the ${s.displayName} workout — ${s.chapters.length} blocks`);
-    if (s.depth && s.depth.travelKey) lines.push(`✓ Travels — first clean run in ${s.depth.travelKey}`);
-    if (s.depth && s.depth.cleanRung) lines.push(`✓ Clean — a supports-off pass`);
-    if (s.badgesNew && s.badgesNew.length) s.badgesNew.forEach(b => lines.push(`🏅 ${b.name} — ${b.desc}`));
-    const tail = [`Practiced ${dur}`];
+    const what = m.lane === 'JAM' ? 'Jam' : (s.displayName || m.hero);
+    const lines = [`SlopScale — ${what}`];
+    if (m.heroGreen) lines.push(`✓ ${m.hero}${m.sub ? ` — ${m.sub}` : ''}`);
+    else if (m.lane === 'JAM') lines.push(`Jammed over ${m.hero}`);
+    else if (m.lane === 'WORKOUT') lines.push(`Completed ${m.hero}${m.sub ? ` (${m.sub})` : ''}`);
+    else lines.push(`Practiced ${m.hero}`);
+    m.extra.forEach(e => lines.push(`✓ ${e}`));
+    const tail = [`Practiced ${m.dur}`];
     if (s.streak > 0) tail.push(`Day ${s.streak}`);
     if (!xpOff) { try { const lv = xpLevelInfo(progressLoad().xp); tail.push(`Level ${lv.level} · ${lv.name}`); } catch (_) {} }
     lines.push(tail.join(' · '));
     return lines.join('\n');
   }
-  // Back-compat alias — earlier call sites referenced proofCardText.
-  function proofCardText(s) { return shareCardText(s); }
+  function proofCardText(s) { return shareCardText(s); }   // back-compat alias
+  function _fitCanvasText(ctx, text, maxW) {
+    text = String(text == null ? '' : text);
+    if (ctx.measureText(text).width <= maxW) return text;
+    let t = text; while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+    return t + '…';
+  }
+  // The card IMAGE — a canvas render of the SAME model (ux spec: 1200×630, verdict-led,
+  // green ✓ only on a true clear, theme accent read live, system fonts so no webfont
+  // race; same-origin → toBlob won't taint). Returns the canvas, or null.
+  function renderShareCardImage(s) {
+    const m = shareCardModel(s); if (!m) return null;
+    const W = 1200, H = 630, P = 64;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d'); if (!ctx) return null;
+    let accent = '#60a5fa', accentSoft = 'rgba(96,165,250,0.18)';
+    try { const root = $('slopscale-root'); if (root) { const cs = getComputedStyle(root);
+      const ae = cs.getPropertyValue('--ss-accent-edge').trim(); if (ae) accent = ae;
+      const as = cs.getPropertyValue('--ss-accent-soft').trim(); if (as) accentSoft = as; } } catch (_) {}
+    const GREEN = '#22c55e', TXT = '#f8fafc', DIM = '#cbd5e1', MUT = '#94a3b8', FAINT = '#64748b';
+    const SANS = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+    const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+    const font = (px, w, mono) => ctx.font = `${w} ${px}px ${mono ? MONO : SANS}`;
+    const pill = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); };
+    const bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#080812'); bg.addColorStop(1, '#0d0d18');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = accent; ctx.fillRect(0, 0, W, 5);                                   // accent spine
+    ctx.strokeStyle = 'rgba(148,163,184,0.16)'; ctx.lineWidth = 1; ctx.strokeRect(24.5, 24.5, W - 49, H - 49);
+    ctx.textBaseline = 'alphabetic';
+    // Brand strip
+    ctx.fillStyle = accent; pill(P, 70, 6, 40, 3); ctx.fill();
+    ctx.fillStyle = TXT; font(40, 800); ctx.fillText('SlopScale', P + 22, 104);
+    font(15, 700); const pT = m.lane, pW = ctx.measureText(pT).width + 28, pX = W - P - pW;
+    ctx.fillStyle = accentSoft; pill(pX, 72, pW, 34, 17); ctx.fill();
+    ctx.strokeStyle = accent; ctx.lineWidth = 1.5; pill(pX, 72, pW, 34, 17); ctx.stroke();
+    ctx.fillStyle = accent; ctx.fillText(pT, pX + 14, 95);
+    // Eyebrow + hero
+    ctx.fillStyle = accent; font(18, 700); ctx.fillText(m.eyebrow.toUpperCase(), P, 212);
+    const heroMaxW = W - P * 2;
+    let hs = 64; font(hs, 700); if (ctx.measureText((m.heroGreen ? '✓ ' : '') + m.hero).width > heroMaxW) { hs = 50; font(hs, 700); }
+    let hx = P; const hy = 296;
+    if (m.heroGreen) { ctx.fillStyle = GREEN; ctx.fillText('✓', hx, hy); hx += ctx.measureText('✓  ').width; font(hs, 700); }
+    ctx.fillStyle = TXT; ctx.fillText(_fitCanvasText(ctx, m.hero, heroMaxW - (hx - P)), hx, hy);
+    if (m.sub) { ctx.fillStyle = DIM; font(23, 500); ctx.fillText(_fitCanvasText(ctx, m.sub, heroMaxW), P, hy + 42); }
+    // Stats row
+    let sx = P; const sy = 452;
+    for (const st of m.stats.slice(0, 4)) {
+      ctx.fillStyle = MUT; font(13, 600); ctx.fillText(st.label.toUpperCase(), sx, sy);
+      ctx.fillStyle = TXT; font(27, 700, /\d/.test(st.value)); ctx.fillText(st.value, sx, sy + 38);
+      sx += Math.max(ctx.measureText(st.value).width, 70) + 54;
+    }
+    ctx.fillStyle = FAINT; font(14, 500); ctx.fillText('slopscale · practice studio for guitar & bass', P, H - 42);
+    return cv;
+  }
+  // Copy/download with the host-checked fallback ladder (slopsmith-host-expert):
+  // image→clipboard (Promise to keep the click activation) → download PNG → text.
+  // Returns 'copied' | 'saved' | 'copied-text' | 'failed'.
+  async function shareCardAction(s, action) {
+    const cv = renderShareCardImage(s);
+    const toBlob = () => new Promise(r => cv.toBlob(r, 'image/png'));
+    const download = async () => { const b = await toBlob(); if (!b) return false; const url = URL.createObjectURL(b); const a = document.createElement('a'); a.href = url; a.download = 'slopscale-card.png'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000); return true; };
+    if (action === 'download') { if (cv && await download()) return 'saved'; }
+    else {
+      try { if (cv && navigator.clipboard && window.ClipboardItem && window.isSecureContext) { await navigator.clipboard.write([new ClipboardItem({ 'image/png': toBlob() })]); return 'copied'; } } catch (_) {}
+      try { if (cv && await download()) return 'saved'; } catch (_) {}
+    }
+    try { await navigator.clipboard.writeText(shareCardText(s)); return 'copied-text'; } catch (_) {}
+    return 'failed';
+  }
+  // The share-button row (Copy card + Download) — on every results surface, every run.
+  function shareRowHtml() {
+    return `<div class="slopscale-share-row">` +
+      `<button type="button" class="slopscale-ss-copy" data-act="copy-card" title="Copy a shareable card image to the clipboard">Copy card</button>` +
+      `<button type="button" class="slopscale-ss-copy" data-act="download-card" title="Save the card as a PNG to share">⤓ Save</button>` +
+      `</div>`;
+  }
+  // Shared click logic for a Copy card / Save button (called from the modal + the
+  // P-sheet card handlers — both pass the session the card describes).
+  async function shareCardClick(btn, s) {
+    if (!btn || !s) return;
+    const res = await shareCardAction(s, btn.dataset.act === 'download-card' ? 'download' : 'copy');
+    const label = res === 'copied' ? 'Copied ✓' : res === 'saved' ? 'Saved ✓' : res === 'copied-text' ? 'Copied text ✓' : 'Couldn’t copy';
+    const orig = btn.textContent; btn.textContent = label;
+    setTimeout(() => { if (btn.isConnected) btn.textContent = orig; }, 1600);
+  }
   function advancePathwayTier(session) {
     const total = (session.hit_count || 0) + (session.miss_count || 0);
     // Below PT_MIN_JUDGED the evidence can't grade — lenient self-confirm,
@@ -17592,6 +17720,9 @@
       id: `${now}-${Math.random().toString(36).slice(2, 7)}`,
       date: localDateStr(),
       ts: now, mode, pathway_id, bpm, bpm_tier, scale, key, key_credit, tuning_offset, practice_type,
+      // Share-card fields (additive): the progression (Jam "form") + the Jam style label.
+      progression: (activeBundle && activeBundle.config && activeBundle.config.progression) || null,
+      style: (() => { try { return isJamMode() ? ((document.querySelector('#slopscale-jam-styles .slopscale-jam-style.active') || {}).textContent || '').trim() : null; } catch (_) { return null; } })(),
       // Hand-marks state at run start (Clean depth rung: a supports-off proving
       // run needs the marks OFF for the whole run — checked again at credit).
       hand_marks_on: handMarksOn(),
@@ -17836,6 +17967,7 @@
       badgesNew: badgeGain ? badgeGain.newBadges : null,   // [{ id, name, desc }] | null — Tier C: competency badges earned this run
       felt,                        // { verdict, leanMs, driftMs, jitterMs, untight } | null — bass felt-hold verdict (feltGate runs)
       feltResult,                  // { flip, feltPB, feltBpm, tier, tierName, verdict } | null — the felt credit (a flip = a cleared pocket)
+      progression: _activeSession.progression, style: _activeSession.style,   // share-card (Jam form/style)
       // Mini rung-ladder context for the modal's progress strip (post-update state).
       ladder: (_pw && PATHWAYS[_pw]) ? {
         tiers: PATHWAYS[_pw].tempoTiers || [],
@@ -19027,14 +19159,9 @@
     // "Last session" card dismiss (delegated — the sheet body is re-rendered each open).
     $('slopscale-progress-sheet-body')?.addEventListener('click', (e) => {
       if (e.target.closest('[data-act="dismiss-summary"]')) { _lastEndedSession = null; renderProgressSheet(); }
-      else if (e.target.closest('[data-act="copy-proof"]')) {
-        // Copy the shareable card to the clipboard — silent (no sound/toast), per the
-        // proof-loop guardrails. A brief inline "Copied ✓" is the only feedback.
-        const btn = e.target.closest('[data-act="copy-proof"]');
-        const txt = shareCardText(_lastEndedSession);
-        try { navigator.clipboard?.writeText(txt); } catch (_) {}
-        btn.textContent = 'Copied ✓';
-        setTimeout(() => { if (btn.isConnected) btn.textContent = 'Copy progress card'; }, 1600);
+      else {
+        const sbtn = e.target.closest('[data-act="copy-card"], [data-act="download-card"]');
+        if (sbtn) shareCardClick(sbtn, _lastEndedSession);   // image card → clipboard / PNG, silent
       }
     });
     $('slopscale-cheat-close')?.addEventListener('click', () => toggleCheatSheet(false));
@@ -19326,7 +19453,7 @@
   }
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
-  window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier, xpLevelInfo, computeBadges, creditBadges, shareCardText, isShareworthy, feltHoldAnalyze, creditFeltRung };
+  window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier, xpLevelInfo, computeBadges, creditBadges, shareCardText, isShareworthy, feltHoldAnalyze, creditFeltRung, shareCardModel, shareCardText, renderShareCardImage, isShareworthy };
   if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
