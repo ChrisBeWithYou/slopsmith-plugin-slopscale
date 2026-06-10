@@ -236,6 +236,27 @@ try {
   ok(anchor.cKey === "E" && anchor.cFret === 0 && anchor.cSetup === "guitar_6_standard", "(9c) drop-D-coded rung adapts to the standard player: open-E pedal (mirror-bug fixed)", JSON.stringify({ k: anchor.cKey, f: anchor.cFret, su: anchor.cSetup }));
   ok(anchor.dKey === "A" && anchor.dStation === "fret 5" && anchor.dFret === 5, "(9d) anchorFret:5 variation: pedal at fret 5, key derives A, station credited", JSON.stringify({ k: anchor.dKey, st: anchor.dStation, f: anchor.dFret }));
 
+  console.log("-- (10) INSTRUMENT PERSISTS across a drill switch (GitHub issue #5: Bass reverted to 6-string guitar) --");
+  // The player picks Bass, then switches the practice type (a "drill") — the
+  // instrument must STAY 4-string bass, not revert to 6-string guitar. Drives the
+  // real Custom-mode form: set stringSetup=bass, dispatch practiceType changes.
+  await page.evaluate(() => { document.querySelector("#slopscale-mode-custom")?.click(); localStorage.removeItem("slopscale.instrument"); });
+  await page.waitForTimeout(100);
+  const persist = await page.evaluate(() => {
+    const setup = document.querySelector('#slopscale-controls [name="stringSetup"]');
+    setup.value = "bass_4_standard"; setup.dispatchEvent(new Event("change", { bubbles: true }));
+    const after = [];
+    for (const pt of ["arpeggio", "chords", "rhythm_pulse", "walking_bass", "scale"]) {
+      const el = document.querySelector('[name="practiceType"]'); el.value = pt; el.dispatchEvent(new Event("change", { bubbles: true }));
+      after.push(document.querySelector('#slopscale-controls [name="stringSetup"]').value);
+    }
+    const genStrings = (() => { try { const ex = window.SlopScale.generateExercise(window.SlopScale.readConfig()); return [...new Set(ex.chart.notes.map(n => n.s))].sort((a, b) => a - b); } catch (e) { return ["err"]; } })();
+    setup.value = "guitar_6_standard"; setup.dispatchEvent(new Event("change", { bubbles: true }));   // self-clean
+    return { after, genStrings };
+  });
+  ok(persist.after.every(s => s === "bass_4_standard"), "(10) switching drills KEEPS 4-string bass (issue #5)", persist.after.join(" · "));
+  ok(persist.genStrings.length === 4 && Math.max(...persist.genStrings) === 3, "(10b) the generated chart stays on the 4 bass strings", `[${persist.genStrings.join(",")}]`);
+
   ok(pageErrs.length === 0, "no uncaught page errors", pageErrs.join(" | "));
   console.log(`\n${fails === 0 ? "PASS" : "FAIL"}  strings/tuning: ${fails} failure(s)`);
   process.exit(fails ? 1 : 0);
