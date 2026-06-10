@@ -257,6 +257,20 @@ try {
   ok(persist.after.every(s => s === "bass_4_standard"), "(10) switching drills KEEPS 4-string bass (issue #5)", persist.after.join(" · "));
   ok(persist.genStrings.length === 4 && Math.max(...persist.genStrings) === 3, "(10b) the generated chart stays on the 4 bass strings", `[${persist.genStrings.join(",")}]`);
 
+  console.log("-- (11) bass LEGATO carries the fretting FINGER (fg) — the pinky drill (Discord bass ask) --");
+  // The bass pinky/legato rung (bass_finger_legato) needs the box's finger number to
+  // reach the chart so the PINKY (fg 4) displays. buildLegatoExercise must carry n.fg
+  // AND SEQ_NOTE_FIELDS must list 'fg' (both were missing — the pinky never showed).
+  const fg = await page.evaluate(() => {
+    window.__t.setAdvanced(true); window.__t.setTuning(null);
+    window.__t.setForm({ stringSetup: "bass_4_standard", practiceType: "legato", scale: "minor_pentatonic", key: "A", fretboardSystem: "position", fretMin: 5, fretMax: 8 });
+    const ex = window.SlopScale.generateExercise(window.SlopScale.readConfig());
+    const fgs = [...new Set(ex.chart.notes.map(n => n.fg).filter(v => v != null))].sort();
+    return { n: ex.chart.notes.length, fgs, ho: ex.chart.notes.some(n => n.ho), po: ex.chart.notes.some(n => n.po) };
+  });
+  ok(fg.n > 0 && fg.ho && fg.po, "bass legato generates slurs (hammer-ons + pull-offs)", `n=${fg.n} ho=${fg.ho} po=${fg.po}`);
+  ok(fg.fgs.includes(4), "legato carries fg incl. the PINKY (fg 4) — the bass pinky drill works", `fgs=[${fg.fgs.join(",")}]`);
+
   ok(pageErrs.length === 0, "no uncaught page errors", pageErrs.join(" | "));
   console.log(`\n${fails === 0 ? "PASS" : "FAIL"}  strings/tuning: ${fails} failure(s)`);
   process.exit(fails ? 1 : 0);

@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.19-dev';
+  const SLOPSCALE_VERSION = '0.7.20-dev';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -533,6 +533,7 @@
     // through the instrument-aware Core bands (bass_rh_pulse is the on-ramp).
     ['bass_rh_pulse',          'bass_root_click'],
     ['bass_root_click',        'bass_finger_gym'],
+    ['bass_finger_gym',        'bass_finger_legato'],          // pinky HO/PO follows the finger gym
     ['bass_finger_gym',        'bass_root_fifth_octave'],
     ['bass_root_fifth_octave', 'bass_octave_groove'],
     ['bass_octave_groove',     'bass_lc_roots'],
@@ -542,6 +543,7 @@
     ['bass_arp_triads',        'bass_arp_sevenths'],
     ['bass_octave_groove',     'bass_dead_notes'],
     ['bass_dead_notes',        'bass_rh_sixteenth'],
+    ['bass_arp_sevenths',      'bass_arp_neck'],               // 7th boxes up the neck (position travel)
     ['bass_arp_sevenths',      'bass_walking'],                // Intermediate capstone
     ['bass_scale_two_octave',  'bass_scale_modes'],            // Intermediate → Advanced
     ['bass_scale_modes',       'bass_scale_shifts'],
@@ -583,8 +585,8 @@
     // bass player sees a pinned bass Beginner→Advanced staircase in the SAME 3 bands —
     // parity with guitar, not a separate taxonomy. Bass spine = the dissolved bass Style
     // packs (Foundations/Scales/Arps/Groove) re-homed + the new Core/L&C rungs.
-    { id:'core_beginner',     label:'Beginner',     kind:'core', pinned:true, pathways:['chromatic_warmup','pulse_muting','pent_foundation','power_chord_comping','blues_foundation','bend_drill','bass_rh_pulse','bass_root_click','bass_finger_gym','bass_root_fifth_octave','bass_octave_groove','bass_lc_roots'] },
-    { id:'core_intermediate', label:'Intermediate', kind:'core', pinned:true, pathways:['major_scale_caged','sixteenth_pocket','dorian_groove','chord_tone_targeting','modal_awareness','diatonic_triad_drill','bass_scale_one_box','bass_scale_two_octave','bass_arp_triads','bass_arp_sevenths','bass_dead_notes','bass_rh_sixteenth','bass_walking'] },
+    { id:'core_beginner',     label:'Beginner',     kind:'core', pinned:true, pathways:['chromatic_warmup','pulse_muting','pent_foundation','power_chord_comping','blues_foundation','bend_drill','bass_rh_pulse','bass_root_click','bass_finger_gym','bass_finger_legato','bass_root_fifth_octave','bass_octave_groove','bass_lc_roots'] },
+    { id:'core_intermediate', label:'Intermediate', kind:'core', pinned:true, pathways:['major_scale_caged','sixteenth_pocket','dorian_groove','chord_tone_targeting','modal_awareness','diatonic_triad_drill','bass_scale_one_box','bass_scale_two_octave','bass_arp_triads','bass_arp_sevenths','bass_arp_neck','bass_dead_notes','bass_rh_sixteenth','bass_walking'] },
     { id:'core_advanced',     label:'Advanced',     kind:'core', pinned:true, pathways:['seventh_vocab','whole_neck_freedom','guide_tones_path','ii_V_I_workout','modal_vamp','melmin_exotic_12key','harmonic_minor_exotic','sweep_arpeggio_primer','bass_scale_modes','bass_scale_shifts','bass_scale_whole_neck','bass_arp_changes','bass_lc_guide_tones','bass_lc_approach','bass_rh_three_finger','bass_lc_capstone','bass_lc_trade'] },
     { id:'style_blues',       label:'Blues',        kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner — minor-pentatonic box 1, the blue note (♭5), and a steady pulse over the 12-bar form.', pathways:['blues_box','blues_shuffle','blues_bends','blues_call_response','blues_mix'] },
     { id:'style_country',     label:'Country',      kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner→Intermediate — major pentatonic and the CAGED major scale; you target chord tones inside the shape, then add the country idiom (double-stops, chicken pickin\', the ♭VII train change).', pathways:['major_pent_country','country_cowboy_changes','country_double_stops','country_chicken_pickin','country_pedal_bends','country_train'] },
@@ -1140,6 +1142,19 @@
       base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:2, fretMax:9 },
       vary:[ { key:'C' }, { key:'A', scale:'natural_minor' }, { key:'G' }, { key:'F' }, { key:'D', scale:'dorian' } ]
     },
+    // 7th-arp BOXES across positions (Discord — Gungr: "7th arps in all positions over
+    // the neck", with a box diagram). Where bass_arp_sevenths travels by KEY, this
+    // travels by POSITION: one quality box walked up the neck. The four qualities are a
+    // one-note-edit chain (maj7→dom7→min7→m7♭5). Pure config (static_i + chordOverride +
+    // a stepped window), no new generator. See docs/bass-technique-content-roundtable.md.
+    bass_arp_neck: {
+      label:'Seventh Boxes — Up the Neck',
+      goal:"One seventh-chord box, walked up the whole neck: the same shape — root, 3rd, 5th, 7th — in each position from low to high, so the arpeggio lives everywhere, not just one spot. Four boxes, each a single finger-move from the last: maj7, drop the 7 for dom7, drop the 3 for min7, drop the 5 for m7♭5. The 3rd says major or minor, the ♭7 says dominant — own these and you outline the changes anywhere on the bass with no chart.",
+      scales:['major'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'diatonic_arpeggios', progression:'static_i', scale:'major', chordDepth:'seventh', chordOverride:'maj7', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:5 },
+      vary:[ { chordOverride:'maj7', fretMin:0, fretMax:5 }, { chordOverride:'dom7', fretMin:3, fretMax:8 }, { chordOverride:'min7', fretMin:5, fretMax:10 }, { chordOverride:'min7b5', fretMin:7, fretMax:12 }, { chordOverride:'maj7', fretMin:10, fretMax:15 } ]
+    },
     bass_arp_inversions: {
       label:'Arpeggio Inversions',
       goal:"The same seventh chord, started from each chord tone: root, 3rd, 5th, 7th. Inversions let you begin a line on any note and connect arpeggios up the neck — the bassist's tool for landing on the strongest note over each change instead of always thumping the root.",
@@ -1222,7 +1237,21 @@
       scales:['minor_pentatonic'],
       tempoTiers:[55, 70, 85, 100],
       base:{ practiceType:'chromatic', chromaticPattern:'1234', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', fretMin:5, fretMax:8 },
-      vary:[ { chromaticPattern:'1234', fretMin:5, fretMax:8 }, { chromaticPattern:'1324', fretMin:5, fretMax:8 }, { chromaticPattern:'4321', fretMin:5, fretMax:8 }, { chromaticPattern:'1234', fretMin:0, fretMax:3 }, { chromaticPattern:'1234', fretMin:7, fretMax:10 } ]
+      vary:[ { chromaticPattern:'1234', fretMin:5, fretMax:8 }, { chromaticPattern:'1324', fretMin:5, fretMax:8 }, { chromaticPattern:'4321', fretMin:5, fretMax:8 }, { chromaticPattern:'1342', fretMin:5, fretMax:8 }, { chromaticPattern:'1234', fretMin:7, fretMax:10 } ]
+    },
+    // Bass pinky / legato rung (Discord ask — Daniel: "pinky hammer-ons & pull-offs,
+    // not a creative circle of hell"). MUSICAL pentatonic-box legato, not chromatic:
+    // the minor-3rd reach in the box lands the hammered note on the PINKY (fg 4), so
+    // it builds exactly the finger bassists most need. Starts at the comfortable 5th
+    // fret; felt/clean, never scored on the slur. Core: Bass (NOT the CAGED concept
+    // rung). See docs/bass-technique-content-roundtable.md.
+    bass_finger_legato: {
+      label:'Pinky Power — Hammer-Ons & Pull-Offs',
+      goal:"The fretting hand makes the sound and the pinky earns its keep: hammer onto the higher note, pull off to the lower, pick only the first note on each string. In the pentatonic box the reach lands on your pinky — the very finger bassists most need to strengthen. Up at the 5th fret the stretch is easy; as your slurs get clean and even, work it lower. No straining, no flat four-finger reach — just the strength and independence that let a bassline flow.",
+      scales:['minor_pentatonic','natural_minor'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'legato', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'A', fretMin:5, fretMax:8 },
+      vary:[ { key:'A', fretMin:5, fretMax:8 }, { key:'D', fretMin:5, fretMax:8 }, { key:'E', fretMin:5, fretMax:9 }, { scale:'natural_minor', key:'A', fretMin:5, fretMax:9 }, { key:'G', fretMin:3, fretMax:7 } ]
     },
     bass_lc_roots: {
       label:'Roots on the One',
@@ -2223,6 +2252,13 @@
       stringSetup:'bass_4_standard', tags:['bass','beginner','foundational'],
       bpmLadder:{ enabled:false }, keyCycle:{ enabled:false },
       segments:[ { id:'warmup', templateId:'b_warm_chromatic' }, { id:'rh', templateId:'b_tech_right_hand' }, { id:'box', templateId:'b_tech_root_fifth_octave' }, { id:'scale', templateId:'b_scale_major' }, { id:'walk', templateId:'b_app_walking' } ],
+    },
+    bass_technique_gym: {
+      version:1, name:'Bass — Technique Gym',
+      description:"Hands first, the bass way — for when you're not practicing songs: chromatic warm-up → pinky hammer-ons & pull-offs → right-hand alternation → a position shift → seventh-arp boxes → spend it on a walking line. Build the fretting and plucking hand, then end on real music.",
+      stringSetup:'bass_4_standard', tags:['bass','technique','foundational'],
+      bpmLadder:{ enabled:false }, keyCycle:{ enabled:false },
+      segments:[ { id:'warmup', templateId:'b_warm_chromatic' }, { id:'legato', templateId:'b_tech_legato' }, { id:'rh', templateId:'b_tech_right_hand' }, { id:'shift', templateId:'b_tech_position_shift' }, { id:'arps', templateId:'b_arp_sevenths' }, { id:'walk', templateId:'b_app_walking' } ],
     },
     bass_pocket: {
       version:1, name:'Bass — The Pocket',
@@ -7243,7 +7279,7 @@
 
   // Technique flags an event may carry through to its rendered note. Anything
   // not in this list (e.g. midi/pc bookkeeping) is dropped so notes stay clean.
-  const SEQ_NOTE_FIELDS = ['ho', 'po', 'vb', 'tr', 'tp', 'bn', 'hm', 'hp', 'pm', 'mt', 'ac', 'sl', 'slu'];
+  const SEQ_NOTE_FIELDS = ['ho', 'po', 'vb', 'tr', 'tp', 'bn', 'hm', 'hp', 'pm', 'mt', 'ac', 'sl', 'slu', 'fg'];
 
   function orientSeq(events, direction) {
     if (direction === 'descending') return events.slice().reverse();
@@ -7328,11 +7364,13 @@
     // hammering on after the first note on each string.
     const strAsc = Object.keys(byStr).map(Number).sort((a, b) => a - b);
     const asc = [], desc = [];
+    // carry n.fg — the fretting-hand finger (the bass 1-2-4 box puts the hammered
+    // note on the pinky); SEQ_NOTE_FIELDS now lists 'fg' so it survives to the chart.
     for (const s of strAsc) {
-      byStr[s].sort((a, b) => a.f - b.f).forEach((n, i) => asc.push({ s: n.s, f: n.f, ho: i > 0, po: false }));
+      byStr[s].sort((a, b) => a.f - b.f).forEach((n, i) => asc.push({ s: n.s, f: n.f, fg: n.fg, ho: i > 0, po: false }));
     }
     for (const s of strAsc.slice().reverse()) {
-      byStr[s].sort((a, b) => b.f - a.f).forEach((n, i) => desc.push({ s: n.s, f: n.f, ho: false, po: i > 0 }));
+      byStr[s].sort((a, b) => b.f - a.f).forEach((n, i) => desc.push({ s: n.s, f: n.f, fg: n.fg, ho: false, po: i > 0 }));
     }
     const seq = cfg.direction === 'ascending' ? asc : cfg.direction === 'descending' ? desc : [...asc, ...desc];
     const sus = Math.max(0.05, step * 0.9);
