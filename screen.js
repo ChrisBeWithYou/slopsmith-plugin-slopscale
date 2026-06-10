@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.15-dev';
+  const SLOPSCALE_VERSION = '0.7.16-dev';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -1057,6 +1057,7 @@
     },
     bass_walking: {
       label:'Walking Bass',
+      feltGate:true,   // bass FEEL rung (v1 pilot): completes on a sustained POCKET (Settling-or-better), not a %; LOCKED raises the feltBpm PB. See docs/bass-felt-hold-roundtable.md.
       goal:'The jazz/blues engine: one note per beat, walking from chord to chord — root on the downbeat, chord tones and chromatic approach notes leading into the next change. The skill is voice-leading the bass line so it both outlines the harmony and pulls forward. The most-wanted bass skill in jazz and blues.',
       scales:['major','dorian','mixolydian'],
       tempoTiers:[65, 85, 105, 125],
@@ -3549,9 +3550,11 @@
       const bi = Math.floor((currentPracticeTime - ptLatency() - w.t) / PT_SPAN_BUCKET);
       if (bi >= 0 && bi < w.bktN) w.bkts.add(bi);
     } else {
-      // Credit only if the level+onset gate also passes (raw isHit is not
-      // enough — host-mirror). Timing tendency records only on a real credit.
-      if (ptCreditWindow(w)) _ptDevs.push(currentPracticeTime - ptLatency() - w.t);
+      // Credit only if the level gate also passes (raw isHit is not enough —
+      // host-mirror silence veto). Timing deviation { d, t } records only on a
+      // real credit — feeds both the timing-tendency line and the bass felt-hold
+      // verdict (t = onset, needed for gap/trend detection).
+      if (ptCreditWindow(w)) _ptDevs.push({ d: currentPracticeTime - ptLatency() - w.t, t: w.t });
     }
   }
   function ndStopVerify() {
@@ -12837,8 +12840,12 @@
     // (P-sheet) but never takes the hero slot here; only a pathway run's own
     // tier flip is an earned verdict.
     const ownTierFlip = !!(s.tierCleared && s.clearedTier != null && s.mode === 'pathway');
-    const earned = !!(s.proof || ownTierFlip || (s.depth && s.depth.travelRung));
-    const rough = judged && pct < 65 && !earned;
+    // A bass FELT-rung run (feltGate): the felt verdict WORD replaces the % entirely
+    // (felt-not-scored, Option A — never speed/accuracy as the bass headline).
+    const isFelt = !!(s.felt || s.feltResult);
+    const feltFlip = !!(s.feltResult && s.feltResult.flip);
+    const earned = !!(s.proof || (ownTierFlip && !isFelt) || feltFlip || (s.depth && s.depth.travelRung));
+    const rough = judged && pct < 65 && !earned && !isFelt;   // a felt run is never "rough" (no %)
     let xpOff = false; try { xpOff = (progressLoad().mode === 'off'); } catch (_) {}
     // Workout RECAP branch (Tier 3): a multi-block Workout has no single grade — the
     // chapter list REPLACES the aggregate % and the verdict slot becomes a
@@ -12846,9 +12853,16 @@
     // (descriptive, no per-block scoring). Single-config modes are unaffected.
     const isWorkout = s.mode === 'session' && Array.isArray(s.chapters) && s.chapters.length > 1;
 
-    // 1 · VERDICT slot — earned outcomes only; ONE hero (proof > tier > travel).
+    // 1 · VERDICT slot — earned outcomes only; ONE hero (felt > proof > tier > travel).
+    // Bass felt FLIP: the verdict WORD is the hero, tempo demoted (Option A — the
+    // marketing + 3-lane call). Settling-or-better cleared the rung; Locked also owns
+    // the groove at this tempo. The copy card rides shareBtn (one button).
     let verdict = '';
-    if (s.proof) {
+    if (feltFlip) {
+      const word = (s.felt && s.felt.verdict === 'locked') ? 'Locked the pocket' : 'Settled into the pocket';
+      verdict = `<div class="slopscale-ss-cleared slopscale-results-verdict">✓ ${word} — cleared ${s.feltResult.tierName}</div>` +
+        (s.feltResult.feltPB ? `<div class="slopscale-ss-sub slopscale-ss-transfer">Grooves owned — held Locked to ${s.feltResult.feltBpm} BPM</div>` : '');
+    } else if (s.proof) {
       const claim = s.proof.kind === 'guide_tones'
         ? `✓ You proved: ${s.proof.label} — you connected the changes at ${s.proof.tierName} tempo`
         : `✓ You proved: ${s.proof.label} holds at ${s.proof.tierName} tempo`;
@@ -12858,7 +12872,7 @@
       verdict = `<div class="slopscale-ss-cleared slopscale-results-verdict">${claim}</div>` +
         (psub ? `<div class="slopscale-ss-sub slopscale-ss-transfer">${psub}</div>` : '') +
         `<button type="button" class="slopscale-ss-copy" data-act="copy-proof" title="Copy a plain-text card to share">Copy progress card</button>`;
-    } else if (ownTierFlip) {
+    } else if (ownTierFlip && !isFelt) {
       verdict = `<div class="slopscale-ss-cleared slopscale-results-verdict">▲ Rung cleared — ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}</div>`;
     } else if (s.depth && s.depth.travelRung) {
       verdict = `<div class="slopscale-ss-cleared slopscale-results-verdict">▲ Travel rung cleared — it travels now</div>`;
@@ -12906,7 +12920,7 @@
       // no "was", no gap — the UI never performs the comparison for the player.
       // Suppressed on rough runs, before 3 same-spec runs, and when today IS the
       // best (the recognizer below carries that, upward).
-      if (s.specBest && !rough && s.specBest.runs >= 3 && !s.specBest.isNew) {
+      if (s.specBest && !rough && !isFelt && s.specBest.runs >= 3 && !s.specBest.isNew) {
         stripBits.push(`<div class="slopscale-results-deltas">Best here: ${s.specBest.best}%</div>`);
       }
       // ONE recognizer line, accent-colored (a new-best is new ground, not a clear).
@@ -13086,6 +13100,23 @@
       ? `<button type="button" class="slopscale-ss-copy" data-act="copy-proof" title="Copy a plain-text card to share">Copy progress card</button>`
       : '';
 
+    // Bass FELT body (Option A): the verdict WORD replaces the % entirely. A flip
+    // reuses the green hero `verdict`; otherwise a calm descriptive word (no green,
+    // no shame, no number). Tempo is demoted to the practiced line.
+    let feltBodyHtml = '';
+    if (isFelt) {
+      const v = s.felt && s.felt.verdict;
+      if (feltFlip) {
+        feltBodyHtml = verdict;
+      } else {
+        const MAP = { dragging: 'Dragging — behind the beat', rushing: 'Rushing — ahead of the kick', settling: 'Settling — finding the pocket', locked: 'Locked the pocket' };
+        const word = v ? (MAP[v] || 'Settling — finding the pocket')
+          : (s.felt && s.felt.untight ? 'Keep working the pocket' : 'Couldn’t catch the low strings — go by feel');
+        feltBodyHtml = `<div class="slopscale-results-verdict slopscale-results-felt">${word}</div>`;
+      }
+      feltBodyHtml += `<div class="slopscale-results-practiced">${s.displayName || 'Practice'}${s.bpm ? ` · ${s.bpm} BPM` : ''}${(s.felt && s.felt.spanBars) ? ` · held ${s.felt.spanBars} bars` : ''}</div>`;
+    }
+
     if (title) title.textContent = `Results — ${s.displayName || 'Practice'}`;
     // The judged-detail rows still carry honest counts/ear, but a Workout shows NO
     // % anywhere (incl. here) — reframe the toggle label and drop the "Practiced @
@@ -13093,6 +13124,8 @@
     body.innerHTML =
       (isWorkout
         ? sessionHeadHtml + chaptersHtml + strip + shareBtn
+        : isFelt
+        ? feltBodyHtml + strip + shareBtn
         : verdict +
           `<div class="slopscale-results-pct">${(judged && !reduceMotion) ? '0%' : headline}</div>` +
           `<div class="slopscale-results-head">${sub}</div>` +
@@ -13114,7 +13147,7 @@
     // The % count-up — the meter-settling idiom (an LCD landing on its value).
     // Never on empty states or a Workout (no % element); reduced-motion gets the
     // final value immediately.
-    if (judged && !reduceMotion && !isWorkout) {
+    if (judged && !reduceMotion && !isWorkout && !isFelt) {
       const el = body.querySelector('.slopscale-results-pct');
       const t0 = performance.now(), durMs = 550;
       const step = (now) => {
@@ -13253,7 +13286,13 @@
       if (PATHWAYS[id] && keys > 0) travels.push({ label: PATHWAYS[id].label, keys, mastered: !!byNode[id].masteredAt });
     }
     travels.sort((a, b) => b.keys - a.keys);
-    return { totalMin: Math.round(totalMs / 60000), weekMin: Math.round(weekMs / 60000), sessions: sessions.length, days: days.size, xp: store.xp || 0, numbers, travels };
+    // "Grooves owned" — the BASS denomination (felt-hold PB): pathways held Locked,
+    // shown at the tempo you hold (feltBpm), never speed-as-headline.
+    const grooves = Object.keys(pt)
+      .filter(id => PATHWAYS[id] && pt[id].feltBpm)
+      .map(id => ({ label: PATHWAYS[id].label, bpm: pt[id].feltBpm }))
+      .sort((a, b) => b.bpm - a.bpm);
+    return { totalMin: Math.round(totalMs / 60000), weekMin: Math.round(weekMs / 60000), sessions: sessions.length, days: days.size, xp: store.xp || 0, numbers, travels, grooves };
   }
   function fmtMins(min) { return min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min}m`; }
   function woodshedSectionHtml() {
@@ -13282,7 +13321,13 @@
       travelHtml = `<div class="slopscale-pm-sub">Traveled — held in new keys</div>` +
         w.travels.slice(0, 5).map(t => `<div class="slopscale-pm-row"><span>${t.label}${t.mastered ? ' ★' : ''}</span><strong>${t.keys} ${t.keys === 1 ? 'key' : 'keys'}</strong></div>`).join('');
     }
-    return `<div class="slopscale-progress-sheet-section"><h4>Woodshed</h4>${rows.join('')}${numbersHtml}${travelHtml}</div>`;
+    // Grooves owned — the bass felt-hold PBs (held in the pocket; tempo a fact, not a rank).
+    let groovesHtml = '';
+    if (w.grooves && w.grooves.length) {
+      groovesHtml = `<div class="slopscale-pm-sub">Grooves owned — held in the pocket</div>` +
+        w.grooves.slice(0, 5).map(g => `<div class="slopscale-pm-row"><span>${g.label}</span><strong>to ${g.bpm} BPM</strong></div>`).join('');
+    }
+    return `<div class="slopscale-progress-sheet-section"><h4>Woodshed</h4>${rows.join('')}${numbersHtml}${travelHtml}${groovesHtml}</div>`;
   }
   // Competency BADGE rack (Tier C) — earned-only, gained-only (a badge is a one-time
   // false→true on a real competency artifact; nothing is ever shown locked-with-a-bar
@@ -16631,9 +16676,10 @@
           if (bi >= 0 && bi < best.bktN) best.bkts.add(bi);
         } else {
           // Single-frame commit (the host's rule): one fresh in-window
-          // in-pitch lock credits the note — IF the level+onset gate also
-          // passes. Timing tendency records only on a real credit.
-          if (ptCreditWindow(best)) _ptDevs.push(tJudge - best.t);
+          // in-pitch lock credits the note — IF the level gate also passes
+          // (host-mirror silence veto). Deviation { d, t } records only on a
+          // real credit (t = onset, for the felt-hold gap/trend detection).
+          if (ptCreditWindow(best)) _ptDevs.push({ d: tJudge - best.t, t: best.t });
         }
       } else {
         // Near-miss aggregate: a fresh in-pitch frame that lands just
@@ -17025,8 +17071,8 @@
   function _updatePathwayTier(pathwayId, tier) {
     const all = pathwayTiersLoad();
     const cur = all[pathwayId] || { highest_tier: -1 };
-    if (tier <= cur.highest_tier) return null;
-    all[pathwayId] = { highest_tier: tier };
+    if (tier <= (cur.highest_tier ?? -1)) return null;
+    all[pathwayId] = Object.assign({}, cur, { highest_tier: tier });   // MERGE — never drop bestBpm/feltBpm
     pathwayTiersSave(all);
     if (window.slopsmith && typeof window.slopsmith.emit === 'function') {
       window.slopsmith.emit('slopscale:tier:unlocked', {
@@ -17034,6 +17080,82 @@
       });
     }
     return { pathwayId, tier };
+  }
+  // ── Bass FELT-HOLD (engagement foundations) — docs/bass-felt-hold-roundtable.md ──
+  // The bass analog of the guitar clean-tempo PB. Bass is felt-not-scored, so a
+  // FELT-rung pathway (feltGate:true) completes on a sustained POCKET, not a %: a
+  // verdict — Locked / Settling / Dragging / Rushing — from the onset-timing
+  // deviations we already collect (_ptDevs = { d:sec, t:sec }), NO new DSP, NO %, NO
+  // per-note flash. THREE numbers (rhythm-meter): leanMs (median placement), driftMs
+  // (Theil-Sen slope × span = tempo trend), jitterMs (MAD×1.4826 of the DETRENDED
+  // residuals = tightness). Sign (D1, the code's): + = LATE = behind, − = early =
+  // ahead. Bucketing order drift → lean → tightness, so a player sliding through
+  // center can't read Locked. Below the evidence gate → null (never a directional
+  // label); jitter-loose-but-centered → null+untight (encouraging "keep working it",
+  // NOT shaming). Thresholds bass-ped, v1 dogfood-tunable.
+  const FELT = { MIN_N: 12, MIN_BARS: 4, JITTER_LOCK: 25, JITTER_SETTLE: 45, LEAN_AHEAD: -18, LEAN_BEHIND: 28, DRIFT_FAIL: 35 };
+  function _feltMedian(a) { if (!a.length) return 0; const s = a.slice().sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+  function _feltTheilSen(pts) {   // median pairwise slope (ms per second) over { t:sec, d:ms }
+    const sl = [];
+    for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+      const dt = pts[j].t - pts[i].t; if (Math.abs(dt) > 1e-6) sl.push((pts[j].d - pts[i].d) / dt);
+    }
+    return sl.length ? _feltMedian(sl) : 0;
+  }
+  // devs = [{ d:sec, t:sec }]; opts.barSec. Returns { verdict, leanMs, driftMs,
+  // jitterMs, n, spanBars, untight } — verdict null = no pocket read (untight true →
+  // loose-but-played, false → too little evidence). Pure; no host/DOM.
+  function feltHoldAnalyze(devs, opts) {
+    opts = opts || {};
+    const barSec = opts.barSec > 0 ? opts.barSec : 2;
+    if (!Array.isArray(devs) || devs.length < FELT.MIN_N) return { verdict: null, n: devs ? devs.length : 0, untight: false };
+    const pts = devs.map(x => ({ t: x.t, d: x.d * 1000 })).sort((a, b) => a.t - b.t);   // d → ms
+    // Longest CONTINUOUS credited span (break the chain on a gap > ~2 bars).
+    const gapMax = 2 * barSec; let runStart = 0, best = [0, 0];
+    for (let i = 1; i <= pts.length; i++) {
+      if (i === pts.length || pts[i].t - pts[i - 1].t > gapMax) {
+        if (i - runStart > best[1] - best[0]) best = [runStart, i];
+        runStart = i;
+      }
+    }
+    const seg = pts.slice(best[0], best[1]);
+    const spanSec = seg.length ? (seg[seg.length - 1].t - seg[0].t) : 0;
+    const spanBars = barSec > 0 ? spanSec / barSec : 0;
+    if (seg.length < FELT.MIN_N || spanBars < FELT.MIN_BARS) return { verdict: null, n: seg.length, spanBars: Math.round(spanBars), untight: false };
+    const leanMs = Math.round(_feltMedian(seg.map(p => p.d)));
+    const slope = _feltTheilSen(seg);                  // ms/s
+    const driftMs = Math.round(slope * spanSec);
+    const resid = seg.map(p => p.d - slope * (p.t - seg[0].t));   // detrend
+    const medR = _feltMedian(resid);
+    const jitterMs = Math.round(1.4826 * _feltMedian(resid.map(r => Math.abs(r - medR))));
+    let verdict, untight = false;
+    if (Math.abs(driftMs) >= FELT.DRIFT_FAIL) verdict = driftMs > 0 ? 'dragging' : 'rushing';   // trend first (+ = behind)
+    else if (leanMs >= FELT.LEAN_BEHIND) verdict = 'dragging';
+    else if (leanMs <= FELT.LEAN_AHEAD) verdict = 'rushing';
+    else if (jitterMs <= FELT.JITTER_LOCK) verdict = 'locked';
+    else if (jitterMs <= FELT.JITTER_SETTLE) verdict = 'settling';
+    else { verdict = null; untight = true; }          // loose-but-centered: no pocket yet, encouraging copy
+    return { verdict, leanMs, driftMs, jitterMs, n: seg.length, spanBars: Math.round(spanBars), untight };
+  }
+  // Credit a FELT-rung pathway (the engine gap fix): Settling-or-better flips the
+  // tier (D2 — mirrors guitar's "clean enough" bar); LOCKED additionally raises the
+  // gained-only feltBpm PB ("grooves you own"). NO lenient self-confirm — a flip needs
+  // a real verdict (real onsets above the floor), so a sub-floor block self-enforces
+  // "practiced only". Returns the credit summary or null.
+  function creditFeltRung(pwId, bpm, fh) {
+    const pw = PATHWAYS[pwId]; if (!pw || !pw.feltGate || !fh) return null;
+    const v = fh.verdict;
+    const tiers = pw.tempoTiers || []; let tier = -1;
+    tiers.forEach((t, i) => { if ((bpm || 0) >= t) tier = i; });
+    if (tier < 0) return null;
+    let flip = null, feltPB = false;
+    if (v === 'locked' || v === 'settling') flip = _updatePathwayTier(pwId, tier);   // D2: settling-or-better flips
+    if (v === 'locked' && bpm) {
+      const all = pathwayTiersLoad(), cur = all[pwId] || {};
+      if (bpm > (cur.feltBpm || 0)) { cur.feltBpm = bpm; all[pwId] = cur; pathwayTiersSave(all); feltPB = true; try { emitProgress('felt', pwId, { bpm }); } catch (_) {} }
+    }
+    if (!flip && !feltPB) return null;
+    return { pathwayId: pwId, pathwayLabel: pw.label, tier, tierName: TIER_LABELS[tier] || ('Tier ' + (tier + 1)), verdict: v, flip: !!flip, feltPB, feltBpm: (pathwayTiersLoad()[pwId] || {}).feltBpm || null };
   }
   // ── Proof-loop slice (flagged, pilot-only) — docs/proof-loop-slice.md ────────
   // ONE flagged build, TRIPLE duty: (1) a per-rung CLEAN-PASS verdict — the
@@ -17121,7 +17243,12 @@
     const dur = `${mins}:${String(secs).padStart(2, '0')}`;
     const isWorkout = s.mode === 'session' && Array.isArray(s.chapters) && s.chapters.length > 1;
     const lines = [`SlopScale — ${s.proof ? s.proof.label : (s.displayName || 'Practice')}`];
-    if (s.proof) {
+    if (s.feltResult && s.feltResult.flip) {
+      // Bass felt: lead with the WORD (the pocket is the achievement), tempo a fact.
+      const w = (s.felt && s.felt.verdict === 'locked') ? 'Locked the pocket' : 'Settled into the pocket';
+      lines.push(`✓ ${w} — ${s.feltResult.pathwayLabel || s.displayName}`);
+      if (s.feltResult.feltBpm) lines.push(`Held in the pocket to ${s.feltResult.feltBpm} BPM`);
+    } else if (s.proof) {
       const p = s.proof;
       if (p.kind === 'guide_tones') lines.push(`✓ Voice-led the changes (3rd & 7th)${p.progression ? ` through the ${p.progression}` : ''}${p.key ? ` in ${p.key}` : ''}`);
       lines.push(`✓ Holds at ${p.tierName} tempo${p.bpm ? ` (${p.bpm} BPM)` : ''}`);
@@ -17372,16 +17499,18 @@
     { id: 'clean',       name: 'Clean Hands',    desc: 'A supports-off clean pass.',               test: (c) => c.anyClean },
     { id: 'breadth',     name: 'Broad Strokes',  desc: 'Cleared a rung on five different skills.',  test: (c) => c.clearedPathways >= 5 },
     { id: 'polyglot',    name: 'Well-Traveled',  desc: 'Carried your skills into five keys.',       test: (c) => c.totalKeys >= 5 },
+    { id: 'in_pocket',   name: 'In the Pocket',  desc: 'Held a bass groove Locked in the pocket.',  test: (c) => c.anyFelt },
   ];
   function badgeContext() {
     const pt = pathwayTiersLoad(), store = progressLoad(), byNode = store.byNode || {};
-    let clearedPathways = 0, pushPathways = 0, totalKeys = 0, anyTravel = false, anyClean = false;
+    let clearedPathways = 0, pushPathways = 0, totalKeys = 0, anyTravel = false, anyClean = false, anyFelt = false;
     for (const id of Object.keys(pt)) {
       if (!PATHWAYS[id]) continue;
       const hi = pt[id].highest_tier ?? -1;
       if (hi >= 0) clearedPathways++;
       const top = (PATHWAYS[id].tempoTiers || []).length - 1;
       if (top >= 0 && hi >= top) pushPathways++;
+      if (pt[id].feltBpm) anyFelt = true;   // a bass groove held Locked
     }
     for (const id of Object.keys(byNode)) {
       const n = byNode[id] || {};
@@ -17389,7 +17518,7 @@
       if (n.depth && n.depth.travel) anyTravel = true;
       if (n.depth && n.depth.clean) anyClean = true;
     }
-    return { clearedPathways, pushPathways, totalKeys, anyTravel, anyClean };
+    return { clearedPathways, pushPathways, totalKeys, anyTravel, anyClean, anyFelt };
   }
   function computeBadges() {
     const c = badgeContext();
@@ -17513,7 +17642,7 @@
     // the run info BEFORE the modal reads it. Threshold-gating happens at
     // display (≥8 samples, |lean| ≥ 30ms) — the data is recorded regardless.
     if (_ptRunInfo) {
-      const devs = _ptDevs.slice().sort((a, b) => a - b);
+      const devs = _ptDevs.map(x => x.d).sort((a, b) => a - b);   // _ptDevs is { d, t }; the tendency line uses d
       _ptRunInfo.leanMs = devs.length ? Math.round(devs[Math.floor(devs.length / 2)] * 1000) : null;
       _ptRunInfo.leanN = devs.length;
       _ptRunInfo.nearMiss = _ptNearMiss;
@@ -17546,7 +17675,19 @@
     sessions.unshift(_activeSession);
     sessionsSave(sessions);
     const _prevXp = (function () { try { return progressLoad().xp || 0; } catch (_) { return 0; } })();
-    const unlock = advancePathwayTier(_activeSession);
+    // Bass FELT-rung path: a feltGate pathway completes on a sustained POCKET, not a
+    // % — route through the felt verdict + creditFeltRung instead of the %-hit gate
+    // (which can never fire below the mic floor). The verdict drives the run-end word.
+    const _feltGate = !!(_pw && PATHWAYS[_pw] && PATHWAYS[_pw].feltGate);
+    let felt = null, feltResult = null, unlock;
+    if (_feltGate) {
+      const barSec = (function () { try { return measureSeconds(activeBundle.config); } catch (_) { return 2; } })();
+      felt = feltHoldAnalyze(_ptDevs, { barSec });
+      feltResult = creditFeltRung(_pw, _activeSession.bpm, felt);
+      unlock = (feltResult && feltResult.flip) ? { pathwayId: _pw, tier: feltResult.tier } : null;
+    } else {
+      unlock = advancePathwayTier(_activeSession);
+    }
     const depthGain = advanceDepthLadder(_activeSession);   // XP + Travel axis (Phase 8)
     // Tier C readouts (behind XP-Off): a quiet LEVEL-UP delta when this run's XP gain
     // crossed a woodshed-level boundary, + any NEW competency badges (computed AFTER
@@ -17563,8 +17704,11 @@
     // (travelKey) stays the render-time fallback. bestBpm rides the same
     // pathway_tiers entry; a clean run = ≥8 really-judged notes at ≥65% (the
     // minimum-denominator rule — never issue a claim off a tiny judged set).
+    // The %-based recognizers + bestBpm are the GUITAR denomination — never fire
+    // them for a bass felt-rung (felt is the bass denomination; speed/accuracy is
+    // never the bass headline). feltResult carries the bass recognition instead.
     let recognizer = null;
-    if (_pw) {
+    if (_pw && !_feltGate) {
       const judgedN = (_activeSession.hit_count || 0) + (_activeSession.miss_count || 0);
       const clean = judgedN >= 8 && (_activeSession.hit_count || 0) / judgedN >= 0.65;
       if (clean && _activeSession.bpm != null) {
@@ -17683,6 +17827,8 @@
       specBest,                    // { best, runs, isNew, prev } | null — the standing-target "Best here" line
       levelUp,                     // { level, name } | null — Tier C: a woodshed level boundary crossed this run (quiet)
       badgesNew: badgeGain ? badgeGain.newBadges : null,   // [{ id, name, desc }] | null — Tier C: competency badges earned this run
+      felt,                        // { verdict, leanMs, driftMs, jitterMs, untight } | null — bass felt-hold verdict (feltGate runs)
+      feltResult,                  // { flip, feltPB, feltBpm, tier, tierName, verdict } | null — the felt credit (a flip = a cleared pocket)
       // Mini rung-ladder context for the modal's progress strip (post-update state).
       ladder: (_pw && PATHWAYS[_pw]) ? {
         tiers: PATHWAYS[_pw].tempoTiers || [],
@@ -19173,7 +19319,7 @@
   }
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
-  window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier, xpLevelInfo, computeBadges, creditBadges, shareCardText, isShareworthy };
+  window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier, xpLevelInfo, computeBadges, creditBadges, shareCardText, isShareworthy, feltHoldAnalyze, creditFeltRung };
   if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();

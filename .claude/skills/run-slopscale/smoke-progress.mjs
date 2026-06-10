@@ -136,6 +136,41 @@ function runProgressInPage() {
     ok("share card is cooperative — no leaderboard/rank/beat-me", !/leaderboard|\brank\b|beat me|#\d+\b/i.test(eCard + S.shareCardText(workoutRun)), eCard);
   } else ok("shareCardText/isShareworthy exposed", false, "missing on window.SlopScale");
 
+  // ── Bass FELT-HOLD analyzer + credit (the engagement foundations build) ─────
+  if (typeof S.feltHoldAnalyze === "function" && typeof S.creditFeltRung === "function") {
+    // Synthetic dev vectors: barSec=1 → MIN_BARS=4 needs ≥4s span; 16 samples @0.5s = 7.5s.
+    const vec = (fn) => Array.from({ length: 16 }, (_, i) => ({ t: i * 0.5, d: fn(i) / 1000 }));
+    const opts = { barSec: 1 };
+    const locked = S.feltHoldAnalyze(vec(i => (i % 2 ? 10 : -10)), opts);          // tight, centered
+    const settling = S.feltHoldAnalyze(vec(i => (i % 2 ? 25 : -25)), opts);        // jitter ~37
+    const untight = S.feltHoldAnalyze(vec(i => (i % 2 ? 55 : -55)), opts);         // jitter >45
+    const dragging = S.feltHoldAnalyze(vec(() => 35), opts);                       // steady +35ms late
+    const rushing = S.feltHoldAnalyze(vec(() => -25), opts);                       // steady -25ms early
+    const drift = S.feltHoldAnalyze(vec(i => 40 - (i / 15) * 80), opts);           // slides +40→-40 (median ~0)
+    const sparse = S.feltHoldAnalyze(Array.from({ length: 8 }, (_, i) => ({ t: i * 0.5, d: 0 })), opts);
+    ok("feltHold: tight+centered → LOCKED", locked.verdict === "locked", JSON.stringify(locked));
+    ok("feltHold: medium jitter → SETTLING", settling.verdict === "settling", JSON.stringify(settling));
+    ok("feltHold: loose+centered → null+untight (no shame, no flip)", untight.verdict === null && untight.untight === true, JSON.stringify(untight));
+    ok("feltHold: steady late lean → DRAGGING (+ = behind)", dragging.verdict === "dragging", JSON.stringify(dragging));
+    ok("feltHold: steady early lean → RUSHING (− = ahead)", rushing.verdict === "rushing", JSON.stringify(rushing));
+    ok("feltHold: center-crossing slide → drift caught (RUSHING), not Locked", drift.verdict === "rushing", JSON.stringify(drift));
+    ok("feltHold: < MIN_N evidence → null, not untight", sparse.verdict === null && sparse.untight === false, JSON.stringify(sparse));
+
+    // creditFeltRung — bass_walking is feltGate (tempoTiers [65,85,105,125]).
+    localStorage.setItem("slopscale.pathway_tiers", JSON.stringify({}));
+    const cLock = S.creditFeltRung("bass_walking", 105, { verdict: "locked" });    // tier 2 + feltBpm
+    const ptW = JSON.parse(localStorage.getItem("slopscale.pathway_tiers") || "{}").bass_walking || {};
+    ok("creditFeltRung LOCKED flips the rung + raises feltBpm", cLock && cLock.flip === true && cLock.tier === 2 && ptW.feltBpm === 105 && ptW.highest_tier === 2, JSON.stringify({ cLock, ptW }));
+    localStorage.setItem("slopscale.pathway_tiers", JSON.stringify({}));
+    const cSet = S.creditFeltRung("bass_walking", 85, { verdict: "settling" });    // flips, no feltBpm
+    const ptS = JSON.parse(localStorage.getItem("slopscale.pathway_tiers") || "{}").bass_walking || {};
+    ok("creditFeltRung SETTLING flips the rung, no feltBpm PB (D2)", cSet && cSet.flip === true && cSet.feltPB === false && ptS.feltBpm == null, JSON.stringify({ cSet, ptS }));
+    const cDrag = S.creditFeltRung("bass_walking", 85, { verdict: "dragging" });   // no flip
+    ok("creditFeltRung DRAGGING flips nothing (descriptive only)", cDrag === null, JSON.stringify(cDrag));
+    const cNon = S.creditFeltRung("pent_foundation", 105, { verdict: "locked" });  // not a feltGate pathway
+    ok("creditFeltRung on a non-feltGate pathway → null", cNon === null, JSON.stringify(cNon));
+  } else ok("feltHoldAnalyze/creditFeltRung exposed", false, "missing on window.SlopScale");
+
   // ── Off mode collapses the layer (no xp/depth/return; no badge credit) ──────
   S.progressSetMode("off");
   const xpBefore = S.progressLoad().xp;
