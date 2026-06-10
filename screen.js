@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.16-dev';
+  const SLOPSCALE_VERSION = '0.7.17-dev';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -11205,7 +11205,11 @@
   // ===========================================================================
   function drawFretboardFrame() {
     const canvas = $('slopscale-fretboard');
-    if (!canvas || canvas.offsetParent === null) return;  // hidden (wrong view / toggled off / piano)
+    if (!canvas || canvas.offsetParent === null) return;  // hidden (wrong view / piano / display:none)
+    // The strip now SLIDES via max-height (it stays display:block when capable-but-
+    // off), so also skip when it's collapsed/mid-close — no point drawing a canvas the
+    // container has clipped to ~0. (clientHeight tracks the live max-height.)
+    const _strip = canvas.parentElement; if (_strip && _strip.clientHeight < 4) return;
     if (!fbCtx || fbCtx.canvas !== canvas) fbCtx = canvas.getContext('2d');
     const ctx = fbCtx; if (!ctx) return;
     const dpr = window.devicePixelRatio || 1, rect = canvas.getBoundingClientRect();
@@ -13421,8 +13425,11 @@
   function toggleSettingsMenu(force) {
     const menu = $('slopscale-settings-menu'), btn = $('slopscale-settings-btn');
     if (!menu || !btn) return;
-    const open = force != null ? force : menu.hidden;
-    menu.hidden = !open;
+    // Class-toggled (animated slide/fade); the CSS closed state is visibility-hidden
+    // + pointer-events-none, so it's inert when closed without display:none (which
+    // would kill the transition). Replaces the old menu.hidden flip.
+    const open = force != null ? force : !menu.classList.contains('ss-open');
+    menu.classList.toggle('ss-open', open);
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
   function applyTheme(name) {
@@ -19152,7 +19159,7 @@
     $('slopscale-countin-default')?.addEventListener('change', (e) => { try { localStorage.setItem('slopscale.countInDefault', e.target.value); } catch (_) {} applyCountInDefault(e.target.value); });
     loadSettingsPrefs();
     document.addEventListener('click', (e) => {
-      const menu = $('slopscale-settings-menu'); if (!menu || menu.hidden) return;
+      const menu = $('slopscale-settings-menu'); if (!menu || !menu.classList.contains('ss-open')) return;
       const btn = $('slopscale-settings-btn');
       if (!menu.contains(e.target) && btn && !btn.contains(e.target)) toggleSettingsMenu(false);
     });

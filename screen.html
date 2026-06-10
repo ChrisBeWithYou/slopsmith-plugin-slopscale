@@ -125,8 +125,11 @@
   .slopscale-settings-btn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; border-radius: 8px; border: 1px solid var(--ss-border, #334155); background: var(--ss-inset, #0b1220); color: var(--ss-text-dim, #94a3b8); cursor: pointer; transition: background 0.12s, color 0.12s; }
   .slopscale-settings-btn:hover { background: #1e293b; color: #e2e8f0; }
   .slopscale-settings-btn[aria-expanded="true"] { border-color: var(--ss-accent, #4080e0); color: #e2e8f0; }
-  .slopscale-settings-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 180px; padding: 5px; display: flex; flex-direction: column; gap: 2px; background: var(--ss-surface, #0d1424); border: 1px solid var(--ss-border, #334155); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.45); }
-  .slopscale-settings-menu[hidden] { display: none; }
+  /* Settings pane — slides/fades in from the top-right (mirrors the mixer's animated
+     open). Class-toggled (NOT [hidden]{display:none}, which can't transition); the
+     closed state is visibility-hidden + pointer-events-none so it's inert + a11y-safe. */
+  .slopscale-settings-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 180px; padding: 5px; display: flex; flex-direction: column; gap: 2px; background: var(--ss-surface, #0d1424); border: 1px solid var(--ss-border, #334155); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.45); transform-origin: top right; transform: translateY(-6px) scale(0.97); opacity: 0; visibility: hidden; pointer-events: none; transition: transform 0.17s cubic-bezier(0.22,1,0.36,1), opacity 0.17s ease, visibility 0s linear 0.17s; }
+  .slopscale-settings-menu.ss-open { transform: translateY(0) scale(1); opacity: 1; visibility: visible; pointer-events: auto; transition: transform 0.17s cubic-bezier(0.22,1,0.36,1), opacity 0.17s ease; }
   .slopscale-settings-item { text-align: left; padding: 8px 10px; font-size: 12.5px; border: none; background: none; color: #cbd5e1; cursor: pointer; border-radius: 6px; }
   .slopscale-settings-item:hover { background: rgba(148,163,184,0.12); color: #f1f5f9; }
   .slopscale-settings-menu { min-width: 224px; }
@@ -525,12 +528,17 @@
   /* Live fretboard strip docked under the highway. Hidden by default; shown only
      for fretboard-capable views (Jumping Tab + Notation) when the toggle is on.
      Always hidden for the Piano instrument. */
-  .slopscale-fretboard-strip { position: relative; flex-shrink: 0; height: 132px; background: #08080f; border-top: 1px solid rgba(75,85,99,0.4); display: none; }
-  #slopscale-fretboard { display: block; width: 100%; height: 100%; }
-  .slopscale-root.slopscale-fb-capable.slopscale-fb-on .slopscale-fretboard-strip { display: block; }
+  /* The strip SLIDES open/closed via max-height (the canvas keeps a FIXED height so
+     the container clips it — a clean reveal, never a mid-animation stretch). When
+     fretboard-capable it's in layout (collapsed, max-height:0); the .fb-on / jam
+     classes open it. display:none only for the not-capable + piano cases. */
+  .slopscale-fretboard-strip { position: relative; flex-shrink: 0; background: #08080f; border-top: 1px solid rgba(75,85,99,0.4); display: none; max-height: 0; overflow: hidden; transition: max-height 0.26s cubic-bezier(0.22,1,0.36,1); }
+  #slopscale-fretboard { display: block; width: 100%; height: 132px; }
+  .slopscale-root.slopscale-fb-capable .slopscale-fretboard-strip { display: block; }
+  .slopscale-root.slopscale-fb-capable.slopscale-fb-on .slopscale-fretboard-strip { max-height: 134px; }
   /* Jam mode always shows the strip (it's the target-highlight teaching surface),
      regardless of the renderer view. Piano stays hidden (its !important wins). */
-  .slopscale-root.ss-mode-jam .slopscale-fretboard-strip { display: block; }
+  .slopscale-root.ss-mode-jam .slopscale-fretboard-strip { display: block; max-height: 134px; }
   .slopscale-root.slopscale-piano-instrument .slopscale-fretboard-strip { display: none !important; }
   /* "Fretboard view" label + pill toggle — only shown for fretboard-capable
      views; margin-left:auto pushes it (and the theme toggle after it) right,
@@ -588,8 +596,8 @@
   .slopscale-hk-btn.active { background: var(--ss-accent-soft, rgba(64,128,224,0.2)); border-color: var(--ss-accent, #4080e0); color: #dbeafe; }
   .slopscale-hk-help { font-weight: 800; }
   /* Mixer — slides UP over the stage (overlay, not relayout). */
-  .slopscale-mixer { position: absolute; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--ss-surface-bar, rgba(9,15,30,0.97)); border-top: 1px solid var(--ss-border, #334155); box-shadow: 0 -8px 24px rgba(0,0,0,0.4); transform: translateY(105%); transition: transform 0.22s ease; padding: 10px 14px 14px; max-height: 72%; overflow-y: auto; }
-  .slopscale-root.ss-mixer-open .slopscale-mixer { transform: translateY(0); }
+  .slopscale-mixer { position: absolute; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--ss-surface-bar, rgba(9,15,30,0.97)); border-top: 1px solid var(--ss-border, #334155); box-shadow: 0 -8px 24px rgba(0,0,0,0.4); transform: translateY(105%); opacity: 0; transition: transform 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.24s ease; padding: 10px 14px 14px; max-height: 72%; overflow-y: auto; }
+  .slopscale-root.ss-mixer-open .slopscale-mixer { transform: translateY(0); opacity: 1; }
   /* Library browse drawer (Phase 9 Slice 3) — slide-up over the stage, Mixer-M idiom */
   .slopscale-library { position: absolute; left: 0; right: 0; bottom: 0; z-index: 21; background: var(--ss-surface-bar, rgba(9,15,30,0.97)); border-top: 1px solid var(--ss-border, #334155); box-shadow: 0 -8px 24px rgba(0,0,0,0.4); transform: translateY(105%); transition: transform 0.22s ease; padding: 10px 14px 14px; max-height: 80%; overflow-y: auto; }
   /* ID-targeted reveal: both drawers share .slopscale-library, so each opens on its own class */
@@ -793,7 +801,7 @@
   .slopscale-ss-copy { margin-top: 8px; font-size: 11.5px; color: var(--ss-text, #cbd5e1); background: var(--ss-surface, rgba(148,163,184,0.08)); border: 1px solid var(--ss-hairline, rgba(148,163,184,0.18)); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
   .slopscale-ss-copy:hover { border-color: var(--ss-meter, #22c55e); color: #e2e8f0; }
   @media (prefers-reduced-motion: reduce) {
-    .slopscale-mixer, .slopscale-progress-sheet { transition: none; }
+    .slopscale-mixer, .slopscale-progress-sheet, .slopscale-settings-menu, .slopscale-fretboard-strip { transition: none; }
     .slopscale-tier-btn { transition: none; }
     .slopscale-tier-btn.tier-glow { animation: none; }
     .slopscale-pill-toggle, .slopscale-pill-knob { transition: none; }
@@ -1328,7 +1336,7 @@
          theme / XP-mode default / count-in default land as those systems do. -->
     <div class="slopscale-header-settings">
       <button type="button" id="slopscale-settings-btn" class="slopscale-settings-btn" aria-haspopup="true" aria-expanded="false" aria-label="Settings" title="Settings">⚙</button>
-      <div id="slopscale-settings-menu" class="slopscale-settings-menu" hidden role="menu" aria-label="Settings">
+      <div id="slopscale-settings-menu" class="slopscale-settings-menu" role="menu" aria-label="Settings">
         <div class="slopscale-settings-group">
           <span class="slopscale-settings-lbl">Accent</span>
           <div class="slopscale-settings-row" id="slopscale-theme-pick">
