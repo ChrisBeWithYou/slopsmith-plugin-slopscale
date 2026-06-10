@@ -12988,7 +12988,7 @@
       }
       // Tier C — quiet AMBIENT deltas (never the accent recognizer slot, never the
       // hero, never green): a woodshed level-up + any new competency badge(s).
-      if (s.levelUp) stripBits.push(`<div class="slopscale-results-deltas">Reached Level ${s.levelUp.level} — ${s.levelUp.name}</div>`);
+      if (s.levelUp) stripBits.push(`<div class="slopscale-results-deltas">${s.levelUp.summit ? `${s.levelUp.name} — top of the ladder. The hours keep counting.` : `Reached Level ${s.levelUp.level} — ${s.levelUp.name}`}</div>`);
       if (s.badgesNew && s.badgesNew.length) stripBits.push(`<div class="slopscale-results-deltas">${s.badgesNew.length === 1 ? 'New badge' : 'New badges'}: ${s.badgesNew.map(b => b.name).join(' · ')}</div>`);
     }
     const strip = stripBits.length ? `<div class="slopscale-results-strip">${stripBits.join('')}</div>` : '';
@@ -13356,7 +13356,14 @@
     // a grind bar). Behind XP-Off with the rest of this section.
     const lv = xpLevelInfo(w.xp);
     rows.push(`<div class="slopscale-pm-row"><span>Woodshed level</span><strong>Lv ${lv.level} · ${lv.name}</strong></div>`);
+    // Forward line. Below the cap it names the next identity (opportunity, not a grind
+    // bar). AT the cap (Lifer, no nextName) the old code went SILENT — the "Lifer cliff"
+    // at our most-committed player. Reframe the summit as a graduation that points at the
+    // UNCAPPED lifetime ledger below (hours keep counting; PBs / keys / badges never cap).
+    // gamification+market verdict: keep finite levels, make the terminal state a graduation,
+    // never an infinite treadmill. project_xp_leveling_cap_prestige_verdict.
     if (lv.nextName) rows.push(`<div class="slopscale-pm-coming">${(lv.nextAt - lv.xp).toLocaleString()} XP of practice to ${lv.nextName}.</div>`);
+    else rows.push(`<div class="slopscale-pm-coming">Lifer — top of the ladder. The hours keep counting; from here your tempo PBs, keys and badges are the climb.</div>`);
     // "Your numbers" — the clean-tempo PBs to beat (gained-only; the come-back hook).
     let numbersHtml = '';
     if (w.numbers.length) {
@@ -17883,7 +17890,7 @@
     try {
       const _newXp = progressLoad().xp || 0;
       const a = xpLevelInfo(_prevXp), b = xpLevelInfo(_newXp);
-      if (b.level > a.level) levelUp = { level: b.level, name: b.name };
+      if (b.level > a.level) levelUp = { level: b.level, name: b.name, summit: !b.nextName };   // summit = reached the terminal tier (Lifer) — a graduation, not a plain level-up
     } catch (_) {}
     // Recognizers (gamification spec): DETERMINISTIC new-bests on stored artifacts —
     // the honest "variable" reward (unpredictable because the player's growth is;
