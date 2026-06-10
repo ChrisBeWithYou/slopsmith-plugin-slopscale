@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.18-dev';
+  const SLOPSCALE_VERSION = '0.7.19-dev';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -11166,14 +11166,10 @@
   function setPanelCollapsed(v) {
     panelCollapsed = !!v;  // session-only; startup/selection always resets to expanded
     syncPanelToggle();
-    // The render-host width changed — re-fit the active renderer so a borrowed
-    // viz re-lays-out instead of stretching its old canvas (mirrors the
-    // fretboard-strip toggle).
-    if (renderer && typeof renderer.resize === 'function') {
-      const host = $('slopscale-render-host');
-      if (host) { const r = host.getBoundingClientRect(); renderer.resize(Math.round(r.width), Math.round(r.height)); }
-    }
-    drawOnce();
+    // The left pane now SLIDES (grid-template-columns, ~0.3s) → re-fit the renderer +
+    // redraw across the slide so the borrowed viz tracks the widening/narrowing stage
+    // (a one-shot re-fit would use the pre-slide width).
+    refitStageDuring(340);
   }
   // ── Focus mode (fullscreen the stage) ──────────────────────────────────────
   // Fullscreens just the .slopscale-stage (transport + ruler + render) so the
@@ -11799,6 +11795,23 @@
     }
   }
   function drawOnce() { drawFretboardFrame(); drawRulerFrame(); drawOverviewFrame(); updateSeamCaption(); drawChordBoxFrame(); if (!renderer || !activeBundle) return; const vb = rendererBundle || activeBundle; vb.currentTime = currentPracticeTime; syncHighwaySettings(vb); try { renderer.draw(vb); } catch (e) { console.warn('[SlopScale] renderer draw failed', e); } syncTransportTime(); }
+  // Re-fit the borrowed renderer + redraw ACROSS a layout SLIDE (the fretboard strip /
+  // left pane now animate over ~0.3s). Doing this once synchronously used the PRE-slide
+  // size — the fretboard didn't render until a lane switch + the highway didn't re-fit
+  // on hide. Runs immediately (correct for reduced-motion/instant) then each frame for
+  // `ms`, so both canvases track the changing stage size and settle correct.
+  function refitStageDuring(ms) {
+    const t0 = performance.now();
+    const step = () => {
+      if (renderer && typeof renderer.resize === 'function') {
+        const host = $('slopscale-render-host');
+        if (host) { const r = host.getBoundingClientRect(); renderer.resize(Math.round(r.width), Math.round(r.height)); }
+      }
+      drawOnce();
+      if (performance.now() - t0 < (ms || 0)) requestAnimationFrame(step);
+    };
+    step();
+  }
   // "Keep looping" — when on, a finite drill restores the old infinite loop (open
   // practice). Default off (finite). Persisted; loaded in bind(). An A–B loop and Jam
   // are unaffected (they loop via the segment-loop branch above, never this one).
@@ -18980,14 +18993,11 @@
       fretboardOn = !fretboardOn;
       try { localStorage.setItem('slopscale.fretboard', fretboardOn ? '1' : '0'); } catch (_) {}
       syncFretboardUI();
-      // Showing/hiding the strip changes the render-host height. Re-fit the
-      // active renderer so a borrowed viz (Jumping Tab) re-lays-out to the new
-      // size instead of stretching its old canvas to fill the gap.
-      if (renderer && typeof renderer.resize === 'function') {
-        const host = $('slopscale-render-host');
-        if (host) { const r = host.getBoundingClientRect(); renderer.resize(Math.round(r.width), Math.round(r.height)); }
-      }
-      drawOnce();
+      // The strip SLIDES (max-height, ~0.26s) → re-fit + redraw ACROSS the slide, not
+      // once before it settles (the regression: a synchronous re-fit used the pre-slide
+      // height → the fretboard didn't render until a lane switch + the highway didn't
+      // re-fit on hide). refitStageDuring tracks the size each frame and settles correct.
+      refitStageDuring(340);
     });
     // Keep-looping toggle: off (default) = a drill plays its right-sized run once then
     // ends; on = loop it forever for open practice. Read live by finiteRunActive() each

@@ -174,15 +174,17 @@
   /* The layout fills the remaining height under the header (flex:1; min-height:0)
      and its single grid row is capped to that height (minmax(0,1fr)) so the rail
      and stage can shrink to fit instead of growing the page. */
-  .slopscale-layout { display: grid; grid-template-columns: minmax(340px, 460px) 1fr; grid-template-rows: minmax(0, 1fr); gap: 16px; align-items: stretch; flex: 1; min-height: 0; }
+  /* The left pane SLIDES in/out: animate the grid's first column (Chromium animates
+     grid-template-columns) minmax(340,460)→minmax(0,0); the rail keeps the same TWO
+     tracks both states so it interpolates. The pane fades + clips (overflow-x) as the
+     column shrinks (display:none would kill the transition). refitStageDuring re-fits
+     the renderer across the slide. */
+  .slopscale-layout { display: grid; grid-template-columns: minmax(340px, 460px) 1fr; grid-template-rows: minmax(0, 1fr); gap: 16px; align-items: stretch; flex: 1; min-height: 0; transition: grid-template-columns 0.3s cubic-bezier(0.22,1,0.36,1); }
   /* Only the controls rail scrolls — and only when its content exceeds the
      available height (Guided mode on short viewports). */
-  .slopscale-controls { padding: 16px; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; }
-  /* Collapsed: hide the settings rail and let the player fill the freed width
-     (and contract back when the sidebar returns). Single full-width column —
-     no cap/centering — so the render reclaims the sidebar's space entirely. */
-  .slopscale-root.slopscale-collapsed .slopscale-controls { display: none; }
-  .slopscale-root.slopscale-collapsed .slopscale-layout { grid-template-columns: minmax(0, 1fr); justify-content: stretch; }
+  .slopscale-controls { padding: 16px; display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; transition: opacity 0.2s ease; }
+  .slopscale-root.slopscale-collapsed .slopscale-layout { grid-template-columns: minmax(0px, 0px) 1fr; gap: 0; }
+  .slopscale-root.slopscale-collapsed .slopscale-controls { opacity: 0; pointer-events: none; }
   .slopscale-controls label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #d6deea; font-weight: 650; }
   .slopscale-controls input, .slopscale-controls select {
     background: #111827 !important;
@@ -806,7 +808,7 @@
   .slopscale-results-card .slopscale-share-row { margin-top: 10px; }
   .slopscale-results-card .slopscale-share-row .slopscale-ss-copy { display: inline-block; margin: 0; }
   @media (prefers-reduced-motion: reduce) {
-    .slopscale-mixer, .slopscale-progress-sheet, .slopscale-settings-menu, .slopscale-fretboard-strip { transition: none; }
+    .slopscale-mixer, .slopscale-progress-sheet, .slopscale-settings-menu, .slopscale-fretboard-strip, .slopscale-layout, .slopscale-controls { transition: none; }
     .slopscale-tier-btn { transition: none; }
     .slopscale-tier-btn.tier-glow { animation: none; }
     .slopscale-pill-toggle, .slopscale-pill-knob { transition: none; }
