@@ -3337,6 +3337,13 @@
                                       // dissolves in verifier mode (YIN keeps it).
   const PT_SPAN_BUCKET = 0.100;       // tremolo-span presence bucket (s)
   const PT_SPAN_RATIO = 0.6;          // span hit = rung buckets / total ≥ this
+  // Contained-verifier chord credit: the engine scores each chord member
+  // independently; a chord window credits when ≥ this fraction of its members
+  // verified (N-of-M leniency — power-chord strings share harmonics, so not
+  // every string verifies on a clean strum). Mirrors the host's 0.5 verify
+  // ratio (note_detect _ND_VERIFY_MIN_HIT_RATIO); a single note is 1/1 → credit
+  // on its one detected verdict.
+  const PT_CHORD_HIT_RATIO = 0.5;
   // f0-derived post-roll speak budget (bass-pedagogy ruling: a low string's
   // usable evidence arrives late — SHIFT the evidence slot for physics, never
   // widen the timing tolerance as forgiveness). clamp(3·period+25, 35, 80)ms:
@@ -3512,8 +3519,24 @@
   let _ndVerifyActiveWin = null;    // the pushed target's WINDOW (span buckets + unit credit)
   let _ndVerifyListener = null;     // bound notedetect:verify handler
   let _ndWeEnabledNoteDetect = false; // did WE enable note_detect? (restore on stop)
+  // ── Contained-playback verifier (notedetect #64+) ──────────────────────────
+  // When the host exposes the CONTAINED-chart verifier (desktop engine), we
+  // drive the SAME timing-aware harmonic-comb NoteVerifier the 3D highway uses —
+  // pushing OUR exercise chart + playhead and draining engine-finalized per-note
+  // verdicts — instead of the timing-free setVerifyTarget. The engine owns
+  // silence/onset/persistence gating, so SlopScale's homegrown credit veto is
+  // bypassed (ptCreditGatePasses) and judgment maps verdict.id → window via
+  // ptKey. The setVerifyTarget path stays as the browser/downlevel FALLBACK.
+  let _ndContainedMode = false;        // engine contained verifier is the scorer
+  let _ndContainedFallback = false;    // browser/downlevel → old setVerifyTarget path
+  let _ndContainedPushInFlight = false; // one getNoteVerdicts IPC at a time
+  let _ndArmGen = 0;                    // bumped each arm + on stop — an async _ndArmVerify resuming after a stop/restart bails instead of arming the wrong run
   function ndVerifyAvailable() {
     return typeof window.noteDetect?.setVerifyTarget === 'function';
+  }
+  function ndContainedAvailable() {
+    return typeof window.noteDetect?.isContainedVerifierAvailable === 'function'
+      && window.noteDetect.isContainedVerifierAvailable();
   }
   // Active group at the playhead: the window-table OWNER on the latency-shifted
   // judge clock. The verifier's evidence runs ~50–170ms behind the string (its
@@ -3596,10 +3619,140 @@
     }
   }
   function ndStopVerify() {
+    _ndArmGen++;   // invalidate any in-flight _ndArmVerify so a stop/restart can't arm the wrong run
+    // Release the engine chart slot UNCONDITIONALLY (not just when
+    // _ndContainedMode): an arm whose setContainedChart is still in flight has
+    // claimed the slot on the host side but not yet set _ndContainedMode here, so
+    // a guarded release would leak it. releaseContainedChart is idempotent and a
+    // no-op on the bridge when nothing is armed; it also cancels an in-flight
+    // host-side arm (the host bumps its own generation), so that arm resolves
+    // not-armed and can't outlive the run.
+    try { window.noteDetect.releaseContainedChart?.(); } catch (_) {}
+    _ndContainedMode = false; _ndContainedFallback = false; _ndContainedPushInFlight = false;
     if (_ndVerifyListener) { window.removeEventListener('notedetect:verify', _ndVerifyListener); _ndVerifyListener = null; }
     if (_ndVerifyMode) { try { window.noteDetect.setVerifyTarget(null); } catch (_) {} }
     if (_ndWeEnabledNoteDetect) { try { window.noteDetect.disable?.(); } catch (_) {} _ndWeEnabledNoteDetect = false; }
     _ndVerifyMode = false; _ndVerifyCtx = null; _ndVerifyActive = []; _ndVerifyActiveKey = null; _ndVerifyActiveWin = null;
+  }
+  // Build the contained engine chart from the judged set. ptKey(n) is the stable
+  // verdict id (the same key _ptWinByKey / _ptByKey / _ptScored use), so a
+  // drained verdict maps straight back to its window and gem. Chord members are
+  // pushed individually (distinct s → distinct id); ptBuildWindows already
+  // grouped them into one window the per-member verdicts credit via N-of-M.
+  function _ndBuildContainedChart() {
+    return _ptNotes.map(n => ({
+      id: ptKey(n), t: n.t || 0, s: n.s, f: n.f,
+      sus: n.sus || 0, b: !!n.bn,
+    }));
+  }
+  // Arm the verifier for the current run. Enables note_detect (awaiting it so
+  // the desktop bridge is established before we probe for the contained
+  // verifier), then takes the engine contained path on desktop or the
+  // setVerifyTarget fallback on browser/downlevel. Async: the run may be
+  // stopped mid-arm (ndStopVerify clears _ndVerifyMode), so re-check after each
+  // await and bail without arming anything.
+  async function _ndArmVerify() {
+    // Capture this arm's generation. stopPitchTracker→ndStopVerify (and a fresh
+    // arm) bump _ndArmGen, so if the run is stopped — OR stopped AND restarted
+    // (a new run re-sets _ndVerifyMode true) — while we're awaiting enable() /
+    // setContainedChart(), our resume sees a stale gen and bails WITHOUT touching
+    // the new run's mode/listener state. (Re-checking _ndVerifyMode alone can't
+    // tell our run from a restarted one.)
+    const myGen = ++_ndArmGen;
+    const superseded = () => myGen !== _ndArmGen || !_ndVerifyMode;
+    // Track that WE enabled note_detect only AFTER enable() resolves — setting
+    // the flag before the await let a stop racing the pending enable disable it
+    // prematurely (then our resume left it enabled). If the run is gone by the
+    // time enable resolves, undo the enable we just did.
+    let weEnabled = false;
+    try {
+      if (!window.noteDetect.isEnabled?.()) { await window.noteDetect.enable?.(); weEnabled = true; }
+    } catch (_) {}
+    if (weEnabled) _ndWeEnabledNoteDetect = true;
+    if (superseded()) {
+      if (weEnabled) { try { window.noteDetect.disable?.(); } catch (_) {} _ndWeEnabledNoteDetect = false; }
+      return;   // run stopped/restarted during enable() → don't arm
+    }
+    if (ndContainedAvailable()) {
+      // Engine contained verifier (desktop): drive the SAME timing-aware
+      // harmonic-comb NoteVerifier the 3D highway uses with OUR chart + playhead.
+      let ok = null;
+      try { ok = await window.noteDetect.setContainedChart(_ndBuildContainedChart(), _ndVerifyCtx); }
+      catch (_) { ok = null; }
+      // Stopped/restarted during the arm: ndStopVerify already released the slot
+      // (which also cancels this in-flight arm host-side), so just bail — don't
+      // touch mode/listener state that may now belong to a newer run.
+      if (superseded()) return;
+      // Set the mode only AFTER a confirmed arm, so the gate-bypass
+      // (ptCreditGatePasses) and the tick drain never engage against an
+      // unconfirmed/failed chart.
+      if (ok === true) _ndContainedMode = true;
+      else _ndStartVerifyFallback();   // slot taken / unavailable → fall back
+    } else {
+      // Browser / downlevel host: the timing-free setVerifyTarget fallback.
+      _ndStartVerifyFallback();
+    }
+  }
+  // The browser/downlevel FALLBACK: the timing-free setVerifyTarget path
+  // (unchanged from before the contained verifier). Wired only when the engine
+  // contained verifier is unavailable, so SlopScale degrades, never breaks.
+  function _ndStartVerifyFallback() {
+    if (!_ndVerifyMode) return;   // run stopped during arm → don't wire the listener
+    _ndContainedFallback = true;
+    _ndVerifyListener = ndOnVerify;
+    window.addEventListener('notedetect:verify', _ndVerifyListener);
+    ndPushVerifyTarget();
+  }
+  // Per-frame contained-verifier step (called from tick in _ndContainedMode):
+  // (1) synchronously credit verdicts buffered since the last frame — BEFORE
+  // ptWinSeek expires windows this frame — then (2) drive the engine clock with
+  // our exercise playhead (async; buffers for the next frame's drain).
+  function ndDrainContainedVerdicts() {
+    if (!_ndContainedMode) return;
+    const verdicts = (typeof window.noteDetect?.drainContainedVerdicts === 'function'
+      ? window.noteDetect.drainContainedVerdicts() : null) || [];
+    for (const v of verdicts) {
+      if (!v || typeof v.id !== 'string' || !v.detected) continue;   // misses ride ptWinSeek expiry
+      const w = _ptWinByKey.get(v.id);
+      // Skip a window already credited OR already missed: a verdict that lands
+      // late (IPC/frame lag) after ptWinSeek expired the window and dispatched
+      // its miss must not then also credit a hit (double judgment).
+      if (!w || w.credited || w.missDispatched) continue;
+      // Input-presence: the level meter owns _ptHadInput when a host level
+      // source exists; only arm from a verdict when there's none (mirrors
+      // ndOnVerify). A wrong-note pass still reds out via the level meter.
+      if (_lvlMode === 'none') _ptHadInput = true;
+      const detT = Number.isFinite(v.detectedSongTime) ? v.detectedSongTime : (currentPracticeTime - ptLatency());
+      if (w.span) {
+        // Tremolo span: a verdict marks its presence bucket; credit waits for
+        // end-of-span (ptFinalizeSpans).
+        const bi = Math.floor((detT - w.t) / PT_SPAN_BUCKET);
+        if (bi >= 0 && bi < w.bktN) w.bkts.add(bi);
+      } else if (w.notes.length > 1) {
+        // Chord: accumulate distinct detected member ids; credit at N-of-M.
+        if (!w._detIds) w._detIds = new Set();
+        w._detIds.add(v.id);
+        if (w._detIds.size / w.notes.length >= PT_CHORD_HIT_RATIO && ptCreditWindow(w)) {
+          _ptDevs.push({ d: detT - w.t, t: w.t });
+        }
+      } else {
+        // Single note: one detected verdict credits.
+        if (ptCreditWindow(w)) _ptDevs.push({ d: detT - w.t, t: w.t });
+      }
+    }
+    // Drive the engine clock with our exercise playhead (the judge clock the
+    // window table reads). One IPC in flight at a time so a slow round-trip
+    // can't pile up requests at frame rate.
+    if (!_ndContainedPushInFlight && typeof window.noteDetect?.pushContainedPlayhead === 'function') {
+      _ndContainedPushInFlight = true;
+      const t = currentPracticeTime - ptLatency();
+      const playing = !paused && !(_preRollUntil > 0 && currentPracticeTime < _preRollUntil);
+      try {
+        Promise.resolve(window.noteDetect.pushContainedPlayhead(t, playing))
+          .catch(() => {})
+          .finally(() => { _ndContainedPushInFlight = false; });
+      } catch (_) { _ndContainedPushInFlight = false; }
+    }
   }
   // Active pathway state — tracks which pathway is showing and which variation
   // index we are on, so Next Variation rotates predictably.
@@ -11974,10 +12127,13 @@
           // flagged follow-up that needs the per-loop-vs-cumulative score decision.
         }
       }
-      // Verifier scoring: refresh the harmonic-comb verify target for the
-      // current playhead (cheap — only re-pushes when the active group
-      // changes). No-op unless verifier mode is active.
-      ndPushVerifyTarget();
+      // Verifier scoring. Contained mode (desktop engine): drain engine-
+      // finalized verdicts + push our playhead. Fallback mode (browser): refresh
+      // the timing-free verify target. Neither runs during the async arm window
+      // (both flags false) so no stray verify target is pushed before the path
+      // is chosen.
+      if (_ndContainedMode) ndDrainContainedVerdicts();
+      else if (_ndContainedFallback) ndPushVerifyTarget();
       // Settle tremolo spans whose end has passed (both ears; cheap — pops at
       // most the front of a short time-sorted list).
       ptFinalizeSpans(currentPracticeTime - ptLatency());
@@ -16419,6 +16575,12 @@
   // judge clock — "is the player sounding NOW?": a real note has level in its
   // ring at the credit moment; a silent residual does not.
   function ptCreditGatePasses(w) {
+    // Contained verifier: the engine owns silence/onset/persistence gating
+    // inside each note's timing window, so SlopScale's level veto is redundant
+    // (and would wrongly suppress a valid engine credit on a DI signal the
+    // host meter reads low). The level meter still runs — for _ptHadInput
+    // (miss-gem arming) only, not as a credit gate.
+    if (_ndContainedMode) return true;
     if (_lvlMode === 'none') return true;         // no host level source → gate inactive
     let lo, hi;
     if (w.span) { lo = w.t; hi = w.spanEnd; }
@@ -16638,12 +16800,11 @@
         openMidis: bundle.openMidis || [],
       };
       _ndVerifyActive = []; _ndVerifyActiveKey = null;
-      try {
-        if (!window.noteDetect.isEnabled?.()) { window.noteDetect.enable?.(); _ndWeEnabledNoteDetect = true; }
-      } catch (_) {}
-      _ndVerifyListener = ndOnVerify;
-      window.addEventListener('notedetect:verify', _ndVerifyListener);
-      ndPushVerifyTarget();
+      // Arm asynchronously: enabling note_detect establishes the desktop bridge
+      // (so isContainedVerifierAvailable can read it) only after startAudio
+      // resolves — checking it synchronously here would race and wrongly fall
+      // back on a fresh enable. _ndArmVerify awaits enable() first.
+      _ndArmVerify();
     }
 
     // Live pitch-strip / input-presence ear (host minigames YIN). Optional and
@@ -19534,6 +19695,6 @@
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
   window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier, xpLevelInfo, computeBadges, creditBadges, shareCardText, isShareworthy, feltHoldAnalyze, creditFeltRung, shareCardModel, shareCardText, renderShareCardImage, isShareworthy };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
