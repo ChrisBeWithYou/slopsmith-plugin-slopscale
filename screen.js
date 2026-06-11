@@ -3193,9 +3193,11 @@
   // host grades on the same getLevels source). No host level source → gate INACTIVE
   // (fail-open-to-honest; the detector's pitch/comb evidence still has to fire).
   const PT_LVL_FLOOR_MIN = 0.02;     // host's _ND_SILENCE_THRESHOLD (−34 dBFS on the host's 0..1 meter)
+  const PT_LVL_RECENT_WIN = 0.2;     // a live (non-span) credit gates on the input level over the last 200ms (host's ±200ms), ending at the credit moment — NOT the note's future-extending window (which has no samples at its leading edge → would skip the veto)
   let _lvlMode = 'none';             // 'desktop' (getLevels) | 'web' (own analyser) | 'none' (gate inactive)
   let _lvlSamples = [];              // ring of { jt: judge-time, L } (bounded 512)
   let _lvlPoll = null;               // desktop getLevels interval
+  let _lvlGen = 0;                   // bumped on every start/stop — an in-flight async getLevels resolving after teardown is ignored
   let _lvlRaf = 0;                   // web analyser RAF handle
   let _lvlStream = null, _lvlAnalyser = null, _lvlData = null;   // web tap
   // ── Timing model (2026-06-06 seven-lane panel; MIRRORS the host's grader) ──
@@ -16399,33 +16401,57 @@
     }
     return false;
   }
-  // The host's silence gate, mirrored — a ONE-WAY VETO, not a positive precondition
-  // (host note_detect :5550-5588). Credit is forced to a MISS only when the meter
-  // SAW the window and it was genuinely silent (peak < 0.02). No samples covering
-  // the window → SKIP (pass), exactly like the host ("no telemetry ≠ silent"). NO
-  // onset requirement (the host has none); the detector's pitch/comb evidence is
-  // what credits. Tremolo spans ride the same level veto over their own span.
+  // The host's silence gate, mirrored — a ONE-WAY VETO (host note_detect
+  // :5550-5588): credit is forced to a MISS only when the meter SAW the window
+  // and it was genuinely silent (peak < 0.02); no samples covering it → SKIP
+  // (pass), like the host ("no telemetry ≠ silent").
+  //
+  // A SPAN is finalized only after it has fully passed, so its whole [t, spanEnd]
+  // is already sampled — veto it over its own span.
+  //
+  // A SINGLE/CHORD credit fires the INSTANT a verify/YIN hit lands at the
+  // playhead, and the note's own [matchStart, matchEnd] extends into the FUTURE
+  // (its ring hasn't elapsed yet). Sampling that window at the leading edge finds
+  // NO samples → the "no telemetry ≠ silent" skip would PASS every note the moment
+  // it opens, so an inaudible residual's `isHit` credits before the meter can veto
+  // it (the "guitar off, still scores" bug — present even with a working meter).
+  // Gate instead on the input level over a short window ENDING at the current
+  // judge clock — "is the player sounding NOW?": a real note has level in its
+  // ring at the credit moment; a silent residual does not.
   function ptCreditGatePasses(w) {
     if (_lvlMode === 'none') return true;         // no host level source → gate inactive
-    const lo = w.span ? w.t : w.matchStart;
-    const hi = w.span ? w.spanEnd : w.matchEnd;
-    if (!ptHasSamplesIn(lo, hi)) return true;     // host SKIPS the veto when no samples cover the window
-    return ptPeakLevelIn(lo, hi) >= PT_LVL_FLOOR_MIN;   // silent window → forced miss; else credit stands
+    let lo, hi;
+    if (w.span) { lo = w.t; hi = w.spanEnd; }
+    else { hi = currentPracticeTime - ptLatency(); lo = hi - PT_LVL_RECENT_WIN; }
+    if (!ptHasSamplesIn(lo, hi)) return true;     // meter hasn't covered this window yet (startup) → honest skip
+    return ptPeakLevelIn(lo, hi) >= PT_LVL_FLOOR_MIN;   // silent → forced miss; else credit stands
   }
   function startLevelMeter() {
     stopLevelMeter();
     _lvlMode = 'none'; _lvlSamples = [];
     const bridge = window.slopsmithDesktop && window.slopsmithDesktop.audio;
     if (bridge && typeof bridge.getLevels === 'function') {
-      let okOnce = false;
+      // getLevels() is ASYNC on the desktop bridge — `ipcRenderer.invoke(...)`
+      // returns a Promise (note_detect itself awaits it). Reading `.inputLevel`
+      // off the Promise synchronously was ALWAYS undefined, so the desktop tap
+      // bailed to the web meter on the first poll; a DI player with no mic then
+      // landed at _lvlMode 'none' → the silence gate went INACTIVE → the
+      // false-positive judge returned (credits with the guitar off). Resolve the
+      // result as a Promise (handles a sync OR async bridge), one IPC in flight
+      // at a time so a slow engine can't pile up polls.
+      let okOnce = false, inFlight = false;
+      const myGen = ++_lvlGen;   // a teardown/restart bumps _lvlGen → ignore late IPC
+      const fallBack = () => { if (_lvlPoll) { clearInterval(_lvlPoll); _lvlPoll = null; } _startWebLevelMeter(); };
       _lvlPoll = setInterval(() => {
-        let lv = null;
-        try { lv = bridge.getLevels(); } catch (_) { lv = null; }
-        if (!lv || typeof lv.inputLevel !== 'number') {
-          if (!okOnce) { clearInterval(_lvlPoll); _lvlPoll = null; _startWebLevelMeter(); }   // bridge can't level → fall to web
-          return;
-        }
-        okOnce = true; _lvlMode = 'desktop'; _lvlPushSample(lv.inputLevel);
+        if (inFlight) return;
+        inFlight = true;
+        let p = null;
+        try { p = bridge.getLevels(); } catch (_) { p = null; }
+        Promise.resolve(p).then((lv) => {
+          if (myGen !== _lvlGen) return;   // meter was stopped/restarted while this IPC was in flight
+          if (!lv || typeof lv.inputLevel !== 'number') { if (!okOnce) fallBack(); return; }
+          okOnce = true; _lvlMode = 'desktop'; _lvlPushSample(lv.inputLevel);
+        }).catch(() => { if (myGen === _lvlGen && !okOnce) fallBack(); }).finally(() => { inFlight = false; });
       }, 50);
       return;
     }
@@ -16455,6 +16481,7 @@
       .catch(() => { /* mic denied / no device → stays 'none' (gate inactive) */ });
   }
   function stopLevelMeter() {
+    _lvlGen++;   // invalidate any in-flight async getLevels() so it can't revive the meter after stop
     if (_lvlPoll) { clearInterval(_lvlPoll); _lvlPoll = null; }
     if (_lvlRaf) { try { cancelAnimationFrame(_lvlRaf); } catch (_) {} _lvlRaf = 0; }
     if (_lvlStream) { try { _lvlStream.getTracks().forEach(t => t.stop()); } catch (_) {} _lvlStream = null; }
@@ -19507,6 +19534,6 @@
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
   window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier, xpLevelInfo, computeBadges, creditBadges, shareCardText, isShareworthy, feltHoldAnalyze, creditFeltRung, shareCardModel, shareCardText, renderShareCardImage, isShareworthy };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
