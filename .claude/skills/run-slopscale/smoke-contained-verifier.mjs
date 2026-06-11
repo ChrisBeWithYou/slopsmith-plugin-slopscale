@@ -156,7 +156,11 @@ try {
   const neg = await page.evaluate(async () => {
     const D = globalThis.__ss_debug, b = window.__e2eBundle;
     let scored = 0, lit = null;
-    for (let i = 0; i < 60; i++) {
+    // Same 120-iteration (~12s) budget as the positive run: the negative has no
+    // early break (it's proving NOTHING scores), so it must give playback the
+    // same time to actually run — a shorter budget could pass trivially if
+    // startup is slow (nothing scored only because nothing ran yet).
+    for (let i = 0; i < 120; i++) {
       scored = Math.max(scored, D.ptScoredUnits());
       for (const nn of b.notes.slice(0, 12)) { if (b.getNoteState(nn) === "hit") { lit = nn.t; break; } }
       if (lit != null) break;
