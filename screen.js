@@ -13391,6 +13391,171 @@
     }
     return null;
   }
+  // ── Scorecard hero visuals (panel 2026-06-12; market + gamification co-chairs) ──
+  // Routed by what the run's data supports (the instrument lanes' rule): a run
+  // that MOVED on the neck (≥5 active cells) draws the hybrid heatmap — ink =
+  // notes you landed, warm amber = spots to revisit, hollow = not judged; NEVER
+  // red (a new --ss-heat token, not --ss-danger). A one-cell groove run with
+  // enough timing samples draws the per-bar lean strip instead (felt-hold
+  // vocabulary; per-bar medians, the pocket band drawn slightly behind zero).
+  // Both are calm static canvas readouts — the verdict stays the modal's lead.
+  function _heroColors() {
+    const c = { text: '#e2e8f0', dim: '#cbd5e1', faint: '#64748b', border: '#334155', heat: '#f0a050', ok: '#22c55e' };
+    try {
+      const cs = getComputedStyle($('slopscale-root'));
+      const pick = (v, k) => { const x = cs.getPropertyValue(v).trim(); if (x) c[k] = x; };
+      pick('--ss-text', 'text'); pick('--ss-text-faint', 'faint'); pick('--ss-border', 'border'); pick('--ss-heat', 'heat');
+    } catch (_) {}
+    return c;
+  }
+  function drawHeatmapHero(canvas, heat) {
+    if (!canvas || !heat) return;
+    const C = _heroColors();
+    const rows = Math.max(1, (heat.opens || []).length || 6);
+    const act = heat.cells.filter(c => c.hit + c.miss + c.ex > 0);
+    if (!act.length) return;
+    let lo = Math.max(0, Math.min(...act.map(c => c.f)) - 1), hi = Math.max(...act.map(c => c.f)) + 1;
+    if (lo === 1) lo = 0;   // the nut is context — include it when the window touches fret 1
+    const cols = hi - lo + 1;
+    const padL = 26, padR = 8, padT = 6, padB = 16;
+    const cssH = rows * 16 + padT + padB;
+    canvas.style.height = cssH + 'px';
+    const dpr = window.devicePixelRatio || 1, rect = canvas.getBoundingClientRect();
+    const pxW = Math.max(1, Math.floor(rect.width * dpr)), pxH = Math.max(1, Math.floor(cssH * dpr));
+    if (canvas.width !== pxW || canvas.height !== pxH) { canvas.width = pxW; canvas.height = pxH; }
+    const ctx = canvas.getContext('2d'); if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const W = rect.width;
+    ctx.clearRect(0, 0, W, cssH);
+    // Cap the cell width so a narrow window (a 3-fret box drill) doesn't smear
+    // into wall-to-wall slabs; the capped grid centers in the available span.
+    const ch = 16, cw = Math.min(34, (W - padL - padR) / cols);
+    const gridX = padL + Math.max(0, ((W - padL - padR) - cw * cols) / 2);
+    const xOf = f => gridX + (f - lo) * cw;
+    const yOf = s => padT + (rows - 1 - s) * ch;   // s=0 (lowest string) at the bottom
+    const maxHit = Math.max(1, ...heat.cells.map(c => c.hit));
+    const byKey = new Map(heat.cells.map(c => [c.s + '|' + c.f, c]));
+    for (let s = 0; s < rows; s++) for (let f = lo; f <= hi; f++) {
+      const c = byKey.get(s + '|' + f);
+      const x = xOf(f) + 1, y = yOf(s) + 1, w = cw - 2, h = ch - 2;
+      if (!c || (c.hit + c.miss + c.ex) === 0) continue;          // un-visited = silent (never "strength")
+      if (c.hit + c.miss === 0) {                                  // judged-exempt only → hollow outline
+        ctx.strokeStyle = C.faint; ctx.globalAlpha = 0.55; ctx.lineWidth = 1;
+        ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1); ctx.globalAlpha = 1;
+        continue;
+      }
+      const missRate = c.miss / (c.hit + c.miss);
+      if (c.miss >= 2 && missRate >= 0.34) {                       // attention: warm amber by miss rate
+        ctx.fillStyle = C.heat; ctx.globalAlpha = 0.35 + 0.55 * Math.min(1, missRate);
+      } else {                                                     // landed: ink by hit density
+        ctx.fillStyle = C.text; ctx.globalAlpha = 0.22 + 0.58 * Math.min(1, c.hit / maxHit);
+      }
+      ctx.fillRect(x, y, w, h); ctx.globalAlpha = 1;
+    }
+    // The nut + frame
+    if (lo === 0) { ctx.strokeStyle = C.dim; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(xOf(1) - 0.5, padT); ctx.lineTo(xOf(1) - 0.5, padT + rows * ch); ctx.stroke(); }
+    // String names (left) + fret numbers (bottom, decimated when wide)
+    ctx.fillStyle = C.faint; ctx.font = '9px ' + (getComputedStyle(document.body).getPropertyValue('--ss-mono') || 'monospace');
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    const opens = heat.opens || [];
+    for (let s = 0; s < rows; s++) ctx.fillText(opens[s] != null ? pcName(opens[s] % 12) : String(s), gridX - 5, yOf(s) + ch / 2);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const step = cols > 12 ? 3 : cols > 7 ? 2 : 1;
+    for (let f = Math.max(1, lo); f <= hi; f += step) ctx.fillText(String(f), xOf(f) + cw / 2, padT + rows * ch + 3);
+  }
+  function drawLeanStripHero(canvas, lean) {
+    if (!canvas || !lean || !lean.bars.length) return;
+    const C = _heroColors();
+    const cssH = 84;
+    canvas.style.height = cssH + 'px';
+    const dpr = window.devicePixelRatio || 1, rect = canvas.getBoundingClientRect();
+    const pxW = Math.max(1, Math.floor(rect.width * dpr)), pxH = Math.max(1, Math.floor(cssH * dpr));
+    if (canvas.width !== pxW || canvas.height !== pxH) { canvas.width = pxW; canvas.height = pxH; }
+    const ctx = canvas.getContext('2d'); if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const W = rect.width, padL = 30, padR = 8, padT = 8, padB = 14;
+    ctx.clearRect(0, 0, W, cssH);
+    const innerH = cssH - padT - padB, midY = padT + innerH / 2;
+    const SCALE = 60;                                              // ±60 ms full-scale
+    const yOf = ms => midY - (Math.max(-SCALE, Math.min(SCALE, ms)) / SCALE) * (innerH / 2) * -1;   // late (+) sits BELOW the line
+    // The pocket band: slightly BEHIND the beat reads as IN the pocket (bass
+    // grammar) — early(−8) … late(+20).
+    ctx.fillStyle = C.ok; ctx.globalAlpha = 0.10;
+    ctx.fillRect(padL, Math.min(yOf(-8), yOf(20)), W - padL - padR, Math.abs(yOf(20) - yOf(-8)));
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = C.border; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, midY + 0.5); ctx.lineTo(W - padR, midY + 0.5); ctx.stroke();
+    const bars = lean.bars, n = bars.length;
+    const bw = (W - padL - padR) / n;
+    for (let k = 0; k < n; k++) {
+      const b = bars[k];
+      const x = padL + k * bw + bw / 2;
+      const y = yOf(b.lean);
+      const half = Math.max(2, Math.min(innerH / 2, Math.abs(b.jit) / 2 * (innerH / 2) / SCALE));
+      const inPocket = b.lean >= -8 && b.lean <= 20;
+      ctx.strokeStyle = inPocket ? C.text : C.heat;
+      ctx.globalAlpha = inPocket ? 0.8 : 0.95;
+      ctx.lineWidth = Math.max(2, Math.min(6, bw * 0.3));
+      ctx.beginPath(); ctx.moveTo(x, y - half); ctx.lineTo(x, y + half); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    // Axis words — the readable promise (rush above, drag below), bar count.
+    ctx.fillStyle = C.faint; ctx.font = '9px ' + (getComputedStyle(document.body).getPropertyValue('--ss-mono') || 'monospace');
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('rush', 2, padT + 5); ctx.fillText('drag', 2, cssH - padB - 4);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const step = n > 16 ? 4 : n > 8 ? 2 : 1;
+    for (let k = 0; k < n; k += step) ctx.fillText(String(bars[k].i + 1), padL + k * bw + bw / 2, cssH - padB + 3);
+  }
+  // The hero chooser + its caption/stat copy. Returns { html, draw } or null.
+  function buildResultsHero(r, info, flags) {
+    if (flags.isWorkout || flags.isFelt || flags.rough || !flags.judged) return null;
+    if ((r.judgedPassed || 0) < 8) return null;
+    if (_downshiftChipShown) return null;    // one nudge per run — the chip already spoke
+    const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const heat = info && info.heat, lean = info && info.leanBars;
+    const active = heat ? heat.cells.filter(c => c.hit + c.miss > 0) : [];
+    if (heat && active.length >= 5) {
+      const frets = active.map(c => c.f);
+      const hasEx = heat.cells.some(c => c.ex > 0 && c.hit + c.miss === 0);
+      const cap = `Where you played — frets ${Math.min(...frets)}–${Math.max(...frets)} · ink = landed · amber = revisit${hasEx ? ' · hollow = not judged' : ''}`;
+      // ONE quiet diagnostic row: finger first (names a mechanic), else the
+      // worst string crossing (guitar-pedagogy's ranking).
+      let stat = '';
+      const fgTop = Object.entries(heat.fgMiss || {}).sort((a, b) => b[1] - a[1])[0];
+      const trTop = Object.entries(heat.transMiss || {}).sort((a, b) => b[1] - a[1])[0];
+      if (fgTop && fgTop[1] >= 3 && fgTop[1] / Math.max(1, heat.missTotal) >= 0.4) {
+        const names = { 1: '1st-finger', 2: '2nd-finger', 3: '3rd-finger', 4: 'pinky' };
+        stat = `Most missed: ${names[fgTop[0]]} notes (${fgTop[1]} of ${heat.missTotal})`;
+      } else if (trTop && trTop[1] >= 3) {
+        const [a, b] = trTop[0].split('>').map(Number);
+        const nm = i => heat.opens[i] != null ? pcName(heat.opens[i] % 12) : String(i);
+        stat = `Most missed crossing: ${nm(a)}→${nm(b)} string`;
+      }
+      return {
+        html: `<div class="slopscale-results-hero"><canvas id="slopscale-results-hero-cv" role="img" aria-label="${esc(cap)}"></canvas>` +
+              `<div class="slopscale-results-hero-cap">${esc(cap)}</div>` +
+              (stat ? `<div class="slopscale-results-hero-stat">${esc(stat)}</div>` : '') + `</div>`,
+        draw: () => drawHeatmapHero($('slopscale-results-hero-cv'), heat),
+      };
+    }
+    if (lean && lean.bars.length >= 4 && (info.leanN || 0) >= 16) {
+      const m = info.leanMs || 0;
+      const word = (m >= -8 && m <= 20) ? 'In the pocket' : m < -8 ? 'Rushing' : 'Dragging';
+      const cap = `Your pocket, bar by bar — ${word.toLowerCase()}${Math.abs(m) > 8 ? ` (~${Math.abs(m)}ms ${m < 0 ? 'ahead' : 'behind'})` : ''}`;
+      let stat = '';
+      if (lean.chg && Math.abs(lean.chg.med) >= 12) {
+        stat = `You ${lean.chg.med < 0 ? 'rush' : 'sit late on'} the first beat after a change by ~${Math.abs(lean.chg.med)}ms`;
+      }
+      return {
+        html: `<div class="slopscale-results-hero"><canvas id="slopscale-results-hero-cv" role="img" aria-label="${esc(cap)}"></canvas>` +
+              `<div class="slopscale-results-hero-cap">${esc(cap)}</div>` +
+              (stat ? `<div class="slopscale-results-hero-stat">${esc(stat)}</div>` : '') + `</div>`,
+        draw: () => drawLeanStripHero($('slopscale-results-hero-cv'), lean),
+      };
+    }
+    return null;
+  }
   function showResultsModal(s) {
     const root = $('slopscale-root'), body = $('slopscale-results-body'), title = $('slopscale-results-title');
     if (!root || !body || !s) return;
@@ -13418,6 +13583,10 @@
     // descriptive session header (no earned-green edge). Built from s.chapters
     // (descriptive, no per-block scoring). Single-config modes are unaffected.
     const isWorkout = s.mode === 'session' && Array.isArray(s.chapters) && s.chapters.length > 1;
+    // The hero visual (panel 2026-06-12): heatmap for runs that moved on the
+    // neck, the lean strip for groove runs — suppressed on rough/sparse/felt/
+    // Workout runs and whenever the mid-run downshift chip already spoke.
+    const hero = buildResultsHero(r, info, { rough, judged, isWorkout, isFelt });
 
     // 1 · VERDICT slot — earned outcomes only; ONE hero (felt > proof > tier > travel).
     // Bass felt FLIP: the verdict WORD is the hero, tempo demoted (Option A — the
@@ -13694,6 +13863,7 @@
         : verdict +
           `<div class="slopscale-results-pct">${(judged && !reduceMotion) ? '0%' : headline}</div>` +
           `<div class="slopscale-results-head">${sub}</div>` +
+          (hero ? hero.html : '') +
           strip +
           `<div class="slopscale-results-practiced">Practiced ${dur}${s.bpm ? ` @ ${s.bpm} BPM` : ''}</div>` +
           shareBtn) +
@@ -13707,8 +13877,11 @@
     const card = root.querySelector('.slopscale-results-card');
     if (card) {
       card.classList.toggle('ss-earned', earned && hasResult && !isWorkout);   // a Workout never earns the green edge (it's "I did the map", not a cleared competency)
+      card.classList.toggle('ss-has-hero', !!hero);   // the card widens only when a hero renders
       card.classList.remove('ss-enter'); void card.offsetWidth; card.classList.add('ss-enter');
     }
+    // Draw the hero AFTER the canvas is in the layout (size comes from CSS width).
+    if (hero) requestAnimationFrame(() => { try { hero.draw(); } catch (_) {} });
     // The % count-up — the meter-settling idiom (an LCD landing on its value).
     // Never on empty states or a Workout (no % element); reduced-motion gets the
     // final value immediately.
@@ -18472,6 +18645,82 @@
     return out;
   }
 
+  // ── Scorecard hero snapshots (run-end panel 2026-06-12) ─────────────────────
+  // Read the judge's own truth (_ptWin: every judged note + its credited flag)
+  // into plain data the results modal can draw AFTER teardown. Misses count only
+  // when the run had input (the miss-gem rule — an idle mic never paints
+  // attention); chart notes the judge never windowed (bends/legato/muted/
+  // sub-floor/chords-on-YIN) become hollow "not judged" cells so the map never
+  // lies about coverage (the instrument lanes' honesty rules).
+  function ptHeatSnapshot() {
+    if (!_ptWin.length || !activeBundle) return null;
+    const cells = new Map();
+    const cellOf = (s, f) => { const k = s + '|' + f; let c = cells.get(k); if (!c) { c = { s, f, hit: 0, miss: 0, ex: 0 }; cells.set(k, c); } return c; };
+    const windowed = new Set();
+    const fgMiss = {}, transMiss = {};
+    let missTotal = 0, fgMissN = 0, prevS = null;
+    const wins = _ptWin.slice().sort((a, b) => a.t - b.t);
+    for (const w of wins) {
+      for (const n of (w.notes || [])) {
+        windowed.add(ptKey(n));
+        const c = cellOf(n.s, n.f);
+        if (w.credited) c.hit++;
+        else if (_ptHadInput) {
+          c.miss++; missTotal++;
+          // The guitar-lane diagnostics: misses by FINGER (names a mechanic) and
+          // by string transition (crossing weakness) — surfaced as ONE quiet
+          // text row, never extra paint on the map.
+          if (n.fg >= 1 && n.fg <= 4) { fgMiss[n.fg] = (fgMiss[n.fg] || 0) + 1; fgMissN++; }
+          if (prevS != null && prevS !== n.s) { const k = prevS + '>' + n.s; transMiss[k] = (transMiss[k] || 0) + 1; }
+        }
+      }
+      const last = (w.notes || [])[(w.notes || []).length - 1];
+      if (last) prevS = last.s;
+    }
+    for (const n of (activeBundle.notes || [])) {
+      if (n._tail || windowed.has(ptKey(n))) continue;
+      cellOf(n.s, n.f).ex++;
+    }
+    return { cells: [...cells.values()], opens: (activeBundle.openMidis || []).slice(), missTotal, fgMiss, fgMissN, transMiss };
+  }
+  // Per-bar timing-lean strip data (the groove-rung hero; the bass grammar:
+  // per-BAR medians only — per-note early/late marks train click-chasing, vetoed).
+  function ptLeanBarsSnapshot() {
+    if (_ptDevs.length < 16 || !activeBundle) return null;
+    const cfg = (activeBundle.config && activeBundle.config.meter && activeBundle.config.bpm) ? activeBundle.config : null;
+    if (!cfg) return null;
+    const meas = measureSeconds(cfg), lead = activeBundle.leadIn || 0;
+    if (!(meas > 0)) return null;
+    const byBar = new Map();
+    for (const x of _ptDevs) {
+      const b = Math.max(0, Math.floor((x.t - lead) / meas + 1e-6));
+      if (!byBar.has(b)) byBar.set(b, []);
+      byBar.get(b).push(x.d * 1000);
+    }
+    const med = a => a[Math.floor(a.length / 2)];
+    const bars = [...byBar.entries()].sort((a, b) => a[0] - b[0]).map(([i, ds]) => {
+      ds.sort((a, b) => a - b);
+      const jit = ds.length > 1 ? ds[Math.floor(ds.length * 0.75)] - ds[Math.floor(ds.length * 0.25)] : 0;
+      return { i, lean: Math.round(med(ds)), jit: Math.round(jit), n: ds.length };
+    });
+    // The bass secondary stat: lean on the FIRST onset after each chord change —
+    // where the pocket actually breaks (the ear jumps to the new root, the hand
+    // pushes). chart.timeline is UNshifted by the count-in; note times are.
+    let chg = null;
+    const tl = activeBundle.timeline || (activeBundle.chart && activeBundle.chart.timeline) || null;
+    if (tl && tl.length > 1) {
+      const devsSorted = _ptDevs.slice().sort((a, b) => a.t - b.t);
+      const leans = [];
+      for (let ci = 1; ci < tl.length; ci++) {
+        const t0 = (tl[ci].startSec != null ? tl[ci].startSec : tl[ci].t) + lead;
+        if (!(t0 >= 0)) continue;
+        const x = devsSorted.find(d => d.t >= t0 - 1e-3 && d.t < t0 + meas * 0.5);
+        if (x) leans.push(x.d * 1000);
+      }
+      if (leans.length >= 4) { leans.sort((a, b) => a - b); chg = { med: Math.round(med(leans)), n: leans.length }; }
+    }
+    return { bars, chg };
+  }
   function sessionEnd() {
     if (!_activeSession) return;
     // Paused wall-time is not practice time: it must not inflate the
@@ -18494,6 +18743,10 @@
       _ptRunInfo.leanMs = devs.length ? Math.round(devs[Math.floor(devs.length / 2)] * 1000) : null;
       _ptRunInfo.leanN = devs.length;
       _ptRunInfo.nearMiss = _ptNearMiss;
+      // Scorecard hero data (panel 2026-06-12): snapshot per-cell hit/miss + the
+      // per-bar lean strip while the window table still lives (teardown clears it).
+      try { _ptRunInfo.heat = ptHeatSnapshot(); } catch (_) { _ptRunInfo.heat = null; }
+      try { _ptRunInfo.leanBars = ptLeanBarsSnapshot(); } catch (_) { _ptRunInfo.leanBars = null; }
       // Slice 3: A/V auto-calibration — the host-mirror sweep over this run's
       // offset-free detections refines the hidden latency anchor for FUTURE
       // runs (this run's scores are already settled). EMA keeps one weird run
@@ -20189,6 +20442,6 @@
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
   window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier, xpLevelInfo, computeBadges, creditBadges, shareCardText, isShareworthy, feltHoldAnalyze, creditFeltRung, shareCardModel, shareCardText, renderShareCardImage, isShareworthy };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();

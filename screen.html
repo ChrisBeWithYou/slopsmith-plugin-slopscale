@@ -30,6 +30,7 @@
     --ss-accent-soft: rgba(96, 165, 250, 0.22);
     --ss-accent-grad: linear-gradient(180deg, #1e40af, #1d4ed8); /* active-state fill (themeable) */
     --ss-accent-edge: #60a5fa;                 /* active-state border (themeable) */
+    --ss-heat: #f0a050;                        /* attention/coaching warmth (scorecard heatmap) — NEVER an error red */
     --ss-playhead: #f43f5e;                    /* reserved: means "now", nowhere else */
     --ss-danger: #b91c1c;
     --ss-meter: #22c55e;                       /* progress / cleared fill */
@@ -717,6 +718,13 @@
   .slopscale-results-modal { position: absolute; inset: 0; z-index: 23; display: none; align-items: center; justify-content: center; background: rgba(2,6,16,0.55); }
   .slopscale-root.ss-results-open .slopscale-results-modal { display: flex; }
   .slopscale-results-card { width: 400px; max-width: 92%; }
+  /* Scorecard hero (panel 2026-06-12): the card widens only when a visual renders;
+     the canvas is a calm static readout between the judgment and the progress strip. */
+  .slopscale-results-card.ss-has-hero { width: 520px; }
+  .slopscale-results-hero { margin: 10px 0 2px; }
+  .slopscale-results-hero canvas { display: block; width: 100%; }
+  .slopscale-results-hero-cap { font-size: 10.5px; color: var(--ss-text-faint, #64748b); margin-top: 4px; text-align: center; }
+  .slopscale-results-hero-stat { font-size: 11.5px; color: var(--ss-text-dim, #cbd5e1); margin-top: 2px; text-align: center; }
   /* The % is ALWAYS neutral (2026-06-06 redesign): meter-green belongs to cleared
      things only — a green 84% that didn't clear a rung claims a clear it didn't
      earn, and a red rough run punishes. Meaning lives in the verdict slot. */
