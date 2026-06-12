@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.23-beta.5';
+  const SLOPSCALE_VERSION = '0.7.23-beta.6';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -1152,6 +1152,7 @@
     // bass_4_standard / position. Reviewed by bass-pedagogy-architect's per-ladder verdict.
     bass_root_fifth_octave: {
       label:'Root–5th–Octave',
+      feltGate:true,   // bass FEEL rung (tag pass 2026-06-12, QUALIFY): the 5th/octave partners clear the floor; the box is found "by feel".
       goal:'The foundational bass box: root, fifth, octave, fifth, anchored on each chord. Before scales, a bassist owns this shape — it outlines any chord and lays the harmonic floor under the band. The skill is finding the root and reaching the 5th/octave by feel in any key.',
       scales:['major','natural_minor'],
       tempoTiers:[60, 80, 100, 120],
@@ -1160,6 +1161,7 @@
     },
     bass_octave_groove: {
       label:'Octave Groove',
+      feltGate:true,   // bass FEEL rung (tag pass 2026-06-12, QUALIFY): the octave-up (≥82Hz) clears the floor every other onset. Dogfood watch: tier-4 (135, 8ths) is at the top of the measurable window.
       goal:'The disco/pop octave bounce: root and its octave, locked to the kick, the weight landing on the high octave (the pop up). The skill is the relentless, even octave pulse that drives dance and pop — the bassline as the engine of the groove.',
       scales:['major','natural_minor','dorian'],
       tempoTiers:[70, 95, 115, 135],
@@ -1185,6 +1187,7 @@
     },
     bass_slap: {
       label:'Slap & Pop',
+      feltGate:true,   // bass FEEL rung (tag pass 2026-06-12, QUALIFY — thinnest sample): pops/accents clear the floor. Tiers 3–4 (110/130 16ths) sit past the bass-16th detection break → they degrade to "practiced" by the evidence gate (the gate WORKING); flips reliable at 70–90.
       goal:'The funk slap pocket: thumb-slapped roots (low) and popped octaves (high), ghost notes between, space and accents that snap. The skill is the percussive thumb/pop coordination and the syncopation against the one. Advanced — drill the fingerstyle pocket first, then add the snap.',
       scales:['minor_pentatonic','dorian'],
       tempoTiers:[70, 90, 110, 130],
@@ -1381,6 +1384,7 @@
     },
     bass_lc_roots: {
       label:'Roots on the One',
+      feltGate:true,   // bass FEEL rung (tag pass 2026-06-12, PRIME): "locked to the kick, never miss the change" IS the pocket; the line stays graded (frets 0–7).
       goal:"The first step into playing the changes: the root of each chord, on beat 1, held — change exactly when the chord changes. No flash, just the right note at the right moment, locked to the kick. This is what a bassline IS before anything else — the harmonic floor that tells the whole band where the music is. Follow a real progression and never miss the change.",
       scales:['major','natural_minor'],
       tempoTiers:[60, 80, 100, 120],
@@ -1397,6 +1401,7 @@
     },
     bass_lc_approach: {
       label:'Approach-Note Lines',
+      feltGate:true,   // bass FEEL rung (tag pass 2026-06-12, PRIME): walking quarters, the pocket pulls the line forward.
       goal:"Now connect the changes like a jazz bassist: a chromatic half-step or a dominant 5th on the last beat, pulling your ear into the next chord's root. This is the device that turns roots-and-fifths into a walking LINE that leads. Then graduate the feel — half-time 'in 2' for the head, four-to-the-bar quarters when it's time to walk. The engine of jazz and blues bass.",
       scales:['major','dorian','mixolydian'],
       tempoTiers:[65, 85, 105, 125],
@@ -1405,6 +1410,7 @@
     },
     bass_lc_capstone: {
       label:'The 12-Bar Walk',
+      feltGate:true,   // bass FEEL rung (tag pass 2026-06-12, PRIME): "walk it without thinking at tempo" = a held pocket over the full form.
       goal:"The hard application: walk a complete JAZZ 12-bar blues — every change outlined with roots, chord tones, and approach notes, the line resolving through the bar-6 diminished passing chord and the bar 9–10 ii–V turnaround that separate a jazz blues from a plain one. A full, real walking bassline over an authentic form. Learn it, then play it clean at tempo: when you can walk it without thinking, you're ready to build your own — that's the next rung.",
       scales:['mixolydian','major'],
       tempoTiers:[70, 90, 110, 130],
@@ -3531,6 +3537,14 @@
       const thr = gn.length > 1 ? _ptNdWin.chord : _ptNdWin.single;
       const w = { key, t, susEff, matchStart: t - thr, matchEnd: t + susEff + thr + budget,
                exclStart: t - thr, exclEnd: t + susEff + thr + budget, notes: gn, pcs,
+               // Speak-budget EXCESS over the 35ms floor (s) — the register-DEPENDENT
+               // part of detection lag (D2 ≈ +31ms, ≥G3 ≈ 0). The felt-hold verdict
+               // subtracts it per deviation (D3, roundtable §7): the latency anchor
+               // absorbs the CONSTANT lag, but a walking line crossing registers
+               // would otherwise read its low notes late (fake "Dragging") and
+               // inflate jitter past the Locked band. The guitar tendency line
+               // keeps reading raw .d (anchor-calibrated, single-register).
+               sbx: Math.max(0, budget - 0.035),
                credited: false };
       if (span) { w.span = true; w.spanEnd = ringEnd; w.bktN = Math.max(1, Math.ceil((ringEnd - t) / PT_SPAN_BUCKET)); w.bkts = new Set(); }
       return w;
@@ -3741,10 +3755,11 @@
       if (bi >= 0 && bi < w.bktN) w.bkts.add(bi);
     } else {
       // Credit only if the level gate also passes (raw isHit is not enough —
-      // host-mirror silence veto). Timing deviation { d, t } records only on a
+      // host-mirror silence veto). Timing deviation { d, t, sb } records only on a
       // real credit — feeds both the timing-tendency line and the bass felt-hold
-      // verdict (t = onset, needed for gap/trend detection).
-      if (ptCreditWindow(w)) _ptDevs.push({ d: currentPracticeTime - ptLatency() - w.t, t: w.t });
+      // verdict (t = onset, needed for gap/trend detection; sb = the window's
+      // register-dependent speak-budget excess, subtracted by feltHoldAnalyze).
+      if (ptCreditWindow(w)) _ptDevs.push({ d: currentPracticeTime - ptLatency() - w.t, t: w.t, sb: w.sbx });
     }
   }
   function ndStopVerify() {
@@ -3862,11 +3877,11 @@
         if (!w._detIds) w._detIds = new Set();
         w._detIds.add(v.id);
         if (w._detIds.size / w.notes.length >= PT_CHORD_HIT_RATIO && ptCreditWindow(w)) {
-          _ptDevs.push({ d: detT - w.t, t: w.t });
+          _ptDevs.push({ d: detT - w.t, t: w.t, sb: w.sbx });
         }
       } else {
         // Single note: one detected verdict credits.
-        if (ptCreditWindow(w)) _ptDevs.push({ d: detT - w.t, t: w.t });
+        if (ptCreditWindow(w)) _ptDevs.push({ d: detT - w.t, t: w.t, sb: w.sbx });
       }
     }
     // Drive the engine clock with our exercise playhead (the judge clock the
@@ -9784,12 +9799,13 @@
       segBeats.forEach(b => beats.push(Object.assign({}, b, { time:Number((b.time + t).toFixed(6)) })));
       swung.backing.forEach(ev => backingEvents.push(Object.assign({}, ev, { t:Number((ev.t + t).toFixed(6)), end:Number((ev.end + t).toFixed(6)) })));
       tplOffset += (chart.chordTemplates || []).length;
+      const blkBar = measureSeconds(segCfg);
       segmentBounds.push({ name:segment.name, kind:segment.kind, role:(blockRole(segment) || segment.role || null),
         competency:segmentCompetency(rawSeg, segment),
         templateId:(rawSeg.templateId || null), variantIdx:(rawSeg.variantIdx != null ? rawSeg.variantIdx : null),
         added:!!rawSeg._added, key:(segCfg.key || null), bpm:(segCfg.bpm || null),
+        barSec:Number(blkBar.toFixed(6)),   // the block's own bar length — the per-block felt verdict's span unit
         start:Number(t.toFixed(6)), end:Number((t + dur).toFixed(6)) });
-      const blkBar = measureSeconds(segCfg);
       beatOff += (dur / blkBar) * Math.max(1, segCfg.meter.numerator);
       barOff += Math.round(dur / blkBar);
       t += dur;
@@ -12195,7 +12211,18 @@
       // block got NO input, the player skipped/watched it — don't claim "✓ done"
       // (silence is never narrated). Mic-less runs keep the plain completion line.
       const blockSilent = _ptHadInput && !_blockHadInput[v.idx - 1];
-      if (doneEl) doneEl.textContent = blockSilent ? '' : `✓ ${v.done.name || 'Block'} — done`;
+      // A felt block's seam drops the POCKET word instead of the generic "done"
+      // (roundtable §4 "Workout seam" surface). Analysis only — credit waits for
+      // sessionEnd; verdict null (thin evidence) keeps the plain line, no claim.
+      let doneTxt = blockSilent ? '' : `✓ ${v.done.name || 'Block'} — done`;
+      if (!blockSilent) {
+        try {
+          const fi = blockFeltInfo(v.done);
+          const SEAM_WORD = { locked: 'Locked the pocket', settling: 'Settled into the pocket', dragging: 'Dragging — behind the beat', rushing: 'Rushing — ahead of the kick' };
+          if (fi && fi.felt.verdict) doneTxt = `✓ ${v.done.name || 'Block'} — ${SEAM_WORD[fi.felt.verdict]}`;
+        } catch (_) {}
+      }
+      if (doneEl) doneEl.textContent = doneTxt;
       if (nextEl) nextEl.innerHTML = `Next ▸ ${v.next.name || 'next'} <span class="slopscale_beta-seam-pos">· block ${v.idx + 1} of ${v.total}</span>`;
       el.classList.add('is-on');
       _seamCapKey = key;
@@ -13810,7 +13837,16 @@
         // DI/mic-less player) > ○ touched (reached but silent while the mic WAS
         // live elsewhere) > — unreached. Never red.
         const earned = c.earned;
-        const comp = earned ? `Cleared ${earned.tierName}` : (c.added ? '' : (c.competency || ''));
+        // A felt block's comp line speaks the POCKET vocabulary (never a %): an
+        // earned flip names the verdict word; a non-flip mirrors it descriptively;
+        // verdict null (thin evidence / sub-floor) falls back to the competency —
+        // no claim is made over evidence the judge didn't have.
+        const FELT_ROW = { locked: 'Locked the pocket', settling: 'Settled into the pocket', dragging: 'Dragging — behind the beat', rushing: 'Rushing — ahead of the kick' };
+        const comp = earned
+          ? (earned.feltVerdict ? `${FELT_ROW[earned.feltVerdict] || 'Held the pocket'} — cleared ${earned.tierName}` : `Cleared ${earned.tierName}`)
+          : (c.felt && c.felt.verdict) ? FELT_ROW[c.felt.verdict]
+          : (c.felt && c.felt.untight) ? 'Keep working the pocket'
+          : (c.added ? '' : (c.competency || ''));
         const touched = c.reached && r.hadInput && !c.hadInput;
         const glyph = earned ? '✓' : (!c.reached ? '—' : (touched ? '○' : '●'));
         const stateCls = earned ? ' is-earned' : (!c.reached ? ' is-unreached' : (touched ? ' is-touched' : ' is-played'));
@@ -17562,9 +17598,9 @@
         } else {
           // Single-frame commit (the host's rule): one fresh in-window
           // in-pitch lock credits the note — IF the level gate also passes
-          // (host-mirror silence veto). Deviation { d, t } records only on a
+          // (host-mirror silence veto). Deviation { d, t, sb } records only on a
           // real credit (t = onset, for the felt-hold gap/trend detection).
-          if (ptCreditWindow(best)) _ptDevs.push({ d: tJudge - best.t, t: best.t });
+          if (ptCreditWindow(best)) _ptDevs.push({ d: tJudge - best.t, t: best.t, sb: best.sbx });
         }
       } else {
         // Near-miss aggregate: a fresh in-pitch frame that lands just
@@ -17994,7 +18030,13 @@
     opts = opts || {};
     const barSec = opts.barSec > 0 ? opts.barSec : 2;
     if (!Array.isArray(devs) || devs.length < FELT.MIN_N) return { verdict: null, n: devs ? devs.length : 0, untight: false };
-    const pts = devs.map(x => ({ t: x.t, d: x.d * 1000 })).sort((a, b) => a.t - b.t);   // d → ms
+    // D3 (v1.1): subtract each deviation's register-dependent speak-budget EXCESS
+    // (`sb`, s — see the window-build comment) so a low note's late-arriving
+    // evidence doesn't read as the PLAYER late. Corrects both the lean (fake
+    // "Dragging" on low lines) and the cross-register jitter inflation a walking
+    // line suffers (E1→G3 spans ~30ms of speak spread — enough alone to push a
+    // Locked player past JITTER_LOCK). Missing sb (old vectors, tests) = 0.
+    const pts = devs.map(x => ({ t: x.t, d: (x.d - (x.sb || 0)) * 1000 })).sort((a, b) => a.t - b.t);   // d → ms
     // Longest CONTINUOUS credited span (break the chain on a gap > ~2 bars).
     const gapMax = 2 * barSec; let runStart = 0, best = [0, 0];
     for (let i = 1; i <= pts.length; i++) {
@@ -18345,6 +18387,28 @@
     if (proofPilot(tmpl.creditsPathway) && !proofHeld({ bpm, hit_count: score.hits, miss_count: Math.max(0, score.judged - score.hits) })) return null;
     const r = _updatePathwayTier(tmpl.creditsPathway, tier);             // (5) one ledger, idempotent
     return r ? { pathwayId: tmpl.creditsPathway, pathwayLabel: pw.label, tier, tierName: TIER_LABELS[tier] || ('Tier ' + (tier + 1)) } : null;
+  }
+  // Per-block FELT analysis (the felt-hold finisher — roundtable "per-block
+  // felt-credit"): when a Workout block's source template credits a feltGate
+  // pathway, the %-gate above is the wrong judge — a bass feel block can rarely
+  // (sub-floor: never) muster ≥65% of ≥8 judged, so the 'Walking bass' template
+  // could never credit. Analysis only (NO ledger write — the seam caption calls
+  // this mid-run): same authored-tag + role/kind eligibility as creditBlockTier,
+  // evidence = THIS block's own _ptDevs slice at the block's own barSec (the
+  // per-block desync rule applied to felt). The felt evidence gate (≥12 credited
+  // onsets, ≥4 continuous bars) stays the anti-inflation spine — a silent or
+  // sub-floor block reads verdict null and stays "practiced". Returns
+  // { pwId, felt } | null (null = not a felt block → fall through to the %-gate).
+  // devsOpt: test seam — the harness passes a synthetic dev vector; live callers
+  // omit it (the run's _ptDevs).
+  function blockFeltInfo(b, devsOpt) {
+    const tmpl = b && b.templateId ? SEGMENT_TEMPLATES[b.templateId] : null;
+    if (!tmpl || !tmpl.creditsPathway) return null;
+    const pw = PATHWAYS[tmpl.creditsPathway];
+    if (!pw || !pw.feltGate) return null;
+    if (!CREDIT_ROLES.has(tmpl.role) || CREDIT_KIND_EXCLUDE.has(tmpl.kind)) return null;
+    const devs = (devsOpt || _ptDevs).filter(x => x.t >= b.start - 1e-3 && x.t < b.end + 1e-3);
+    return { pwId: tmpl.creditsPathway, felt: feltHoldAnalyze(devs, { barSec: b.barSec }) };
   }
   // Startup integrity guard (mirrors validateSegmentTemplates / the anchor guard) —
   // throws at LOAD if a `creditsPathway` tag is mis-authored, so a bad mapping can
@@ -18870,17 +18934,32 @@
       const sb = (activeBundle && Array.isArray(activeBundle.segmentBounds)) ? activeBundle.segmentBounds : [];
       if (sb.length > 1) {
         const pbs = perBlockScore(sb);
-        chapters = sb.map((b, i) => ({
-          name: b.name, kind: b.kind, role: b.role, competency: b.competency || null,
-          added: !!b.added, key: b.key || null,
-          durSec: Math.max(0, (b.end || 0) - (b.start || 0)),
-          reached: _runLooped || (b.start <= _runMaxChartTime + 0.05),
-          hits: pbs[i].hits, judged: pbs[i].judged, hadInput: !!_blockHadInput[i],
-          // Per-block CREDIT (the earned ✓): a clean strict pass on a credit-tagged
-          // block flips its pathway rung through the conservative front door. null
-          // = no flip (untagged, ineligible, weak evidence, or already cleared).
-          earned: creditBlockTier(b.templateId, b.bpm, pbs[i]),
-        }));
+        chapters = sb.map((b, i) => {
+          // Per-block CREDIT (the earned ✓). A block crediting a feltGate rung
+          // completes on the POCKET (its own _ptDevs slice → creditFeltRung —
+          // the felt-hold finisher), every other tagged block on the strict
+          // %-pass (creditBlockTier). null = no flip (untagged, ineligible,
+          // weak evidence, or already cleared).
+          const fi = blockFeltInfo(b);
+          let earned = null;
+          if (fi) {
+            const fr = creditFeltRung(fi.pwId, b.bpm, fi.felt);
+            if (fr && fr.flip) earned = { pathwayId: fr.pathwayId, pathwayLabel: fr.pathwayLabel, tier: fr.tier, tierName: fr.tierName, feltVerdict: fr.verdict };
+          } else {
+            earned = creditBlockTier(b.templateId, b.bpm, pbs[i]);
+          }
+          return {
+            name: b.name, kind: b.kind, role: b.role, competency: b.competency || null,
+            added: !!b.added, key: b.key || null,
+            durSec: Math.max(0, (b.end || 0) - (b.start || 0)),
+            reached: _runLooped || (b.start <= _runMaxChartTime + 0.05),
+            hits: pbs[i].hits, judged: pbs[i].judged, hadInput: !!_blockHadInput[i],
+            earned,
+            // The block's felt verdict word (feltGate blocks only) — the recap row
+            // mirrors it even without a flip (descriptive, never a %, never red).
+            felt: fi ? { verdict: fi.felt.verdict, untight: !!fi.felt.untight, spanBars: fi.felt.spanBars || 0 } : null,
+          };
+        });
       }
     }
     // Proof-loop competency claim (flagged, pilot, ONLY on a real flip — the
@@ -20442,6 +20521,6 @@
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
   window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier, xpLevelInfo, computeBadges, creditBadges, shareCardText, isShareworthy, feltHoldAnalyze, creditFeltRung, shareCardModel, shareCardText, renderShareCardImage, isShareworthy };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
