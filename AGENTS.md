@@ -82,6 +82,7 @@ Promoted from patterns in past-session feedback — the things Christian kept ha
 | `docs/session-2026-05-26-shape-system.md` | Shape-system unification session log. |
 | `docs/*-roundtable.md`, `docs/triad-mastery-ladder.md`, `docs/proof-loop-slice.md`, `docs/beta-testing.md` | Charette/spec docs for in-flight initiatives (one per initiative — e.g. backing-engine, grading-rebuild, workout-love/engagement, programs-ladder, rhythm/timing-judging, hand-marks, bass-technique/felt-hold). The set grows each session; **`ROADMAP.md` + project memory are authoritative for which exist and their status** — don't enumerate them all here. |
 | `docs/backing-pipeline.md` | How a chord progression becomes a sounding backing band (generation → humanization → DSP chain); written shareable for the host team. |
+| `docs/riff-vocabulary-playbook.md` | The reusable add-a-genre-vocab-pack process (rung arc, bright-line checks, consult matrix, acceptance checklists) — **future genre packs follow this, no charette needed.** |
 | `docs/sources/` | Source PDFs — reference material only. |
 | `scripts/cut-beta.mjs` | Regenerates the renamed `slopscale-beta` branch from `slopscale-dev` (the beta channel — see Part 3 session-end checklist). |
 | `README.md` | User-facing feature list + install steps. |
