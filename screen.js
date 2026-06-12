@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.23-beta.2';
+  const SLOPSCALE_VERSION = '0.7.23-beta.3';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -4996,8 +4996,10 @@
     const audio = (bundle && bundle.config && bundle.config.audio) || cfg.audio;
     const prof = resolveAudioProfile({ ...cfg, audio });
     const out = [];
-    const pick = (role, on) => { if (!on) return; const g = mixerInstrumentFor(role) ?? (prof[role] && prof[role].engine === 'sample' ? TONE_GM[prof[role].tone] : null); if (g != null && out.indexOf(g) < 0) out.push(g); };
-    pick('notes', audio.notes); pick('harmony', audio.harmony); pick('bass', audio.harmony);
+    const pick = (role, on, profRole) => { const pr = prof[profRole || role]; if (!on) return; const g = mixerInstrumentFor(role) ?? (pr && pr.engine === 'sample' ? TONE_GM[pr.tone] : null); if (g != null && out.indexOf(g) < 0) out.push(g); };
+    // 'pad' (the Keys strip / sustained layer) preloads the profile's harmony
+    // voice until profiles grow a dedicated pad slot.
+    pick('notes', audio.notes); pick('harmony', audio.harmony); pick('pad', audio.harmony, 'harmony'); pick('bass', audio.harmony);
     return out;
   }
   // Kick the (async) load of every sampled voice the bundle needs, WITHOUT waiting —
@@ -12467,21 +12469,25 @@
   // sound-design. Built once per AudioContext; the bus nodes persist across note
   // stop/start (they are deliberately NOT pushed into audioNodes).
   let audioBus = null;
+  const MASTER_TRIM = 0.85;                          // headroom into the limiter (the Mixer's MASTER fader multiplies it)
   function ensureAudioBus(ctx) {
     if (audioBus && audioBus.ctx === ctx) return audioBus;
     const master = ctx.createGain();
-    master.gain.value = 0.85;                        // trim — headroom into the limiter
+    master.gain.value = MASTER_TRIM * mixerMasterLevel;
     const limiter = ctx.createDynamicsCompressor();  // transparent safety limiter
     limiter.threshold.value = -6; limiter.knee.value = 12; limiter.ratio.value = 6;
     limiter.attack.value = 0.003; limiter.release.value = 0.12;
     master.connect(limiter); limiter.connect(ctx.destination);
-    // Backing group: harmony + bass + drums route through this one gain node so the
-    // band can fade out into an inter-block break and fade back in on the next
+    // Master meter tap (post-limiter — what actually reaches the output).
+    const masterAnalyser = ctx.createAnalyser(); masterAnalyser.fftSize = 256;
+    limiter.connect(masterAnalyser);
+    // Backing group: harmony + pad + bass + drums route through this one gain node
+    // so the band can fade out into an inter-block break and fade back in on the next
     // block's downbeat (scheduleBackingEnvelope rides it) WITHOUT touching the Mixer's
     // per-bus faders (upstream) or the click / notes buses (which bypass it).
     const backingGroup = ctx.createGain(); backingGroup.gain.value = 1;
     backingGroup.connect(master);
-    audioBus = { ctx, master, limiter, backingGroup, tracks: {} };
+    audioBus = { ctx, master, limiter, backingGroup, masterAnalyser, tracks: {}, panners: {}, analysers: {} };
     return audioBus;
   }
   // Lazily-created per-track sub-bus ('notes' | 'harmony' | 'click'). Future
@@ -12505,9 +12511,17 @@
     const bus = ensureAudioBus(ctx);
     if (!bus.tracks[name]) {
       const g = ctx.createGain(); g.gain.value = mixerGainFor(name);
-      // Backing voices (harmony / bass / drums) feed the backing group (the break
-      // envelope rides it); click / notes bypass it straight to master.
-      const groupOut = (name === 'harmony' || name === 'bass' || name === 'drums') ? bus.backingGroup : bus.master;
+      // Backing voices (harmony / pad / bass / drums) feed the backing group (the
+      // break envelope rides it); click / notes bypass it straight to master.
+      const groupOut = (name === 'harmony' || name === 'pad' || name === 'bass' || name === 'drums') ? bus.backingGroup : bus.master;
+      // Every strip owns its bus's StereoPanner (the console pan pot); the
+      // creation value is the channel DEFAULT (the sound-design stage offsets
+      // that used to be hard-coded here) unless the user has moved the pot.
+      const canPan = typeof ctx.createStereoPanner === 'function';
+      const mkPan = () => { const p = ctx.createStereoPanner(); p.pan.value = mixerPanFor(name); bus.panners[name] = p; return p; };
+      // Post-fader meter tap (a passive AnalyserNode — drawn only while the
+      // Mixer is open, zero scheduling cost otherwise).
+      const mkTap = (node) => { const an = ctx.createAnalyser(); an.fftSize = 256; node.connect(an); bus.analysers[name] = an; };
       if (name === 'drums') {
         // Drum sub-bus (Phase D): a dedicated compressor BEFORE the master limiter
         // — the punch lever is THIS comp's makeup, NEVER a looser master limiter —
@@ -12518,57 +12532,67 @@
         comp.attack.value = 0.005; comp.release.value = 0.12;
         const shelf = ctx.createBiquadFilter();
         shelf.type = 'highshelf'; shelf.frequency.value = 8000; shelf.gain.value = -3;
-        // A small pan sets the kit slightly off-centre so the dry/centered player
-        // pops forward; a touch of the shared room glues the kit to the band.
+        // The default pan sets the kit slightly off-centre so the dry/centered
+        // player pops forward; a touch of the shared room glues the kit to the band.
         g.connect(comp); comp.connect(shelf);
         let drumOut = shelf;
-        if (typeof ctx.createStereoPanner === 'function') {
-          const pan = ctx.createStereoPanner(); pan.pan.value = -0.1;
-          shelf.connect(pan); drumOut = pan;
-        }
-        drumOut.connect(groupOut);
+        if (canPan) { const pan = mkPan(); shelf.connect(pan); drumOut = pan; }
+        drumOut.connect(groupOut); mkTap(drumOut);
         const send = ctx.createGain(); send.gain.value = 0.07;
         shelf.connect(send); send.connect(ensureSharedReverb(ctx, bus));
-      } else if (name === 'harmony' || name === 'bass') {
+      } else if (name === 'harmony' || name === 'pad' || name === 'bass') {
         // Mix 7b (step 3.5; sound-design): register-carve + pan + one shared
         // short reverb send — persistent per-bus nodes only, zero assets.
-        // The carve keeps the comp out of the bass's lane and BOTH out of the
-        // player's note band; the tiny pan opens the mono stack into a room.
+        // The carve keeps the comp/keys out of the bass's lane and ALL of them
+        // out of the player's note band; the default pans open the mono stack
+        // into a stage (comp slightly R, keys slightly L, bass near-centre).
         const carve = ctx.createBiquadFilter();
-        if (name === 'harmony') { carve.type = 'highpass'; carve.frequency.value = 180; carve.Q.value = 0.5; }
-        else { carve.type = 'lowpass'; carve.frequency.value = 2200; carve.Q.value = 0.5; }
+        if (name === 'bass') { carve.type = 'lowpass'; carve.frequency.value = 2200; carve.Q.value = 0.5; }
+        else { carve.type = 'highpass'; carve.frequency.value = 180; carve.Q.value = 0.5; }
         let chainOut = carve;
-        if (typeof ctx.createStereoPanner === 'function') {
-          const pan = ctx.createStereoPanner();
-          pan.pan.value = name === 'harmony' ? 0.18 : -0.06;
-          carve.connect(pan); chainOut = pan;
-        }
-        g.connect(carve); chainOut.connect(groupOut);
+        if (canPan) { const pan = mkPan(); carve.connect(pan); chainOut = pan; }
+        g.connect(carve); chainOut.connect(groupOut); mkTap(chainOut);
         // Shared reverb send (post-carve, pre-pan so the room stays centered).
-        const send = ctx.createGain(); send.gain.value = name === 'harmony' ? 0.18 : 0.07;
+        const send = ctx.createGain(); send.gain.value = name === 'bass' ? 0.07 : 0.18;
         carve.connect(send); send.connect(ensureSharedReverb(ctx, bus));
       } else {
-        g.connect(groupOut);   // click / notes stay DRY and centered (the time reference)
+        // click / notes stay DRY (the time reference); pan defaults centered but
+        // the pot works — panning the player apart from the band is a real
+        // practice aid (hear yourself on one side, the backing on the other).
+        let out = g;
+        if (canPan) { const pan = mkPan(); g.connect(pan); out = pan; }
+        out.connect(groupOut); mkTap(out);
       }
       bus.tracks[name] = g;
     }
     return bus.tracks[name];
   }
 
-  // ── Shell mixer (M) — per-bus faders/mute/solo + a "Backing dim" ───────────
-  // Controls the per-track audio buses (notes/harmony/click/bass). Default state
-  // is unity (level 1, no mute/solo, no dim) → identical to pre-mixer behaviour.
+  // ── Shell mixer (M) — console strips: fader/pan/mute/solo per bus + MASTER ──
+  // Controls the per-track audio buses (notes/harmony/pad/bass/drums/click) plus
+  // the master bus. Default state is unity (level 1, channel-default pan, no
+  // mute/solo, no dim) → identical to pre-mixer behaviour. `pan` is the channel's
+  // DEFAULT pan — the sound-design stage offsets that used to be hard-coded in
+  // trackBus (comp slightly R, keys slightly L, kit just off-centre); the strip's
+  // pan pot writes mixerState[..].pan over it (double-click resets to default).
+  // 'pad' (the Keys strip) is the sustain layer split out of the comp lane:
+  // cell-driven comping (COMP_GROOVES hits) plays on 'harmony' (Rhythm), the
+  // legacy coalesced sustained pad plays on 'pad' (Keys) — articulation-routed.
   const MIXER_CHANNELS = [
-    { key:'notes',   label:'Player',  backing:false, instr:'melodic' },
-    { key:'harmony', label:'Comp',    backing:true,  instr:'melodic', tone:true },
-    { key:'bass',    label:'Bass',    backing:true,  instr:'bass' },
-    { key:'drums',   label:'Drums',   backing:true,  kit:true },
-    { key:'click',   label:'Click',   backing:false },
+    // 'notes' is labeled Guide, NOT "Player": it's the tool's rendition of the
+    // exercise line (the guide voice), not the player's own input — that's the
+    // INPUT strip (live level + interface/tone shortcuts; we never process it).
+    { key:'notes',   label:'Guide',   backing:false, instr:'melodic', pan:0 },
+    { key:'harmony', label:'Rhythm',  backing:true,  instr:'melodic', pan:0.18 },
+    { key:'pad',     label:'Keys',    backing:true,  instr:'melodic', pan:-0.18 },
+    { key:'bass',    label:'Bass',    backing:true,  instr:'bass',    pan:-0.06 },
+    { key:'drums',   label:'Drums',   backing:true,  kit:true,        pan:-0.1 },
+    { key:'click',   label:'Click',   backing:false,                  pan:0 },
   ];
   // Per-channel instrument options (Phase C — backing-voice selection lives here now,
   // moved out of the form). Values are TONE_GM keys; '' = Auto (use the style profile).
   const MIXER_INSTRUMENTS = {
-    melodic: [['','Auto'],['epiano','E-piano'],['organ','Organ'],['piano','Piano'],['clean','Clean gtr'],['guitar','Acoustic'],['nylon','Nylon'],['clav','Clav'],['strings','Strings'],['pad','Synth pad']],
+    melodic: [['','Auto'],['epiano','E-piano'],['organ','Organ'],['piano','Piano'],['clean','Clean gtr'],['guitar','Acoustic'],['nylon','Nylon'],['clav','Clav'],['strings','Strings'],['brass','Brass'],['synthlead','Synth lead'],['pad','Synth pad']],
     bass:    [['','Auto'],['bass','Electric'],['upright','Upright']],
   };
   // Per-channel kit options for the Drums channel (Phase D). Values are KIT_REGISTRY
@@ -12576,7 +12600,15 @@
   const MIXER_KITS = [['','Auto'],['kit_rock','Acoustic rock'],['kit_acoustic_soft','Acoustic soft'],['kit_jazz','Jazz kit'],['kit_909','Synth 909'],['kit_808','Synth 808']];
   const mixerState = {};
   let mixerBackingDim = false;
-  MIXER_CHANNELS.forEach(c => { mixerState[c.key] = { level:1, mute:false, solo:false, instrument:null, kit:null }; });
+  let mixerMasterLevel = 1;   // multiplier over MASTER_TRIM (the headroom trim stays the engine's)
+  MIXER_CHANNELS.forEach(c => { mixerState[c.key] = { level:1, pan:c.pan || 0, mute:false, solo:false, instrument:null, kit:null }; });
+  // Console fader taper (cube law): slider position p∈[0,1] → gain 0..2, so the
+  // throw reads in dB like a DAW fader (−∞ at the bottom, unity ≈ 0.79, +6 dB
+  // at the top). Stored mixerState levels stay LINEAR gain (back-compat with
+  // saved states; the engine consumes gain, only the slider speaks positions).
+  const faderGainFromPos = p => 2 * p * p * p;
+  const faderPosFromGain = g => Math.cbrt(Math.max(0, Math.min(2, g)) / 2);
+  const faderDb = g => g <= 0.001 ? '−∞' : ((g >= 1.0005 ? '+' : '') + (20 * Math.log10(g)).toFixed(1));
   // The GM preset a channel's instrument override resolves to, or null = use the profile.
   function mixerInstrumentFor(key) {
     const tone = mixerState[key] && mixerState[key].instrument;
@@ -12591,9 +12623,10 @@
     try {
       const s = JSON.parse(localStorage.getItem('slopscale_beta.mixer') || 'null');
       if (s && s.ch) { MIXER_CHANNELS.forEach(c => { if (s.ch[c.key]) Object.assign(mixerState[c.key], s.ch[c.key]); }); mixerBackingDim = !!s.dim; }
+      if (s && Number.isFinite(s.master)) mixerMasterLevel = Math.max(0, Math.min(2, s.master));
     } catch (_) {}
   }
-  function mixerSave() { try { localStorage.setItem('slopscale_beta.mixer', JSON.stringify({ ch: mixerState, dim: mixerBackingDim })); } catch (_) {} }
+  function mixerSave() { try { localStorage.setItem('slopscale_beta.mixer', JSON.stringify({ ch: mixerState, dim: mixerBackingDim, master: mixerMasterLevel })); } catch (_) {} }
   // Effective gain for a bus given the mixer state (1.0 = no change). Solo on any
   // channel mutes the un-soloed; Backing dim ducks the backing buses.
   function mixerGainFor(name) {
@@ -12605,58 +12638,162 @@
     if (mixerBackingDim && ch && ch.backing) v *= 0.35;
     return v;
   }
+  // The strip's pan-pot value for a bus — the channel default (the sound-design
+  // stage offset) until the user moves the pot.
+  function mixerPanFor(name) {
+    const st = mixerState[name];
+    const ch = MIXER_CHANNELS.find(c => c.key === name);
+    const v = st && Number.isFinite(st.pan) ? st.pan : (ch && ch.pan) || 0;
+    return Math.max(-1, Math.min(1, v));
+  }
   // Push the mixer state onto any live buses with a short ramp (no clicks — clean,
   // safe audio).
   function applyMixer() {
     if (!audioBus) return;
     const ctx = audioBus.ctx;
     MIXER_CHANNELS.forEach(c => {
-      const g = audioBus.tracks[c.key]; if (!g) return;
-      const v = mixerGainFor(c.key);
-      try { g.gain.setTargetAtTime(v, ctx.currentTime, 0.02); } catch (_) { g.gain.value = v; }
+      const g = audioBus.tracks[c.key];
+      if (g) {
+        const v = mixerGainFor(c.key);
+        try { g.gain.setTargetAtTime(v, ctx.currentTime, 0.02); } catch (_) { g.gain.value = v; }
+      }
+      const p = audioBus.panners && audioBus.panners[c.key];
+      if (p) {
+        const pv = mixerPanFor(c.key);
+        try { p.pan.setTargetAtTime(pv, ctx.currentTime, 0.02); } catch (_) { p.pan.value = pv; }
+      }
     });
+    const mv = MASTER_TRIM * mixerMasterLevel;
+    try { audioBus.master.gain.setTargetAtTime(mv, ctx.currentTime, 0.02); } catch (_) { audioBus.master.gain.value = mv; }
   }
   function renderMixer() {
     const host = $('slopscale_beta-mixer-channels'); if (!host) return;
-    host.innerHTML = '';
-    MIXER_CHANNELS.forEach(c => {
+    // Console deck — one vertical strip per channel + a separated MASTER strip
+    // (the DAW mixer idiom). Strip rows top→bottom: instrument · pan pot · M/S ·
+    // vertical fader + peak meter · dB readout · scribble label. The master strip:
+    // LIM LED · Dim · master fader + post-limiter meter. (The old "Backing tone"
+    // / brightness knob was dropped from the mixer 2026-06-11 — Christian never
+    // missed it; brightness stays auto-set per style via the hidden form field.)
+    const stripHtml = (c) => {
       const st = mixerState[c.key];
-      const row = document.createElement('div');
-      row.className = 'slopscale_beta-mixer-ch';
-      row.innerHTML =
+      const selHtml = c.instr
+        ? `<select class="slopscale_beta-mixer-instr" data-k="${c.key}" title="${c.label} instrument" aria-label="${c.label} instrument">` +
+            MIXER_INSTRUMENTS[c.instr].map(([v, l]) => `<option value="${v}"${(st.instrument || '') === v ? ' selected' : ''}>${l}</option>`).join('') +
+          `</select>`
+        : c.kit
+        ? `<select class="slopscale_beta-mixer-kit" data-k="${c.key}" title="${c.label} kit" aria-label="${c.label} kit">` +
+            MIXER_KITS.map(([v, l]) => `<option value="${v}"${(st.kit || '') === v ? ' selected' : ''}>${l}</option>`).join('') +
+          `</select>`
+        : `<span class="slopscale_beta-mixer-instr-none" aria-hidden="true"></span>`;
+      return `<div class="slopscale_beta-mixer-strip" data-strip="${c.key}">` +
+        selHtml +
+        `<input type="range" class="slopscale_beta-mixer-pan" data-k="${c.key}" min="-1" max="1" step="0.01" value="${mixerPanFor(c.key)}" aria-label="${c.label} pan" title="Pan — double-click to reset">` +
+        `<div class="slopscale_beta-mixer-msrow">` +
+          `<button type="button" class="slopscale_beta-mixer-tog mute${st.mute ? ' active' : ''}" data-k="${c.key}" data-act="mute" title="Mute" aria-pressed="${st.mute}">M</button>` +
+          `<button type="button" class="slopscale_beta-mixer-tog solo${st.solo ? ' active' : ''}" data-k="${c.key}" data-act="solo" title="Solo" aria-pressed="${st.solo}">S</button>` +
+        `</div>` +
+        `<div class="slopscale_beta-mixer-fadercol">` +
+          `<input type="range" class="slopscale_beta-mixer-fader" min="0" max="1" step="0.005" value="${faderPosFromGain(st.level)}" data-k="${c.key}" aria-label="${c.label} level" aria-orientation="vertical">` +
+          `<div class="slopscale_beta-mixer-meter" aria-hidden="true"><div class="slopscale_beta-mixer-meter-fill" data-k="${c.key}"></div></div>` +
+        `</div>` +
+        `<span class="slopscale_beta-mixer-val" data-k="${c.key}">${faderDb(st.level)}</span>` +
         `<span class="slopscale_beta-mixer-ch-label">${c.label}</span>` +
-        (c.instr
-          ? `<select class="slopscale_beta-mixer-instr" data-k="${c.key}" title="${c.label} instrument" aria-label="${c.label} instrument">` +
-              MIXER_INSTRUMENTS[c.instr].map(([v, l]) => `<option value="${v}"${(st.instrument || '') === v ? ' selected' : ''}>${l}</option>`).join('') +
-            `</select>`
-          : c.kit
-          ? `<select class="slopscale_beta-mixer-kit" data-k="${c.key}" title="${c.label} kit" aria-label="${c.label} kit">` +
-              MIXER_KITS.map(([v, l]) => `<option value="${v}"${(st.kit || '') === v ? ' selected' : ''}>${l}</option>`).join('') +
-            `</select>`
-          : `<span class="slopscale_beta-mixer-instr-none" aria-hidden="true"></span>`) +
-        `<button type="button" class="slopscale_beta-mixer-tog mute${st.mute ? ' active' : ''}" data-k="${c.key}" data-act="mute" title="Mute" aria-pressed="${st.mute}">M</button>` +
-        `<button type="button" class="slopscale_beta-mixer-tog solo${st.solo ? ' active' : ''}" data-k="${c.key}" data-act="solo" title="Solo" aria-pressed="${st.solo}">S</button>` +
-        `<input type="range" class="slopscale_beta-mixer-fader" min="0" max="1.2" step="0.01" value="${st.level}" data-k="${c.key}" aria-label="${c.label} level">` +
-        `<span class="slopscale_beta-mixer-val" data-k="${c.key}">${Math.round(st.level * 100)}</span>`;
-      host.appendChild(row);
-      // Per-channel Tone knob (the relocated "Backing tone" / brightness — §14).
-      // UI relocation only: it reads/writes the form's #slopscale_beta-brightness value
-      // (name="brightness"), so the existing audio path (data.get('brightness'))
-      // is unchanged. A second row under the Comp channel so the fader stays the
-      // dominant gesture.
-      if (c.tone) {
-        const bEl = $('slopscale_beta-brightness');
-        const bright = bEl ? Math.max(0, Math.min(1, parseFloat(bEl.value) || 0)) : 0.5;
-        const tone = document.createElement('div');
-        tone.className = 'slopscale_beta-mixer-tone';
-        tone.innerHTML =
-          `<span class="slopscale_beta-mixer-tone-lbl">Tone</span>` +
-          `<input type="range" class="slopscale_beta-mixer-toneknob" min="0" max="1" step="0.05" value="${bright}" aria-label="${c.label} tone (darker ↔ brighter)" title="Backing tone — darker ↔ brighter. Auto-set per style; nudge to taste.">` +
-          `<span class="slopscale_beta-mixer-tone-end" aria-hidden="true">brighter</span>`;
-        host.appendChild(tone);
+      `</div>`;
+    };
+    // INPUT strip (far left, console convention): the player's LIVE guitar/bass
+    // input. SlopScale never processes that signal — the host owns monitoring —
+    // so no fader/pan; just a live level meter (desktop getLevels / the run's
+    // level tap) + shortcuts to the host's audio settings and, when the
+    // nam_tone plugin is installed, its amp-tone screen (feature-detected).
+    const hasNamTone = !!document.getElementById('plugin-nam_tone');
+    const inputHtml =
+      `<div class="slopscale_beta-mixer-strip input" data-strip="input">` +
+        `<div class="slopscale_beta-mixer-lim" title="Your live input — the signal the judge hears">YOU</div>` +
+        `<div class="slopscale_beta-mixer-inbtns">` +
+          `<button type="button" class="slopscale_beta-mixer-inbtn" data-go="settings" title="Audio interface & host settings">Audio…</button>` +
+          (hasNamTone ? `<button type="button" class="slopscale_beta-mixer-inbtn" data-go="plugin-nam_tone" title="Amp tone setup (NAM)">Tone…</button>` : '') +
+        `</div>` +
+        `<div class="slopscale_beta-mixer-fadercol input">` +
+          `<div class="slopscale_beta-mixer-meter wide" aria-hidden="true"><div class="slopscale_beta-mixer-meter-fill" data-k="input"></div></div>` +
+        `</div>` +
+        `<span class="slopscale_beta-mixer-val" data-k="input">in</span>` +
+        `<span class="slopscale_beta-mixer-ch-label">Input</span>` +
+      `</div>`;
+    const masterHtml =
+      `<div class="slopscale_beta-mixer-strip master" data-strip="master">` +
+        `<div class="slopscale_beta-mixer-lim" id="slopscale_beta-mixer-lim" title="Master limiter activity"><span class="slopscale_beta-mixer-led"></span>LIM</div>` +
+        `<div class="slopscale_beta-mixer-msrow">` +
+          `<button type="button" class="slopscale_beta-mixer-tog dim${mixerBackingDim ? ' active' : ''}" data-act="dim" title="Duck the backing band (practice focus)" aria-pressed="${mixerBackingDim}">Dim</button>` +
+        `</div>` +
+        `<div class="slopscale_beta-mixer-fadercol">` +
+          `<input type="range" class="slopscale_beta-mixer-fader" min="0" max="1" step="0.005" value="${faderPosFromGain(mixerMasterLevel)}" data-k="master" aria-label="Master level" aria-orientation="vertical">` +
+          `<div class="slopscale_beta-mixer-meter" aria-hidden="true"><div class="slopscale_beta-mixer-meter-fill" data-k="master"></div></div>` +
+        `</div>` +
+        `<span class="slopscale_beta-mixer-val" data-k="master">${faderDb(mixerMasterLevel)}</span>` +
+        `<span class="slopscale_beta-mixer-ch-label">Master</span>` +
+      `</div>`;
+    host.innerHTML = `<div class="slopscale_beta-mixer-deck">${inputHtml}${MIXER_CHANNELS.map(stripHtml).join('')}${masterHtml}</div>`;
+  }
+  // Live console meters — drawn only while the Mixer is open (its own rAF loop;
+  // the playback tick is untouched, and there is zero cost while closed). Reads
+  // the post-fader AnalyserNode taps (trackBus) + the post-limiter master tap,
+  // with the LIM LED riding the safety limiter's gain reduction.
+  let _mixMeterRaf = 0, _mixMeterBuf = null;
+  const _mixMeterPk = {};
+  // INPUT-strip level source: during a run the grading level tap (_lvlSamples —
+  // desktop getLevels / web analyser) is fresh, so read its last sample; outside
+  // a run, poll the desktop bridge directly while the mixer is open (one IPC in
+  // flight, ~10Hz). Web outside a run stays idle — we don't grab the mic just
+  // because the mixer opened.
+  const _mixIn = { lvl: 0, inFlight: false, lastPoll: 0 };
+  function mixerInputLevel() {
+    if (playing && _lvlMode !== 'none' && _lvlSamples.length) return _lvlSamples[_lvlSamples.length - 1].L;
+    const bridge = window.slopsmithDesktop && window.slopsmithDesktop.audio;
+    if (bridge && typeof bridge.getLevels === 'function' && !_mixIn.inFlight && performance.now() - _mixIn.lastPoll > 100) {
+      _mixIn.inFlight = true; _mixIn.lastPoll = performance.now();
+      let p = null; try { p = bridge.getLevels(); } catch (_) { p = null; }
+      Promise.resolve(p).then((lv) => { _mixIn.lvl = (lv && typeof lv.inputLevel === 'number') ? lv.inputLevel : 0; })
+        .catch(() => { _mixIn.lvl = 0; }).finally(() => { _mixIn.inFlight = false; });
+    }
+    return _mixIn.lvl;
+  }
+  function mixerMeterFrame() {
+    const root = $('slopscale_beta-root');
+    if (!root || !root.classList.contains('ss-mixer-open')) { _mixMeterRaf = 0; return; }
+    const host = $('slopscale_beta-mixer-channels');
+    if (host) {
+      if (!_mixMeterBuf) _mixMeterBuf = new Uint8Array(256);
+      const peakOf = (an) => {
+        if (!an) return 0;
+        try { an.getByteTimeDomainData(_mixMeterBuf); } catch (_) { return 0; }
+        let p = 0;
+        for (let i = 0; i < 256; i++) { const v = Math.abs(_mixMeterBuf[i] - 128); if (v > p) p = v; }
+        return p / 128;
+      };
+      // `lvl` (0..1) overrides the analyser read — the INPUT strip's source is a
+      // direct level (host getLevels / the run's level tap), not a bus tap.
+      const draw = (k, an, lvl) => {
+        const sm = Math.max(lvl != null ? lvl : peakOf(an), (_mixMeterPk[k] || 0) * 0.88);   // fast attack, smooth release
+        _mixMeterPk[k] = sm;
+        const fill = host.querySelector(`.slopscale_beta-mixer-meter-fill[data-k="${k}"]`);
+        if (!fill) return;
+        const db = sm <= 0.001 ? -60 : 20 * Math.log10(sm);
+        fill.style.height = (Math.max(0, Math.min(1, (db + 48) / 48)) * 100).toFixed(1) + '%';
+        fill.classList.toggle('hot', db > -3);
+      };
+      if (audioBus) {
+        MIXER_CHANNELS.forEach(c => draw(c.key, audioBus.analysers[c.key]));
+        draw('master', audioBus.masterAnalyser);
+        const lim = $('slopscale_beta-mixer-lim');
+        if (lim) {
+          const r = audioBus.limiter && typeof audioBus.limiter.reduction === 'number' ? audioBus.limiter.reduction : 0;
+          lim.classList.toggle('lit', r < -1);
+        }
       }
-    });
-    const dim = $('slopscale_beta-mixer-dim'); if (dim) dim.checked = mixerBackingDim;
+      // INPUT strip works even before the first Play (no audioBus needed).
+      draw('input', null, mixerInputLevel());
+    }
+    _mixMeterRaf = requestAnimationFrame(mixerMeterFrame);
   }
   // Panel toggles (M / P / ? overlays). Slide transitions + open state live in CSS
   // (reduced-motion aware); these flip the root class + aria + the button highlight.
@@ -12667,7 +12804,10 @@
     root.classList.toggle('ss-mixer-open', open);
     $('slopscale_beta-mixer')?.setAttribute('aria-hidden', open ? 'false' : 'true');
     $('slopscale_beta-mixer-btn')?.classList.toggle('active', open);
-    if (open) { renderMixer(); applyMixer(); }
+    if (open) {
+      renderMixer(); applyMixer();
+      if (!_mixMeterRaf) _mixMeterRaf = requestAnimationFrame(mixerMeterFrame);   // meters run only while open
+    }
   }
   function toggleProgressSheet(force) {
     const root = $('slopscale_beta-root'); if (!root) return;
@@ -13846,6 +13986,9 @@
     tone = tone || 'pad';
     const bright = (opts && Number.isFinite(opts.bright)) ? opts.bright : 0.5;
     const lvl = (opts && Number.isFinite(opts.level)) ? opts.level : 1;
+    // Which strip owns the voice: cell-driven comping rides 'harmony' (Rhythm),
+    // the sustained legacy pad rides 'pad' (Keys) — the caller routes.
+    const busName = (opts && opts.bus) || 'harmony';
 
     if (tone === 'organ') {
       // Hammond drawbar simulation — additive sines, instant on/off, flat envelope
@@ -13853,7 +13996,7 @@
       const VOLS   = [0.8, 0.5, 0.35, 0.25, 0.18, 0.12, 0.08];
       const master = ctx.createGain();
       master.gain.setValueAtTime(0.13 / Math.max(1, midis.length), when);
-      const _hg = ctx.createGain(); _hg.gain.value = lvl; master.connect(_hg); _hg.connect(trackBus(ctx, 'harmony')); audioNodes.push(_hg);
+      const _hg = ctx.createGain(); _hg.gain.value = lvl; master.connect(_hg); _hg.connect(trackBus(ctx, busName)); audioNodes.push(_hg);
       audioNodes.push(master);
       midis.slice(0, 4).forEach(midi => {
         RATIOS.forEach((r, ri) => {
@@ -13877,7 +14020,7 @@
       master.gain.exponentialRampToValueAtTime(0.09, when + Math.min(0.38, dur * 0.35));
       master.gain.linearRampToValueAtTime(0.06, when + Math.max(0.39, dur - 0.06));
       master.gain.linearRampToValueAtTime(0.0001, when + dur);
-      const _hg = ctx.createGain(); _hg.gain.value = lvl; master.connect(_hg); _hg.connect(trackBus(ctx, 'harmony')); audioNodes.push(_hg);
+      const _hg = ctx.createGain(); _hg.gain.value = lvl; master.connect(_hg); _hg.connect(trackBus(ctx, busName)); audioNodes.push(_hg);
       audioNodes.push(master);
       midis.slice(0, 4).forEach(midi => {
         const osc = ctx.createOscillator(), bell = ctx.createOscillator();
@@ -13910,7 +14053,7 @@
     master.gain.exponentialRampToValueAtTime(0.26, when + 0.022);
     master.gain.linearRampToValueAtTime(0.2, when + Math.max(0.1, dur - 0.18));
     master.gain.linearRampToValueAtTime(0.0001, when + dur);
-    filter.connect(master); const _hg = ctx.createGain(); _hg.gain.value = lvl; master.connect(_hg); _hg.connect(trackBus(ctx, 'harmony')); audioNodes.push(_hg);
+    filter.connect(master); const _hg = ctx.createGain(); _hg.gain.value = lvl; master.connect(_hg); _hg.connect(trackBus(ctx, busName)); audioNodes.push(_hg);
     audioNodes.push(filter, master);
     const voiceGain = 0.5 / Math.sqrt(n);
     midis.slice(0, n).forEach((midi, i) => {
@@ -14125,7 +14268,7 @@
   // targets: lift <150 Hz ~+2.5 dB, flat through the mid band, tame >2 kHz ~−1.5 dB.
   // Applied inside wafVoice (and to the bent-note oscillator fallback so it matches
   // the sampled voice it stands in for). See ROADMAP audio-realism Phase A.
-  const WAF_VOICE_VOL = { notes: 0.7, harmony: 0.5, bass: 0.8, drums: 0.7 };
+  const WAF_VOICE_VOL = { notes: 0.7, harmony: 0.5, pad: 0.5, bass: 0.8, drums: 0.7 };
   function wafLoudnessTrim(midi) {
     const f = 440 * Math.pow(2, (midi - 69) / 12);
     let db;
@@ -14209,13 +14352,19 @@
     // Three sampled voices: harmony (backing comp), bass (backing bass line),
     // notes (the practice voice). Each falls back independently.
     // Mixer per-channel instrument override wins over the profile's voice (Phase C).
-    const harmGm  = mixerInstrumentFor('harmony') ?? (harmProfile.harmony.engine === 'sample' ? TONE_GM[harmProfile.harmony.tone] : null);
+    const profHarmGm = harmProfile.harmony.engine === 'sample' ? TONE_GM[harmProfile.harmony.tone] : null;
+    const harmGm  = mixerInstrumentFor('harmony') ?? profHarmGm;
+    // The Keys strip ('pad' bus — the sustained layer): its own override, else the
+    // profile's harmony voice (profiles grow a dedicated pad slot incrementally).
+    const padGm   = mixerInstrumentFor('pad') ?? profHarmGm;
     const bassGm  = mixerInstrumentFor('bass')    ?? (harmProfile.bass.engine    === 'sample' ? TONE_GM[harmProfile.bass.tone]    : null);
     const notesGm = mixerInstrumentFor('notes')   ?? (harmProfile.notes.engine   === 'sample' ? TONE_GM[harmProfile.notes.tone]   : null);
     if (audio.harmony && harmGm != null) ensureWafPreset(harmGm);
+    if (audio.harmony && padGm != null) ensureWafPreset(padGm);     // sustained layer (Keys)
     if (audio.harmony && bassGm != null) ensureWafPreset(bassGm);   // backing bass (boogie walk)
     if (audio.notes   && notesGm != null) ensureWafPreset(notesGm); // practice voice
     const harmPreset = getReadyWafPreset(harmGm);
+    const padPreset = getReadyWafPreset(padGm);
     const bassPreset = getReadyWafPreset(bassGm);
     const notesPreset = getReadyWafPreset(notesGm);
     const wafVoice = (preset, busName, when, midi, d, vol) => {
@@ -14238,13 +14387,20 @@
           if (bassPreset && wafPlayer) wafVoice(bassPreset, 'bass', when, m, d, harmProfile.bass.level * WAF_VOICE_VOL.bass * vel);
           else schedulePluckedString(ctx, when, midiToFreq(m), d, 'bass', harmProfile.bass.level * vel, 0);
         }
-      } else if (harmPreset && wafPlayer) {
-        // Scale per-voice level by 1/√(chord size) so a dense comp doesn't sum hot
-        // into the limiter (anti-clip; matches the synth pad's density-scaling).
-        const hn = (ev.midis || []).length, hScale = 1 / Math.sqrt(Math.max(1, hn));
-        for (const m of (ev.midis || [])) wafVoice(harmPreset, 'harmony', when, m, d, harmProfile.harmony.level * WAF_VOICE_VOL.harmony * hScale * vel);
       } else {
-        scheduleHarmonyPad(ctx, when, ev.midis || [], d, instrument, harmProfile.harmony.tone, { bright: harmProfile.brightness, level: harmProfile.harmony.level * vel });
+        // Articulation-routed strips: COMP_GROOVES hits (ev.comp — the cell-driven
+        // comping) play on 'harmony' (the Rhythm strip); the legacy coalesced
+        // sustained pad plays on 'pad' (the Keys strip). One event, one strip.
+        const busName = ev.comp != null ? 'harmony' : 'pad';
+        const preset = busName === 'harmony' ? harmPreset : padPreset;
+        if (preset && wafPlayer) {
+          // Scale per-voice level by 1/√(chord size) so a dense comp doesn't sum hot
+          // into the limiter (anti-clip; matches the synth pad's density-scaling).
+          const hn = (ev.midis || []).length, hScale = 1 / Math.sqrt(Math.max(1, hn));
+          for (const m of (ev.midis || [])) wafVoice(preset, busName, when, m, d, harmProfile.harmony.level * WAF_VOICE_VOL[busName] * hScale * vel);
+        } else {
+          scheduleHarmonyPad(ctx, when, ev.midis || [], d, instrument, harmProfile.harmony.tone, { bright: harmProfile.brightness, level: harmProfile.harmony.level * vel, bus: busName });
+        }
       }
     }
     // Drums (Phase D) — role:'drums' events on their own kit + drum sub-bus. The
@@ -19555,29 +19711,41 @@
     });
     const mixCh = $('slopscale_beta-mixer-channels');
     mixCh?.addEventListener('input', (ev) => {
-      // Tone knob (relocated "Backing tone" / brightness) — writes the form's
-      // hidden #slopscale_beta-brightness value; the audio path reads it unchanged.
-      const tk = ev.target.closest && ev.target.closest('.slopscale_beta-mixer-toneknob');
-      if (tk) {
-        const bEl = $('slopscale_beta-brightness');
-        if (bEl) { bEl.value = tk.value; writeShareHash(); }
-        // Re-schedule from the playhead so the new tone takes effect cleanly
-        // (mirrors the per-channel instrument change below; no full regen needed).
-        // Not while paused — a paused run must stay silent; resume re-schedules.
-        if (playing && !paused) {
-          anchorPlayClock(currentPracticeTime);
-          stopAudio();
-          scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
-        }
+      // Fader (vertical, cube-law dB taper): the slider speaks positions, the
+      // engine consumes linear gain; 'master' rides the master bus over MASTER_TRIM.
+      const f = ev.target.closest && ev.target.closest('.slopscale_beta-mixer-fader');
+      if (f) {
+        const k = f.dataset.k, g = faderGainFromPos(Math.max(0, Math.min(1, parseFloat(f.value) || 0)));
+        if (k === 'master') mixerMasterLevel = g; else mixerState[k].level = g;
+        const val = mixCh.querySelector(`.slopscale_beta-mixer-val[data-k="${k}"]`); if (val) val.textContent = faderDb(g);
+        applyMixer(); mixerSave();
         return;
       }
-      const f = ev.target.closest && ev.target.closest('.slopscale_beta-mixer-fader'); if (!f) return;
-      const k = f.dataset.k; mixerState[k].level = parseFloat(f.value);
-      const val = mixCh.querySelector(`.slopscale_beta-mixer-val[data-k="${k}"]`); if (val) val.textContent = Math.round(mixerState[k].level * 100);
+      const pn = ev.target.closest && ev.target.closest('.slopscale_beta-mixer-pan'); if (!pn) return;
+      mixerState[pn.dataset.k].pan = Math.max(-1, Math.min(1, parseFloat(pn.value) || 0));
+      applyMixer(); mixerSave();
+    });
+    // Pan pot reset: double-click returns the channel to its stage default.
+    mixCh?.addEventListener('dblclick', (ev) => {
+      const pn = ev.target.closest && ev.target.closest('.slopscale_beta-mixer-pan'); if (!pn) return;
+      const k = pn.dataset.k, ch = MIXER_CHANNELS.find(c => c.key === k);
+      mixerState[k].pan = (ch && ch.pan) || 0;
+      pn.value = String(mixerState[k].pan);
       applyMixer(); mixerSave();
     });
     mixCh?.addEventListener('click', (ev) => {
+      // INPUT-strip shortcuts: host settings (audio interface) / nam_tone screen.
+      const go = ev.target.closest && ev.target.closest('.slopscale_beta-mixer-inbtn');
+      if (go) { toggleMixer(false); goScreen(go.dataset.go); return; }
       const t = ev.target.closest && ev.target.closest('.slopscale_beta-mixer-tog'); if (!t) return;
+      // Dim lives on the master strip now (a toggle button, not the old head checkbox).
+      if (t.dataset.act === 'dim') {
+        mixerBackingDim = !mixerBackingDim;
+        t.classList.toggle('active', mixerBackingDim);
+        t.setAttribute('aria-pressed', String(mixerBackingDim));
+        applyMixer(); mixerSave();
+        return;
+      }
       const k = t.dataset.k, act = t.dataset.act;
       mixerState[k][act] = !mixerState[k][act];
       t.classList.toggle('active', mixerState[k][act]);
@@ -19601,7 +19769,6 @@
         }
       }
     });
-    $('slopscale_beta-mixer-dim')?.addEventListener('change', (ev) => { mixerBackingDim = ev.target.checked; applyMixer(); mixerSave(); });
     // Header Setup popover: toggle on the button, close on outside click, label tracks tuning.
     $('slopscale_beta-setup-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSetupPopover(); });
     // Target-aware tuner: entry in the Setup popover; Done chip on the strip.

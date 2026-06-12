@@ -647,23 +647,43 @@
   .slopscale_beta-lib-browse-btn:hover, .slopscale_beta-lib-browse-btn.active { color: var(--ss-text, #e2e8f0); border-color: var(--ss-accent-edge, #60a5fa); }
   .slopscale_beta-mixer-head { display: flex; align-items: center; gap: 12px; }
   .slopscale_beta-mixer-title { font-size: 13px; font-weight: 700; color: #e2e8f0; }
-  .slopscale_beta-mixer-dim { font-size: 11.5px; color: #94a3b8; display: flex; align-items: center; gap: 5px; margin-left: auto; cursor: pointer; }
-  .slopscale_beta-mixer-channels { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
-  .slopscale_beta-mixer-ch { display: grid; grid-template-columns: 50px 92px 26px 26px 1fr 34px; align-items: center; gap: 7px; }
-  .slopscale_beta-mixer-instr { font-size: 10.5px; padding: 2px 4px; border-radius: 5px; border: 1px solid var(--ss-border, #334155); background: var(--ss-track, #141d33); color: #cbd5e1; max-width: 100%; min-width: 0; }
-  .slopscale_beta-mixer-instr-none { display: block; }
-  .slopscale_beta-mixer-ch-label { font-size: 12px; font-weight: 600; color: #cbd5e1; }
-  .slopscale_beta-mixer-tog { padding: 3px 0; font-size: 10px; font-weight: 700; border-radius: 5px; border: 1px solid #334155; background: #0b1220; color: #94a3b8; cursor: pointer; }
+  #slopscale_beta-mixer-close { margin-left: auto; }
+  /* Console deck — vertical channel strips + a separated MASTER (the DAW mixer
+     idiom). Strips align row-for-row: instrument · pan · M/S · fader+meter ·
+     dB · scribble label. Horizontal scroll on narrow panes (a console scrolls;
+     it never wraps its strips). */
+  .slopscale_beta-mixer-channels { margin-top: 10px; overflow-x: auto; }
+  .slopscale_beta-mixer-deck { display: flex; align-items: stretch; justify-content: center; gap: 8px; min-width: min-content; padding-bottom: 2px; }
+  .slopscale_beta-mixer-strip { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 88px; flex: 0 0 auto; padding: 8px 6px 6px; border: 1px solid var(--ss-border, #334155); border-radius: 8px; background: var(--ss-track, #141d33); }
+  .slopscale_beta-mixer-strip.master { border-color: var(--ss-accent-edge, #3b82f6); margin-left: 14px; }
+  .slopscale_beta-mixer-instr, .slopscale_beta-mixer-kit { width: 100%; font-size: 10px; padding: 2px 2px; border-radius: 5px; border: 1px solid var(--ss-border, #334155); background: var(--ss-surface, #0b1220); color: #cbd5e1; min-width: 0; }
+  .slopscale_beta-mixer-instr-none { display: block; height: 21px; }   /* keeps strip rows aligned */
+  .slopscale_beta-mixer-pan { width: 72px; height: 14px; margin: 0; accent-color: var(--ss-accent, #4080e0); }
+  .slopscale_beta-mixer-msrow { display: flex; gap: 4px; }
+  .slopscale_beta-mixer-tog { width: 28px; padding: 3px 0; font-size: 10px; font-weight: 700; border-radius: 5px; border: 1px solid #334155; background: #0b1220; color: #94a3b8; cursor: pointer; }
   .slopscale_beta-mixer-tog.mute.active { background: #7f1d1d; border-color: #ef4444; color: #fecaca; }
   .slopscale_beta-mixer-tog.solo.active { background: #1e40af; border-color: var(--ss-accent-edge); color: #dbeafe; }
-  .slopscale_beta-mixer-fader { width: 100%; accent-color: var(--ss-accent, #4080e0); }
-  .slopscale_beta-mixer-val { font-size: 10px; color: #64748b; font-family: var(--ss-mono, monospace); text-align: right; }
-  /* Per-channel Tone sub-row (the relocated "Backing tone"). Indented under its
-     channel; a quiet darker↔brighter knob, visually subordinate to the fader. */
-  .slopscale_beta-mixer-tone { display: grid; grid-template-columns: 50px 1fr auto; align-items: center; gap: 7px; margin: -3px 0 1px; padding-left: 0; }
-  .slopscale_beta-mixer-tone-lbl { font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ss-text-faint); }
-  .slopscale_beta-mixer-toneknob { width: 100%; accent-color: var(--ss-accent, #4080e0); }
-  .slopscale_beta-mixer-tone-end { font-size: 9px; color: var(--ss-text-faint); }
+  .slopscale_beta-mixer-tog.dim { width: 60px; }
+  .slopscale_beta-mixer-tog.dim.active { background: #78350f; border-color: #f59e0b; color: #fde68a; }
+  .slopscale_beta-mixer-fadercol { display: flex; align-items: stretch; gap: 6px; height: 132px; }
+  .slopscale_beta-mixer-fader { writing-mode: vertical-lr; direction: rtl; width: 26px; height: 100%; margin: 0; accent-color: var(--ss-accent, #4080e0); }
+  .slopscale_beta-mixer-meter { width: 7px; border-radius: 3px; background: var(--ss-surface, #0b1220); border: 1px solid var(--ss-border, #334155); position: relative; overflow: hidden; }
+  .slopscale_beta-mixer-meter-fill { position: absolute; left: 0; right: 0; bottom: 0; height: 0%; background: var(--ss-ok, #22c55e); }
+  .slopscale_beta-mixer-meter-fill.hot { background: var(--ss-warn, #f59e0b); }
+  .slopscale_beta-mixer-val { font-size: 10px; color: var(--ss-text-faint, #64748b); font-family: var(--ss-mono, monospace); }
+  .slopscale_beta-mixer-ch-label { font-size: 11px; font-weight: 700; color: #cbd5e1; letter-spacing: 0.02em; }
+  .slopscale_beta-mixer-lim { display: flex; align-items: center; gap: 4px; height: 21px; font-size: 9px; font-weight: 700; letter-spacing: 0.05em; color: var(--ss-text-faint, #64748b); }
+  /* INPUT strip — the player's live signal: meter-only (no fader/pan — the host
+     owns monitoring) + shortcuts to the host audio settings / nam_tone screen. */
+  .slopscale_beta-mixer-strip.input { border-style: dashed; margin-right: 6px; }
+  .slopscale_beta-mixer-inbtns { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+  .slopscale_beta-mixer-inbtn { width: 100%; padding: 3px 0; font-size: 10px; font-weight: 600; border-radius: 5px; border: 1px solid var(--ss-border, #334155); background: var(--ss-surface, #0b1220); color: #cbd5e1; cursor: pointer; }
+  .slopscale_beta-mixer-inbtn:hover { border-color: var(--ss-accent-edge, #60a5fa); color: #f1f5f9; }
+  .slopscale_beta-mixer-fadercol.input { justify-content: center; flex: 1; }
+  .slopscale_beta-mixer-meter.wide { width: 14px; }
+  .slopscale_beta-mixer-led { width: 8px; height: 8px; border-radius: 50%; background: var(--ss-surface, #0b1220); border: 1px solid var(--ss-border, #334155); }
+  .slopscale_beta-mixer-lim.lit { color: #fde68a; }
+  .slopscale_beta-mixer-lim.lit .slopscale_beta-mixer-led { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
   /* Progress sheet — slides in from the right. */
   .slopscale_beta-progress-sheet { position: absolute; top: 0; right: 0; bottom: 0; width: min(320px, 82%); z-index: 21; background: var(--ss-surface, #0d1424); border-left: 1px solid var(--ss-border, #334155); box-shadow: -8px 0 24px rgba(0,0,0,0.4); transform: translateX(105%); transition: transform 0.22s ease; display: flex; flex-direction: column; }
   .slopscale_beta-root.ss-progress-open .slopscale_beta-progress-sheet { transform: translateX(0); }
@@ -2358,13 +2378,13 @@
           <div class="slopscale_beta-seam-next"></div>
         </div>
 
-        <!-- Mixer (M): slides UP over the stage. Per-bus faders/mute/solo for the
-             player + backing buses, plus a "Backing dim". Overlay, not relayout —
+        <!-- Mixer (M): slides UP over the stage. A console deck of vertical
+             channel strips (fader/pan/mute/solo/meter per bus) + a MASTER strip
+             (master fader, limiter LED, Dim, backing Tone). Overlay, not relayout —
              the stage renders behind it (no canvas refit). -->
         <div id="slopscale_beta-mixer" class="slopscale_beta-mixer" aria-hidden="true">
           <div class="slopscale_beta-mixer-head">
             <span class="slopscale_beta-mixer-title">Mixer</span>
-            <label class="slopscale_beta-mixer-dim"><input type="checkbox" id="slopscale_beta-mixer-dim"> Backing dim</label>
             <button type="button" id="slopscale_beta-mixer-close" class="slopscale_beta-sheet-close" title="Close mixer (M)" aria-label="Close mixer">▾</button>
           </div>
           <div class="slopscale_beta-mixer-channels" id="slopscale_beta-mixer-channels"><!-- renderMixer() --></div>
