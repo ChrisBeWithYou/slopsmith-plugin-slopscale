@@ -179,6 +179,53 @@ function runProgressInPage() {
     ok("creditFeltRung DRAGGING flips nothing (descriptive only)", cDrag === null, JSON.stringify(cDrag));
     const cNon = S.creditFeltRung("pent_foundation", 105, { verdict: "locked" });  // not a feltGate pathway
     ok("creditFeltRung on a non-feltGate pathway → null", cNon === null, JSON.stringify(cNon));
+
+    // ── Felt-hold FINISHERS (2026-06-12) ────────────────────────────────────────
+    // D3 speak-budget lean correction: a steady +45ms RAW lean carried on a
+    // low-register speak excess (sb = 31ms — a D2-ish string speaking late) is the
+    // STRING's latency, not the player's — corrected it reads in the pocket;
+    // the same vector without sb stays an honest Dragging.
+    const vecLowReg = Array.from({ length: 16 }, (_, i) => ({ t: i * 0.5, d: 0.045, sb: 0.031 }));
+    const vecRawLate = Array.from({ length: 16 }, (_, i) => ({ t: i * 0.5, d: 0.045 }));
+    const d3c = S.feltHoldAnalyze(vecLowReg, opts), d3r = S.feltHoldAnalyze(vecRawLate, opts);
+    ok("D3: low-string speak excess subtracted — +45ms raw w/ 31ms sb is LOCKED, not Dragging", d3c.verdict === "locked", JSON.stringify(d3c));
+    ok("D3: the same +45ms lean WITHOUT sb stays DRAGGING (correction is register-keyed)", d3r.verdict === "dragging", JSON.stringify(d3r));
+
+    // feltGate tag pass (bass-ped ruling 2026-06-12, agent-memory project_felt_gate_tag_pass):
+    // the 7 felt rungs flip via the felt door; the NEVER rungs (sub-floor /
+    // ghost-note / mirror) must keep the %-gate — tagging bass_root_click would
+    // make it permanently unclearable (no lenient path on felt).
+    const TAGGED = ["bass_walking", "bass_lc_roots", "bass_lc_approach", "bass_lc_capstone", "bass_octave_groove", "bass_root_fifth_octave", "bass_slap"];
+    const NEVER = ["bass_root_click", "bass_dead_notes", "bass_rh_funk_pocket", "bass_lc_trade"];
+    const tagBad = TAGGED.filter((id) => {
+      localStorage.setItem("slopscale.pathway_tiers", "{}");
+      return !((S.creditFeltRung(id, 200, { verdict: "settling" }) || {}).flip);
+    });
+    ok("tag pass: all 7 felt rungs complete via the felt door", tagBad.length === 0, "failed: " + tagBad.join(","));
+    const nevBad = NEVER.filter((id) => S.creditFeltRung(id, 200, { verdict: "settling" }) !== null);
+    ok("tag pass: NEVER rungs (sub-floor/ghost/mirror) keep the %-gate", nevBad.length === 0, "wrongly felt: " + nevBad.join(","));
+
+    // Per-block felt (the Workout finisher): a block whose template credits a
+    // feltGate rung analyzes ITS OWN dev slice at ITS OWN barSec; devs outside
+    // the block never count; an untagged block falls through to the %-gate.
+    const D = globalThis.__ss_debug;
+    if (D && typeof D.blockFeltInfo === "function") {
+      const blk = { templateId: "b_app_walking", role: "application", start: 0, end: 8, barSec: 1, bpm: 85 };
+      const devsIn = Array.from({ length: 16 }, (_, i) => ({ t: i * 0.5, d: 0 }));
+      const fIn = D.blockFeltInfo(blk, devsIn);
+      ok("per-block felt: a feltGate-crediting block reads its own slice → LOCKED", fIn && fIn.pwId === "bass_walking" && fIn.felt.verdict === "locked", JSON.stringify(fIn));
+      const fOut = D.blockFeltInfo(blk, devsIn.map((x) => ({ t: x.t + 20, d: x.d })));
+      ok("per-block felt: devs OUTSIDE the block don't count (verdict null)", fOut && fOut.felt.verdict === null, JSON.stringify(fOut));
+      ok("per-block felt: an untagged block → null (falls to the %-gate)", D.blockFeltInfo({ templateId: null, start: 0, end: 8, barSec: 1 }, devsIn) === null, "expected null");
+    } else ok("__ss_debug.blockFeltInfo exposed", false, "missing — harness flag or export gone");
+
+    // segmentBounds carry barSec (the per-block felt span unit; the desync rule).
+    if (typeof S.generateSession === "function" && S.BUILT_IN_SESSIONS) {
+      const sid = Object.keys(S.BUILT_IN_SESSIONS)[0];
+      const sch = S.generateSession(S.BUILT_IN_SESSIONS[sid]);
+      const sb2 = (sch.chart && sch.chart.segmentBounds) || [];
+      ok("segmentBounds carry the block's own barSec", sb2.length > 0 && sb2.every((b) => b.barSec > 0), JSON.stringify(sb2.map((b) => b.barSec)));
+    }
   } else ok("feltHoldAnalyze/creditFeltRung exposed", false, "missing on window.SlopScale");
 
   // ── Off mode collapses the layer (no xp/depth/return; no badge credit) ──────
@@ -204,6 +251,7 @@ async function run() {
   try {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await ctx.newPage();
+    await page.addInitScript(() => { window.__SS_HARNESS__ = true; });   // exposes __ss_debug (blockFeltInfo rows)
     page.on("pageerror", (e) => { if (!isBenign(e.message)) pageErrors.push(e.message); });
     page.on("console", (m) => { if (m.type() === "error" && !isBenign(m.text())) pageErrors.push(m.text()); });
     await gotoSlopScale(page);
