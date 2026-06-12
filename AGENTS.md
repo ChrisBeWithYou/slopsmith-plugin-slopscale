@@ -84,6 +84,7 @@ Promoted from patterns in past-session feedback — the things Christian kept ha
 | `docs/backing-pipeline.md` | How a chord progression becomes a sounding backing band (generation → humanization → DSP chain); written shareable for the host team. |
 | `docs/riff-vocabulary-playbook.md` | The reusable add-a-genre-vocab-pack process (rung arc, bright-line checks, consult matrix, acceptance checklists) — **future genre packs follow this, no charette needed.** |
 | `docs/progression-xp-infrastructure.md` | Dev handover on the progression/XP layer — stores, the credit front doors, the felt-hold engine, XP/levels/badges, invariants. Written shareable. |
+| `docs/progression-leveling-detail.md` | The deep-dive companion: tier-ladder mechanics, the full leveling math + Lifer graduation, PBs/recognizers/specBest, the proof loop, summit invite, node states, streaks, woodshed, per-block credit, designed-not-built. |
 | `docs/sources/` | Source PDFs — reference material only. |
 | `scripts/cut-beta.mjs` | Regenerates the renamed `slopscale-beta` branch from `slopscale-dev` (the beta channel — see Part 3 session-end checklist). |
 | `README.md` | User-facing feature list + install steps. |
