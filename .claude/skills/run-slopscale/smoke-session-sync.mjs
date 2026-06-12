@@ -117,6 +117,28 @@ try {
     ok(okKeys, "key-cycle backing roots on each section's key (per-key fix)", okKeys ? "" : "a region's backing did not root on its key");
   }
 
+  // ---- W5: per-block ANCHOR ZONES — the highway fret-window highlight (the blue
+  // hand-position band) must FOLLOW each block, not park at block 1. The bug
+  // (2026-06-11 DapperTap report): blocks that don't emit their own anchors
+  // (position-mode runs) left the session anchors[] empty, so generateSession's
+  // firstCfg fallback built ONE box from block 1's fret window over the whole
+  // Workout — "aligns with the first segment, drifts off the following ones".
+  const w5 = await page.evaluate(() => {
+    const S = window.SlopScale;
+    const pseg = (fretMin, fretMax) => ({ kind: "scale", config: { bpm: 90, bars: 4, key: "C", scale: "major", meter: "4/4", subdivision: "eighth", direction: "up_down", sequence: "none", fretboardSystem: "position", fretMin, fretMax, audio: { notes: true } } });
+    const b = S.makeBundle(S.generateSession({ version: 1, name: "w5", stringSetup: "guitar_6_standard", interBlockBreak: "off", segments: [pseg(0, 5), pseg(7, 12)] }));
+    return { anchors: (b.anchors || []).map(a => ({ time: a.time, fret: a.fret })), segmentBounds: b.segmentBounds };
+  });
+  console.log(`\n== W5 per-block anchor zones (block1 frets 0-5, block2 frets 7-12) ==`);
+  {
+    const sb = w5.segmentBounds, b1 = [sb[0].start, sb[0].end], b2 = [sb[1].start, sb[1].end];
+    const a1 = w5.anchors.filter(a => inWin(a.time, b1)).map(a => a.fret);
+    const a2 = w5.anchors.filter(a => inWin(a.time, b2)).map(a => a.fret);
+    console.log(`   block1 anchor frets: ${JSON.stringify(a1)}  block2 anchor frets: ${JSON.stringify(a2)}`);
+    ok(a1.length > 0 && a1.every(f => f === 0), "block-1 anchor zones sit at block-1's fret window (fretMin 0)", `got ${JSON.stringify(a1)}`);
+    ok(a2.length > 0 && a2.every(f => f === 7), "block-2 anchor zones FOLLOW to block-2's window (fretMin 7) — not parked at block 1", `got ${JSON.stringify(a2)}`);
+  }
+
   // ---- Workout-love Tier 1 (2026-06-09): count-in + breath + loop-wrap + alt-tuning ----
   // The session path used to drop the count-in (slammed in cold), breathe only on
   // changed seams, never breathe at the loop-wrap, and ignore the player's tuning.

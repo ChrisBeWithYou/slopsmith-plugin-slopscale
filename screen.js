@@ -347,14 +347,25 @@
     fours:[0,1,2,3],
     triplets:[0,1,2],
     thirds:[0,2],
+    fourths:[0,3],
+    fifths:[0,4],
+    sixths:[0,5],
     broken_triads:[0,2,4],
     yngwie_sixes:[0,1,2,3,2,1]
   };
+  // Diatonic-interval sequences index consecutive SCALE DEGREES, so the offset
+  // IS the diatonic interval (degree i + 3 = a diatonic 4th, i + 4 = a diatonic
+  // 5th — quality alternates to stay in key). The single-note skip-step drill
+  // ("1-3, 2-4, 3-5…"), distinct from the harmonized scale_thirds/scale_sixths
+  // double-stops. The classic ear/fretboard primitive (beyoki's Discord ask).
   const SEQUENCE_LABELS = {
     none:'straight',
     fours:'fours (1-2-3-4)',
     triplets:'triplets (1-2-3)',
     thirds:'diatonic thirds',
+    fourths:'diatonic fourths',
+    fifths:'diatonic fifths',
+    sixths:'diatonic sixths',
     broken_triads:'broken triads (1-3-5)',
     yngwie_sixes:'sixes (1-2-3-4-3-2)'
   };
@@ -585,7 +596,7 @@
     // bass player sees a pinned bass Beginner→Advanced staircase in the SAME 3 bands —
     // parity with guitar, not a separate taxonomy. Bass spine = the dissolved bass Style
     // packs (Foundations/Scales/Arps/Groove) re-homed + the new Core/L&C rungs.
-    { id:'core_beginner',     label:'Beginner',     kind:'core', pinned:true, pathways:['chromatic_warmup','pulse_muting','pent_foundation','power_chord_comping','blues_foundation','bend_drill','bass_rh_pulse','bass_root_click','bass_finger_gym','bass_finger_legato','bass_root_fifth_octave','bass_octave_groove','bass_lc_roots'] },
+    { id:'core_beginner',     label:'Beginner',     kind:'core', pinned:true, pathways:['chromatic_warmup','pulse_muting','pent_foundation','power_chord_comping','blues_foundation','bend_drill','bass_rh_pulse','bass_root_click','bass_finger_gym','bass_finger_legato','bass_root_fifth_octave','core_root_third_fifth','bass_octave_groove','bass_lc_roots'] },
     { id:'core_intermediate', label:'Intermediate', kind:'core', pinned:true, pathways:['major_scale_caged','sixteenth_pocket','dorian_groove','chord_tone_targeting','modal_awareness','diatonic_triad_drill','bass_scale_one_box','bass_scale_two_octave','bass_arp_triads','bass_arp_sevenths','bass_arp_neck','bass_dead_notes','bass_rh_sixteenth','bass_walking'] },
     { id:'core_advanced',     label:'Advanced',     kind:'core', pinned:true, pathways:['seventh_vocab','whole_neck_freedom','guide_tones_path','ii_V_I_workout','modal_vamp','melmin_exotic_12key','harmonic_minor_exotic','sweep_arpeggio_primer','bass_scale_modes','bass_scale_shifts','bass_scale_whole_neck','bass_arp_changes','bass_lc_guide_tones','bass_lc_approach','bass_rh_three_finger','bass_lc_capstone','bass_lc_trade'] },
     { id:'style_blues',       label:'Blues',        kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner — minor-pentatonic box 1, the blue note (♭5), and a steady pulse over the 12-bar form.', pathways:['blues_box','blues_shuffle','blues_bends','blues_call_response','blues_mix'] },
@@ -602,6 +613,7 @@
     { id:'concept_arpeggios', label:'Arpeggios', kind:'style', family:'Concepts', buildsOn:'Builds on Core Intermediate — diatonic triads and the CAGED shapes. An arpeggio is a chord one note at a time; spell the sevenths, invert them, then chase them through the changes.', pathways:['arp_seventh_shapes','arp_inversions','arp_over_changes','arp_sweeps'] },
     { id:'concept_voiceleading', label:'Guide Tones', kind:'style', family:'Concepts', buildsOn:'Builds on Core — diatonic seventh chords and the major scale. The 3rd and 7th are a chord\'s identity; voice-lead just those through the changes, then play a line that follows them.', pathways:['vl_shells','vl_guide_tones','vl_guide_changes','vl_connect'] },
     { id:'concept_fretboard', label:'Fretboard', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the pentatonic box and the CAGED major scale. Stop thinking in one box: connect the shapes, shift positions, learn the 3NPS system, and map the whole neck.', pathways:['fb_one_box','fb_caged_links','fb_position_shifts','fb_3nps','fb_whole_neck'] },
+    { id:'concept_intervals', label:'Intervals', kind:'style', family:'Concepts', buildsOn:'Builds on Core — a scale you can play in one box and a steady pulse. Stop playing the scale step-by-step: skip through it in thirds, then fourths & fifths, then sixths, then take the same intervals up and down the neck and finally mix them over a backing. The ear/hand drill behind melody, bass fills, and connecting chord tones — diatonic, so it transposes for free. Works on guitar or bass.', pathways:['diatonic_intervals','int_sixths','bass_int_sixths','int_across_neck','bass_int_walk','int_mixed'] },
     { id:'concept_expression', label:'Expression', kind:'style', family:'Concepts', buildsOn:'Builds on Core Beginner — a fretted note and a target pitch. Make the note SING: vibrato width first, then bends that land dead in tune (half → whole → mixed).', pathways:['exp_vibrato','exp_bend_half','exp_bend_whole','exp_bend_mixed'] },
     { id:'concept_rhythm', label:'Rhythm', kind:'style', family:'Concepts', buildsOn:'Builds on Core — a steady pulse and the pentatonic box. Own TIME itself, easy→mastery: the grid (subdivisions, the 16th pocket) → the feel (swing, syncopation, the gallop, moving the accent) → the pulse frame (one-note pulse, half/double-time, odd meters) → two pulses at once (over the barline) → trade bars and make your own groove. World rhythms (tresillo, clave) ride the one-note pulse. Instrument-agnostic — works on guitar or bass.', pathways:['rhy_subdivision','rhy_sixteenth','rhy_swing','rhy_displacement','rhy_gallop_snap','rhy_accent_displace','rhy_single_string','rhy_half_double','rhy_odd_meter','rhy_over_barline','rhy_trade_bars'] },
     { id:'concept_picking', label:'Picking', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the chromatic warmup and one-finger-per-fret sync. The pick-hand engine: tremolo, alternate across strings, economy crossings, string skipping, hybrid picking.', pathways:['pick_tremolo','pick_alternate','pick_economy','pick_string_skip','pick_hybrid','pick_herta'] },
@@ -864,6 +876,99 @@
       tempoTiers:[60, 80, 100, 120],
       base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'full_neck', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C' },
       vary:[ { key:'C' }, { key:'G' }, { key:'A' }, { key:'E' }, { key:'D' } ]
+    },
+    // ── Intervals ladder (Concepts family) ──────────────────────────────────────
+    // The single-note diatonic interval-SEQUENCE skill, easy→mastery: 3rds/4ths/5ths
+    // in one box → 6ths → the same intervals traveling the neck → mixed over a backing.
+    // Distinct from the harmonized scale_thirds/scale_sixths DOUBLE-STOPS. Each pattern
+    // indexes consecutive scale DEGREES, so the offset IS the diatonic interval (quality
+    // alternates to stay in key: the vii 5th is a dim5, the IV 4th an aug4 — correct,
+    // not a bug). instAgnostic — adapts to guitar (CAGED shape) OR bass (position box +
+    // the player's tuning). Bass windows (fretMin/fretMax) follow the key so the root
+    // sits low in the box, per the bass spine; guitar uses the shape + ignores them.
+    // Built from beyoki's Discord ask (a beginning bassist) + a 4-agent panel review
+    // (guitar/bass-pedagogy + harmony + L&D), 2026-06-11.
+    diatonic_intervals: {
+      label:'Thirds, Fourths & Fifths',
+      goal:"Play the scale in leaps, not steps: thirds (1-3, 2-4…), then fourths and fifths. Skipping through the scale this way trains your ear to HEAR each interval and your hand to FIND it anywhere in the key — and stacking the diatonic 3rds IS the harmonized scale, every chord in the key. It stays diatonic, so it's locked to the key: change the key and the intervals follow. One leap per key sounds 'spicy' — the tritone (the ♭5 between the 4th and 7th degrees); that's the diatonic truth, not a wrong note. Start slow in one box and keep every leap dead even and in tune — speed comes after the ear does. Works the same on guitar or bass.",
+      scales:['major','natural_minor'],
+      tempoTiers:[50, 65, 80, 95],
+      instAgnostic:true,
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:55, bars:8, direction:'up_down', sequence:'thirds', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E', fretMin:2, fretMax:7 },
+      vary:[ { sequence:'thirds', key:'G', fretMin:2, fretMax:7 }, { sequence:'fourths', key:'G', fretMin:2, fretMax:7 }, { sequence:'fifths', key:'G', fretMin:2, fretMax:7 }, { sequence:'thirds', key:'E', fretMin:0, fretMax:5 }, { sequence:'fifths', key:'E', fretMin:0, fretMax:5 } ]
+    },
+    // GUITAR Sixths (instrument-SPLIT, panel ruling 2026-06-11): 6ths are a guitar-
+    // specific grip lesson — the major-3rd between strings 2-3 (the B string) makes a
+    // 6th a tidy adjacent/skipped-string shape that SHIFTS one fret across that
+    // boundary. Bass's uniform 4ths can't mirror it (a bass 6th is a punishing
+    // consecutive cross-string run), so bass gets its own rung below (isHiddenNode
+    // shows each instrument only its own).
+    int_sixths: {
+      label:'Sixths',
+      goal:"The widest of the small skips: diatonic sixths (1-6, 2-7…). On guitar the third between the G and B strings makes 6ths fall into a tidy two-string shape — but that shape SHIFTS a fret the moment the pair crosses the B string, which is the real lesson. Sixths are the sound of harmonized leads — soul, country, classic rock. Mind the string-skip and let the grip move at the B string; keep every pair even and in tune.",
+      scales:['major','natural_minor'],
+      tempoTiers:[50, 65, 80, 95],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:55, bars:8, direction:'up_down', sequence:'sixths', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E' },
+      vary:[ { key:'G', shape:'E' }, { key:'E', shape:'E' }, { key:'A', shape:'E' }, { key:'A', scale:'natural_minor', shape:'E' }, { key:'C', shape:'A' } ]
+    },
+    // BASS Sixths (instrument-split): on a 4-string all-4ths neck a 6th is a 2-string
+    // skip — a wide, cross-string reach, not the guitar grip. Drill it slow and
+    // relaxed in a key-tracked box; in real bass lines a 6th is usually octave-
+    // displaced (played as a descending 3rd), so this builds the ear + the reach, not
+    // a lick. Bass-pedagogy ruling 2026-06-11.
+    bass_int_sixths: {
+      label:'Sixths',
+      goal:"On bass a sixth is a wide two-string skip — the biggest reach in the interval set. Take it slow: hear the sweet major 6th and the darker minor 6th, and let the fretting hand learn the clean cross-string jump. In real bass lines you'll often flip a 6th down into a 3rd (same notes, an octave closer) — but owning the full reach first means you can hear and place it either way.",
+      scales:['major','natural_minor'],
+      tempoTiers:[45, 58, 72, 88],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:50, bars:8, direction:'up_down', sequence:'sixths', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'G', fretMin:2, fretMax:7 },
+      vary:[ { key:'G', fretMin:2, fretMax:7 }, { key:'E', fretMin:0, fretMax:5 }, { key:'A', fretMin:4, fretMax:9 }, { key:'A', scale:'natural_minor', fretMin:4, fretMax:9 }, { key:'C', fretMin:5, fretMax:10 } ]
+    },
+    // GUITAR Across-the-Neck (instrument-split): the CAGED-shape ROTATION lesson —
+    // one key, the same interval, rotated through the five C-A-G-E-D zones up the
+    // neck. CAGED is a guitar system; bass has no C/A/G/E/D box geometry, so bass
+    // gets the honest equivalent (a position-shift WALK) below — never a hidden gap.
+    int_across_neck: {
+      label:'Across the Neck',
+      goal:"Take the intervals off-island. Play thirds through one key, but shift the SAME interval up the neck through the five CAGED zones — C, A, G, E, D — until you can find a third (or any interval) anywhere, not just in one shape. This is the 'up and down the fretboard' skill: the interval is the constant, the CAGED position is the variable.",
+      scales:['major','natural_minor'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:60, bars:8, direction:'up_down', sequence:'thirds', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E' },
+      vary:[ { shape:'G' }, { shape:'E' }, { shape:'D' }, { shape:'C' }, { shape:'A' } ]
+    },
+    // BASS Walk-the-Interval (instrument-split): the honest bass equivalent of the
+    // guitar CAGED-rotation rung — same interval, one key, SHIFT the position box up
+    // the neck (the bass player's neck-coverage skill is position shifting, not CAGED).
+    bass_int_walk: {
+      label:'Walk the Interval',
+      goal:"Find the interval anywhere on the neck. Play thirds in one key, then shift your hand up a box at a time — same interval, new position — so you're not locked to one spot. This is the bassist's 'up and down the neck' skill: the interval stays the same, your hand learns to find it high or low. The reach between boxes is the lesson; keep the shifts clean and in time.",
+      scales:['major','natural_minor'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:60, bars:8, direction:'up_down', sequence:'thirds', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'G', fretMin:2, fretMax:7 },
+      vary:[ { fretMin:2, fretMax:7 }, { fretMin:5, fretMax:10 }, { fretMin:7, fretMax:12 }, { fretMin:9, fretMax:14 }, { fretMin:0, fretMax:5 } ]
+    },
+    int_mixed: {
+      label:'Interval Workout',
+      goal:"Own them all, by ear. Cycle thirds → fourths → fifths → sixths → arpeggios over a I-IV-V backing, so you're not just running shapes — you're HEARING each interval against a chord and using it to connect to the next chord tone. This is where the drill becomes music: the intervals you've banked turn into melodies and fills.",
+      scales:['major','natural_minor'],
+      tempoTiers:[60, 75, 90, 105],
+      instAgnostic:true,
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:60, bars:8, direction:'up_down', sequence:'thirds', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E', fretMin:2, fretMax:7, progression:'I-IV-V', chordDepth:'triad', chordOverride:'auto' },
+      vary:[ { sequence:'thirds' }, { sequence:'fourths' }, { sequence:'fifths' }, { sequence:'sixths' }, { sequence:'broken_triads' } ]
+    },
+    // Core-Beginner SEED rung (instAgnostic) — the discoverability fix the L&D review
+    // asked for: a beginner who can't find interval practice meets it in the always-
+    // visible Core (the Intervals pack is opt-in). One rung only — Root–3rd–5th by ear
+    // — a tiny step up from bass_root_fifth_octave (same box, add the 3rd). Lives in the
+    // core_beginner band; the full treatment is the opt-in Intervals ladder above.
+    core_root_third_fifth: {
+      label:'Root–3rd–5th by Ear',
+      goal:"The three notes every chord is built from — root, third, fifth — spelled up through the scale (1-3-5, 2-4-6…). The third is the note that tells major from minor; the fifth is a bass player's home base. Hear and find these and you can outline any chord in the key by ear — the foundation of arpeggios, bass lines, and improvising. Start slow in one box; name each note as you play it.",
+      scales:['major','natural_minor'],
+      tempoTiers:[50, 65, 80, 95],
+      instAgnostic:true,
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:55, bars:8, direction:'up_down', sequence:'broken_triads', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E', fretMin:2, fretMax:7 },
+      vary:[ { key:'G', fretMin:2, fretMax:7 }, { key:'E', fretMin:0, fretMax:5 }, { key:'A', fretMin:4, fretMax:9 }, { key:'A', scale:'natural_minor', fretMin:4, fretMax:9 }, { key:'C', fretMin:5, fretMax:10 } ]
     },
     // ── Expression ladder (Concepts family) ─────────────────────────────────────
     // The "make a note SING" vertical (guitar-pedagogy #1): vibrato → half-bend →
@@ -5528,7 +5633,7 @@
     }
     return beats;
   }
-  function buildAnchors(cfg, duration) { const out = [], width = Math.max(3, cfg.fretMax - cfg.fretMin + 1); for (let t = 0; t <= duration + 0.0001; t += 2) out.push({ time: Number(t.toFixed(6)), fret: cfg.fretMin, width }); return out; }
+  function buildAnchors(cfg, duration) { const fMin = Number.isFinite(cfg.fretMin) ? cfg.fretMin : 0, fMax = Number.isFinite(cfg.fretMax) ? cfg.fretMax : fMin + 4; const out = [], width = Math.max(3, fMax - fMin + 1); for (let t = 0; t <= duration + 0.0001; t += 2) out.push({ time: Number(t.toFixed(6)), fret: fMin, width }); return out; }
 
   // ===========================================================================
   // §5 · CHORD-DEPTH / DIATONIC EXTENSION ENGINE
@@ -9562,7 +9667,17 @@
       chart.chords.forEach(c => chords.push(Object.assign({}, c, { t:Number((c.t + t).toFixed(6)), id:c.id + tplOffset })));
       chart.chordTemplates.forEach(ct => chordTemplates.push(ct));
       chart.handShapes.forEach(hs => handShapes.push(Object.assign({}, hs, { chord_id:hs.chord_id + tplOffset, start_time:Number((hs.start_time + t).toFixed(6)), end_time:Number((hs.end_time + t).toFixed(6)) })));
-      (chart.anchors || []).forEach(a => anchors.push(Object.assign({}, a, { time:Number((a.time + t).toFixed(6)) })));
+      // Per-block anchors (the desync rule applied to the hand-position zone): a
+      // block that doesn't emit its OWN anchors (position-mode runs don't — only
+      // shape runs set shapeRunAnchors) must still contribute a fret-window box
+      // built from ITS segCfg, not silently inherit block 1's. Without this the
+      // session anchors[] stays empty for ordinary Workout blocks, and
+      // generateSession's firstCfg fallback then parks the highway's blue
+      // fret-window highlight at segment 1's window for the WHOLE Workout — it
+      // aligns with the first segment and drifts off every following one (the
+      // 2026-06-11 DapperTap "highlight doesn't follow segments" report).
+      const segAnchors = (chart.anchors && chart.anchors.length) ? chart.anchors : buildAnchors(segCfg, dur);
+      segAnchors.forEach(a => anchors.push(Object.assign({}, a, { time:Number((a.time + t).toFixed(6)) })));
       // Use pre-computed beats if the chart has them (BPM ladder), else generate
       const segBeats = chart.beats || buildBeats(segCfg, dur);
       segBeats.forEach(b => beats.push(Object.assign({}, b, { time:Number((b.time + t).toFixed(6)) })));

@@ -336,6 +336,35 @@ async function run() {
     });
     sections.push({ name: "engine semantics (5)", rows: p5 });
 
+    // ── Phase 5b: interval-SEQUENCE engine (diatonic 4ths/5ths/6ths) ────────
+    // Durable assert folded from probe-intervals (per-system rule): the
+    // SEQUENCE_PATTERNS single-note skip drill must land the DIATONIC interval —
+    // quality alternates to stay in key (P4 / aug4 on IV; P5 / dim5 on vii; maj6 /
+    // min6). Distinct from the HARMONIZED scale_thirds/scale_sixths double-stops.
+    // Built 2026-06-11 (beyoki's Discord ask + 4-agent review → the Intervals pack).
+    const p5b = await page.evaluate(() => {
+      const S = window.SlopScale;
+      // Build the cfg by MERGING over readConfig() with shapeNotes:null (the Phase-6
+      // gen() pattern) — NOT by driving the form. Avoids both the shape-hidden-field
+      // sync (silent-set leaves it stale) and the instrument-handler pollution
+      // (change-dispatch leaks into the later bass rows). shapeNotes:null forces the
+      // E-shape to re-resolve; ascending + caged gives a clean pitch-ascending run so
+      // consecutive pairs are consecutive scale degrees (position mode orders by
+      // string, which would scramble the pairs).
+      const row = (seq, expect) => {
+        const cfg = Object.assign(S.readConfig(), { shapeNotes: null, stringSetup: "guitar_6_standard", practiceType: "scale", scale: "major", key: "C", fretboardSystem: "caged", shape: "E", direction: "ascending", sequence: seq, bars: 8 });
+        cfg.mode = "scale";
+        const ex = S.generateExercise(cfg);
+        const opens = S.makeBundle(ex).openMidis || [];
+        const ns = (ex.chart.notes || []).filter((n) => !n._tail).map((n) => (opens[n.s] != null ? opens[n.s] + n.f : null)).filter((x) => x != null);
+        const g = []; for (let i = 0; i + 1 < ns.length; i += 2) g.push(ns[i + 1] - ns[i]);
+        const okv = g.length > 0 && g.every((x) => expect.includes(x));
+        return { label: `sequence '${seq}' lands the diatonic interval (${expect.join("/")} st)`, ok: okv, fatal: okv ? [] : [`pair gaps ${JSON.stringify(g.slice(0, 8))} not all in ${JSON.stringify(expect)}`], warn: [], notes: ns.length };
+      };
+      return [row("fourths", [5, 6]), row("fifths", [6, 7]), row("sixths", [8, 9])];
+    });
+    sections.push({ name: "interval sequences (5b)", rows: p5b });
+
     // ── Phase 6: hand-marks data layer (fg/pkd) ────────────────────────────
     // Durable rows promoted from probe-hand-marks (per-system rule): the
     // Slice-1 emission semantics from docs/hand-marks-roundtable.md. Display
