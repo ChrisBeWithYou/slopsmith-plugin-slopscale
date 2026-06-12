@@ -81,7 +81,9 @@ Promoted from patterns in past-session feedback — the things Christian kept ha
 | `docs/design-system.md` | GUI style guide (tokens, hierarchy, primary-action parity, theme-safe color rules) — **read before any GUI change**. |
 | `docs/session-2026-05-26-shape-system.md` | Shape-system unification session log. |
 | `docs/*-roundtable.md`, `docs/triad-mastery-ladder.md`, `docs/proof-loop-slice.md`, `docs/beta-testing.md` | Charette/spec docs for in-flight initiatives (one per initiative — e.g. backing-engine, grading-rebuild, workout-love/engagement, programs-ladder, rhythm/timing-judging, hand-marks, bass-technique/felt-hold). The set grows each session; **`ROADMAP.md` + project memory are authoritative for which exist and their status** — don't enumerate them all here. |
+| `docs/backing-pipeline.md` | How a chord progression becomes a sounding backing band (generation → humanization → DSP chain); written shareable for the host team. |
 | `docs/sources/` | Source PDFs — reference material only. |
+| `scripts/cut-beta.mjs` | Regenerates the renamed `slopscale-beta` branch from `slopscale-dev` (the beta channel — see Part 3 session-end checklist). |
 | `README.md` | User-facing feature list + install steps. |
 | `ROADMAP.md` | Phase plan; **read at session start**. Authoritative for "what's shipped vs planned". |
 | `AGENTS.md` | Codex variant; mirrors this file. |
@@ -167,7 +169,7 @@ In **Jam** (`isJamMode`) the overview becomes the **chord loop** — function-ti
 
 ### Code map (screen.js + routes.py)
 
-`screen.js` is **one IIFE, ~19,000 lines** — it loads as a classic `<script>` (no `type="module"`), so it **cannot use `import`/`export`; keep it one file.** Sections are marked with `§N` banner comments and indexed in a **table-of-contents header at the top of the file** (the canonical §1–§15 order) — **grep `§` or read that header to navigate before editing.**
+`screen.js` is **one IIFE, ~20,000 lines** — it loads as a classic `<script>` (no `type="module"`), so it **cannot use `import`/`export`; keep it one file.** Sections are marked with `§N` banner comments and indexed in a **table-of-contents header at the top of the file** (the canonical §1–§15 order) — **grep `§` or read that header to navigate before editing.**
 
 `routes.py` registers FastAPI routes under `/api/plugins/slopscale/…` (status, preset + tuning CRUD, the dormant `POST /temp-sloppak` chart builder, and the self-hosted `/wafont` `/ir` `/nam` audio-asset routes). **Storage is DB-backed** (the shared Slopsmith meta-DB via `context["meta_db"]` → tables `slopscale_presets` + `slopscale_tunings`), not flat files.
 
