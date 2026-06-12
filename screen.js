@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.23-beta.6';
+  const SLOPSCALE_VERSION = '0.7.23-beta.7';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -259,6 +259,11 @@
     circle_diatonic:[1,4,7,3,6,2,5,1],
     '12_bar_blues':[1,1,1,1,4,4,1,1,5,4,1,5],
     quick_change_blues:[1,4,1,1,4,4,1,1,5,4,1,5],
+    // The turnaround's OWN changes — bars 11-12 of the 12-bar isolated as a
+    // loopable I|V cell (a motif cell owns its progression, riff-vocab D2; this
+    // is "the turnaround-figure token" the held blues turnaround rung was
+    // gated on). Looping it lands each pass's V back onto the next pass's I.
+    blues_turnaround:[1,5],
     // Jazz 12-bar blues — the quick-change form with the bar-6 ♯iv°7 passing
     // diminished, the bar-8 VI7 secondary dominant, and a bar 9–10 ii–V turnaround
     // (vs the plain blues' static V–IV). I/IV/V are dominant (override below); the
@@ -571,6 +576,12 @@
     ['bass_rh_funk_pocket',    'bass_rh_crossing'],
     ['bass_arp_sevenths',      'bass_arp_inversions'],
     ['bass_rh_funk_pocket',    'bass_slap'],
+    // Blues vocabulary rungs (riff-vocab pilot): the turnaround device builds on
+    // knowing the 12-bar form (shuffle); drill before construct; the construct
+    // step also draws on the call-and-answer skill (the JAM hand-off edge).
+    ['blues_shuffle',          'blues_turnaround'],
+    ['blues_turnaround',       'blues_turnaround_build'],
+    ['blues_call_response',    'blues_turnaround_build'],
     // Sweep Picking ladder — builds on the Arpeggios pack's sweep rung, then climbs.
     ['arp_sweeps',         'sweep3_triad'],
     ['sweep3_triad',       'sweep5_box'],
@@ -599,7 +610,7 @@
     { id:'core_beginner',     label:'Beginner',     kind:'core', pinned:true, pathways:['chromatic_warmup','pulse_muting','pent_foundation','power_chord_comping','blues_foundation','bend_drill','bass_rh_pulse','bass_root_click','bass_finger_gym','bass_finger_legato','bass_root_fifth_octave','core_root_third_fifth','bass_octave_groove','bass_lc_roots'] },
     { id:'core_intermediate', label:'Intermediate', kind:'core', pinned:true, pathways:['major_scale_caged','sixteenth_pocket','dorian_groove','chord_tone_targeting','modal_awareness','diatonic_triad_drill','bass_scale_one_box','bass_scale_two_octave','bass_arp_triads','bass_arp_sevenths','bass_arp_neck','bass_dead_notes','bass_rh_sixteenth','bass_walking'] },
     { id:'core_advanced',     label:'Advanced',     kind:'core', pinned:true, pathways:['seventh_vocab','whole_neck_freedom','guide_tones_path','ii_V_I_workout','modal_vamp','melmin_exotic_12key','harmonic_minor_exotic','sweep_arpeggio_primer','bass_scale_modes','bass_scale_shifts','bass_scale_whole_neck','bass_arp_changes','bass_lc_guide_tones','bass_lc_approach','bass_rh_three_finger','bass_lc_capstone','bass_lc_trade'] },
-    { id:'style_blues',       label:'Blues',        kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner — minor-pentatonic box 1, the blue note (♭5), and a steady pulse over the 12-bar form.', pathways:['blues_box','blues_shuffle','blues_bends','blues_call_response','blues_mix'] },
+    { id:'style_blues',       label:'Blues',        kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner — minor-pentatonic box 1, the blue note (♭5), and a steady pulse over the 12-bar form.', pathways:['blues_box','blues_shuffle','blues_bends','blues_call_response','blues_mix','blues_turnaround','blues_turnaround_build'] },
     { id:'style_country',     label:'Country',      kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner→Intermediate — major pentatonic and the CAGED major scale; you target chord tones inside the shape, then add the country idiom (double-stops, chicken pickin\', the ♭VII train change).', pathways:['major_pent_country','country_cowboy_changes','country_double_stops','country_chicken_pickin','country_pedal_bends','country_train'] },
     { id:'style_metal',       label:'Metal',        kind:'style', family:'High-Gain & Technical', buildsOn:'Builds on Core — power chords and palm-mute pulse (Beginner), tight 16th picking (Intermediate), plus exotic/harmonic-minor scales and sweep mechanics (Advanced). The djent sub-ladder climbs chug precision → accent control → grouping cells → cell vocabulary → moving stacks, topping out in a trade-bars jam.', pathways:['metalcore_chug','melodic_metal_gallop','djent_chug_lock','djent_accent_grid','djent_polymeter','djent_skip_gallop','djent_moving_chug','djent_lock_the_cell','melodeath_twin_leads','death_chromatic'] },
     { id:'style_rock',        label:'Rock',         kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core — power chords + the backbeat (Beginner), the pentatonic box (Beginner), then the blues-rock mix, pedal-tone riffs, and the ♭VII classic-rock changes.', pathways:['rock_power_backbeat','rock_pentatonic','rock_lead_vocab','rock_pedal_riff','rock_classic_changes'] },
@@ -1023,7 +1034,9 @@
     // Genre ladder = the APPLICATION layer (vocabulary→technique→application→improv)
     // in the blues accent. Blues is the LEAST backing-gated genre (the boogie/shuffle
     // backing is built). Reviewed by blues-idiom-architect (2026-06-03). The turnaround
-    // rung (bars 11-12) is DEFERRED — needs a turnaround-figure token (backing-engine).
+    // rung — held since 2026-06-03 pending "a turnaround-figure token" — shipped
+    // 2026-06-12 as the riff-vocabulary pilot (blues_turnaround + _build below):
+    // the token is COMMON_PROGRESSIONS.blues_turnaround + MOTIF_CELLS.
     blues_box: {
       label:'The Box & the Blue Note',
       goal:'Minor-pentatonic box 1 with the ♭5 blue note added, ridden over a 12-bar shuffle. The ♭5 is a passing target, not a landing — brush it and resolve up to the 5th. Get the shape automatic over the groove before you try to say anything with it. The home base of every blues solo.',
@@ -1055,6 +1068,30 @@
       tempoTiers:[60, 80, 100, 120],
       base:{ practiceType:'scale', scale:'major_pentatonic', meter:'4/4', subdivision:'eighth', bpm:85, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7', backingStyle:'boogie', swing:'shuffle', audioProfile:'blues', key:'A', shape:'E' },
       vary:[ { scale:'major_pentatonic' }, { scale:'minor_pentatonic' }, { scale:'blues' }, { key:'E', scale:'major_pentatonic' }, { key:'G', scale:'minor_pentatonic' } ]
+    },
+    // ── Blues VOCABULARY rungs (riff-vocabulary pilot, 2026-06-12) ──────────────
+    // The arc NAME → DRILL → VARY → CONSTRUCT → JAM (docs/riff-vocabulary-playbook.md):
+    // the goal-card NAMES the device, the drill rung's vary[] is ONE axis
+    // (transposition — D9: a lick clean in 5 keys is a transferable device; the
+    // same lick at 200 BPM in one key is a parlor trick; tempoTiers short), the
+    // _build rung IS the construction step, and the jam hand-off is the prereq
+    // edge back into blues_call_response/blues_mix. The cell owns its harmony
+    // (prog + dom7) — the rung deliberately codes NO progression/chordOverride.
+    blues_turnaround: {
+      label:'The Turnaround',
+      goal:'The descending-3rds turnaround: parallel thirds sliding chromatically down from the ♭7 over the I, then turning to the V from a half-step above. This is the punctuation of the 12-bar form — bars 11 and 12, the figure that closes one chorus and hands you the next. Drill the same movable shape through five keys until it travels with you; then take it to Build Your Turnaround and assemble your own from the same moves.',
+      scales:['blues','minor_pentatonic'],
+      tempoTiers:[60, 80, 100],
+      base:{ practiceType:'motif', motifCell:'blues_turnaround_thirds', scale:'blues', meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', backingStyle:'boogie', swing:'shuffle', audioProfile:'blues', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' }, { key:'D', shape:'E' } ]
+    },
+    blues_turnaround_build: {
+      label:'Build Your Turnaround',
+      goal:'The construction step: the band plays the descending-3rds turnaround as a two-bar call, then leaves two empty bars — yours. Answer with YOUR OWN turnaround: keep the chromatic-walkdown idea, change the rhythm, the register, the landing. The answer window is never scored — it is yours. When your own figure lands the V on time without thinking, you own the device, not a tab.',
+      scales:['blues','minor_pentatonic'],
+      tempoTiers:[60, 80, 100],
+      base:{ practiceType:'motif', motifCell:'blues_turnaround_thirds', motifPhase:'construct', scale:'blues', meter:'4/4', subdivision:'eighth', bpm:70, bars:16, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', backingStyle:'boogie', swing:'shuffle', audioProfile:'blues', key:'A', shape:'E' },
+      vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' }, { key:'D', shape:'E' } ]
     },
     // ── ROCK genre ladder (new style_rock pack) ─────────────────────────────────
     // Classic/hard/alt rock (Metal already has its own pack). The APPLICATION layer:
@@ -4097,6 +4134,11 @@
       // smoke-herta drove cfg directly so it never saw the gap).
       hertaAccent: Math.max(0, Math.min(3, parseInt(data.get('hertaAccent') || '0', 10) || 0)),
       hertaWalk: data.get('hertaWalk') === 'on' || data.get('hertaWalk') === 'true',
+      // Riff-vocabulary cell + phase (pathway-driven hidden fields). motifCell
+      // names the MOTIF_CELLS entry ('' = the builder's default); motifPhase
+      // 'construct' flips the drill into call-and-answer (the construct step).
+      motifCell: (data.get('motifCell') || '').toString(),
+      motifPhase: (data.get('motifPhase') || '').toString(),
       // sweepStrings (Sweep ladder entry rung): constrain a sweep to the top N
       // strings. Pathway-driven hidden field; 0/absent = the full box. 2–6 clamp.
       sweepStrings: Math.max(0, Math.min(6, parseInt(data.get('sweepStrings') || '0', 10) || 0)),
@@ -4834,6 +4876,7 @@
     guide_tones:'voice-lead the changes', pedal_riff:'riff lock', legato:'hammer/pull fluency',
     bending:'bend intonation', sweep_arpeggios:'clean sweep picking', strum_comp:'comping feel',
     shell_voicings:'shell voicings', rhythm_pulse:'subdivision + feel', herta:'burst control',
+    motif:'riff vocabulary',
     concept_chords:'chord concepts', walking_bass:'walking lines', root_fifth_octave:'root-fifth lock',
     octave_groove:'octave groove', dead_note_groove:'dead-note feel', slap_pop:'slap & pop',
     right_hand_technique:'right-hand control', tapping:'tapping fluency', hybrid_picking:'hybrid picking',
@@ -4956,6 +4999,7 @@
     vibrato:          { bass:'adapted' },     // slower, narrower
     tapping:          { bass:'adapted' },     // single-line, advanced only
     herta:            { bass:'adapted' },     // bass realizes the burst as a rake (or fretting trill), not pick-h-p-pick
+    motif:            { bass:'adapted' },     // single-line realization: the cell's lower voice IS the bass line (no dyads)
     pentatonic_super: { bass:'adapted' },     // low-mid register, stretch caveat
     sweep_arpeggios:  { bass:'adapted' },     // a raked broken arpeggio, not a metal sweep
     shell_voicings:   { bass:'adapted' },     // 2-note low-register, no clusters below ~fret 7
@@ -5147,7 +5191,13 @@
     }
     return baseSetup.tuning.slice();
   }
-  function noteDefaults(extra) { return Object.assign({ t:0, s:0, f:0, sus:0, sl:-1, slu:-1, bn:0, ho:false, po:false, hm:false, hp:false, pm:false, mt:false, vb:false, tr:false, ac:false, tp:false }, extra || {}); }
+  // `bt` (bend intent, riff-vocab v1 articulation add): 0 = bend-up (today's
+  // default semantic), 1 = release, 2 = pre-bend, 3 = pre-bend-and-release,
+  // 4 = bend-and-release (round trip). `bn` stays the magnitude (now incl. the
+  // 0.25 quarter-curl). Audio/judging already treat bn generically; bt is the
+  // declared INTENT for renderers/judging to grow into (the DapperTap
+  // "bends judged unbent" class). See docs/exercise-schema.md.
+  function noteDefaults(extra) { return Object.assign({ t:0, s:0, f:0, sus:0, sl:-1, slu:-1, bn:0, bt:0, ho:false, po:false, hm:false, hp:false, pm:false, mt:false, vb:false, tr:false, ac:false, tp:false }, extra || {}); }
   // Alternate-picking pkd emission (hand-marks Slice 1; guitar-pedagogy ruling):
   // strict alternation by NOTE ORDER — string crossings included; the triplet
   // beat-flip IS the lesson — down first, re-anchored on a down after a rest.
@@ -7927,6 +7977,287 @@
     return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration: Math.max(t, totalTime) };
   }
 
+  // ── MOTIF_CELLS — the riff-vocabulary engine ─────────────────────────────────
+  // (Charette 2026-06-12; schema docs/riff-vocabulary-roundtable.md §1, process
+  // docs/riff-vocabulary-playbook.md.) The pitch-bearing sibling of RHYTHM_CELLS:
+  // hand-authored 1–2-bar trademark genre DEVICES, degree-relative and key-free,
+  // drilled through keys/positions by buildMotifExercise. Devices not songs —
+  // every cell is a technique device, a traditional common-stock figure, or an
+  // original exemplar written in-style; never a transcription (the legal +
+  // north-star bright lines). The arc per rung: NAME → DRILL → VARY → CONSTRUCT
+  // → JAM; the construct step rides the proven call_response surface (D13:
+  // response bars are genuinely empty = an unscored answer window).
+  //
+  // Cell shape (v1 — 4/4 only, D5):
+  //   { label, genres[], bars:1|2, bind:'static'|'changes', prog, scale,
+  //     range:{loMidi,hiMidi}, noFold, openPolicy, maxSpan, bpmCeiling,
+  //     startBeat, rhythmScale,
+  //     steps:[{ a:'key'|'chord'|'target', deg|chr, acc, tgt, oct, stack:[…],
+  //              d (beats), + art fields (sl/slu/ho/po/vb/ac/mt/pm/bn/bt) }] }
+  //   a    = the ANCHOR deg/chr measures from: 'key' (default — the key root,
+  //          exact-register), 'chord' (the cell-timeline event under the step's
+  //          onset), 'target' (a chord/guide tone of that event via
+  //          tgt:'R'|'3'|'5'|'7' — the enclosure machine).
+  //   deg  = diatonic degree of the cell's scale (+ acc ±1 alteration);
+  //   chr  = raw semitones from the anchor — chromatic approaches ONLY (keeps
+  //          spelling honest + transposition trivially correct).
+  //   stack = extra tokens sounded WITH the step (in-cell double-stops) —
+  //          emitted as same-t `ch`-tagged dyads on a DIFFERENT string.
+  // Time-variation = the two cell flags startBeat + rhythmScale ONLY (D3);
+  // pitch/ending variants are a SECOND authored cell. Author STRAIGHT — swing
+  // is the existing feel layer (swingNotesBacking / applySwingToBundle).
+  // v1 LIMITS (guarded at load so nothing ships silently broken): no pickup
+  // (anacrusis — D4, batch 2), no harmonyInterval (the twin-lead harmonize
+  // path — the metal slice), 4/4 only. The NO-UNISON guard deliberately does
+  // NOT apply here: a motif legitimately repeats pitches, and motif emission
+  // bypasses the shape resolver entirely.
+  const MOTIF_CELLS = {
+    // Blues descending-3rds turnaround (traditional common-stock figure — the
+    // token the HELD blues turnaround rung was gated on, blues-idiom device #1).
+    // Parallel minor-3rd dyads walk chromatically down over the I — top voice
+    // ♭7→6→♭6→5 over 5→♭5→4→3 — landing the I's 5th+3rd, then bar 2 breathes on
+    // the root and approaches the V from a half-step above, landing its root
+    // (the resolution the startup guard proves in all 12 keys). Bass ADAPT
+    // (device map): the lower voice IS the bass line — single-note walkdown.
+    blues_turnaround_thirds: {
+      label: 'Descending-3rds turnaround', genres: ['blues'], bars: 2,
+      bind: 'changes', prog: 'blues_turnaround', scale: 'mixolydian',
+      chordOverride: 'dom7',   // blues I7/V7 — the device owns its quality too (D2; mixolydian's diatonic v is minor, which a turnaround is not)
+      range: { loMidi: 52, hiMidi: 76 }, openPolicy: 'closed_required',
+      maxSpan: 4, bpmCeiling: 140,
+      steps: [
+        // Bar 1 — over the I: the chromatic walkdown in parallel m3 dyads.
+        { a:'key', deg:7,         d:1, stack:[{ deg:5 }] },           // ♭7 + 5
+        { a:'key', deg:6,         d:1, stack:[{ deg:5, acc:-1 }] },   // 6  + ♭5
+        { a:'key', deg:6, acc:-1, d:1, stack:[{ deg:4 }] },           // ♭6 + 4
+        { a:'key', deg:5,         d:1, stack:[{ deg:3 }] },           // 5  + 3 — the I, landed
+        // Bar 2 — the breath on the root, then "turn to the V".
+        { a:'key',   deg:1, d:2 },
+        { a:'chord', chr:1, d:0.5 },                                  // half-step above the V root
+        { a:'chord', chr:0, d:1.5, ac:true },                         // land the V — the resolution step
+      ],
+    },
+  };
+  // Scale-degree → semitone offset for a motif token (deg is 1-based against
+  // the cell's scale; degrees past the scale length spill into the next octave).
+  function motifDegreeSemis(scale, deg, acc) {
+    const iv = SCALE_INTERVALS[scale] || SCALE_INTERVALS.major;
+    const d0 = Math.round(deg) - 1;
+    const idx = ((d0 % iv.length) + iv.length) % iv.length;
+    return iv[idx] + Math.floor(d0 / iv.length) * 12 + (acc | 0);
+  }
+  // Place an EXACT midi in the fret window. Prefers staying near the previous
+  // fret (the hand stays put); excludeS keeps a stack partner off its main
+  // note's string (the same-onset same-string impossibility).
+  function motifPlaceMidi(midi, opens, fretLo, fretHi, prevF, excludeS) {
+    let best = null;
+    for (let s = 0; s < opens.length; s++) {
+      if (excludeS && excludeS.has(s)) continue;
+      const f = midi - opens[s];
+      if (f < 0 || f > 24 || f < fretLo || f > fretHi) continue;
+      const cost = prevF != null ? Math.abs(f - prevF) : f;
+      if (!best || cost < best.cost) best = { s, f, midi, cost };
+    }
+    return best;
+  }
+  // Resolve ONE pass of a motif cell in a key/window → beat-timed placements.
+  // Pure (no DOM/host); shared by buildMotifExercise and the startup guard.
+  // The cell OWNS its progression (D2): the harmonic events of the pass come
+  // from the cell's prog/scale, so 'chord'/'target' anchors and the resolution
+  // check always read the device's own changes.
+  function resolveMotifCell(cell, cfg, opens, fretLo, fretHi) {
+    const keyPc = (((NOTE_ALIASES[cfg.key] != null ? NOTE_ALIASES[cfg.key] : 0) % 12) + 12) % 12;
+    const scale = cell.scale || cfg.scale || 'major';
+    const cellCfg = Object.assign({}, cfg, {
+      progression: cell.prog || cfg.progression || 'static_i',
+      scale, bars: cell.bars,
+      chordOverride: cell.chordOverride || cfg.chordOverride,
+      meter: { numerator: 4, denominator: 4, grouping: [4] },   // v1 cells are 4/4 (D5)
+    });
+    const events = compileChordTimeline(cellCfg, cell.bars * measureSeconds(cellCfg));
+    const evAt = (beat) => {
+      for (const e of events) if (beat >= e.startBeat - 1e-6 && beat < e.startBeat + e.durBeats - 1e-6) return e;
+      return events[events.length - 1];
+    };
+    const range = cell.range || { loMidi: 48, hiMidi: 84 };
+    const center = (range.loMidi + range.hiMidi) / 2 - (isBassCfg(cfg) ? 12 : 0);
+    // Candidate key-root registers reachable in the window, nearest the cell's
+    // preferred register first; first candidate that places every step wins
+    // (octave-FOLD only as the fallback round — fold, never clip).
+    const rootSet = new Set();
+    for (let s = 0; s < opens.length; s++) for (let f = Math.max(0, fretLo); f <= Math.min(24, fretHi); f++) {
+      const m = opens[s] + f;
+      if (((m % 12) + 12) % 12 === keyPc) rootSet.add(m);
+    }
+    const rootCands = Array.from(rootSet).sort((a, b) => Math.abs(a - center) - Math.abs(b - center));
+    if (!rootCands.length) throw new Error(`[SlopScale motif] no ${cfg.key} root reachable in frets ${fretLo}-${fretHi}`);
+    const attempt = (rootMidi, allowFold) => {
+      const placed = [];
+      let beatCur = 0, prevF = null, prevMidi = rootMidi;
+      const place = (tok, anchorMidi, exclude, nearF) => {
+        const oct12 = 12 * (tok.oct || 0);
+        const semis = (tok.deg != null ? motifDegreeSemis(scale, tok.deg, tok.acc) : 0) + (tok.chr || 0);
+        const midi = anchorMidi + semis + oct12;
+        let p = motifPlaceMidi(midi, opens, fretLo, fretHi, nearF, exclude);
+        if (!p && allowFold && !cell.noFold) p = motifPlaceMidi(midi + (midi > center ? -12 : 12), opens, fretLo, fretHi, nearF, exclude);
+        return p;
+      };
+      for (const st of cell.steps) {
+        let pl;
+        if (st.a === 'chord' || st.a === 'target') {
+          // pc-anchored: measured from the timeline event under this onset;
+          // register by proximity to the running line (nearestPositionForPc,
+          // the placement keystone walking bass / guide tones already use).
+          const ev = evAt(beatCur);
+          let basePc = ev.rootPc;
+          if (st.a === 'target') {
+            const ivs = (ev.intervals || []).map(i => ((i % 12) + 12) % 12);
+            const t = String(st.tgt || '3');
+            basePc = t === 'R' ? ev.rootPc
+              : t === '5' ? (ev.rootPc + 7) % 12
+              : t === '7' ? (ev.rootPc + (ivs.includes(10) ? 10 : 11)) % 12
+              : (ev.rootPc + (ivs.includes(4) ? 4 : 3)) % 12;
+          }
+          const pc = (((basePc + (st.chr || 0) + (st.deg != null ? motifDegreeSemis(scale, st.deg, st.acc) : 0)) % 12) + 12) % 12;
+          pl = nearestPositionForPc(pc, prevMidi + 12 * (st.oct || 0), opens, fretLo, fretHi);
+          if (pl) pl = { s: pl.s, f: pl.f, midi: pl.midi };
+        } else {
+          pl = place(st, rootMidi, null, prevF);   // 'key': exact register from the root
+        }
+        if (!pl) return null;
+        const used = new Set([pl.s]);
+        const stackPl = [];
+        for (const tok of (st.stack || [])) {
+          const q = place(tok, rootMidi, used, pl.f);
+          if (!q) return null;
+          used.add(q.s); stackPl.push({ s: q.s, f: q.f, midi: q.midi });
+        }
+        placed.push({ beat: beatCur, d: st.d, s: pl.s, f: pl.f, midi: pl.midi, st, stack: stackPl });
+        prevF = pl.f; prevMidi = pl.midi; beatCur += st.d;
+      }
+      return placed;
+    };
+    let placed = null;
+    for (const rm of rootCands) { placed = attempt(rm, false); if (placed) break; }
+    if (!placed) for (const rm of rootCands) { placed = attempt(rm, true); if (placed) break; }
+    if (!placed) throw new Error(`[SlopScale motif] cell does not resolve in frets ${fretLo}-${fretHi} (key ${cfg.key})`);
+    return { placed, events };
+  }
+  // The riff-vocabulary generator. Drill phase tiles the cell over cfg.bars;
+  // construct phase (cfg.motifPhase:'construct') plays the cell as the CALL and
+  // leaves an equal-length empty RESPONSE window — the player's answer space
+  // (unscored: no notes = no judge windows; the call_response surface, D13).
+  function buildMotifExercise(cfg) {
+    const cellId = (cfg.motifCell && MOTIF_CELLS[cfg.motifCell]) ? cfg.motifCell : 'blues_turnaround_thirds';
+    const cell = MOTIF_CELLS[cellId];
+    const construct = cfg.motifPhase === 'construct';
+    const opens = openMidisForConfig(cfg);
+    // Position window = where the player's chosen shape/position lives (the
+    // same window the scale drills use), padded one fret for the chromatic
+    // neighbours; generous fallback when the system yields nothing.
+    let fretLo = 0, fretHi = 14;
+    try {
+      const pos = scalePositionsForSystem(cfg);
+      if (pos && pos.length) {
+        fretLo = Math.max(0, Math.min.apply(null, pos.map(p => p.f)) - 1);
+        fretHi = Math.min(24, Math.max.apply(null, pos.map(p => p.f)) + 1);
+        if (fretHi - fretLo < 5) fretHi = Math.min(24, fretLo + 5);
+      }
+    } catch (_) { /* keep the fallback window */ }
+    const r = resolveMotifCell(cell, cfg, opens, fretLo, fretHi);
+    const bass = isBassCfg(cfg);
+    const beatSec = (60 / cfg.bpm) * (4 / cfg.meter.denominator);
+    const mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
+    const cellSec = cell.bars * 4 * beatSec;
+    const cycleSec = construct ? cellSec * 2 : cellSec;
+    const shift = (cell.startBeat || 0) * beatSec;     // D3 displacement flag
+    const rScale = cell.rhythmScale || 1;              // D3 augment/diminish flag
+    const notes = [];
+    const sections = construct
+      ? [{ name: `Call — ${cell.label}`, number: 1, time: 0 }, { name: 'Your answer', number: 2, time: Number(cellSec.toFixed(6)) }]
+      : [{ name: `${cell.label} — ${cfg.key}`, number: 1, time: 0 }];
+    for (let pass = 0; pass * cycleSec < totalTime - 0.001; pass++) {
+      const base = pass * cycleSec + shift;
+      for (let i = 0; i < r.placed.length; i++) {
+        const p = r.placed[i];
+        const t = base + p.beat * beatSec * rScale;
+        if (t >= totalTime - 1e-3) continue;
+        const sus = Math.max(0.05, p.d * beatSec * rScale * 0.9);
+        const art = p.st;
+        // Bass ADAPT (D11 + the blues device map): the lower voice IS the bass
+        // line — play the stack token as the main note, no dyads.
+        let main = p, group = p.stack;
+        if (bass && p.stack && p.stack.length) { main = p.stack[0]; group = []; }
+        const tag = (group && group.length) ? `m${pass}_${i}` : undefined;
+        notes.push(noteDefaults(Object.assign({
+          t: Number(t.toFixed(6)), s: main.s, f: main.f, sus,
+          ho: !!art.ho, po: !!art.po, vb: !!art.vb, ac: !!art.ac, mt: !!art.mt, pm: !!art.pm,
+          bn: art.bn || 0, bt: art.bt || 0,
+          sl: art.sl != null ? art.sl : -1, slu: art.slu != null ? art.slu : -1,
+        }, tag ? { ch: tag } : null)));
+        if (!bass) for (const q of (group || [])) {
+          notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: q.s, f: q.f, sus, ch: tag }));
+        }
+      }
+    }
+    if (!notes.length) throw new Error('No motif notes generated.');
+    // The cell OWNS its harmony (D2): backing + timeline come from the cell's
+    // prog/scale (the pre-assembled buildKeyCycleChart pattern), so a Custom-
+    // mode progression pick can never disagree with the device. Pre-swung here
+    // for the same reason — makeBundle skips its swing when backing rides in.
+    const cfgM = Object.assign({}, cfg, { progression: cell.prog || cfg.progression, scale: cell.scale || cfg.scale, chordOverride: cell.chordOverride || cfg.chordOverride });
+    const rawBack = buildBackingEvents(cfgM, totalTime).concat(buildDrumEvents(cfgM, totalTime, resolveGroove(cfgM)));
+    const sw = swingNotesBacking(notes, rawBack, cfgM);
+    return { notes: sw.notes, chords: [], chordTemplates: [], handShapes: [], sections,
+      duration: totalTime, backingEvents: sw.backing, timeline: compileChordTimeline(cfgM, totalTime) };
+  }
+  // Startup integrity guard (mirrors assertRhythmCellsValid / assertStrumGripsValid
+  // / the no-unison guard — throws at load so a mis-authored cell never ships):
+  // schema sanity + bar-sum, the v1-limit fences, then the TRANSPOSITION SWEEP —
+  // every cell must resolve in all 12 keys with at least one 6-fret position
+  // window whose resolved span fits maxSpan, and a `changes` cell's final step
+  // must land on a pc of the resolving chord (the device actually resolves).
+  (function assertMotifCellsValid() {
+    const opens = [40, 45, 50, 55, 59, 64];   // standard 6-string proof rig (cells are tuning-relative)
+    const KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+    const BN_OK = new Set([0, 0.25, 0.5, 1, 1.5, 2]);
+    for (const [id, cell] of Object.entries(MOTIF_CELLS)) {
+      const tag = (k) => `[SlopScale motif-cell] ${id}${k ? ' @ ' + k : ''}`;
+      if (cell.bars !== 1 && cell.bars !== 2) throw new Error(`${tag()}: bars must be 1 or 2`);
+      if (cell.pickup) throw new Error(`${tag()}: pickup/anacrusis is not supported yet (D4 — batch 2)`);
+      if (cell.harmonyInterval) throw new Error(`${tag()}: harmonyInterval lands with the twin-lead slice`);
+      const sum = (cell.steps || []).reduce((a, s) => a + (Number(s.d) || 0), 0);
+      if (Math.abs(sum - cell.bars * 4) > 1e-6) throw new Error(`${tag()}: steps sum to ${sum} beats — must equal ${cell.bars * 4} (4/4 v1)`);
+      for (const s of cell.steps) {
+        if (s.deg == null && s.chr == null && s.a !== 'target') throw new Error(`${tag()}: a step needs deg, chr, or a:'target'`);
+        if (s.bn != null && !BN_OK.has(s.bn)) throw new Error(`${tag()}: bn ${s.bn} not in {0,0.25,0.5,1,1.5,2}`);
+        if (s.bt != null && !(s.bt >= 0 && s.bt <= 4)) throw new Error(`${tag()}: bt ${s.bt} out of range 0-4`);
+      }
+      for (const key of KEYS) {
+        const cfg = { key, scale: cell.scale, bpm: 80, bars: cell.bars,
+          meter: { numerator: 4, denominator: 4, grouping: [4] },
+          progression: cell.prog || 'static_i', chordDepth: 'triad', chordOverride: 'auto',
+          stringSetup: 'guitar_6_standard' };
+        let ok = false, lastErr = null;
+        for (let w = 0; w <= 10 && !ok; w++) {       // the sliding position windows the drill will use
+          let r;
+          try { r = resolveMotifCell(cell, cfg, opens, w, w + 5); } catch (e) { lastErr = e; continue; }
+          const frets = [];
+          for (const p of r.placed) { frets.push(p.f); for (const q of p.stack) frets.push(q.f); }
+          if (Math.max.apply(null, frets) - Math.min.apply(null, frets) > (cell.maxSpan || 4)) continue;
+          if (cell.bind === 'changes') {
+            const lastP = r.placed[r.placed.length - 1];
+            const ev = r.events.find(e => lastP.beat >= e.startBeat - 1e-6 && lastP.beat < e.startBeat + e.durBeats - 1e-6) || r.events[r.events.length - 1];
+            const pc = ((lastP.midi % 12) + 12) % 12;
+            if (!ev.cpcs.includes(pc)) throw new Error(`${tag(key)}: resolution lands pc ${pc} outside the resolving ${ev.name} (cpcs ${ev.cpcs.join(',')})`);
+          }
+          ok = true;
+        }
+        if (!ok) throw new Error(`${tag(key)}: no 6-fret position window resolves within maxSpan ${cell.maxSpan || 4}${lastErr ? ' — ' + lastErr.message : ''}`);
+      }
+    }
+  })();
+
   // ── Single-string rhythm pulse — the keystone of the Rhythm ladder ───────────
   // (Rhythm-ladder panel, 2026-06-04; spec docs/rhythm-ladder-roundtable.md.) ONE
   // palm-muted note on the LOWEST string, struck in the configured rhythm cell over a
@@ -9178,6 +9509,7 @@
     if (mode === 'call_response')          return buildCallResponseExercise(cfg);
     if (mode === 'tremolo_picking')        return buildTremoloPickingExercise(cfg);
     if (mode === 'herta')                  return buildHertaExercise(cfg);
+    if (mode === 'motif')                  return buildMotifExercise(cfg);
     if (mode === 'rhythm_pulse')           return buildRhythmPulseExercise(cfg);
     if (mode === 'tapping')                return buildTappingExercise(cfg);
     if (mode === 'pedal_point')            return buildPedalPointExercise(cfg);
@@ -9384,7 +9716,7 @@
     // Cycle-bounded (longer, legitimately >60s): the unit is the harmonic cycle.
     diatonic_arpeggios:50, progression_arpeggios:70, arpeggio_inversions:50,
     guide_tones:60, chord_scales:75, bebop_scale:50, chromatic_enclosures:50,
-    call_response:60, walking_bass:60,
+    call_response:60, walking_bass:60, motif:60,
     pentatonic_super:55, triadic_pairs:55, shell_voicings:55, strum_comp:55,
   };
   // Types whose UNIT is a harmonic cycle / whole-neck traversal, not the bar — they
@@ -9394,6 +9726,7 @@
     'chord_scales','guide_tones','progression_arpeggios','diatonic_arpeggios',
     'walking_bass','arpeggio_inversions','bebop_scale','chromatic_enclosures',
     'call_response','pentatonic_super','triadic_pairs','shell_voicings','strum_comp',
+    'motif',
   ]);
   const RUN_FLOOR_SEC = 25;             // never shorter than this (settling + a couple judged passes)
   const RUN_CEIL_PASS_SEC = 90;         // pass-bounded ceiling (past it grinds sloppiness in)
@@ -9528,6 +9861,7 @@
     guide_tones:'application', chord_scales:'application', strum_comp:'application', modal_vamp:'jam',
     legato:'technique', bending:'technique', sweep_arpeggios:'technique', pedal_riff:'technique',
     rhythm_pulse:'technique', herta:'technique', concept_chords:'application',
+    motif:'application',
   };
   function blockRole(seg) {
     if (seg.role) return seg.role;
@@ -15898,6 +16232,10 @@
     // Herta accent/walk: anti-leak defaulted like the other rung-scoped flags.
     setFieldSilent('hertaAccent', config.hertaAccent != null ? config.hertaAccent : '0');
     setFieldSilent('hertaWalk', config.hertaWalk ? 'true' : '');
+    // Riff-vocabulary cell + phase: anti-leak defaulted — a motif rung's cell
+    // or construct phase never rides into the next pathway selected.
+    setFieldSilent('motifCell', config.motifCell || '');
+    setFieldSilent('motifPhase', config.motifPhase || '');
     // sweepStrings (Sweep ladder): anti-leak defaulted → a 3-string entry rung's
     // limiter never persists into the next pathway's full-box sweep.
     setFieldSilent('sweepStrings', config.sweepStrings != null ? config.sweepStrings : '0');
@@ -20521,6 +20859,6 @@
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
   window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier, xpLevelInfo, computeBadges, creditBadges, shareCardText, isShareworthy, feltHoldAnalyze, creditFeltRung, shareCardModel, shareCardText, renderShareCardImage, isShareworthy };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();

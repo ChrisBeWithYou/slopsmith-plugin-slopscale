@@ -1568,6 +1568,8 @@
           <option value="blues_bends">Bends &amp; Vibrato — the Cry</option>
           <option value="blues_call_response">Call &amp; Response</option>
           <option value="blues_mix">Major / Minor Mix</option>
+          <option value="blues_turnaround">The Turnaround</option>
+          <option value="blues_turnaround_build">Build Your Turnaround</option>
           <option value="rock_power_backbeat">Power Chords &amp; the Backbeat</option>
           <option value="rock_pentatonic">The Pentatonic Box</option>
           <option value="rock_lead_vocab">Double-Stops &amp; Twin Leads</option>
@@ -1706,6 +1708,7 @@
           <option value="call_response">Call &amp; response</option>
           <option value="tremolo_picking">Tremolo picking</option>
           <option value="herta">Herta burst</option>
+          <option value="motif">Riff vocabulary (motif cell)</option>
           <option value="rhythm_pulse">Single-string pulse</option>
           <option value="tapping">Tapping</option>
           <option value="pedal_point">Pedal point</option>
@@ -1823,6 +1826,12 @@
              silently inert in the UI. Same setFieldSilent→readConfig contract. -->
         <input type="hidden" name="hertaAccent" id="slopscale_beta-herta-accent" value="0">
         <input type="hidden" name="hertaWalk" id="slopscale_beta-herta-walk" value="">
+        <!-- Riff-vocabulary (motif) cell + phase. motifCell names the MOTIF_CELLS
+             entry ('' = builder default); motifPhase 'construct' = the call-and-
+             answer construct step. Pathway-driven; same setFieldSilent→readConfig
+             contract; anti-leak defaulted in applyPathwayConfig. -->
+        <input type="hidden" name="motifCell" id="slopscale_beta-motif-cell" value="">
+        <input type="hidden" name="motifPhase" id="slopscale_beta-motif-phase" value="">
         <!-- Sweep ladder: constrain a sweep to the top N strings (3-string entry
              rung). Pathway-driven; 0 = full box. Same setFieldSilent→readConfig
              contract; anti-leak defaulted in applyPathwayConfig. -->
