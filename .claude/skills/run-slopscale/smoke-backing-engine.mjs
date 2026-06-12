@@ -280,6 +280,10 @@ try {
     // (f) the A/B dev flag forces the pad even with a cell declared
     const dev = harm(gen({ backingComp: "four_comp", backingPadDev: true }));
     out.devPad = dev.length === pad.length && dev.every((e) => e.vel == null);
+    // (g) every comp hit carries its articulation tag (2026-06-12: the sampled
+    // guitar voice keys its open↔muted switch off ev.a — a dropped tag silently
+    // degrades every artic-aware voice)
+    out.articTagged = comp.length > 0 && comp.every((e) => typeof e.a === "string" && e.a.length > 0);
     return out;
   });
   ok(c3.padCount > 0 && !c3.padHasVel, "undeclared cfg keeps the legacy coalesced pad", `events=${c3.padCount}`);
@@ -291,6 +295,7 @@ try {
   ok(c3.density0 === 0, "backingDensity 0 = click only (no backing events at all)", `events=${c3.density0}`);
   ok(c3.scComp === 0, "player-is-the-comp: strum_comp suppresses the comp lane", `comp=${c3.scComp}`);
   ok(c3.devPad, "the pad-vs-comp A/B dev flag forces the legacy pad");
+  ok(c3.articTagged, "every comp hit carries its articulation tag (ev.a — the sample voice's artic switch)");
 
   // ── (6c) BASS_FIGURES (step 4): walking/figures, kick lock, lift, mute ──────
   step("BASS_FIGURES (step 4)");
