@@ -331,6 +331,61 @@ async function run() {
           if (Math.max(...mins) > 12) fatal.push(`grip above fret 12 (${mins.join(",")}) — nearest_low broken`);
           return { ok: fatal.length === 0, fatal, warn: [] };
         }));
+      // MOTIF_CELLS engine semantics (riff-vocab pilot 2026-06-12; per-system
+      // rule: rows here, probe-motif* stays throwaway). The blues turnaround
+      // cell: one drill pass = 4 ch-tagged parallel-m3 dyads walking down
+      // chromatically + 3 singles, resolving onto the V root; construct phase
+      // leaves the answer window EMPTY (the D13 construction surface) with the
+      // backing still alive; bass ADAPT renders the lower voice as one line.
+      const OPENS6 = [40, 45, 50, 55, 59, 64], OPENS4B = [28, 33, 38, 43];
+      const motifBase = { practiceType: "motif", motifCell: "blues_turnaround_thirds", stringSetup: "guitar_6_standard",
+        key: "A", scale: "blues", fretboardSystem: "caged", shape: "E", subdivision: "eighth", bars: 8, bpm: 80,
+        backingStyle: "boogie", swing: "shuffle", fretMin: 0, fretMax: 14 };
+      rows.push(run("motif drill: m3-dyad walkdown resolves onto the V root", "4/4",
+        Object.assign({}, motifBase),
+        (notes, barSec) => {
+          const p1 = notes.filter((n) => !n._tail && n.t < 2 * barSec - 0.01);
+          const byT = {}; p1.forEach((n) => { const k = n.t.toFixed(4); (byT[k] = byT[k] || []).push(OPENS6[n.s] + n.f); });
+          const onsets = Object.keys(byT).sort((a, b) => a - b);
+          const dyadOnsets = onsets.filter((k) => byT[k].length === 2);
+          const tops = onsets.slice(0, 4).map((k) => Math.max(...byT[k]));
+          const chrom = tops.every((m, i) => i === 0 || tops[i - 1] - m === 1);
+          const m3 = onsets.slice(0, 4).every((k) => byT[k].length === 2 && Math.max(...byT[k]) - Math.min(...byT[k]) === 3);
+          const lastPc = ((byT[onsets[onsets.length - 1]][0] % 12) + 12) % 12;   // key A → V root E = pc 4
+          const tagged = p1.filter((n) => n.ch).length;
+          const fatal = [];
+          if (p1.length !== 11) fatal.push(`pass = ${p1.length} notes, expected 11`);
+          if (dyadOnsets.length !== 4) fatal.push(`${dyadOnsets.length} dyad onsets, expected 4`);
+          if (tagged !== 8) fatal.push(`${tagged} ch-tagged dyad members, expected 8`);
+          if (!chrom) fatal.push(`top voice not chromatic-descending (${tops.join("→")})`);
+          if (!m3) fatal.push("dyads are not parallel minor 3rds");
+          if (lastPc !== 4) fatal.push(`resolution pc ${lastPc}, expected the V root (4)`);
+          return { ok: fatal.length === 0, fatal, warn: [] };
+        }));
+      rows.push(run("motif construct: empty answer window, backing alive (D13)", "4/4",
+        Object.assign({}, motifBase, { motifPhase: "construct" }),
+        (notes, barSec, chart) => {
+          const cellSec = 2 * barSec;
+          const resp = notes.filter((n) => !n._tail && n.t >= cellSec - 0.01 && n.t < 2 * cellSec - 0.01);
+          const back = (chart.backingEvents || []).filter((ev) => ev.t >= cellSec && ev.t < 2 * cellSec);
+          const fatal = [];
+          if (resp.length) fatal.push(`${resp.length} note(s) inside the answer window`);
+          if (!back.length) fatal.push("backing silent through the answer window");
+          if (!(chart.timeline || []).length) fatal.push("no cell-owned timeline on the chart");
+          return { ok: fatal.length === 0, fatal, warn: [] };
+        }));
+      rows.push(run("motif bass ADAPT: lower voice as one line, no dyads", "4/4",
+        Object.assign({}, motifBase, { stringSetup: "bass_4_standard", fretboardSystem: "position", fretMin: 0, fretMax: 9, shape: undefined }),
+        (notes, barSec) => {
+          const p1 = notes.filter((n) => !n._tail && n.t < 2 * barSec - 0.01);
+          const midis = p1.map((n) => OPENS4B[n.s] + n.f);
+          const walk = midis.slice(0, 4).every((m, i, a) => i === 0 || a[i - 1] - m === 1);
+          const fatal = [];
+          if (p1.length !== 7) fatal.push(`bass pass = ${p1.length} notes, expected 7 singles`);
+          if (p1.some((n) => n.ch)) fatal.push("bass notes carry ch dyad tags");
+          if (!walk) fatal.push(`bass lower-voice walkdown broken (${midis.join("→")})`);
+          return { ok: fatal.length === 0, fatal, warn: [] };
+        }));
       setMeter("4/4");
       return rows;
     });

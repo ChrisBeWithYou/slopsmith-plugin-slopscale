@@ -76,7 +76,8 @@ All note objects use these compact keys:
 | `f` | fret number |
 | `sus` | sustain duration (seconds) |
 | `sl` / `slu` | slide target / slide-up target fret (-1 = none) |
-| `bn` | bend value (0 / 0.5 / 1 / 1.5 / 2) |
+| `bn` | bend magnitude in whole steps (0 / 0.25 / 0.5 / 1 / 1.5 / 2 — 0.25 is the blues quarter-curl, added with the riff-vocabulary engine) |
+| `bt` | bend intent (optional; default 0): 0 = bend-up, 1 = release, 2 = pre-bend (already bent at onset), 3 = pre-bend-and-release, 4 = bend-and-release (round trip in one note). `bn` carries the magnitude; `bt` declares the shape so renderers can draw the arc back down and judging can grade the right pitch over time (the "bends judged unbent" class). Audio + judging currently treat all intents as bend-up; richer realization is a logged follow-up. |
 | `ho` / `po` | hammer-on / pull-off |
 | `hm` / `hp` | harmonic / pinch harmonic |
 | `pm` | palm mute |
