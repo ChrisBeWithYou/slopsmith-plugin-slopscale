@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.23-beta.7';
+  const SLOPSCALE_VERSION = '0.7.23-beta.8';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -3942,6 +3942,12 @@
   let activeTempoTierIdx = 0;
   let _activeBandId = null;   // which band the L2 pathway list is showing
   let jamFeel = 'straight';   // Jam-mode feel (straight / swing / shuffle)
+  // Jam slice J-1 state (persisted; restored in bind alongside jamHighlight):
+  // guide-line AUDIO is opt-in (D-J1 — the band plays, the player is the lead
+  // voice); band mode is the bass-role default (D-J2 — a bassist owns the
+  // foundation, so the band's bass drops unless they opt back in).
+  let jamGuideLine = false;       // audible generated line: OFF by default
+  let jamBandMode = 'no_bass';    // bass players: 'no_bass' | 'drums_only' | 'full' (guitar always full)
 
   function $(id) { return document.getElementById(id); }
   function pcName(pc) { return NOTE_NAMES[((pc % 12) + 12) % 12]; }
@@ -4308,6 +4314,36 @@
       if (p.audioProfile && !AUDIO_PROFILES[p.audioProfile])         throw new Error(`[SlopScale style-palette] ${id} references unknown audioProfile "${p.audioProfile}"`);
     }
   })();
+  // Player-facing names for the progressions the Jam picker exposes (slice J-1,
+  // D-J5a: the palettes already carry progressions[] plural — name them so the
+  // picker speaks the player's vocabulary). Fallback = prettified token.
+  const JAM_PROG_LABELS = {
+    '12_bar_blues':'12-Bar Blues', quick_change_blues:'Quick-Change Blues',
+    'i-VII-VI-VII':'i–♭VII–♭VI–♭VII', 'I-V-vi-IV':'I–V–vi–IV', 'I-IV-V':'I–IV–V',
+    'I-vi-IV-V':'I–vi–IV–V', 'vi-IV-I-V':'vi–IV–I–V', 'I-vi-ii-V':'I–vi–ii–V',
+    mixolydian_rock:'Mixolydian rock', metal_i_bVI_bVII:'i–♭VI–♭VII',
+    metal_pedal_chromatic:'Chromatic pedal', metal_i_bVII_bVI_V:'i–♭VII–♭VI–V',
+    'ii-V-I':'ii–V–I', 'vi-ii-V-I':'vi–ii–V–I', minor_ii_V_i:'Minor ii–V–i',
+    rhythm_changes_a:'Rhythm changes (A)', so_what:'Dorian modal vamp',
+    dorian_vamp:'Dorian vamp', static_i:'One-chord vamp',
+  };
+  function jamProgressionLabel(token) {
+    return JAM_PROG_LABELS[token] || String(token || '').replace(/_/g, ' ');
+  }
+  // One per-style "try this" line (slice J-1 — the intent SEED, goal-card grammar:
+  // a constraint to jam against, never a score). Draft prompts pending the
+  // genre-idiom refinement sweep (logged in ROADMAP).
+  const JAM_PROMPTS = {
+    blues:   'Try: say something in 2 bars, then leave 2 empty — the silence is the phrasing.',
+    rock:    'Try: ride the pentatonic box, then land the chord’s root on every change.',
+    metal:   'Try: lock 8ths with the low pedal, break out for 2 bars, dive back in.',
+    djent:   'Try: play the GAPS — make the band’s accents your accents.',
+    jazz:    'Try: land the 3rd of each chord on beat 1 — walk to it from a half-step below.',
+    funk:    'Try: one note, sixteen ways — ghost the 16ths, place ONE accent per bar.',
+    pop:     'Try: sing a 2-bar hook over the loop, then find it on the neck and repeat it.',
+    country: 'Try: major pentatonic over the I, then chase the chord tones through IV and V.',
+    gospel:  'Try: answer the band — fill the space after each change with a 2-beat run-up.',
+  };
 
   // ===========================================================================
   // SEGMENT TEMPLATES + VARIATION ENGINE (Workout library substrate)
@@ -9571,14 +9607,84 @@
     return { notes, chords, chordTemplates, handShapes, sections, anchors, backingEvents, timeline, duration: t };
   }
 
+  // ── Jam multi-pass chart (Jam redesign slice J-1; docs/jam-mode-roundtable.md) ──
+  // Bakes the "living band" variation INTO the chart instead of mutating a live
+  // loop (D-J4 "variety before reactivity"): N passes of the style's progression,
+  // each pass re-rolled (per-pass humanSeed → fresh micro-timing/velocity/figure
+  // rolls), density-cycled (default → thinned → default → sparse, so the wrap
+  // back to full reads as a lift), optionally round-robining the style's
+  // progressions[] (the "switch it up" shuffle, D-J5a), with a small generic
+  // snare run into each seam + an open-hat lift on each new pass's one. The Jam
+  // loop region covers ALL passes, so every cycle differs with zero live-
+  // mutation risk. Band-mode filter (D-J2): 'no_bass' drops role:'bass' (a
+  // bassist OWNS the foundation); 'drums_only' keeps only the kit. Assembly
+  // mirrors buildKeyCycleChart (per-pass build + swing + offset). Core-pure.
+  function appendJamSeamFill(events, cfg, dur, pass) {
+    if (!events.some(e => e.role === 'drums')) return;     // drumless style/density: no fill
+    const beatSec = (60 / cfg.bpm) * (4 / cfg.meter.denominator);
+    const lastBeat = dur - beatSec;
+    // Two snare 16ths ramping into the wrap ("& a" of the final beat)…
+    [[0.5, 0.45, true], [0.75, 0.8, false]].forEach(([off, vel, ghost]) => {
+      const tt = lastBeat + beatSec * off;
+      if (tt < dur - 1e-3) events.push({ t: +tt.toFixed(6), end: +(tt + 0.1).toFixed(6), role: 'drums', voice: 'snare', velocity: vel, accent: !ghost, ghost, noSwing: false });
+    });
+    // …and an open-hat lift on this pass's own one (passes after the first).
+    if (pass > 0) events.push({ t: 0, end: 0.1, role: 'drums', voice: 'hh_open', velocity: 0.8, accent: true, ghost: false, noSwing: false });
+  }
+  function buildJamChart(cfg) {
+    const pal = STYLE_PALETTES[cfg.jamStyle];
+    const passes = Math.max(2, Math.min(8, cfg.jamPasses | 0 || 4));
+    const progIdx = cfg.jamProgressionIdx | 0;
+    const switchUp = !!cfg.jamSwitchUp && pal && pal.progressions.length > 1;
+    const baseSeed = resolveHumanSeed(cfg);
+    const DENS = [undefined, 2, undefined, 1];   // per-pass density cycle (undefined = the style default)
+    const notes = [], chords = [], chordTemplates = [], handShapes = [], sections = [], anchors = [], backingEvents = [], timeline = [];
+    let t = 0, tplOffset = 0, beatOff = 0, barOff = 0;
+    for (let pass = 0; pass < passes; pass++) {
+      const progs = pal ? pal.progressions : [cfg.progression];
+      const progression = progs[(((progIdx + (switchUp ? pass : 0)) % progs.length) + progs.length) % progs.length];
+      const degs = COMMON_PROGRESSIONS[progression];
+      const bars = (degs && degs.length) ? Math.max(2, Math.min(16, degs.length)) : (cfg.bars || 8);
+      const pCfg = Object.assign({}, cfg, {
+        progression, bars,
+        humanSeed: (baseSeed + pass * 0x9e3779b9) >>> 0,
+        backingDensity: cfg.backingDensity != null ? cfg.backingDensity : DENS[pass % DENS.length],
+        jamStyle: undefined, jamPasses: undefined,     // the pass builds plain — no recursion
+      });
+      const chart = buildSingleChart(pCfg);
+      const dur = Math.max(chart.duration || 0, bars * measureSeconds(pCfg));
+      let rawBack = buildBackingEvents(pCfg, dur).concat(buildDrumEvents(pCfg, dur, resolveGroove(pCfg)));
+      appendJamSeamFill(rawBack, pCfg, dur, pass);
+      if (cfg.jamBandMode === 'no_bass') rawBack = rawBack.filter(ev => ev.role !== 'bass');
+      else if (cfg.jamBandMode === 'drums_only') rawBack = rawBack.filter(ev => ev.role === 'drums');
+      const sw = swingNotesBacking(chart.notes, rawBack, pCfg);
+      appendTimelineOffset(timeline, compileChordTimeline(pCfg, dur), t, beatOff, barOff);
+      sections.push({ name: jamProgressionLabel(progression), number: sections.length + 1, time: Number(t.toFixed(6)) });
+      sw.notes.forEach(n => notes.push(Object.assign({}, n, { t: Number((n.t + t).toFixed(6)) })));
+      chart.chords.forEach(c => chords.push(Object.assign({}, c, { t: Number((c.t + t).toFixed(6)), id: c.id + tplOffset })));
+      chart.chordTemplates.forEach(ct => chordTemplates.push(ct));
+      chart.handShapes.forEach(hs => handShapes.push(Object.assign({}, hs, { chord_id: hs.chord_id + tplOffset, start_time: Number((hs.start_time + t).toFixed(6)), end_time: Number((hs.end_time + t).toFixed(6)) })));
+      (chart.anchors || []).forEach(a => anchors.push(Object.assign({}, a, { time: Number((a.time + t).toFixed(6)) })));
+      sw.backing.forEach(ev => backingEvents.push(Object.assign({}, ev, { t: Number((ev.t + t).toFixed(6)), end: Number((ev.end + t).toFixed(6)) })));
+      tplOffset += chart.chordTemplates.length;
+      const pBar = measureSeconds(pCfg);
+      beatOff += (dur / pBar) * Math.max(1, pCfg.meter.numerator);
+      barOff += Math.round(dur / pBar);
+      t += dur;
+    }
+    return { notes, chords, chordTemplates, handShapes, sections, anchors, backingEvents, timeline, duration: t };
+  }
+
   // ===========================================================================
   // §8 · generateExercise() DISPATCH
   // routes cfg.practiceType to the correct builder above.
   // ===========================================================================
   function generateExercise(cfg) {
-    let chart = cfg.keyCycle && cfg.keyCycle !== 'none'
-      ? buildKeyCycleChart(cfg)
-      : buildSingleChart(cfg);
+    let chart = cfg.jamStyle && STYLE_PALETTES[cfg.jamStyle] && (cfg.jamPasses | 0) > 1
+      ? buildJamChart(cfg)
+      : cfg.keyCycle && cfg.keyCycle !== 'none'
+        ? buildKeyCycleChart(cfg)
+        : buildSingleChart(cfg);
     // Workout single block: a Custom config + a target duration → fill with whole
     // repetitions before timing (no-op when targetSec is absent, i.e. normal play).
     const tSec = blockTargetSec(cfg);
@@ -12042,6 +12148,23 @@
     // the lead box (green = --ss-meter "target") so the player sees which box notes to
     // aim for as the changes move. Drawn under the live glow.
     const jamOn = $('slopscale_beta-root')?.classList.contains('ss-mode-jam');
+    // D-J7 ghost HOME BOX (slice J-1): a faint dashed frame around the suggested
+    // box (the silent guide pattern's fret span) — a suggestion the player can
+    // ignore; the whole neck stays live. Replaces the old hard frets-2-9 cage.
+    if (jamOn && fbPattern.length) {
+      let loF = 99, hiF = -1;
+      for (const p of fbPattern) { if (p.f < loF) loF = p.f; if (p.f > hiF) hiF = p.f; }
+      if (hiF >= loF) {
+        const x0 = xNote(Math.max(0, loF)) - 10, x1 = xNote(hiF) + 10;
+        const yA = rowY(0), yB = rowY(nStrings - 1);
+        const yTop = Math.min(yA, yB) - 12, yH = Math.abs(yA - yB) + 24;
+        ctx.globalAlpha = 0.06; ctx.fillStyle = '#60a5fa';
+        ctx.fillRect(x0, yTop, x1 - x0, yH);
+        ctx.globalAlpha = 0.30; ctx.setLineDash([4, 3]); ctx.lineWidth = 1; ctx.strokeStyle = '#60a5fa';
+        ctx.strokeRect(x0, yTop, x1 - x0, yH);
+        ctx.setLineDash([]); ctx.globalAlpha = 1;
+      }
+    }
     // Anticipation ghost: the NEXT chord's guide tones (amber dashed) as the change
     // nears — prep the target before it lands. Drawn UNDER the current target.
     const nextPcs = jamOn ? jamNextGuidePcs(currentPracticeTime) : null;
@@ -15624,6 +15747,12 @@
   function showStatus(text) { const el = $('slopscale_beta-status'); if (el) el.textContent = text; }
   function describeCurrentContent() {
     try {
+      // Jam describes the JAM, not the form (the form holds whatever exercise
+      // was left behind — the status line read "Chromatic…" mid-jam; J-1 fix).
+      const js = lastExercise && lastExercise.session;
+      if (isJamMode() && js && js.jamStyle && STYLE_PALETTES[js.jamStyle]) {
+        return `Jam — ${STYLE_PALETTES[js.jamStyle].label} in ${js.key} · ${js.bpm} BPM`;
+      }
       const cfg = readConfig();
       if (cfg.mode === 'chromatic') {
         return `Chromatic ${CHROMATIC_PATTERN_LABELS[cfg.chromaticPattern] || cfg.chromaticPattern}, frets ${cfg.fretMin}–${cfg.fretMax}`;
@@ -16344,18 +16473,50 @@
     const host = $('slopscale_beta-jam-styles');
     if (!host) return;
     host.innerHTML = '';
-    Object.keys(STYLE_PALETTES).forEach((id, i) => {
+    // Last-jammed style restores as the active chip (slice J-1: pick-up-where-
+    // you-left-off; with 9 styles a flat grid stays the right IA — no families).
+    let saved = null;
+    try { saved = localStorage.getItem('slopscale_beta.jamStyle'); } catch (_) {}
+    const ids = Object.keys(STYLE_PALETTES);
+    const activeId = (saved && STYLE_PALETTES[saved]) ? saved : ids[0];
+    ids.forEach((id) => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'slopscale_beta-jam-style' + (i === 0 ? ' active' : '');
+      btn.className = 'slopscale_beta-jam-style' + (id === activeId ? ' active' : '');
       btn.dataset.style = id;
       btn.textContent = STYLE_PALETTES[id].label;
       btn.addEventListener('click', () => {
         host.querySelectorAll('.slopscale_beta-jam-style').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
+        try { localStorage.setItem('slopscale_beta.jamStyle', id); } catch (_) {}
+        syncJamStyleDetails(id);
       });
       host.appendChild(btn);
     });
+    syncJamStyleDetails(activeId);
+  }
+  // Per-style Inspector details (slice J-1): the named Changes picker over the
+  // palette's progressions[] (default "Mix" = the wrap-boundary round-robin,
+  // D-J5a) + the one-line "try this" intent seed (goal-card grammar, JAM_PROMPTS).
+  function syncJamStyleDetails(styleId) {
+    const pal = STYLE_PALETTES[styleId];
+    const sel = $('slopscale_beta-jam-prog');
+    if (sel && pal) {
+      sel.innerHTML = '';
+      if (pal.progressions.length > 1) {
+        const mix = document.createElement('option');
+        mix.value = '__mix'; mix.textContent = `Mix — cycle all ${pal.progressions.length}`;
+        sel.appendChild(mix);
+      }
+      pal.progressions.forEach((p) => {
+        const o = document.createElement('option');
+        o.value = p; o.textContent = jamProgressionLabel(p);
+        sel.appendChild(o);
+      });
+      sel.disabled = pal.progressions.length < 2 && !!sel.options.length;
+    }
+    const tryEl = $('slopscale_beta-jam-try');
+    if (tryEl) tryEl.textContent = JAM_PROMPTS[styleId] || '';
   }
 
   // Jam: loop a backing in the selected style through the contained player to play
@@ -16368,11 +16529,26 @@
     const styleId = (styleBtn && styleBtn.dataset.style) || Object.keys(STYLE_PALETTES)[0];
     const jamKey = ($('slopscale_beta-jam-key') || {}).value || 'A';
     const jamTempo = Math.max(40, Math.min(220, parseInt(($('slopscale_beta-jam-tempo') || {}).value || '90', 10) || 90));
-    const palette = stylePaletteConfig(styleId, { key: jamKey });
+    // Changes picker (D-J5a): '__mix' = round-robin the palette's progressions[]
+    // per pass (the "switch it up" shuffle); a named pick pins one.
+    const progVal = (($('slopscale_beta-jam-prog') || {}).value) || '__mix';
+    const palIdx = progVal === '__mix' ? 0 : Math.max(0, (STYLE_PALETTES[styleId] || { progressions: [] }).progressions.indexOf(progVal));
+    const palette = stylePaletteConfig(styleId, { key: jamKey, progressionIdx: palIdx });
     if (!palette) return;
     const base = readConfig();   // instrument / tuning / renderer / audio defaults
-    // Loop = ONE clean cycle of the progression (not a hardcoded 8 bars) so a 12-bar
-    // blues isn't truncated and the chord-loop overview shows the real form.
+    // Home box derived from the KEY (D-J7: a suggestion, not the old frets-2-9
+    // cage): the silent guide pattern sits in the box-1 window at the key's root
+    // on the lowest string; the strip draws it as an ignorable ghost frame.
+    const opens = openMidisForConfig(base);
+    const keyPc = NOTE_ALIASES[jamKey] != null ? NOTE_ALIASES[jamKey] : 0;
+    const rootFret = (((keyPc - (opens[0] % 12)) % 12) + 12) % 12;
+    const fretMin = Math.max(0, rootFret - 1);
+    const fretMax = Math.min(17, Math.max(fretMin + 5, rootFret + 4));
+    // Bass band-mode (D-J2): a bassist OWNS the foundation — the band's bass
+    // drops unless they opt back into 'full'. Guitar always gets the full band.
+    const bandMode = isBassCfg(base) ? jamBandMode : 'full';
+    // One cycle per pass; buildJamChart assembles 4 varied passes (re-roll +
+    // density cycle + seam fill) and the loop covers them all (D-J4).
     const jamDegs = COMMON_PROGRESSIONS[palette.progression];
     const jamBars = (jamDegs && jamDegs.length) ? Math.max(2, Math.min(16, jamDegs.length)) : 8;
     const cfg = Object.assign({}, base, {
@@ -16382,9 +16558,15 @@
       progression: palette.progression,
       chordDepth: palette.chordDepth, chordOverride: palette.chordOverride,
       swing: jamFeel, backingStyle: palette.backingStyle,
-      fretboardSystem: 'position', fretMin: 2, fretMax: 9,   // a movable box — no shape to re-resolve
+      fretboardSystem: 'position', fretMin, fretMax,
       bpm: jamTempo, bars: jamBars, harmonize: false, keyCycle: 'none', sequence: 'none', direction: 'up_down',
-      audio: Object.assign({}, base.audio, { notes: true, harmony: true, metronome: false, profile: palette.audioProfile || '' }),
+      jamStyle: styleId, jamPasses: 4, jamProgressionIdx: palIdx,
+      jamSwitchUp: progVal === '__mix',
+      jamBandMode: bandMode === 'full' ? '' : bandMode,
+      // D-J1: the generated line is SILENT by default — the band plays, the
+      // player is the lead voice. "+ Guide line" opts the audio back in; the
+      // visual line stays either way (it's the silent map on the highway).
+      audio: Object.assign({}, base.audio, { notes: !!jamGuideLine, harmony: true, metronome: false, profile: palette.audioProfile || '' }),
     });
     try {
       if (playing) stopPlayback();
@@ -20455,6 +20637,27 @@
       });
     });
     $('slopscale_beta-jam-go')?.addEventListener('click', jamPlay);
+    // Jam slice J-1: guide-line audio opt-in + bass band-mode (both persisted).
+    try { jamGuideLine = localStorage.getItem('slopscale_beta.jamGuide') === 'on'; } catch (_) {}
+    try { const b = localStorage.getItem('slopscale_beta.jamBand'); if (b === 'no_bass' || b === 'drums_only' || b === 'full') jamBandMode = b; } catch (_) {}
+    document.querySelectorAll('#slopscale_beta-jam-guide .slopscale_beta-jam-feel-btn').forEach(b => {
+      if ((b.dataset.guide === 'on') === jamGuideLine) { document.querySelectorAll('#slopscale_beta-jam-guide .slopscale_beta-jam-feel-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); }
+      b.addEventListener('click', () => {
+        document.querySelectorAll('#slopscale_beta-jam-guide .slopscale_beta-jam-feel-btn').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        jamGuideLine = b.dataset.guide === 'on';
+        try { localStorage.setItem('slopscale_beta.jamGuide', jamGuideLine ? 'on' : 'off'); } catch (_) {}
+      });
+    });
+    document.querySelectorAll('#slopscale_beta-jam-band .slopscale_beta-jam-feel-btn').forEach(b => {
+      if (b.dataset.band === jamBandMode) { document.querySelectorAll('#slopscale_beta-jam-band .slopscale_beta-jam-feel-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); }
+      b.addEventListener('click', () => {
+        document.querySelectorAll('#slopscale_beta-jam-band .slopscale_beta-jam-feel-btn').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        jamBandMode = b.dataset.band || 'no_bass';
+        try { localStorage.setItem('slopscale_beta.jamBand', jamBandMode); } catch (_) {}
+      });
+    });
     // Jam target-highlight selector (chord / guide / scale / off). Reflects the
     // persisted mode, repaints the strip live on change.
     document.querySelectorAll('#slopscale_beta-jam-hl .slopscale_beta-jam-hl-btn').forEach(b => {
