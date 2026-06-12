@@ -125,8 +125,11 @@
   .slopscale_beta-settings-btn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; border-radius: 8px; border: 1px solid var(--ss-border, #334155); background: var(--ss-inset, #0b1220); color: var(--ss-text-dim, #94a3b8); cursor: pointer; transition: background 0.12s, color 0.12s; }
   .slopscale_beta-settings-btn:hover { background: #1e293b; color: #e2e8f0; }
   .slopscale_beta-settings-btn[aria-expanded="true"] { border-color: var(--ss-accent, #4080e0); color: #e2e8f0; }
-  .slopscale_beta-settings-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 180px; padding: 5px; display: flex; flex-direction: column; gap: 2px; background: var(--ss-surface, #0d1424); border: 1px solid var(--ss-border, #334155); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.45); }
-  .slopscale_beta-settings-menu[hidden] { display: none; }
+  /* Settings pane — slides/fades in from the top-right (mirrors the mixer's animated
+     open). Class-toggled (NOT [hidden]{display:none}, which can't transition); the
+     closed state is visibility-hidden + pointer-events-none so it's inert + a11y-safe. */
+  .slopscale_beta-settings-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 180px; padding: 5px; display: flex; flex-direction: column; gap: 2px; background: var(--ss-surface, #0d1424); border: 1px solid var(--ss-border, #334155); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.45); transform-origin: top right; transform: translateY(-6px) scale(0.97); opacity: 0; visibility: hidden; pointer-events: none; transition: transform 0.17s cubic-bezier(0.22,1,0.36,1), opacity 0.17s ease, visibility 0s linear 0.17s; }
+  .slopscale_beta-settings-menu.ss-open { transform: translateY(0) scale(1); opacity: 1; visibility: visible; pointer-events: auto; transition: transform 0.17s cubic-bezier(0.22,1,0.36,1), opacity 0.17s ease; }
   .slopscale_beta-settings-item { text-align: left; padding: 8px 10px; font-size: 12.5px; border: none; background: none; color: #cbd5e1; cursor: pointer; border-radius: 6px; }
   .slopscale_beta-settings-item:hover { background: rgba(148,163,184,0.12); color: #f1f5f9; }
   .slopscale_beta-settings-menu { min-width: 224px; }
@@ -171,15 +174,17 @@
   /* The layout fills the remaining height under the header (flex:1; min-height:0)
      and its single grid row is capped to that height (minmax(0,1fr)) so the rail
      and stage can shrink to fit instead of growing the page. */
-  .slopscale_beta-layout { display: grid; grid-template-columns: minmax(340px, 460px) 1fr; grid-template-rows: minmax(0, 1fr); gap: 16px; align-items: stretch; flex: 1; min-height: 0; }
+  /* The left pane SLIDES in/out: animate the grid's first column (Chromium animates
+     grid-template-columns) minmax(340,460)→minmax(0,0); the rail keeps the same TWO
+     tracks both states so it interpolates. The pane fades + clips (overflow-x) as the
+     column shrinks (display:none would kill the transition). refitStageDuring re-fits
+     the renderer across the slide. */
+  .slopscale_beta-layout { position: relative; display: grid; grid-template-columns: minmax(340px, 460px) 1fr; grid-template-rows: minmax(0, 1fr); gap: 16px; align-items: stretch; flex: 1; min-height: 0; transition: grid-template-columns 0.3s cubic-bezier(0.22,1,0.36,1); }
   /* Only the controls rail scrolls — and only when its content exceeds the
      available height (Guided mode on short viewports). */
-  .slopscale_beta-controls { padding: 16px; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; }
-  /* Collapsed: hide the settings rail and let the player fill the freed width
-     (and contract back when the sidebar returns). Single full-width column —
-     no cap/centering — so the render reclaims the sidebar's space entirely. */
-  .slopscale_beta-root.slopscale_beta-collapsed .slopscale_beta-controls { display: none; }
-  .slopscale_beta-root.slopscale_beta-collapsed .slopscale_beta-layout { grid-template-columns: minmax(0, 1fr); justify-content: stretch; }
+  .slopscale_beta-controls { padding: 16px; display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; transition: opacity 0.2s ease; }
+  .slopscale_beta-root.slopscale_beta-collapsed .slopscale_beta-layout { grid-template-columns: minmax(0px, 0px) 1fr; gap: 0; }
+  .slopscale_beta-root.slopscale_beta-collapsed .slopscale_beta-controls { opacity: 0; pointer-events: none; }
   .slopscale_beta-controls label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #d6deea; font-weight: 650; }
   .slopscale_beta-controls input, .slopscale_beta-controls select {
     background: #111827 !important;
@@ -310,6 +315,7 @@
     text-transform: uppercase; color: #93c5fd;
   }
   .slopscale_beta-pathway-goal-card.modified .pathway-tag { color: #fbbf24; }
+  #slopscale_beta-pathway-pb { margin-top: 6px; font-size: 11.5px; font-weight: 700; color: var(--ss-accent-edge, #60a5fa); }
   #slopscale_beta-pathway-tuning-note { margin-top: 6px; font-size: 11px; color: var(--ss-text-muted, #94a3b8); font-style: italic; }
   /* Form cue (hand-marks Slice 2): same quiet one-liner family as the tuning note. */
   #slopscale_beta-pathway-form-cue { margin-top: 6px; font-size: 11px; color: var(--ss-text-muted, #94a3b8); font-style: italic; }
@@ -423,13 +429,14 @@
      controls stay centered in the bar. */
   .slopscale_beta-collapse-wrap { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 7px; z-index: 1; }
   .slopscale_beta-collapse-label { font-size: 12px; font-weight: 600; color: #94a3b8; white-space: nowrap; }
-  /* Setup | Play view-mode switch — flat segmented control (DAW mode pattern),
-     absolutely placed left of the transport so the play cluster stays centered. */
-  .slopscale_beta-modeview { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); z-index: 1; display: inline-flex; border-radius: var(--ss-r-control); overflow: hidden; background: #141d33; }
-  .slopscale_beta-modeview-btn { min-height: 28px; padding: 0 13px; border: none; background: transparent; color: var(--ss-text-dim); font-weight: 600; font-size: 12px; letter-spacing: 0.01em; cursor: pointer; transition: background 0.12s, color 0.12s; }
-  .slopscale_beta-modeview-btn + .slopscale_beta-modeview-btn { box-shadow: inset 1px 0 0 rgba(2,6,23,0.55); }
-  .slopscale_beta-modeview-btn:hover:not(.active) { background: #24324a; }
-  .slopscale_beta-modeview-btn.active { background: var(--ss-accent); color: #fff; }
+  /* Left-pane collapse — a « icon at the top of the controls (replaces the old
+     Setup/Play transport pill). The pane slides shut; a » floats at its old edge to
+     re-open (the « is inside the pane, which is 0-width when collapsed). */
+  .slopscale_beta-pane-collapse { position: sticky; top: 0; z-index: 3; display: flex; justify-content: flex-end; margin: -16px -16px 6px; padding: 8px 12px; background: var(--ss-surface, #0d1424); border-bottom: 1px solid var(--ss-hairline, rgba(148,163,184,0.12)); }
+  .slopscale_beta-pane-collapse-btn, .slopscale_beta-pane-expand { width: 30px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--ss-border, #334155); background: var(--ss-inset, #0b1220); color: var(--ss-text-dim, #94a3b8); border-radius: 8px; font-size: 16px; line-height: 1; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
+  .slopscale_beta-pane-collapse-btn:hover, .slopscale_beta-pane-expand:hover { background: #1e293b; color: #e2e8f0; border-color: var(--ss-accent, #4080e0); }
+  .slopscale_beta-pane-expand { position: absolute; left: 8px; top: 8px; z-index: 4; display: none; }
+  .slopscale_beta-root.slopscale_beta-collapsed .slopscale_beta-pane-expand { display: inline-flex; }
   /* Focus (fullscreen) button — absolute right of the transport, mirroring the
      Setup|Play switch at left; lit when the stage is fullscreen. */
   .slopscale_beta-focus-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); z-index: 1; min-height: 28px; min-width: 32px; padding: 0 9px; border: none; border-radius: var(--ss-r-control); background: #141d33; color: var(--ss-text-dim); font-size: 14px; line-height: 1; cursor: pointer; transition: background 0.12s, color 0.12s; }
@@ -511,15 +518,30 @@
   .slopscale_beta-hud { position: absolute; top: 60px; left: 0; right: 0; z-index: 12; display: flex; align-items: flex-start; gap: 12px; padding: 4px 13px; pointer-events: none; }
   .slopscale_beta-hud-title { margin-right: auto; display: none; font-size: 12px; font-weight: 600; color: #e2e8f0; text-shadow: 0 1px 4px rgba(0,0,0,0.85); }
   .slopscale_beta-root.slopscale_beta-hud-title-on .slopscale_beta-hud-title { display: inline; }
+  /* Per-block SEAM VERDICT card (Tier 3): stage lower-third, centered, non-
+     interactive; fades in on the inter-block breath and out on the downbeat. The
+     ✓-done line is a COMPLETION readout (never a score); the next line is the
+     forward breadcrumb. Token-driven; no meter-green. */
+  .slopscale_beta-seam-caption { position: absolute; left: 0; right: 0; bottom: 26%; z-index: 13; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 0 16px; text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.16s ease; text-shadow: 0 1px 5px rgba(0,0,0,0.9); }
+  .slopscale_beta-seam-caption.is-on { opacity: 1; }
+  .slopscale_beta-seam-done { font-size: 13px; font-weight: 600; color: var(--ss-text-muted, #94a3b8); }
+  .slopscale_beta-seam-next { font-size: 15px; font-weight: 800; color: var(--ss-text, #e8eef7); }
+  .slopscale_beta-seam-next .slopscale_beta-seam-pos { font-size: 11.5px; font-weight: 600; color: var(--ss-text-muted, #94a3b8); }
+  @media (prefers-reduced-motion: reduce) { .slopscale_beta-seam-caption { transition: none; } }
   /* Live fretboard strip docked under the highway. Hidden by default; shown only
      for fretboard-capable views (Jumping Tab + Notation) when the toggle is on.
      Always hidden for the Piano instrument. */
-  .slopscale_beta-fretboard-strip { position: relative; flex-shrink: 0; height: 132px; background: #08080f; border-top: 1px solid rgba(75,85,99,0.4); display: none; }
-  #slopscale_beta-fretboard { display: block; width: 100%; height: 100%; }
-  .slopscale_beta-root.slopscale_beta-fb-capable.slopscale_beta-fb-on .slopscale_beta-fretboard-strip { display: block; }
+  /* The strip SLIDES open/closed via max-height (the canvas keeps a FIXED height so
+     the container clips it — a clean reveal, never a mid-animation stretch). When
+     fretboard-capable it's in layout (collapsed, max-height:0); the .fb-on / jam
+     classes open it. display:none only for the not-capable + piano cases. */
+  .slopscale_beta-fretboard-strip { position: relative; flex-shrink: 0; background: #08080f; border-top: 1px solid rgba(75,85,99,0.4); display: none; max-height: 0; overflow: hidden; transition: max-height 0.26s cubic-bezier(0.22,1,0.36,1); }
+  #slopscale_beta-fretboard { display: block; width: 100%; height: 132px; }
+  .slopscale_beta-root.slopscale_beta-fb-capable .slopscale_beta-fretboard-strip { display: block; }
+  .slopscale_beta-root.slopscale_beta-fb-capable.slopscale_beta-fb-on .slopscale_beta-fretboard-strip { max-height: 134px; }
   /* Jam mode always shows the strip (it's the target-highlight teaching surface),
      regardless of the renderer view. Piano stays hidden (its !important wins). */
-  .slopscale_beta-root.ss-mode-jam .slopscale_beta-fretboard-strip { display: block; }
+  .slopscale_beta-root.ss-mode-jam .slopscale_beta-fretboard-strip { display: block; max-height: 134px; }
   .slopscale_beta-root.slopscale_beta-piano-instrument .slopscale_beta-fretboard-strip { display: none !important; }
   /* "Fretboard view" label + pill toggle — only shown for fretboard-capable
      views; margin-left:auto pushes it (and the theme toggle after it) right,
@@ -577,8 +599,8 @@
   .slopscale_beta-hk-btn.active { background: var(--ss-accent-soft, rgba(64,128,224,0.2)); border-color: var(--ss-accent, #4080e0); color: #dbeafe; }
   .slopscale_beta-hk-help { font-weight: 800; }
   /* Mixer — slides UP over the stage (overlay, not relayout). */
-  .slopscale_beta-mixer { position: absolute; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--ss-surface-bar, rgba(9,15,30,0.97)); border-top: 1px solid var(--ss-border, #334155); box-shadow: 0 -8px 24px rgba(0,0,0,0.4); transform: translateY(105%); transition: transform 0.22s ease; padding: 10px 14px 14px; max-height: 72%; overflow-y: auto; }
-  .slopscale_beta-root.ss-mixer-open .slopscale_beta-mixer { transform: translateY(0); }
+  .slopscale_beta-mixer { position: absolute; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--ss-surface-bar, rgba(9,15,30,0.97)); border-top: 1px solid var(--ss-border, #334155); box-shadow: 0 -8px 24px rgba(0,0,0,0.4); transform: translateY(105%); opacity: 0; transition: transform 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.24s ease; padding: 10px 14px 14px; max-height: 72%; overflow-y: auto; }
+  .slopscale_beta-root.ss-mixer-open .slopscale_beta-mixer { transform: translateY(0); opacity: 1; }
   /* Library browse drawer (Phase 9 Slice 3) — slide-up over the stage, Mixer-M idiom */
   .slopscale_beta-library { position: absolute; left: 0; right: 0; bottom: 0; z-index: 21; background: var(--ss-surface-bar, rgba(9,15,30,0.97)); border-top: 1px solid var(--ss-border, #334155); box-shadow: 0 -8px 24px rgba(0,0,0,0.4); transform: translateY(105%); transition: transform 0.22s ease; padding: 10px 14px 14px; max-height: 80%; overflow-y: auto; }
   /* ID-targeted reveal: both drawers share .slopscale_beta-library, so each opens on its own class */
@@ -603,6 +625,19 @@
   .slopscale_beta-lib-rolehead { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ss-text-dim, #94a3b8); margin: 13px 0 6px; display: flex; align-items: center; gap: 7px; }
   .slopscale_beta-lib-rolecount { font-size: 10px; font-weight: 600; color: var(--ss-text-muted, #64748b); background: var(--ss-inset, #0b1220); border-radius: 999px; padding: 1px 7px; }
   .slopscale_beta-lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+  /* Named routines (engagement Tier B): the user's saved Workouts, above the
+     built-in starters. A returnable object you own, never a streak/nag. */
+  .slopscale_beta-lib-group-title { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ss-text-faint, #64748b); padding: 6px 2px 3px; }
+  .slopscale_beta-routine-card-actions { display: inline-flex; gap: 4px; align-items: center; }
+  .slopscale_beta-routine-del { background: none; border: none; color: #64748b; font-size: 12px; cursor: pointer; padding: 2px 5px; line-height: 1; border-radius: 5px; }
+  .slopscale_beta-routine-del:hover { color: #f87171; background: rgba(248,113,113,0.12); }
+  .slopscale_beta-save-routine-btn { padding: 7px 12px; border-radius: 8px; border: 1px solid var(--ss-border, #334155); background: #131c2e; color: #cbd5e1; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .slopscale_beta-save-routine-btn:hover { background: #1a2438; color: #e2e8f0; }
+  .slopscale_beta-routine-save-row { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+  .slopscale_beta-routine-save-row[hidden] { display: none; }
+  .slopscale_beta-routine-save-row input { flex: 1; min-width: 0; padding: 6px 9px; border-radius: 7px; border: 1px solid var(--ss-border, #334155); background: #0d1424; color: #e2e8f0; font-size: 12px; }
+  .slopscale_beta-routine-cancel { background: none; border: none; color: #94a3b8; font-size: 12px; cursor: pointer; padding: 6px 4px; }
+  .slopscale_beta-routine-cancel:hover { color: #e2e8f0; text-decoration: underline; }
   .slopscale_beta-lib-card { border: 1px solid rgba(75, 85, 99, 0.5); border-radius: 9px; padding: 8px 10px; background: rgba(2, 6, 23, 0.4); display: flex; flex-direction: column; gap: 3px; }
   .slopscale_beta-lib-add { margin-left: auto; flex-shrink: 0; padding: 3px 10px; font-size: 10.5px; font-weight: 700; border-radius: 6px; border: 1px solid var(--ss-accent-edge, #60a5fa); background: var(--ss-inset, #0b1220); color: var(--ss-accent-edge, #60a5fa); cursor: pointer; transition: background 0.12s, color 0.12s; }
   .slopscale_beta-lib-add:hover { background: rgba(37, 99, 235, 0.3); color: #fff; }
@@ -668,6 +703,9 @@
   @keyframes slopscale_beta-results-enter { from { transform: scale(0.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   .slopscale_beta-results-card.ss-earned { border-top: 2px solid var(--ss-meter, #22c55e); }
   .slopscale_beta-results-verdict { font-size: 13px; text-align: center; padding: 12px 16px 0; }
+  /* Bass felt-hold descriptive word (no flip) — the verdict WORD is the hero, calm
+     not shaming, never meter-green (green is only a cleared pocket). */
+  .slopscale_beta-results-felt { font-size: 16px; font-weight: 800; text-align: center; padding: 14px 16px 2px; color: var(--ss-text, #e2e8f0); letter-spacing: 0.01em; }
   .slopscale_beta-results-card .slopscale_beta-ss-transfer { text-align: center; padding: 2px 18px 0; }
   .slopscale_beta-results-card .slopscale_beta-ss-copy { display: block; margin: 8px auto 0; }
   .slopscale_beta-results-strip { display: flex; flex-direction: column; gap: 5px; align-items: center; padding: 9px 16px 2px; border-top: 1px solid rgba(51,65,85,0.5); }
@@ -679,6 +717,33 @@
   .slopscale_beta-results-deltas { font-size: 12px; color: #cbd5e1; }
   .slopscale_beta-results-recog { font-size: 12px; font-weight: 600; color: var(--ss-accent-edge, #60a5fa); }
   .slopscale_beta-results-practiced { text-align: center; font-size: 11.5px; color: #94a3b8; padding: 7px 16px 0; }
+  /* Workout RECAP (Tier 3): the per-block chapter list REPLACES the aggregate % for a
+     multi-block Workout (a session has no single grade). Descriptive rows grouped by
+     role so the player sees the arc they traveled; the dot + ✓ are NEVER --ss-meter
+     green (completion / role ≠ a cleared competency — §8). The list caps + scrolls so
+     the modal never grows (the add-arc only adds rows). */
+  .slopscale_beta-results-session-head { text-align: center; padding: 12px 16px 2px; }
+  .slopscale_beta-results-session-title { font-size: 15px; font-weight: 800; color: var(--ss-text, #e2e8f0); }
+  .slopscale_beta-results-session-meta { font-size: 12px; color: var(--ss-text-muted, #94a3b8); padding-top: 2px; }
+  .slopscale_beta-results-session-arc { font-size: 11.5px; color: var(--ss-text-faint, #64748b); padding-top: 4px; }
+  .slopscale_beta-results-chapters { display: flex; flex-direction: column; gap: 0; max-height: 248px; overflow-y: auto; padding: 6px 14px 2px; margin-top: 8px; border-top: 1px solid rgba(51,65,85,0.5); }
+  .slopscale_beta-results-chapter-role { font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ss-text-faint, #64748b); padding: 8px 2px 2px; }
+  .slopscale_beta-results-chapter { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 9px; min-height: 30px; padding: 3px 2px; border-top: 1px solid rgba(51,65,85,0.28); }
+  .slopscale_beta-results-chapter:first-child { border-top: none; }
+  .slopscale_beta-results-chapter-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .slopscale_beta-results-chapter-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .slopscale_beta-results-chapter-name { font-size: 12.5px; color: var(--ss-text, #e2e8f0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .slopscale_beta-results-chapter-comp { font-size: 10.5px; color: var(--ss-text-faint, #64748b); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .slopscale_beta-results-chapter-dur { font-size: 11px; color: var(--ss-text-muted, #94a3b8); font-variant-numeric: tabular-nums; }
+  .slopscale_beta-results-chapter-done { font-size: 12px; font-weight: 700; color: var(--ss-accent-edge, #60a5fa); width: 14px; text-align: center; }
+  .slopscale_beta-results-chapter.is-unreached { opacity: 0.5; }
+  .slopscale_beta-results-chapter.is-unreached .slopscale_beta-results-chapter-done { color: var(--ss-text-faint, #64748b); font-weight: 400; }
+  /* ○ touched (reached but silent while the mic was live) — neutral, never red; ● played keeps the accent. */
+  .slopscale_beta-results-chapter.is-touched .slopscale_beta-results-chapter-done { color: var(--ss-text-muted, #94a3b8); font-weight: 400; }
+  /* ✓ PROVED — a real tier flip on this block. The ONE place meter-green is allowed
+     in the recap (a cleared competency, never a score). */
+  .slopscale_beta-results-chapter.is-earned .slopscale_beta-results-chapter-done { color: var(--ss-meter, #22c55e); }
+  .slopscale_beta-results-chapter.is-earned .slopscale_beta-results-chapter-comp { color: var(--ss-meter, #22c55e); font-weight: 700; }
   .slopscale_beta-results-cta { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px 14px; }
   .slopscale_beta-results-primary { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 16px; border-radius: 9px; border: 1px solid var(--ss-accent-edge, #4080e0); background: var(--ss-accent-grad); color: #f8fafc; font-size: 12.5px; font-weight: 700; cursor: pointer; max-width: 360px; }
   .slopscale_beta-results-primary:hover { filter: brightness(1.12); }
@@ -718,6 +783,11 @@
   .slopscale_beta-pm-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0; }
   .slopscale_beta-pm-dots { display: flex; gap: 3px; }
   .slopscale_beta-pm-coming { font-size: 11.5px; color: #64748b; font-style: italic; }
+  /* Woodshed sub-header ("Your numbers" / "Traveled") — a quiet group label. */
+  .slopscale_beta-pm-sub { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ss-text-faint, #64748b); padding: 8px 0 2px; }
+  /* Competency badge rack (Tier C) — earned-only chips; themeable accent, no rank. */
+  .slopscale_beta-badge-rack { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .slopscale_beta-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; color: var(--ss-text, #e2e8f0); background: var(--ss-accent-soft, rgba(96,165,250,0.18)); border: 1px solid var(--ss-accent-edge, #60a5fa); white-space: nowrap; }
   /* "Last session" card — a calm, dismissible mirror of the run that just ended.
      Descriptive + gained-only (no score/rank); meter-green ONLY for a cleared tier
      (see docs/design-system.md §8/§13). */
@@ -733,8 +803,13 @@
   .slopscale_beta-ss-transfer { font-style: italic; color: var(--ss-text-muted, #94a3b8); margin-top: 2px; }
   .slopscale_beta-ss-copy { margin-top: 8px; font-size: 11.5px; color: var(--ss-text, #cbd5e1); background: var(--ss-surface, rgba(148,163,184,0.08)); border: 1px solid var(--ss-hairline, rgba(148,163,184,0.18)); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
   .slopscale_beta-ss-copy:hover { border-color: var(--ss-meter, #22c55e); color: #e2e8f0; }
+  /* Share row — Copy card + Save, side by side (on every results surface). */
+  .slopscale_beta-share-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; }
+  .slopscale_beta-share-row .slopscale_beta-ss-copy { margin: 0; }
+  .slopscale_beta-results-card .slopscale_beta-share-row { margin-top: 10px; }
+  .slopscale_beta-results-card .slopscale_beta-share-row .slopscale_beta-ss-copy { display: inline-block; margin: 0; }
   @media (prefers-reduced-motion: reduce) {
-    .slopscale_beta-mixer, .slopscale_beta-progress-sheet { transition: none; }
+    .slopscale_beta-mixer, .slopscale_beta-progress-sheet, .slopscale_beta-settings-menu, .slopscale_beta-fretboard-strip, .slopscale_beta-layout, .slopscale_beta-controls { transition: none; }
     .slopscale_beta-tier-btn { transition: none; }
     .slopscale_beta-tier-btn.tier-glow { animation: none; }
     .slopscale_beta-pill-toggle, .slopscale_beta-pill-knob { transition: none; }
@@ -1120,6 +1195,7 @@
     /* Section headers, advanced cards, audio toggles, helper text, pathway
        goal card, and the button rows span both columns so they keep their
        visual weight. */
+    .slopscale_beta-controls > .slopscale_beta-pane-collapse,
     .slopscale_beta-controls > .slopscale_beta-group-title,
     .slopscale_beta-controls > .slopscale_beta-audio-options,
     .slopscale_beta-controls > .slopscale_beta-actions,
@@ -1269,7 +1345,7 @@
          theme / XP-mode default / count-in default land as those systems do. -->
     <div class="slopscale_beta-header-settings">
       <button type="button" id="slopscale_beta-settings-btn" class="slopscale_beta-settings-btn" aria-haspopup="true" aria-expanded="false" aria-label="Settings" title="Settings">⚙</button>
-      <div id="slopscale_beta-settings-menu" class="slopscale_beta-settings-menu" hidden role="menu" aria-label="Settings">
+      <div id="slopscale_beta-settings-menu" class="slopscale_beta-settings-menu" role="menu" aria-label="Settings">
         <div class="slopscale_beta-settings-group">
           <span class="slopscale_beta-settings-lbl">Accent</span>
           <div class="slopscale_beta-settings-row" id="slopscale_beta-theme-pick">
@@ -1302,7 +1378,13 @@
   </section>
 
   <section class="slopscale_beta-layout">
+    <!-- Re-open the pane when collapsed (the « lives INSIDE the pane, which is 0-width
+         when collapsed, so the » floats at the pane's old edge). Shown via .slopscale_beta-collapsed. -->
+    <button type="button" id="slopscale_beta-pane-expand-btn" class="slopscale_beta-pane-expand" title="Show controls" aria-label="Show controls">»</button>
     <form id="slopscale_beta-controls" class="slopscale_beta-panel slopscale_beta-controls">
+      <div class="slopscale_beta-pane-collapse">
+        <button type="button" id="slopscale_beta-pane-collapse-btn" class="slopscale_beta-pane-collapse-btn" title="Collapse controls — widen the stage" aria-label="Collapse controls">«</button>
+      </div>
 
       <!-- (Instrument + strings + tuning moved to the header Setup popover; the
            four-mode switcher moved to the header top bar — see above.) -->
@@ -1406,6 +1488,13 @@
           <option value="fb_position_shifts">Position Shifts</option>
           <option value="fb_3nps">Three Notes Per String</option>
           <option value="fb_whole_neck">Whole-Neck Freedom</option>
+          <option value="diatonic_intervals">Thirds, Fourths &amp; Fifths</option>
+          <option value="int_sixths">Sixths (guitar)</option>
+          <option value="bass_int_sixths">Sixths (bass)</option>
+          <option value="int_across_neck">Across the Neck (guitar)</option>
+          <option value="bass_int_walk">Walk the Interval (bass)</option>
+          <option value="int_mixed">Interval Workout</option>
+          <option value="core_root_third_fifth">Root–3rd–5th by Ear</option>
           <option value="exp_vibrato">Vibrato</option>
           <option value="exp_bend_half">Half-Step Bends</option>
           <option value="exp_bend_whole">Whole-Step Bends</option>
@@ -1465,6 +1554,7 @@
           <option value="bass_scale_whole_neck">Whole-Neck Coverage</option>
           <option value="bass_arp_triads">Triad Arpeggios (Bass)</option>
           <option value="bass_arp_sevenths">Seventh Arpeggios (Bass)</option>
+          <option value="bass_arp_neck">Seventh Boxes — Up the Neck (Bass)</option>
           <option value="bass_arp_inversions">Arpeggio Inversions (Bass)</option>
           <option value="bass_arp_changes">Arpeggios Over Changes (Bass)</option>
           <option value="bass_rh_pulse">Alternating-Finger Pulse</option>
@@ -1474,6 +1564,7 @@
           <option value="bass_rh_three_finger">Three-Finger Independence</option>
           <option value="bass_root_click">Root on the Click</option>
           <option value="bass_finger_gym">Finger Gym</option>
+          <option value="bass_finger_legato">Pinky Power — Hammer-Ons &amp; Pull-Offs (Bass)</option>
           <option value="bass_lc_roots">Roots on the One</option>
           <option value="bass_lc_guide_tones">Guide-Tone Targets</option>
           <option value="bass_lc_approach">Approach-Note Lines</option>
@@ -1514,6 +1605,9 @@
         <div class="slopscale_beta-pathway-goal-card" id="slopscale_beta-pathway-goal-card">
           <div class="slopscale_beta-goal-head"><span class="pathway-tag" id="slopscale_beta-pathway-tag">Goal</span><span class="pathway-title" id="slopscale_beta-pathway-title">Pentatonic Foundation</span></div>
           <div id="slopscale_beta-pathway-goal">Pick a focused routine. Use Custom for full control.</div>
+          <!-- "Your number" (engagement Tier A): the clean-tempo PB to beat for this
+               pathway — the come-back hook, surfaced at the moment you pick a drill. -->
+          <div id="slopscale_beta-pathway-pb" style="display:none"></div>
           <!-- One calm line when the rung was adapted to the player's saved tuning
                (uniform offset only — the lossless path adapts silently except for this
                informative note; see the tuning-panel layered model). -->
@@ -1740,6 +1834,9 @@
             <option value="fours">Fours — 1-2-3-4, 2-3-4-5…</option>
             <option value="triplets">Triplets — 1-2-3, 2-3-4…</option>
             <option value="thirds">Diatonic thirds — 1-3, 2-4…</option>
+            <option value="fourths">Diatonic fourths — 1-4, 2-5…</option>
+            <option value="fifths">Diatonic fifths — 1-5, 2-6…</option>
+            <option value="sixths">Diatonic sixths — 1-6, 2-7…</option>
             <option value="broken_triads">Broken triads — 1-3-5, 2-4-6…</option>
             <option value="yngwie_sixes">Sixes — 1-2-3-4-3-2…</option>
           </select>
@@ -2094,6 +2191,15 @@
 
         <div class="slopscale_beta-actions">
           <button type="button" id="slopscale_beta-launch-session" class="primary">▶ Start Workout</button>
+          <button type="button" id="slopscale_beta-save-routine" class="slopscale_beta-save-routine-btn" title="Save this Workout as a named routine you can come back to">Save routine</button>
+        </div>
+        <!-- Inline name affordance for "Save routine" (no native prompt). A routine
+             is a returnable owned object ("My morning warmup") that lives in the
+             starter picker. -->
+        <div id="slopscale_beta-routine-save-row" class="slopscale_beta-routine-save-row" hidden>
+          <input id="slopscale_beta-routine-name" type="text" maxlength="60" placeholder="Name this routine…" aria-label="Routine name">
+          <button type="button" id="slopscale_beta-routine-save-go" class="slopscale_beta-save-routine-btn">Save</button>
+          <button type="button" id="slopscale_beta-routine-save-cancel" class="slopscale_beta-routine-cancel">Cancel</button>
         </div>
 
       </div><!-- end .slopscale_beta-session-only -->
@@ -2180,13 +2286,8 @@
            render (DAW transport-bar pattern; never covers the chart). The
            scrub/loop TIMELINE lives as a ruler pinned inside the render below. -->
       <div id="slopscale_beta-transport-bar" class="slopscale_beta-transport-bar" aria-label="Playback transport">
-        <!-- View mode: Setup (full controls) ⇄ Play (rail hidden, stage widened).
-             A DAW-style mode switch over the existing .slopscale_beta-collapsed
-             mechanism; absolutely placed left so the play cluster stays centered. -->
-        <div class="slopscale_beta-modeview" role="group" aria-label="View mode">
-          <button type="button" class="slopscale_beta-modeview-btn active" data-modeview="setup" aria-pressed="true" title="Setup — full controls">Setup</button>
-          <button type="button" class="slopscale_beta-modeview-btn" data-modeview="play" aria-pressed="false" title="Play — hide the controls, widen the stage">Play</button>
-        </div>
+        <!-- The Setup/Play view-mode pill moved into the left pane as a « collapse
+             icon (+ a » to re-open when collapsed). See #slopscale_beta-pane-collapse-btn. -->
         <button type="button" id="slopscale_beta-focus-btn" class="slopscale_beta-focus-btn" title="Focus mode — fullscreen the stage (Esc to exit)" aria-label="Focus mode" aria-pressed="false">⛶</button>
         <div id="slopscale_beta-session-progress" class="slopscale_beta-session-progress slopscale_beta-session-only" role="group" aria-label="Session segments"></div>
         <div class="slopscale_beta-tp-controls">
@@ -2245,6 +2346,17 @@
              chart has chord templates — scales have none, so it stays hidden. -->
         <canvas id="slopscale_beta-chordbox" class="slopscale_beta-chordbox" aria-hidden="true"></canvas>
         <canvas id="slopscale_beta-canvas"></canvas>
+
+        <!-- Per-block SEAM VERDICT (Workout-love Tier 3): during an inter-block
+             breath the notes pause, so the stage lower-third briefly shows a
+             descriptive closure for the block JUST finished (line 1, dim) + the
+             next block name & position breadcrumb (line 2, bright). The ruler owns
+             the countdown digit; this card owns the NAMES. pointer-events:none,
+             reduced-motion-aware, no audio. Workout inter-block breaks only. -->
+        <div id="slopscale_beta-seam-caption" class="slopscale_beta-seam-caption" aria-hidden="true">
+          <div class="slopscale_beta-seam-done"></div>
+          <div class="slopscale_beta-seam-next"></div>
+        </div>
 
         <!-- Mixer (M): slides UP over the stage. Per-bus faders/mute/solo for the
              player + backing buses, plus a "Backing dim". Overlay, not relayout —

@@ -95,6 +95,40 @@ The **Ladder** picker grew from a handful of routines into **~80**, grouped into
 - **Your tuning is law.** Your instrument and tuning are a durable setting; technique rungs anchor to *your* lowest string and derive the key from it — drop-A players stop getting standard-tuning homework.
 - **The backing band learned to comp — and hired a bassist.** Re-articulated comp cells replace the held pad (a Charleston under swing, offbeat stabs under a shuffle), chords voice-lead like a comper's hand, and a real bass lane lands the root on beat 1 with the kick — a **generated walking bass** under jazz, the boogie bass in its true octave. On bass, *you* are the bassist: the backing mutes its own. And long Workouts no longer freeze at Play.
 
+### Your Workout became a practice gym — and bass got a pocket to prove <sub><i>(new in v0.7.22)</i></sub>
+
+The biggest batch yet. The **Workout** pillar grew from "a timer over your drills" into a **practice gym** that measures and remembers; **bass** became a first-class path with a way to *prove feel*; and the judge got honest on a real DI rig.
+
+**The Workout remembers what you did** — a gym, not a stopwatch:
+
+- **Per-block measurement** — the end-of-Workout **recap** lists every block as a chapter (played ● / touched ○ / unreached —), gated so a DI-less or mic-less player is never shamed, with a quiet per-block **seam verdict** between blocks.
+- **A woodshed log** — time on the instrument, this week, practice days, and a **Woodshed level** that climbs with the hours; **"Your numbers"** keeps the clean tempo to beat for each skill, and **Travel** counts the keys you've held it in.
+- **Save your routine** — any Workout you build becomes a named, returnable object: "My morning warm-up" is yours to load next session. Plus length presets and a tempo-locked breath between blocks.
+- **A forgiving streak** — survives a single rest day; two in a row ends it, and coming back is celebrated, not punished.
+- **Visible XP, levels & competency badges** — earned for naming a *skill* ("It Travels", "Up to Speed"), never for rounds or rank — and the **whole layer flips off** with one switch if you'd rather just practise. Reward is a readout, not a trophy.
+
+<p align="center">
+  <img src="docs/images/progress.png" width="320" alt="The Progress sheet: a 4-day streak; a woodshed log (1h20m on the instrument, Woodshed level 5 · Journeyman); per-skill clean-tempo PBs (Blues Scale 132 BPM, Connect the Changes 118…); keys traveled; and competency badges — On the Board, Up to Speed, It Travels.">
+  &nbsp;
+  <img src="docs/images/sharecard.png" width="360" alt="Two copy-as-image share cards: a Ladder card '✓ Cleared Push — Blues Scale Foundation, 120 BPM, A, 3:05' and a Jam card 'Blues in A — Blues, A, 90 BPM, 4:32'.">
+  <br><sub><i>The practice-gym readout — woodshed level, your clean-tempo PBs, keys traveled, and competency badges — beside a <b>copy-as-image share card</b> (a state you reached, never a rank).</i></sub>
+</p>
+
+**Bass got a pocket to prove** — now a first-class, instrument-aware path:
+
+- **An instrument-aware bass Core** parallel to the guitar Core, plus new **bass ladders** (foundations + a technique gym) and a **sweep-picking** ladder; the picker hides guitar-only shapes on bass and vice-versa, and your instrument/tuning persists.
+- **Felt-hold** — bass *feel* can finally be **cleared**, not just practised. A qualitative pocket verdict — **Locked / Settling / Dragging / Rushing** — reads your timing spread and trend (no new DSP) and logs the tempo you held *Locked*. It's a word, not a leaderboard: "Locked the pocket" is a state, never a rank.
+- **Honest right-hand work** — the 1-2-4 fretting doctrine and pinky-legato display, sequenced the way bass is actually learned, plus a corrected walking-bass approach.
+
+**Grading you can trust on a real rig** — two judging P0s, both straight from dogfooding:
+
+- **Sustained / DI playing scores now.** The grader mirrors the host's one-way level veto instead of demanding a fresh attack on every note — a compressed DI or a held note stops getting silently rejected after the first hit.
+- **A Workout plays once and ends.** Notes stopped reading as "hits" when you weren't playing and the counter stopped freezing mid-session — a Workout now runs once, ends, and shows the recap.
+
+**Share what you cleared** — copy your scorecard as an **image**, on every lane (Ladder, Custom, Workout, Jam), to drop into Discord or a text. Cooperative and honest: it shows the skill and the state you reached, never a score to beat.
+
+**And some polish** — the Setup/Play pill became a tidy **`«` collapse icon** that widens the stage (and now scales cleanly across window sizes), the inspector panels **slide** instead of snapping, and a fretboard-render regression is fixed.
+
 ## Highlights
 
 - **Jam is a mirror, not a judge** — play along over a live backing band while the fretboard strip lights up the chord/guide tones to reach for. No score, no rank — a sandbox to *apply* what you drilled, not a track to mimic
@@ -104,7 +138,7 @@ The **Ladder** picker grew from a handful of routines into **~80**, grouped into
 - **A live Mixer (`M`)** — swap the comp to organ, the drums to a 909, dim the backing, all while you play
 - **Four render surfaces** — 3D Note Highway, 2D Highway, paper-style Tab, and staff Notation — one chart, your choice, with Light/Dark themes
 - **Extended-range & drop tunings** — 6/7/8-string guitar and 4/5/6-string bass, standard / drop / open / fully custom per-string
-- **The practice-room basics** — count-in, A/B looping, share links, saved presets & tunings, on-screen hotkeys (`M`/`P`/`[`/`?`), and a calm progress readout (streak calendar + last-session card; never a gate)
+- **The practice-room basics** — count-in, A/B looping, share links (and **copy-as-image** scorecards), saved presets & tunings, on-screen hotkeys (`M`/`P`/`[`/`?`), and a calm **practice-gym readout** (woodshed log + Woodshed levels, your clean-tempo PBs, and competency badges — gained-only, switch-off-able, never a gate)
 
 ## Renderers
 
@@ -208,9 +242,9 @@ Open **SlopScale → Ladder**, pick a beginner node (e.g. *Pentatonic Foundation
 
 ## Roadmap
 
-- **A browsable segment library + design-your-own Workouts + one-tap Refresh** — re-roll a saved routine into fresh keys/positions while it holds the same skill (the v0.7.0 variation engine surfaced as UI; next up)
+- **Structured multi-week Programs** — a guided arc of Workouts toward a named goal (the practice-gym layer that measures and remembers is in; the multi-session container is next)
 - Deeper drum realism (per-genre grooves + humanisation) and a brush/percussion kit set
-- Per-instrument **Skill Ladder** content (guitar Core + Concept/genre packs shipped; **bass-native ladder shipped**; piano to follow) — and surfacing the segment library so you can build & one-tap-refresh your own Workouts
+- Per-instrument **Skill Ladder** content (guitar Core + Concept/genre packs, and an **instrument-aware bass Core with a felt-hold pocket verdict**, shipped; **piano** to follow)
 - Live amp-modelled distorted backing (host NAM-engine borrow, in progress)
 - Piano / keyboard exercise generation
 

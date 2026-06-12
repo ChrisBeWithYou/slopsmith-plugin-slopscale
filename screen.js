@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.8-beta.1';
+  const SLOPSCALE_VERSION = '0.7.23-beta.1';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -347,14 +347,25 @@
     fours:[0,1,2,3],
     triplets:[0,1,2],
     thirds:[0,2],
+    fourths:[0,3],
+    fifths:[0,4],
+    sixths:[0,5],
     broken_triads:[0,2,4],
     yngwie_sixes:[0,1,2,3,2,1]
   };
+  // Diatonic-interval sequences index consecutive SCALE DEGREES, so the offset
+  // IS the diatonic interval (degree i + 3 = a diatonic 4th, i + 4 = a diatonic
+  // 5th — quality alternates to stay in key). The single-note skip-step drill
+  // ("1-3, 2-4, 3-5…"), distinct from the harmonized scale_thirds/scale_sixths
+  // double-stops. The classic ear/fretboard primitive (beyoki's Discord ask).
   const SEQUENCE_LABELS = {
     none:'straight',
     fours:'fours (1-2-3-4)',
     triplets:'triplets (1-2-3)',
     thirds:'diatonic thirds',
+    fourths:'diatonic fourths',
+    fifths:'diatonic fifths',
+    sixths:'diatonic sixths',
     broken_triads:'broken triads (1-3-5)',
     yngwie_sixes:'sixes (1-2-3-4-3-2)'
   };
@@ -533,6 +544,7 @@
     // through the instrument-aware Core bands (bass_rh_pulse is the on-ramp).
     ['bass_rh_pulse',          'bass_root_click'],
     ['bass_root_click',        'bass_finger_gym'],
+    ['bass_finger_gym',        'bass_finger_legato'],          // pinky HO/PO follows the finger gym
     ['bass_finger_gym',        'bass_root_fifth_octave'],
     ['bass_root_fifth_octave', 'bass_octave_groove'],
     ['bass_octave_groove',     'bass_lc_roots'],
@@ -542,6 +554,7 @@
     ['bass_arp_triads',        'bass_arp_sevenths'],
     ['bass_octave_groove',     'bass_dead_notes'],
     ['bass_dead_notes',        'bass_rh_sixteenth'],
+    ['bass_arp_sevenths',      'bass_arp_neck'],               // 7th boxes up the neck (position travel)
     ['bass_arp_sevenths',      'bass_walking'],                // Intermediate capstone
     ['bass_scale_two_octave',  'bass_scale_modes'],            // Intermediate → Advanced
     ['bass_scale_modes',       'bass_scale_shifts'],
@@ -583,8 +596,8 @@
     // bass player sees a pinned bass Beginner→Advanced staircase in the SAME 3 bands —
     // parity with guitar, not a separate taxonomy. Bass spine = the dissolved bass Style
     // packs (Foundations/Scales/Arps/Groove) re-homed + the new Core/L&C rungs.
-    { id:'core_beginner',     label:'Beginner',     kind:'core', pinned:true, pathways:['chromatic_warmup','pulse_muting','pent_foundation','power_chord_comping','blues_foundation','bend_drill','bass_rh_pulse','bass_root_click','bass_finger_gym','bass_root_fifth_octave','bass_octave_groove','bass_lc_roots'] },
-    { id:'core_intermediate', label:'Intermediate', kind:'core', pinned:true, pathways:['major_scale_caged','sixteenth_pocket','dorian_groove','chord_tone_targeting','modal_awareness','diatonic_triad_drill','bass_scale_one_box','bass_scale_two_octave','bass_arp_triads','bass_arp_sevenths','bass_dead_notes','bass_rh_sixteenth','bass_walking'] },
+    { id:'core_beginner',     label:'Beginner',     kind:'core', pinned:true, pathways:['chromatic_warmup','pulse_muting','pent_foundation','power_chord_comping','blues_foundation','bend_drill','bass_rh_pulse','bass_root_click','bass_finger_gym','bass_finger_legato','bass_root_fifth_octave','core_root_third_fifth','bass_octave_groove','bass_lc_roots'] },
+    { id:'core_intermediate', label:'Intermediate', kind:'core', pinned:true, pathways:['major_scale_caged','sixteenth_pocket','dorian_groove','chord_tone_targeting','modal_awareness','diatonic_triad_drill','bass_scale_one_box','bass_scale_two_octave','bass_arp_triads','bass_arp_sevenths','bass_arp_neck','bass_dead_notes','bass_rh_sixteenth','bass_walking'] },
     { id:'core_advanced',     label:'Advanced',     kind:'core', pinned:true, pathways:['seventh_vocab','whole_neck_freedom','guide_tones_path','ii_V_I_workout','modal_vamp','melmin_exotic_12key','harmonic_minor_exotic','sweep_arpeggio_primer','bass_scale_modes','bass_scale_shifts','bass_scale_whole_neck','bass_arp_changes','bass_lc_guide_tones','bass_lc_approach','bass_rh_three_finger','bass_lc_capstone','bass_lc_trade'] },
     { id:'style_blues',       label:'Blues',        kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner — minor-pentatonic box 1, the blue note (♭5), and a steady pulse over the 12-bar form.', pathways:['blues_box','blues_shuffle','blues_bends','blues_call_response','blues_mix'] },
     { id:'style_country',     label:'Country',      kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner→Intermediate — major pentatonic and the CAGED major scale; you target chord tones inside the shape, then add the country idiom (double-stops, chicken pickin\', the ♭VII train change).', pathways:['major_pent_country','country_cowboy_changes','country_double_stops','country_chicken_pickin','country_pedal_bends','country_train'] },
@@ -600,6 +613,7 @@
     { id:'concept_arpeggios', label:'Arpeggios', kind:'style', family:'Concepts', buildsOn:'Builds on Core Intermediate — diatonic triads and the CAGED shapes. An arpeggio is a chord one note at a time; spell the sevenths, invert them, then chase them through the changes.', pathways:['arp_seventh_shapes','arp_inversions','arp_over_changes','arp_sweeps'] },
     { id:'concept_voiceleading', label:'Guide Tones', kind:'style', family:'Concepts', buildsOn:'Builds on Core — diatonic seventh chords and the major scale. The 3rd and 7th are a chord\'s identity; voice-lead just those through the changes, then play a line that follows them.', pathways:['vl_shells','vl_guide_tones','vl_guide_changes','vl_connect'] },
     { id:'concept_fretboard', label:'Fretboard', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the pentatonic box and the CAGED major scale. Stop thinking in one box: connect the shapes, shift positions, learn the 3NPS system, and map the whole neck.', pathways:['fb_one_box','fb_caged_links','fb_position_shifts','fb_3nps','fb_whole_neck'] },
+    { id:'concept_intervals', label:'Intervals', kind:'style', family:'Concepts', buildsOn:'Builds on Core — a scale you can play in one box and a steady pulse. Stop playing the scale step-by-step: skip through it in thirds, then fourths & fifths, then sixths, then take the same intervals up and down the neck and finally mix them over a backing. The ear/hand drill behind melody, bass fills, and connecting chord tones — diatonic, so it transposes for free. Works on guitar or bass.', pathways:['diatonic_intervals','int_sixths','bass_int_sixths','int_across_neck','bass_int_walk','int_mixed'] },
     { id:'concept_expression', label:'Expression', kind:'style', family:'Concepts', buildsOn:'Builds on Core Beginner — a fretted note and a target pitch. Make the note SING: vibrato width first, then bends that land dead in tune (half → whole → mixed).', pathways:['exp_vibrato','exp_bend_half','exp_bend_whole','exp_bend_mixed'] },
     { id:'concept_rhythm', label:'Rhythm', kind:'style', family:'Concepts', buildsOn:'Builds on Core — a steady pulse and the pentatonic box. Own TIME itself, easy→mastery: the grid (subdivisions, the 16th pocket) → the feel (swing, syncopation, the gallop, moving the accent) → the pulse frame (one-note pulse, half/double-time, odd meters) → two pulses at once (over the barline) → trade bars and make your own groove. World rhythms (tresillo, clave) ride the one-note pulse. Instrument-agnostic — works on guitar or bass.', pathways:['rhy_subdivision','rhy_sixteenth','rhy_swing','rhy_displacement','rhy_gallop_snap','rhy_accent_displace','rhy_single_string','rhy_half_double','rhy_odd_meter','rhy_over_barline','rhy_trade_bars'] },
     { id:'concept_picking', label:'Picking', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the chromatic warmup and one-finger-per-fret sync. The pick-hand engine: tremolo, alternate across strings, economy crossings, string skipping, hybrid picking.', pathways:['pick_tremolo','pick_alternate','pick_economy','pick_string_skip','pick_hybrid','pick_herta'] },
@@ -863,6 +877,99 @@
       base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'full_neck', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C' },
       vary:[ { key:'C' }, { key:'G' }, { key:'A' }, { key:'E' }, { key:'D' } ]
     },
+    // ── Intervals ladder (Concepts family) ──────────────────────────────────────
+    // The single-note diatonic interval-SEQUENCE skill, easy→mastery: 3rds/4ths/5ths
+    // in one box → 6ths → the same intervals traveling the neck → mixed over a backing.
+    // Distinct from the harmonized scale_thirds/scale_sixths DOUBLE-STOPS. Each pattern
+    // indexes consecutive scale DEGREES, so the offset IS the diatonic interval (quality
+    // alternates to stay in key: the vii 5th is a dim5, the IV 4th an aug4 — correct,
+    // not a bug). instAgnostic — adapts to guitar (CAGED shape) OR bass (position box +
+    // the player's tuning). Bass windows (fretMin/fretMax) follow the key so the root
+    // sits low in the box, per the bass spine; guitar uses the shape + ignores them.
+    // Built from beyoki's Discord ask (a beginning bassist) + a 4-agent panel review
+    // (guitar/bass-pedagogy + harmony + L&D), 2026-06-11.
+    diatonic_intervals: {
+      label:'Thirds, Fourths & Fifths',
+      goal:"Play the scale in leaps, not steps: thirds (1-3, 2-4…), then fourths and fifths. Skipping through the scale this way trains your ear to HEAR each interval and your hand to FIND it anywhere in the key — and stacking the diatonic 3rds IS the harmonized scale, every chord in the key. It stays diatonic, so it's locked to the key: change the key and the intervals follow. One leap per key sounds 'spicy' — the tritone (the ♭5 between the 4th and 7th degrees); that's the diatonic truth, not a wrong note. Start slow in one box and keep every leap dead even and in tune — speed comes after the ear does. Works the same on guitar or bass.",
+      scales:['major','natural_minor'],
+      tempoTiers:[50, 65, 80, 95],
+      instAgnostic:true,
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:55, bars:8, direction:'up_down', sequence:'thirds', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E', fretMin:2, fretMax:7 },
+      vary:[ { sequence:'thirds', key:'G', fretMin:2, fretMax:7 }, { sequence:'fourths', key:'G', fretMin:2, fretMax:7 }, { sequence:'fifths', key:'G', fretMin:2, fretMax:7 }, { sequence:'thirds', key:'E', fretMin:0, fretMax:5 }, { sequence:'fifths', key:'E', fretMin:0, fretMax:5 } ]
+    },
+    // GUITAR Sixths (instrument-SPLIT, panel ruling 2026-06-11): 6ths are a guitar-
+    // specific grip lesson — the major-3rd between strings 2-3 (the B string) makes a
+    // 6th a tidy adjacent/skipped-string shape that SHIFTS one fret across that
+    // boundary. Bass's uniform 4ths can't mirror it (a bass 6th is a punishing
+    // consecutive cross-string run), so bass gets its own rung below (isHiddenNode
+    // shows each instrument only its own).
+    int_sixths: {
+      label:'Sixths',
+      goal:"The widest of the small skips: diatonic sixths (1-6, 2-7…). On guitar the third between the G and B strings makes 6ths fall into a tidy two-string shape — but that shape SHIFTS a fret the moment the pair crosses the B string, which is the real lesson. Sixths are the sound of harmonized leads — soul, country, classic rock. Mind the string-skip and let the grip move at the B string; keep every pair even and in tune.",
+      scales:['major','natural_minor'],
+      tempoTiers:[50, 65, 80, 95],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:55, bars:8, direction:'up_down', sequence:'sixths', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E' },
+      vary:[ { key:'G', shape:'E' }, { key:'E', shape:'E' }, { key:'A', shape:'E' }, { key:'A', scale:'natural_minor', shape:'E' }, { key:'C', shape:'A' } ]
+    },
+    // BASS Sixths (instrument-split): on a 4-string all-4ths neck a 6th is a 2-string
+    // skip — a wide, cross-string reach, not the guitar grip. Drill it slow and
+    // relaxed in a key-tracked box; in real bass lines a 6th is usually octave-
+    // displaced (played as a descending 3rd), so this builds the ear + the reach, not
+    // a lick. Bass-pedagogy ruling 2026-06-11.
+    bass_int_sixths: {
+      label:'Sixths',
+      goal:"On bass a sixth is a wide two-string skip — the biggest reach in the interval set. Take it slow: hear the sweet major 6th and the darker minor 6th, and let the fretting hand learn the clean cross-string jump. In real bass lines you'll often flip a 6th down into a 3rd (same notes, an octave closer) — but owning the full reach first means you can hear and place it either way.",
+      scales:['major','natural_minor'],
+      tempoTiers:[45, 58, 72, 88],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:50, bars:8, direction:'up_down', sequence:'sixths', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'G', fretMin:2, fretMax:7 },
+      vary:[ { key:'G', fretMin:2, fretMax:7 }, { key:'E', fretMin:0, fretMax:5 }, { key:'A', fretMin:4, fretMax:9 }, { key:'A', scale:'natural_minor', fretMin:4, fretMax:9 }, { key:'C', fretMin:5, fretMax:10 } ]
+    },
+    // GUITAR Across-the-Neck (instrument-split): the CAGED-shape ROTATION lesson —
+    // one key, the same interval, rotated through the five C-A-G-E-D zones up the
+    // neck. CAGED is a guitar system; bass has no C/A/G/E/D box geometry, so bass
+    // gets the honest equivalent (a position-shift WALK) below — never a hidden gap.
+    int_across_neck: {
+      label:'Across the Neck',
+      goal:"Take the intervals off-island. Play thirds through one key, but shift the SAME interval up the neck through the five CAGED zones — C, A, G, E, D — until you can find a third (or any interval) anywhere, not just in one shape. This is the 'up and down the fretboard' skill: the interval is the constant, the CAGED position is the variable.",
+      scales:['major','natural_minor'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:60, bars:8, direction:'up_down', sequence:'thirds', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E' },
+      vary:[ { shape:'G' }, { shape:'E' }, { shape:'D' }, { shape:'C' }, { shape:'A' } ]
+    },
+    // BASS Walk-the-Interval (instrument-split): the honest bass equivalent of the
+    // guitar CAGED-rotation rung — same interval, one key, SHIFT the position box up
+    // the neck (the bass player's neck-coverage skill is position shifting, not CAGED).
+    bass_int_walk: {
+      label:'Walk the Interval',
+      goal:"Find the interval anywhere on the neck. Play thirds in one key, then shift your hand up a box at a time — same interval, new position — so you're not locked to one spot. This is the bassist's 'up and down the neck' skill: the interval stays the same, your hand learns to find it high or low. The reach between boxes is the lesson; keep the shifts clean and in time.",
+      scales:['major','natural_minor'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:60, bars:8, direction:'up_down', sequence:'thirds', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'G', fretMin:2, fretMax:7 },
+      vary:[ { fretMin:2, fretMax:7 }, { fretMin:5, fretMax:10 }, { fretMin:7, fretMax:12 }, { fretMin:9, fretMax:14 }, { fretMin:0, fretMax:5 } ]
+    },
+    int_mixed: {
+      label:'Interval Workout',
+      goal:"Own them all, by ear. Cycle thirds → fourths → fifths → sixths → arpeggios over a I-IV-V backing, so you're not just running shapes — you're HEARING each interval against a chord and using it to connect to the next chord tone. This is where the drill becomes music: the intervals you've banked turn into melodies and fills.",
+      scales:['major','natural_minor'],
+      tempoTiers:[60, 75, 90, 105],
+      instAgnostic:true,
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:60, bars:8, direction:'up_down', sequence:'thirds', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E', fretMin:2, fretMax:7, progression:'I-IV-V', chordDepth:'triad', chordOverride:'auto' },
+      vary:[ { sequence:'thirds' }, { sequence:'fourths' }, { sequence:'fifths' }, { sequence:'sixths' }, { sequence:'broken_triads' } ]
+    },
+    // Core-Beginner SEED rung (instAgnostic) — the discoverability fix the L&D review
+    // asked for: a beginner who can't find interval practice meets it in the always-
+    // visible Core (the Intervals pack is opt-in). One rung only — Root–3rd–5th by ear
+    // — a tiny step up from bass_root_fifth_octave (same box, add the 3rd). Lives in the
+    // core_beginner band; the full treatment is the opt-in Intervals ladder above.
+    core_root_third_fifth: {
+      label:'Root–3rd–5th by Ear',
+      goal:"The three notes every chord is built from — root, third, fifth — spelled up through the scale (1-3-5, 2-4-6…). The third is the note that tells major from minor; the fifth is a bass player's home base. Hear and find these and you can outline any chord in the key by ear — the foundation of arpeggios, bass lines, and improvising. Start slow in one box; name each note as you play it.",
+      scales:['major','natural_minor'],
+      tempoTiers:[50, 65, 80, 95],
+      instAgnostic:true,
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:55, bars:8, direction:'up_down', sequence:'broken_triads', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E', fretMin:2, fretMax:7 },
+      vary:[ { key:'G', fretMin:2, fretMax:7 }, { key:'E', fretMin:0, fretMax:5 }, { key:'A', fretMin:4, fretMax:9 }, { key:'A', scale:'natural_minor', fretMin:4, fretMax:9 }, { key:'C', fretMin:5, fretMax:10 } ]
+    },
     // ── Expression ladder (Concepts family) ─────────────────────────────────────
     // The "make a note SING" vertical (guitar-pedagogy #1): vibrato → half-bend →
     // whole-bend → mixed. Difficulty axis = pitch CONTROL/accuracy, not tempo (so
@@ -1057,6 +1164,7 @@
     },
     bass_walking: {
       label:'Walking Bass',
+      feltGate:true,   // bass FEEL rung (v1 pilot): completes on a sustained POCKET (Settling-or-better), not a %; LOCKED raises the feltBpm PB. See docs/bass-felt-hold-roundtable.md.
       goal:'The jazz/blues engine: one note per beat, walking from chord to chord — root on the downbeat, chord tones and chromatic approach notes leading into the next change. The skill is voice-leading the bass line so it both outlines the harmony and pulls forward. The most-wanted bass skill in jazz and blues.',
       scales:['major','dorian','mixolydian'],
       tempoTiers:[65, 85, 105, 125],
@@ -1138,6 +1246,19 @@
       tempoTiers:[60, 85, 105, 125],
       base:{ practiceType:'diatonic_arpeggios', scale:'major', chordDepth:'seventh', chordOverride:'auto', meter:'4/4', subdivision:'eighth', bpm:85, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:2, fretMax:9 },
       vary:[ { key:'C' }, { key:'A', scale:'natural_minor' }, { key:'G' }, { key:'F' }, { key:'D', scale:'dorian' } ]
+    },
+    // 7th-arp BOXES across positions (Discord — Gungr: "7th arps in all positions over
+    // the neck", with a box diagram). Where bass_arp_sevenths travels by KEY, this
+    // travels by POSITION: one quality box walked up the neck. The four qualities are a
+    // one-note-edit chain (maj7→dom7→min7→m7♭5). Pure config (static_i + chordOverride +
+    // a stepped window), no new generator. See docs/bass-technique-content-roundtable.md.
+    bass_arp_neck: {
+      label:'Seventh Boxes — Up the Neck',
+      goal:"One seventh-chord box, walked up the whole neck: the same shape — root, 3rd, 5th, 7th — in each position from low to high, so the arpeggio lives everywhere, not just one spot. Four boxes, each a single finger-move from the last: maj7, drop the 7 for dom7, drop the 3 for min7, drop the 5 for m7♭5. The 3rd says major or minor, the ♭7 says dominant — own these and you outline the changes anywhere on the bass with no chart.",
+      scales:['major'],
+      tempoTiers:[60, 80, 100, 120],
+      base:{ practiceType:'diatonic_arpeggios', progression:'static_i', scale:'major', chordDepth:'seventh', chordOverride:'maj7', meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'C', fretMin:0, fretMax:5 },
+      vary:[ { chordOverride:'maj7', fretMin:0, fretMax:5 }, { chordOverride:'dom7', fretMin:3, fretMax:8 }, { chordOverride:'min7', fretMin:5, fretMax:10 }, { chordOverride:'min7b5', fretMin:7, fretMax:12 }, { chordOverride:'maj7', fretMin:10, fretMax:15 } ]
     },
     bass_arp_inversions: {
       label:'Arpeggio Inversions',
@@ -1221,7 +1342,21 @@
       scales:['minor_pentatonic'],
       tempoTiers:[55, 70, 85, 100],
       base:{ practiceType:'chromatic', chromaticPattern:'1234', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', fretMin:5, fretMax:8 },
-      vary:[ { chromaticPattern:'1234', fretMin:5, fretMax:8 }, { chromaticPattern:'1324', fretMin:5, fretMax:8 }, { chromaticPattern:'4321', fretMin:5, fretMax:8 }, { chromaticPattern:'1234', fretMin:0, fretMax:3 }, { chromaticPattern:'1234', fretMin:7, fretMax:10 } ]
+      vary:[ { chromaticPattern:'1234', fretMin:5, fretMax:8 }, { chromaticPattern:'1324', fretMin:5, fretMax:8 }, { chromaticPattern:'4321', fretMin:5, fretMax:8 }, { chromaticPattern:'1342', fretMin:5, fretMax:8 }, { chromaticPattern:'1234', fretMin:7, fretMax:10 } ]
+    },
+    // Bass pinky / legato rung (Discord ask — Daniel: "pinky hammer-ons & pull-offs,
+    // not a creative circle of hell"). MUSICAL pentatonic-box legato, not chromatic:
+    // the minor-3rd reach in the box lands the hammered note on the PINKY (fg 4), so
+    // it builds exactly the finger bassists most need. Starts at the comfortable 5th
+    // fret; felt/clean, never scored on the slur. Core: Bass (NOT the CAGED concept
+    // rung). See docs/bass-technique-content-roundtable.md.
+    bass_finger_legato: {
+      label:'Pinky Power — Hammer-Ons & Pull-Offs',
+      goal:"The fretting hand makes the sound and the pinky earns its keep: hammer onto the higher note, pull off to the lower, pick only the first note on each string. In the pentatonic box the reach lands on your pinky — the very finger bassists most need to strengthen. Up at the 5th fret the stretch is easy; as your slurs get clean and even, work it lower. No straining, no flat four-finger reach — just the strength and independence that let a bassline flow.",
+      scales:['minor_pentatonic','natural_minor'],
+      tempoTiers:[55, 70, 85, 100],
+      base:{ practiceType:'legato', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'A', fretMin:5, fretMax:8 },
+      vary:[ { key:'A', fretMin:5, fretMax:8 }, { key:'D', fretMin:5, fretMax:8 }, { key:'E', fretMin:5, fretMax:9 }, { scale:'natural_minor', key:'A', fretMin:5, fretMax:9 }, { key:'G', fretMin:3, fretMax:7 } ]
     },
     bass_lc_roots: {
       label:'Roots on the One',
@@ -2223,6 +2358,13 @@
       bpmLadder:{ enabled:false }, keyCycle:{ enabled:false },
       segments:[ { id:'warmup', templateId:'b_warm_chromatic' }, { id:'rh', templateId:'b_tech_right_hand' }, { id:'box', templateId:'b_tech_root_fifth_octave' }, { id:'scale', templateId:'b_scale_major' }, { id:'walk', templateId:'b_app_walking' } ],
     },
+    bass_technique_gym: {
+      version:1, name:'Bass — Technique Gym',
+      description:"Hands first, the bass way — for when you're not practicing songs: chromatic warm-up → pinky hammer-ons & pull-offs → right-hand alternation → a position shift → seventh-arp boxes → spend it on a walking line. Build the fretting and plucking hand, then end on real music.",
+      stringSetup:'bass_4_standard', tags:['bass','technique','foundational'],
+      bpmLadder:{ enabled:false }, keyCycle:{ enabled:false },
+      segments:[ { id:'warmup', templateId:'b_warm_chromatic' }, { id:'legato', templateId:'b_tech_legato' }, { id:'rh', templateId:'b_tech_right_hand' }, { id:'shift', templateId:'b_tech_position_shift' }, { id:'arps', templateId:'b_arp_sevenths' }, { id:'walk', templateId:'b_app_walking' } ],
+    },
     bass_pocket: {
       version:1, name:'Bass — The Pocket',
       description:'Right-hand stamina → the octave bounce → the 16th-note dead-note pocket → a funk groove jam. Groove first, the bass way.',
@@ -2954,6 +3096,23 @@
   // wrapped seamlessly). { fromT, atMs } | null; reduced-motion + tiny loops skip it.
   let _wrapAnim = null;
   const WRAP_ANIM_MS = 300;
+  // Reached-tracking for the end-of-Workout recap (Tier 3): a chapter shows
+  // "practiced" only if the run actually reached it. _runMaxChartTime = furthest
+  // chart time seen in the current pass; _runLooped = a loop wrap happened (so the
+  // whole session was reached). Reset on each fresh start. Pure display state.
+  let _runMaxChartTime = 0, _runLooped = false;
+  // Per-block INPUT tracking (engagement Tier A — the foundational per-block
+  // measurement). _blockHadInput[i] = real mic input arrived inside segmentBounds[i]'s
+  // window this run → the recap can show "played ●" vs "scrolled past ○" honestly,
+  // and the seam can drop a "done" claim on a block the player never sounded. Reset
+  // per run; marked from the level path (the same gate that arms _ptHadInput).
+  let _blockHadInput = [];
+  function markBlockInput() {
+    const sb = activeBundle && activeBundle.segmentBounds;
+    if (!sb || sb.length < 2) return;
+    const t = currentPracticeTime;
+    for (let i = 0; i < sb.length; i++) { if (t >= sb[i].start - 1e-3 && t < sb[i].end + 1e-3) { _blockHadInput[i] = true; return; } }
+  }
   function triggerWrapRewind(fromT, toT) {
     if (Math.abs(fromT - toT) < 2.5) return;   // a short A–B loop would strobe — only animate a meaningful span
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -3120,33 +3279,30 @@
   let _ptExempt = null;         // Slice-2 class counts { legato, fast, spanNotes, floorMs } (set per run)
   let _ptJamRun = false;        // Jam run: scorer may run for the meter, but no note ever paints judged
   let _deliberateStop = false;  // true only across an explicit Stop / finite-run end — gates the results modal
-  // ── Input-level / onset gate (2026-06-08 grading rebuild — MIRROR the host's
-  //    own silence gate; docs/grading-rebuild-roundtable.md) ──────────────────
-  // The host's note_detect VERIFY side-door has NO absolute level floor (its
-  // comb is scale-invariant), so an inaudible idle residual (induced signal,
-  // hum) on a direct-interface/DI rig credits HANDS-OFF. The host's REAL grader
-  // gates exactly this — it forces a miss when inputLevel < 0.02 across ±200ms
-  // of a note (note_detect _ND_SILENCE_THRESHOLD). We MIRROR that gate here, fed
-  // by the host's OWN input meter (getLevels) — interface-AGNOSTIC by following
-  // the host: it reports whatever device the player configured in Slopsmith. A
-  // credit ALSO needs an attack ONSET in-window: a steady residual (even above
-  // the floor) has no rising edge and never fires one. No host level source →
-  // gate INACTIVE (no input path to police; fail-open-to-honest).
+  // ── Input-level SILENCE gate (2026-06-09 grading FIX — mirror the host's
+  //    ACTUAL gate; supersedes the 2026-06-08 onset gate) ─────────────────────
+  // P0 (host-expert diff `project_grading_regression_diff_2026-06-09`, confirmed
+  // twice against the live note_detect 1.10 consumer): the host's real grader
+  // (note_detect :5550-5588) is a PURE ONE-WAY VETO — it runs ONLY on an already-
+  // detected pitch verdict and, over ±200ms of the note, forces a MISS iff samples
+  // are present AND peak inputLevel < 0.02 (_ND_SILENCE_THRESHOLD). It does NOT
+  // require an attack onset, and SKIPS the veto when no samples cover the window
+  // ("no telemetry ≠ silent"). The 2026-08 rebuild wrongly made the gate a POSITIVE
+  // precondition that ALSO demanded a +11dB onset edge + inflated the floor (rest×4)
+  // — on a high-gain/compressed/sustained DI the level envelope is flat, so a
+  // re-pick is only a few dB over the ringing baseline → no onset fired → every note
+  // after the first was rejected ("graded in Slopsmith, not SlopScale"). The fix:
+  // match the host EXACTLY — a one-way level veto at fixed 0.02, NO onset, skip-when-
+  // no-samples. The sub-0.02 idle-residual false-positive the rebuild targeted stays
+  // dead (a residual below 0.02 is vetoed when the meter is live — and his is: the
+  // host grades on the same getLevels source). No host level source → gate INACTIVE
+  // (fail-open-to-honest; the detector's pitch/comb evidence still has to fire).
   const PT_LVL_FLOOR_MIN = 0.02;     // host's _ND_SILENCE_THRESHOLD (−34 dBFS on the host's 0..1 meter)
-  const PT_LVL_REST_MULT = 4;        // levelFloor = max(restingFloor × 4 [+12 dB], FLOOR_MIN)
-  const PT_ONSET_RATIO   = 3.5;      // onset fires when level / baseline ≥ this (≈+11 dB rising edge)
-  const PT_ONSET_REFRACT = 0.080;    // suppress onset re-fire for 80ms (attack rise + ring decay)
-  const PT_LVL_WARMUP    = 0.25;     // meter-start warm-up: baseline glued to level (no onset) while the tap settles
+  const PT_LVL_RECENT_WIN = 0.2;     // a live (non-span) credit gates on the input level over the last 200ms (host's ±200ms), ending at the credit moment — NOT the note's future-extending window (which has no samples at its leading edge → would skip the veto)
   let _lvlMode = 'none';             // 'desktop' (getLevels) | 'web' (own analyser) | 'none' (gate inactive)
   let _lvlSamples = [];              // ring of { jt: judge-time, L } (bounded 512)
-  let _lvlOnsets = [];               // ring of onset judge-times (bounded 256)
-  let _lvlBaseline = 0;              // floor-follower (down-fast / up-slow)
-  let _lvlFloor = PT_LVL_FLOOR_MIN;  // calibrated credit floor (host 0..1 scale)
-  let _lvlRestBuf = [];              // count-in resting samples → the 90th-pct floor
-  let _lvlCalibrated = false;        // count-in calibration done this run
-  let _lvlWarmEnd = null;            // judge-time the meter-start warm-up ends (anti analyser-warmup / steady-tone false onset)
-  let _lvlLastOnset = -Infinity;     // last onset judge-time (refractory)
   let _lvlPoll = null;               // desktop getLevels interval
+  let _lvlGen = 0;                   // bumped on every start/stop — an in-flight async getLevels resolving after teardown is ignored
   let _lvlRaf = 0;                   // web analyser RAF handle
   let _lvlStream = null, _lvlAnalyser = null, _lvlData = null;   // web tap
   // ── Timing model (2026-06-06 seven-lane panel; MIRRORS the host's grader) ──
@@ -3286,6 +3442,13 @@
                                       // dissolves in verifier mode (YIN keeps it).
   const PT_SPAN_BUCKET = 0.100;       // tremolo-span presence bucket (s)
   const PT_SPAN_RATIO = 0.6;          // span hit = rung buckets / total ≥ this
+  // Contained-verifier chord credit: the engine scores each chord member
+  // independently; a chord window credits when ≥ this fraction of its members
+  // verified (N-of-M leniency — power-chord strings share harmonics, so not
+  // every string verifies on a clean strum). Mirrors the host's 0.5 verify
+  // ratio (note_detect _ND_VERIFY_MIN_HIT_RATIO); a single note is 1/1 → credit
+  // on its one detected verdict.
+  const PT_CHORD_HIT_RATIO = 0.5;
   // f0-derived post-roll speak budget (bass-pedagogy ruling: a low string's
   // usable evidence arrives late — SHIFT the evidence slot for physics, never
   // widen the timing tolerance as forgiveness). clamp(3·period+25, 35, 80)ms:
@@ -3461,8 +3624,24 @@
   let _ndVerifyActiveWin = null;    // the pushed target's WINDOW (span buckets + unit credit)
   let _ndVerifyListener = null;     // bound notedetect:verify handler
   let _ndWeEnabledNoteDetect = false; // did WE enable note_detect? (restore on stop)
+  // ── Contained-playback verifier (notedetect #64+) ──────────────────────────
+  // When the host exposes the CONTAINED-chart verifier (desktop engine), we
+  // drive the SAME timing-aware harmonic-comb NoteVerifier the 3D highway uses —
+  // pushing OUR exercise chart + playhead and draining engine-finalized per-note
+  // verdicts — instead of the timing-free setVerifyTarget. The engine owns
+  // silence/onset/persistence gating, so SlopScale's homegrown credit veto is
+  // bypassed (ptCreditGatePasses) and judgment maps verdict.id → window via
+  // ptKey. The setVerifyTarget path stays as the browser/downlevel FALLBACK.
+  let _ndContainedMode = false;        // engine contained verifier is the scorer
+  let _ndContainedFallback = false;    // browser/downlevel → old setVerifyTarget path
+  let _ndContainedPushInFlight = false; // one getNoteVerdicts IPC at a time
+  let _ndArmGen = 0;                    // bumped each arm + on stop — an async _ndArmVerify resuming after a stop/restart bails instead of arming the wrong run
   function ndVerifyAvailable() {
     return typeof window.noteDetect?.setVerifyTarget === 'function';
+  }
+  function ndContainedAvailable() {
+    return typeof window.noteDetect?.isContainedVerifierAvailable === 'function'
+      && window.noteDetect.isContainedVerifierAvailable();
   }
   // Active group at the playhead: the window-table OWNER on the latency-shifted
   // judge clock. The verifier's evidence runs ~50–170ms behind the string (its
@@ -3537,16 +3716,148 @@
       const bi = Math.floor((currentPracticeTime - ptLatency() - w.t) / PT_SPAN_BUCKET);
       if (bi >= 0 && bi < w.bktN) w.bkts.add(bi);
     } else {
-      // Credit only if the level+onset gate also passes (raw isHit is not
-      // enough — host-mirror). Timing tendency records only on a real credit.
-      if (ptCreditWindow(w)) _ptDevs.push(currentPracticeTime - ptLatency() - w.t);
+      // Credit only if the level gate also passes (raw isHit is not enough —
+      // host-mirror silence veto). Timing deviation { d, t } records only on a
+      // real credit — feeds both the timing-tendency line and the bass felt-hold
+      // verdict (t = onset, needed for gap/trend detection).
+      if (ptCreditWindow(w)) _ptDevs.push({ d: currentPracticeTime - ptLatency() - w.t, t: w.t });
     }
   }
   function ndStopVerify() {
+    _ndArmGen++;   // invalidate any in-flight _ndArmVerify so a stop/restart can't arm the wrong run
+    // Release the engine chart slot UNCONDITIONALLY (not just when
+    // _ndContainedMode): an arm whose setContainedChart is still in flight has
+    // claimed the slot on the host side but not yet set _ndContainedMode here, so
+    // a guarded release would leak it. releaseContainedChart is idempotent and a
+    // no-op on the bridge when nothing is armed; it also cancels an in-flight
+    // host-side arm (the host bumps its own generation), so that arm resolves
+    // not-armed and can't outlive the run.
+    try { window.noteDetect.releaseContainedChart?.(); } catch (_) {}
+    _ndContainedMode = false; _ndContainedFallback = false; _ndContainedPushInFlight = false;
     if (_ndVerifyListener) { window.removeEventListener('notedetect:verify', _ndVerifyListener); _ndVerifyListener = null; }
     if (_ndVerifyMode) { try { window.noteDetect.setVerifyTarget(null); } catch (_) {} }
     if (_ndWeEnabledNoteDetect) { try { window.noteDetect.disable?.(); } catch (_) {} _ndWeEnabledNoteDetect = false; }
     _ndVerifyMode = false; _ndVerifyCtx = null; _ndVerifyActive = []; _ndVerifyActiveKey = null; _ndVerifyActiveWin = null;
+  }
+  // Build the contained engine chart from the judged set. ptKey(n) is the stable
+  // verdict id (the same key _ptWinByKey / _ptByKey / _ptScored use), so a
+  // drained verdict maps straight back to its window and gem. Chord members are
+  // pushed individually (distinct s → distinct id); ptBuildWindows already
+  // grouped them into one window the per-member verdicts credit via N-of-M.
+  function _ndBuildContainedChart() {
+    return _ptNotes.map(n => ({
+      id: ptKey(n), t: n.t || 0, s: n.s, f: n.f,
+      sus: n.sus || 0, b: !!n.bn,
+    }));
+  }
+  // Arm the verifier for the current run. Enables note_detect (awaiting it so
+  // the desktop bridge is established before we probe for the contained
+  // verifier), then takes the engine contained path on desktop or the
+  // setVerifyTarget fallback on browser/downlevel. Async: the run may be
+  // stopped mid-arm (ndStopVerify clears _ndVerifyMode), so re-check after each
+  // await and bail without arming anything.
+  async function _ndArmVerify() {
+    // Capture this arm's generation. stopPitchTracker→ndStopVerify (and a fresh
+    // arm) bump _ndArmGen, so if the run is stopped — OR stopped AND restarted
+    // (a new run re-sets _ndVerifyMode true) — while we're awaiting enable() /
+    // setContainedChart(), our resume sees a stale gen and bails WITHOUT touching
+    // the new run's mode/listener state. (Re-checking _ndVerifyMode alone can't
+    // tell our run from a restarted one.)
+    const myGen = ++_ndArmGen;
+    const superseded = () => myGen !== _ndArmGen || !_ndVerifyMode;
+    // Track that WE enabled note_detect only AFTER enable() resolves — setting
+    // the flag before the await let a stop racing the pending enable disable it
+    // prematurely (then our resume left it enabled). If the run is gone by the
+    // time enable resolves, undo the enable we just did.
+    let weEnabled = false;
+    try {
+      if (!window.noteDetect.isEnabled?.()) { await window.noteDetect.enable?.(); weEnabled = true; }
+    } catch (_) {}
+    if (weEnabled) _ndWeEnabledNoteDetect = true;
+    if (superseded()) {
+      if (weEnabled) { try { window.noteDetect.disable?.(); } catch (_) {} _ndWeEnabledNoteDetect = false; }
+      return;   // run stopped/restarted during enable() → don't arm
+    }
+    if (ndContainedAvailable()) {
+      // Engine contained verifier (desktop): drive the SAME timing-aware
+      // harmonic-comb NoteVerifier the 3D highway uses with OUR chart + playhead.
+      let ok = null;
+      try { ok = await window.noteDetect.setContainedChart(_ndBuildContainedChart(), _ndVerifyCtx); }
+      catch (_) { ok = null; }
+      // Stopped/restarted during the arm: ndStopVerify already released the slot
+      // (which also cancels this in-flight arm host-side), so just bail — don't
+      // touch mode/listener state that may now belong to a newer run.
+      if (superseded()) return;
+      // Set the mode only AFTER a confirmed arm, so the gate-bypass
+      // (ptCreditGatePasses) and the tick drain never engage against an
+      // unconfirmed/failed chart.
+      if (ok === true) _ndContainedMode = true;
+      else _ndStartVerifyFallback();   // slot taken / unavailable → fall back
+    } else {
+      // Browser / downlevel host: the timing-free setVerifyTarget fallback.
+      _ndStartVerifyFallback();
+    }
+  }
+  // The browser/downlevel FALLBACK: the timing-free setVerifyTarget path
+  // (unchanged from before the contained verifier). Wired only when the engine
+  // contained verifier is unavailable, so SlopScale degrades, never breaks.
+  function _ndStartVerifyFallback() {
+    if (!_ndVerifyMode) return;   // run stopped during arm → don't wire the listener
+    _ndContainedFallback = true;
+    _ndVerifyListener = ndOnVerify;
+    window.addEventListener('notedetect:verify', _ndVerifyListener);
+    ndPushVerifyTarget();
+  }
+  // Per-frame contained-verifier step (called from tick in _ndContainedMode):
+  // (1) synchronously credit verdicts buffered since the last frame — BEFORE
+  // ptWinSeek expires windows this frame — then (2) drive the engine clock with
+  // our exercise playhead (async; buffers for the next frame's drain).
+  function ndDrainContainedVerdicts() {
+    if (!_ndContainedMode) return;
+    const verdicts = (typeof window.noteDetect?.drainContainedVerdicts === 'function'
+      ? window.noteDetect.drainContainedVerdicts() : null) || [];
+    for (const v of verdicts) {
+      if (!v || typeof v.id !== 'string' || !v.detected) continue;   // misses ride ptWinSeek expiry
+      const w = _ptWinByKey.get(v.id);
+      // Skip a window already credited OR already missed: a verdict that lands
+      // late (IPC/frame lag) after ptWinSeek expired the window and dispatched
+      // its miss must not then also credit a hit (double judgment).
+      if (!w || w.credited || w.missDispatched) continue;
+      // Input-presence: the level meter owns _ptHadInput when a host level
+      // source exists; only arm from a verdict when there's none (mirrors
+      // ndOnVerify). A wrong-note pass still reds out via the level meter.
+      if (_lvlMode === 'none') _ptHadInput = true;
+      const detT = Number.isFinite(v.detectedSongTime) ? v.detectedSongTime : (currentPracticeTime - ptLatency());
+      if (w.span) {
+        // Tremolo span: a verdict marks its presence bucket; credit waits for
+        // end-of-span (ptFinalizeSpans).
+        const bi = Math.floor((detT - w.t) / PT_SPAN_BUCKET);
+        if (bi >= 0 && bi < w.bktN) w.bkts.add(bi);
+      } else if (w.notes.length > 1) {
+        // Chord: accumulate distinct detected member ids; credit at N-of-M.
+        if (!w._detIds) w._detIds = new Set();
+        w._detIds.add(v.id);
+        if (w._detIds.size / w.notes.length >= PT_CHORD_HIT_RATIO && ptCreditWindow(w)) {
+          _ptDevs.push({ d: detT - w.t, t: w.t });
+        }
+      } else {
+        // Single note: one detected verdict credits.
+        if (ptCreditWindow(w)) _ptDevs.push({ d: detT - w.t, t: w.t });
+      }
+    }
+    // Drive the engine clock with our exercise playhead (the judge clock the
+    // window table reads). One IPC in flight at a time so a slow round-trip
+    // can't pile up requests at frame rate.
+    if (!_ndContainedPushInFlight && typeof window.noteDetect?.pushContainedPlayhead === 'function') {
+      _ndContainedPushInFlight = true;
+      const t = currentPracticeTime - ptLatency();
+      const playing = !paused && !(_preRollUntil > 0 && currentPracticeTime < _preRollUntil);
+      try {
+        Promise.resolve(window.noteDetect.pushContainedPlayhead(t, playing))
+          .catch(() => {})
+          .finally(() => { _ndContainedPushInFlight = false; });
+      } catch (_) { _ndContainedPushInFlight = false; }
+    }
   }
   // Active pathway state — tracks which pathway is showing and which variation
   // index we are on, so Next Variation rotates predictably.
@@ -3977,7 +4288,7 @@
       vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ],
     },
     g_blues_scale: {
-      role:'scale_arp', label:'Blues scale', competency:'blues vocabulary',
+      role:'scale_arp', label:'Blues scale', competency:'blues vocabulary', creditsPathway:'blues_foundation',
       band:'beginner', instrument:'guitar', style:'blues', kind:'scale',
       base:{ scale:'blues', meter:'4/4', subdivision:'eighth', bars:12, direction:'up_down', sequence:'none', fretboardSystem:'caged' },
       vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ],
@@ -4024,7 +4335,7 @@
       vary:[ { key:'A', shape:'E', bendTarget:'whole' }, { key:'A', shape:'E', bendTarget:'half' }, { key:'E', shape:'E', bendTarget:'whole' }, { key:'D', shape:'E', bendTarget:'mixed' } ],
     },
     g_tech_sweep: {
-      role:'technique', label:'Sweep arpeggio primer', competency:'clean sweep picking',
+      role:'technique', label:'Sweep arpeggio primer', competency:'clean sweep picking', creditsPathway:'arp_sweeps',
       band:'advanced', instrument:'guitar', style:null, kind:'sweep_arpeggios',
       base:{ scale:'natural_minor', meter:'4/4', subdivision:'sixteenth', bars:8, direction:'up_down', fretboardSystem:'caged', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII' },
       vary:[ { key:'A', shape:'E' }, { key:'A', shape:'A' }, { key:'D', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'G' } ],
@@ -4049,7 +4360,7 @@
       vary:[ { key:'C', shape:'E' }, { key:'C', shape:'A' }, { key:'C', shape:'G' }, { key:'C', shape:'C' }, { key:'C', shape:'D' } ],
     },
     g_scale_dorian: {
-      role:'scale_arp', label:'Dorian groove', competency:'the raised-6th colour',
+      role:'scale_arp', label:'Dorian groove', competency:'the raised-6th colour', creditsPathway:'dorian_groove',
       band:'intermediate', instrument:'guitar', style:null, kind:'scale',
       base:{ scale:'dorian', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', sequence:'none', fretboardSystem:'caged', progression:'i-VII-VI-VII', chordDepth:'seventh', chordOverride:'min7' },
       vary:[ { key:'A', shape:'E' }, { key:'D', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ],
@@ -4200,7 +4511,7 @@
     },
     // Review role (resurface an earlier skill)
     g_review_pentatonic: {
-      role:'review', label:'Pentatonic review', competency:'recall the box',
+      role:'review', label:'Pentatonic review', competency:'recall the box', creditsPathway:'pent_foundation',
       band:'beginner', instrument:'guitar', style:null, kind:'scale',
       base:{ scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', sequence:'none', fretboardSystem:'caged' },
       vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'E' }, { key:'D', shape:'E' } ],
@@ -4303,20 +4614,20 @@
       vary:[ { key:'A' }, { key:'E' }, { key:'G' }, { key:'D' } ],
     },
     b_arp_triads: {
-      role:'scale_arp', label:'Triad arpeggios', competency:'chord-tone targeting',
+      role:'scale_arp', label:'Triad arpeggios', competency:'chord-tone targeting', creditsPathway:'bass_arp_triads',
       band:'beginner', instrument:'bass', style:null, kind:'diatonic_arpeggios',
       base:{ scale:'major', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', fretboardSystem:'position', chordDepth:'triad', chordOverride:'auto', fretMin:0, fretMax:7 },
       vary:[ { key:'C' }, { key:'G' }, { key:'A' }, { key:'E' } ],
     },
     b_arp_sevenths: {
-      role:'scale_arp', label:'Seventh arpeggios', competency:'7th chord tones',
+      role:'scale_arp', label:'Seventh arpeggios', competency:'7th chord tones', creditsPathway:'bass_arp_sevenths',
       band:'intermediate', instrument:'bass', style:null, kind:'diatonic_arpeggios',
       base:{ scale:'natural_minor', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', fretboardSystem:'position', chordDepth:'seventh', chordOverride:'auto', fretMin:0, fretMax:7 },
       vary:[ { key:'A' }, { key:'E' }, { key:'D' }, { key:'C' } ],
     },
     // Application (over the changes)
     b_app_walking: {
-      role:'application', label:'Walking bass — ii–V–I', competency:'walk the changes',
+      role:'application', label:'Walking bass — ii–V–I', competency:'walk the changes', creditsPathway:'bass_walking',
       band:'intermediate', instrument:'bass', style:'jazz', kind:'walking_bass',
       base:{ scale:'major', meter:'4/4', subdivision:'quarter', bars:8, direction:'up_down', fretboardSystem:'position', chordDepth:'seventh', chordOverride:'auto', fretMin:0, fretMax:7 },
       vary:[ { key:'C', progression:'ii-V-I' }, { key:'F', progression:'ii-V-I' }, { key:'C', progression:'vi-ii-V-I' }, { key:'G', progression:'ii-V-I' } ],
@@ -4452,6 +4763,33 @@
     if (rawSeg.keyCycle) seg.keyCycle = rawSeg.keyCycle;
     if (rawSeg.targetSec != null) seg.targetSec = rawSeg.targetSec;
     return seg;
+  }
+
+  // ── Competency-naming layer (Workout-love Tier 3) ───────────────────────────
+  // The end-of-Workout recap chapter list AND the per-block seam verdict both name
+  // the TRANSFERABLE SKILL a block builds, in goal-card voice ("play the changes",
+  // not "block 3: arpeggios" — L&D). Template-ref slots carry `competency` on their
+  // SEGMENT_TEMPLATE; inline BUILT_IN_SESSIONS segments don't, so fall back by kind,
+  // then a cleaned kind. Pure (no DOM/host) — used by buildSessionChart to enrich
+  // segmentBounds, which both display surfaces then read.
+  const KIND_COMPETENCY = {
+    chromatic:'finger independence', scale:'scale fluency', arpeggios:'arpeggio shapes',
+    diatonic_arpeggios:'seventh-chord vocabulary', chord_scales:'play the changes',
+    guide_tones:'voice-lead the changes', pedal_riff:'riff lock', legato:'hammer/pull fluency',
+    bending:'bend intonation', sweep_arpeggios:'clean sweep picking', strum_comp:'comping feel',
+    shell_voicings:'shell voicings', rhythm_pulse:'subdivision + feel', herta:'burst control',
+    concept_chords:'chord concepts', walking_bass:'walking lines', root_fifth_octave:'root-fifth lock',
+    octave_groove:'octave groove', dead_note_groove:'dead-note feel', slap_pop:'slap & pop',
+    right_hand_technique:'right-hand control', tapping:'tapping fluency', hybrid_picking:'hybrid picking',
+    tremolo_picking:'tremolo control', vibrato:'vibrato control',
+  };
+  function prettyKind(kind) { return String(kind || 'practice').replace(/_/g, ' '); }
+  // The transferable skill a session block builds, in goal-card voice.
+  function segmentCompetency(rawSeg, segment) {
+    const tmpl = rawSeg && rawSeg.templateId ? SEGMENT_TEMPLATES[rawSeg.templateId] : null;
+    if (tmpl && tmpl.competency) return tmpl.competency;
+    const kind = segment && segment.kind;
+    return KIND_COMPETENCY[kind] || prettyKind(kind);
   }
 
   // Startup integrity guard (mirrors validateStylePalettes + the no-unison guard):
@@ -5295,7 +5633,7 @@
     }
     return beats;
   }
-  function buildAnchors(cfg, duration) { const out = [], width = Math.max(3, cfg.fretMax - cfg.fretMin + 1); for (let t = 0; t <= duration + 0.0001; t += 2) out.push({ time: Number(t.toFixed(6)), fret: cfg.fretMin, width }); return out; }
+  function buildAnchors(cfg, duration) { const fMin = Number.isFinite(cfg.fretMin) ? cfg.fretMin : 0, fMax = Number.isFinite(cfg.fretMax) ? cfg.fretMax : fMin + 4; const out = [], width = Math.max(3, fMax - fMin + 1); for (let t = 0; t <= duration + 0.0001; t += 2) out.push({ time: Number(t.toFixed(6)), fret: fMin, width }); return out; }
 
   // ===========================================================================
   // §5 · CHORD-DEPTH / DIATONIC EXTENSION ENGINE
@@ -7201,7 +7539,7 @@
 
   // Technique flags an event may carry through to its rendered note. Anything
   // not in this list (e.g. midi/pc bookkeeping) is dropped so notes stay clean.
-  const SEQ_NOTE_FIELDS = ['ho', 'po', 'vb', 'tr', 'tp', 'bn', 'hm', 'hp', 'pm', 'mt', 'ac', 'sl', 'slu'];
+  const SEQ_NOTE_FIELDS = ['ho', 'po', 'vb', 'tr', 'tp', 'bn', 'hm', 'hp', 'pm', 'mt', 'ac', 'sl', 'slu', 'fg'];
 
   function orientSeq(events, direction) {
     if (direction === 'descending') return events.slice().reverse();
@@ -7286,11 +7624,13 @@
     // hammering on after the first note on each string.
     const strAsc = Object.keys(byStr).map(Number).sort((a, b) => a - b);
     const asc = [], desc = [];
+    // carry n.fg — the fretting-hand finger (the bass 1-2-4 box puts the hammered
+    // note on the pinky); SEQ_NOTE_FIELDS now lists 'fg' so it survives to the chart.
     for (const s of strAsc) {
-      byStr[s].sort((a, b) => a.f - b.f).forEach((n, i) => asc.push({ s: n.s, f: n.f, ho: i > 0, po: false }));
+      byStr[s].sort((a, b) => a.f - b.f).forEach((n, i) => asc.push({ s: n.s, f: n.f, fg: n.fg, ho: i > 0, po: false }));
     }
     for (const s of strAsc.slice().reverse()) {
-      byStr[s].sort((a, b) => b.f - a.f).forEach((n, i) => desc.push({ s: n.s, f: n.f, ho: false, po: i > 0 }));
+      byStr[s].sort((a, b) => b.f - a.f).forEach((n, i) => desc.push({ s: n.s, f: n.f, fg: n.fg, ho: false, po: i > 0 }));
     }
     const seq = cfg.direction === 'ascending' ? asc : cfg.direction === 'descending' ? desc : [...asc, ...desc];
     const sus = Math.max(0.05, step * 0.9);
@@ -9045,25 +9385,152 @@
     return null;
   }
 
-  // ── Workout length presets (pacing charette) ────────────────────────────────
-  // OPT-IN session length — never the default (the natural "As built" length is
-  // preserved when no preset is set). A preset distributes a total wall-clock
-  // target across the blocks PROPORTIONAL to each block's natural cell duration
-  // (so the warm-up stays relatively short and the arc's shape is preserved), via
-  // each block's targetSec → fillBlockToDuration tiles whole reps. Duration is a
-  // setup PLAN shown as a sum, never a graded countdown. See memory
-  // project_workout_pacing_charette.
+  // ── Workout length presets — the ADD-ARC (Workout-love Tier 3) ──────────────
+  // OPT-IN session length — never the default ("As built" preserved when unset). A
+  // longer preset must mean a better ARC, not the SAME blocks stretched longer
+  // (L&D's "biggest pacing gap": scaling one drill ~5× = mindless massing). So:
+  //   composeAddArc()  → structurally ADD blocks derived from the player's own arc
+  //   then dose         → the ORIGINAL arc is capped near natural; the spare time
+  //                       funds the added blocks, never a single bloated run.
+  // The cap (most the original arc may stretch) is the forcing function. Added
+  // blocks are DERIVED, never invented: a template block re-rolls to its NEXT vary
+  // context (key/shape); an inline block transposes a circle-of-5ths. Returns a NEW
+  // session with reordered+extended segments[] — NEVER a chart splice (so it
+  // composes with the inter-block breaks / segmentBounds / per-block backing / wrap
+  // for free, and keeps smoke-session-sync + smoke-variation coverage). Recomputes
+  // from the CANONICAL arc (strips prior _added blocks) so presets don't compound.
+  // Spec: docs/workout-love-roundtable.md (Tier 3); memory project_workout_love.
   const LENGTH_PRESETS = { quick: 10, standard: 20, woodshed: 30 };   // minutes
+  const LENGTH_CAP = { quick: 1.25, standard: 1.5, woodshed: 1.75 };  // most the ORIGINAL arc may stretch (rhythm-meter)
+  // Per-category single-run dose ceiling (L&D) — the forcing function: a block
+  // can't soak the extra minutes by stretching ONE run; the spare time funds more
+  // CONTEXT-CYCLING passes (not a 14-min single-key block = the massing we kill).
+  const DOSE_CEILING = { warmup: 75, technique: 90, scale_arp: 90, application: 120, jam: 150, review: 90, cooldown: 60 };
+  function doseCeiling(role) { return DOSE_CEILING[role] || 90; }
+  const REVIEW_MAX_PASSES = 4, APP_MAX_PASSES = 3;   // bound the added-arc band count
   function lengthPresetSec(preset) { return LENGTH_PRESETS[preset] ? LENGTH_PRESETS[preset] * 60 : null; }
+  // Role inference for inline session blocks (no `role`); template blocks carry it.
+  const KIND_ROLE = {
+    chromatic:'warmup', scale:'scale_arp', arpeggios:'scale_arp', diatonic_arpeggios:'scale_arp',
+    guide_tones:'application', chord_scales:'application', strum_comp:'application', modal_vamp:'jam',
+    legato:'technique', bending:'technique', sweep_arpeggios:'technique', pedal_riff:'technique',
+    rhythm_pulse:'technique', herta:'technique', concept_chords:'application',
+  };
+  function blockRole(seg) {
+    if (seg.role) return seg.role;
+    if (seg.templateId && SEGMENT_TEMPLATES[seg.templateId]) return SEGMENT_TEMPLATES[seg.templateId].role;
+    return KIND_ROLE[seg.kind] || null;
+  }
+  const CIRCLE_OF_FIFTHS = ['C','G','D','A','E','B','F#','Db','Ab','Eb','Bb','F'];
+  function nextFifthKey(key) {
+    const norm = { 'Gb':'F#','C#':'Db','D#':'Eb','G#':'Ab','A#':'Bb' };
+    const k = norm[key] || key;
+    const i = CIRCLE_OF_FIFTHS.indexOf(k);
+    return i < 0 ? key : CIRCLE_OF_FIFTHS[(i + 1) % CIRCLE_OF_FIFTHS.length];
+  }
+  function segNatDur(s) { const m = materializeSegment(s); return m ? segmentEstDuration(m) : 0; }
+  // A spaced REVIEW pass of the primary skill block, advanced `step` CONTEXTS —
+  // re-rolled to a later vary context (template: key/shape) or transposed `step+1`
+  // fifths (inline). Same competency, new context = transfer (NOT the same cell
+  // tiled longer). Each pass is ceiling-sized, so a long budget = MORE contexts.
+  function deriveReviewBlock(src, step) {
+    step = step || 0;
+    const comp = segmentCompetency(src, src);
+    let block, key;
+    if (src.templateId && SEGMENT_TEMPLATES[src.templateId]) {
+      const tmpl = SEGMENT_TEMPLATES[src.templateId];
+      const nVar = (tmpl.vary && tmpl.vary.length) ? tmpl.vary.length : 1;
+      block = materializeSegment({ templateId: src.templateId, variantIdx: (((src.variantIdx || 0) + 1 + step) % nVar) });
+      key = block && block.config && block.config.key;
+    } else {
+      const cfg = Object.assign({}, src.config || {});
+      let k = cfg.key;
+      for (let i = 0; i <= step; i++) if (k) k = nextFifthKey(k);
+      if (k) cfg.key = k;
+      key = k; block = { kind: src.kind, config: cfg };
+    }
+    if (!block) return null;
+    return Object.assign({}, block, {
+      id: (src.id || 'blk') + '_review' + (step ? '_' + step : ''),
+      name: `Revisited — ${comp}${key ? ` in ${key}` : ''}`, role: 'review', _added: true,
+      config: Object.assign({}, block.config, { audio: (src.config || {}).audio }),
+    });
+  }
+  // A 2nd APPLICATION of the last application/jam block, transposed `step+1` fifths.
+  function deriveApplicationBlock(src, step) {
+    step = step || 0;
+    const cfg = Object.assign({}, src.config || {});
+    let k = cfg.key;
+    for (let i = 0; i <= step; i++) if (k) k = nextFifthKey(k);
+    if (k) cfg.key = k;
+    return Object.assign({}, src, {
+      id: (src.id || 'blk') + '_app2' + (step ? '_' + step : ''),
+      name: `Apply again${k ? ` in ${k}` : ''}`, role: src.role || blockRole(src) || 'application', _added: true, config: cfg,
+    });
+  }
+  // The structural add-arc: which blocks to ADD + where + how big (`share` sec).
+  // Quick adds nothing; Standard adds a closing Review only if the session ends
+  // cold; Woodshed adds a Review arc (interleaved before the application) + a 2nd
+  // application arc (appended). Each arc is FILLED with ceiling-sized, context-
+  // cycling passes — so the spare time buys more KEYS/SHAPES (Travel), never a
+  // single bloated run. anchorIdx = the original-arc index to insert before
+  // (origLen = append).
+  function composeAddArc(origSegs, preset, addBudget) {
+    if (preset === 'quick' || addBudget <= 1) return [];
+    const roles = origSegs.map(blockRole);
+    const appIdx = roles.findIndex(r => r === 'application' || r === 'jam');
+    let skillIdx = roles.findIndex(r => r === 'technique' || r === 'scale_arp');
+    if (skillIdx < 0) skillIdx = roles.findIndex(r => r !== 'warmup' && r !== 'cooldown' && r !== 'jam');
+    let lastApp = -1; for (let i = 0; i < roles.length; i++) if (roles[i] === 'application' || roles[i] === 'jam') lastApp = i;
+    const endsCold = !(roles.includes('application') || roles.includes('jam') || roles.includes('cooldown') || roles.includes('review'));
+    const wantReview = preset === 'woodshed' || (preset === 'standard' && endsCold);
+    const doApp = preset === 'woodshed' && lastApp >= 0;
+    const revBudget = doApp ? addBudget * 0.6 : addBudget;
+    const appBudget = doApp ? addBudget * 0.4 : 0;
+    const out = [];
+    if (wantReview && skillIdx >= 0) {
+      const ceil = doseCeiling('review');
+      const n = Math.max(1, Math.min(REVIEW_MAX_PASSES, Math.round(revBudget / ceil)));
+      for (let i = 0; i < n; i++) { const b = deriveReviewBlock(origSegs[skillIdx], i); if (b) out.push({ seg: b, anchorIdx: appIdx >= 0 ? appIdx : origSegs.length, share: revBudget / n }); }
+    }
+    if (doApp) {
+      const ceil = doseCeiling(roles[lastApp] || 'application');
+      const n = Math.max(1, Math.min(APP_MAX_PASSES, Math.round(appBudget / ceil)));
+      for (let i = 0; i < n; i++) { const b = deriveApplicationBlock(origSegs[lastApp], i); if (b) out.push({ seg: b, anchorIdx: origSegs.length, share: appBudget / n }); }
+    }
+    return out;
+  }
   function applyLengthPreset(session, preset) {
     const totalSec = lengthPresetSec(preset);
     if (!totalSec || !session) return session;
-    const segs = session.segments || [];
-    if (!segs.length) return session;
-    const nat = segs.map(s => { const m = materializeSegment(s); return m ? segmentEstDuration(m) : 0; });
-    const sum = nat.reduce((a, b) => a + b, 0) || 1;
-    const scaled = segs.map((s, i) => Object.assign({}, s, { targetSec: Math.max(20, (nat[i] / sum) * totalSec) }));   // ≥20s/block
-    return Object.assign({}, session, { segments: scaled });
+    // Recompute from the CANONICAL arc — strip any prior _added blocks so changing
+    // presets never compounds review passes (rhythm-meter). Non-mutating.
+    const origSegs = (session.segments || []).filter(s => !s._added);
+    if (!origSegs.length) return session;
+    const nat = origSegs.map(segNatDur);
+    const natSum = nat.reduce((a, b) => a + b, 0) || 1;
+    const cap = LENGTH_CAP[preset] || 1.5;
+    const originalBudget = Math.min(totalSec, natSum * cap);
+    const addBudget = totalSec - originalBudget;
+    const adds = composeAddArc(origSegs, preset, addBudget);
+    if (!adds.length) {
+      // No add-arc (Quick, the preset fits a gentle stretch, or nothing to derive)
+      // → dose the original arc across the WHOLE total proportionally (the prior
+      // behaviour; a clean degrade so the realized length still ≈ the preset).
+      const scaled = origSegs.map((s, i) => Object.assign({}, s, { targetSec: Math.max(20, (nat[i] / natSum) * totalSec) }));
+      return Object.assign({}, session, { segments: scaled });
+    }
+    // Dose the original arc to originalBudget (≈ natural × cap — no massing). Each
+    // added pass takes its `share`, CLAMPED at ~1.6× its category ceiling so a
+    // thin source + a long preset can't bloat one pass (it under-fills with varied
+    // contexts instead — honest length over massing).
+    const origScaled = origSegs.map((s, i) => Object.assign({}, s, { targetSec: Math.max(20, (nat[i] / natSum) * originalBudget) }));
+    adds.forEach(a => { const ceil = doseCeiling(blockRole(a.seg)); a.seg = Object.assign({}, a.seg, { targetSec: Math.max(20, Math.min(a.share, ceil * 1.6)) }); });
+    // Splice added blocks at their anchors (descending so earlier inserts don't
+    // shift later anchors). The result is a reordered+extended segments[] array.
+    const segs = origScaled.slice();
+    adds.slice().sort((a, b) => b.anchorIdx - a.anchorIdx).forEach(a => { segs.splice(a.anchorIdx, 0, a.seg); });
+    return Object.assign({}, session, { segments: segs });
   }
 
   // ── Inter-block transition break (Workout pacing charette, 2026-06-02) ───────
@@ -9200,13 +9667,27 @@
       chart.chords.forEach(c => chords.push(Object.assign({}, c, { t:Number((c.t + t).toFixed(6)), id:c.id + tplOffset })));
       chart.chordTemplates.forEach(ct => chordTemplates.push(ct));
       chart.handShapes.forEach(hs => handShapes.push(Object.assign({}, hs, { chord_id:hs.chord_id + tplOffset, start_time:Number((hs.start_time + t).toFixed(6)), end_time:Number((hs.end_time + t).toFixed(6)) })));
-      (chart.anchors || []).forEach(a => anchors.push(Object.assign({}, a, { time:Number((a.time + t).toFixed(6)) })));
+      // Per-block anchors (the desync rule applied to the hand-position zone): a
+      // block that doesn't emit its OWN anchors (position-mode runs don't — only
+      // shape runs set shapeRunAnchors) must still contribute a fret-window box
+      // built from ITS segCfg, not silently inherit block 1's. Without this the
+      // session anchors[] stays empty for ordinary Workout blocks, and
+      // generateSession's firstCfg fallback then parks the highway's blue
+      // fret-window highlight at segment 1's window for the WHOLE Workout — it
+      // aligns with the first segment and drifts off every following one (the
+      // 2026-06-11 DapperTap "highlight doesn't follow segments" report).
+      const segAnchors = (chart.anchors && chart.anchors.length) ? chart.anchors : buildAnchors(segCfg, dur);
+      segAnchors.forEach(a => anchors.push(Object.assign({}, a, { time:Number((a.time + t).toFixed(6)) })));
       // Use pre-computed beats if the chart has them (BPM ladder), else generate
       const segBeats = chart.beats || buildBeats(segCfg, dur);
       segBeats.forEach(b => beats.push(Object.assign({}, b, { time:Number((b.time + t).toFixed(6)) })));
       swung.backing.forEach(ev => backingEvents.push(Object.assign({}, ev, { t:Number((ev.t + t).toFixed(6)), end:Number((ev.end + t).toFixed(6)) })));
       tplOffset += (chart.chordTemplates || []).length;
-      segmentBounds.push({ name:segment.name, kind:segment.kind, role:segment.role, start:Number(t.toFixed(6)), end:Number((t + dur).toFixed(6)) });
+      segmentBounds.push({ name:segment.name, kind:segment.kind, role:(blockRole(segment) || segment.role || null),
+        competency:segmentCompetency(rawSeg, segment),
+        templateId:(rawSeg.templateId || null), variantIdx:(rawSeg.variantIdx != null ? rawSeg.variantIdx : null),
+        added:!!rawSeg._added, key:(segCfg.key || null), bpm:(segCfg.bpm || null),
+        start:Number(t.toFixed(6)), end:Number((t + dur).toFixed(6)) });
       const blkBar = measureSeconds(segCfg);
       beatOff += (dur / blkBar) * Math.max(1, segCfg.meter.numerator);
       barOff += Math.round(dur / blkBar);
@@ -9371,12 +9852,15 @@
       currentTime:0,
       songInfo:{ title:exerciseTitle(cfg), artist:'SlopScale', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'slopscale_beta-practice', fretboardSystem:cfg.fretboardSystem },
       config:cfg,
-      // Finite-run eligibility (Depth Ladder slice 1): a single-exercise DRILL
-      // (Pathways/Custom) plays its right-sized run ONCE then ends with the session
-      // summary, instead of looping forever — unless the user flips "keep looping".
-      // A Workout session (mode 'session') keeps its segment-advance/looping; Jam
-      // (mode undefined, + its own A–B loop) stays endless. So: eligible = a drill.
-      finiteRun: cfg.mode != null && cfg.mode !== 'session',
+      // Finite-run eligibility (Depth Ladder slice 1): a run with a real mode
+      // (Pathways/Custom AND a Workout session) plays its tiled length ONCE then
+      // ENDS with the recap, instead of looping forever — unless the user flips
+      // "keep looping". A Workout MUST be finite: it is the engagement Tier-3 recap's
+      // trigger, and looping it re-walked already-credited windows → every note past
+      // the first pass painted a STALE "hit" while the counter froze (the ~250-note
+      // dogfood bug, 2026-06-09). Jam (mode undefined + its own A–B segment loop)
+      // stays endless and never judges. So: eligible = anything with a mode.
+      finiteRun: cfg.mode != null,
     isReady:true, notes:notesWithTail, chords:c.chords, anchors:c.anchors, beats:beatsWithTail, sections:c.sections, chordTemplates:c.chordTemplates, handShapes:c.handShapes, segmentBounds:c.segmentBounds || null,
       leadIn:lead,
       // Backing comp/bass + drums cover the music only ([lead, duration]); generate
@@ -10980,24 +11464,18 @@
   // (drives the layout) and the chevron button (glyph + a11y).
   function syncPanelToggle() {
     $('slopscale_beta-root')?.classList.toggle('slopscale_beta-collapsed', panelCollapsed);
-    // Setup|Play segmented control: Play == collapsed (rail hidden, stage widened).
-    document.querySelectorAll('.slopscale_beta-modeview-btn').forEach(b => {
-      const on = (b.dataset.modeview === 'play') === panelCollapsed;
-      b.classList.toggle('active', on);
-      b.setAttribute('aria-pressed', String(on));
-    });
+    // « collapse (in the pane) / » expand (floats when collapsed) — CSS shows the
+    // right one off .slopscale_beta-collapsed; just keep a11y state honest.
+    $('slopscale_beta-pane-collapse-btn')?.setAttribute('aria-expanded', String(!panelCollapsed));
+    $('slopscale_beta-pane-expand-btn')?.setAttribute('aria-expanded', String(!panelCollapsed));
   }
   function setPanelCollapsed(v) {
     panelCollapsed = !!v;  // session-only; startup/selection always resets to expanded
     syncPanelToggle();
-    // The render-host width changed — re-fit the active renderer so a borrowed
-    // viz re-lays-out instead of stretching its old canvas (mirrors the
-    // fretboard-strip toggle).
-    if (renderer && typeof renderer.resize === 'function') {
-      const host = $('slopscale_beta-render-host');
-      if (host) { const r = host.getBoundingClientRect(); renderer.resize(Math.round(r.width), Math.round(r.height)); }
-    }
-    drawOnce();
+    // The left pane now SLIDES (grid-template-columns, ~0.3s) → re-fit the renderer +
+    // redraw across the slide so the borrowed viz tracks the widening/narrowing stage
+    // (a one-shot re-fit would use the pre-slide width).
+    refitStageDuring(340);
   }
   // ── Focus mode (fullscreen the stage) ──────────────────────────────────────
   // Fullscreens just the .slopscale_beta-stage (transport + ruler + render) so the
@@ -11029,7 +11507,11 @@
   // ===========================================================================
   function drawFretboardFrame() {
     const canvas = $('slopscale_beta-fretboard');
-    if (!canvas || canvas.offsetParent === null) return;  // hidden (wrong view / toggled off / piano)
+    if (!canvas || canvas.offsetParent === null) return;  // hidden (wrong view / piano / display:none)
+    // The strip now SLIDES via max-height (it stays display:block when capable-but-
+    // off), so also skip when it's collapsed/mid-close — no point drawing a canvas the
+    // container has clipped to ~0. (clientHeight tracks the live max-height.)
+    const _strip = canvas.parentElement; if (_strip && _strip.clientHeight < 4) return;
     if (!fbCtx || fbCtx.canvas !== canvas) fbCtx = canvas.getContext('2d');
     const ctx = fbCtx; if (!ctx) return;
     const dpr = window.devicePixelRatio || 1, rect = canvas.getBoundingClientRect();
@@ -11250,12 +11732,37 @@
     }
     if (target == null || target <= now + 1e-4) return null;
     // The digit holds across its own beat: count from the current beat (inclusive)
-    // to the downbeat (exclusive) → 4,3,2,1 then clear on the downbeat.
+    // to the downbeat (exclusive) → 4,3,2,1 then clear on the downbeat. Count only
+    // within the CURRENT bar (to the next bar-start), not the whole break — a 3–4
+    // bar verdict seam (Tier 3) would otherwise read "12 11 10…" (rhythm-meter
+    // ruling). Multi-bar breaks then count 4·3·2·1 per bar, the DAW convention.
     let cbs = now;
     for (let i = beats.length - 1; i >= 0; i--) { if (beats[i].time <= now + 1e-4) { cbs = beats[i].time; break; } }
+    let barEnd = target;
+    for (let i = 0; i < beats.length; i++) {
+      if (beats[i].time > cbs + 1e-4 && (beats[i].measure ?? -1) >= 0) { barEnd = Math.min(target, beats[i].time); break; }
+    }
     let remain = 0;
-    for (let i = 0; i < beats.length; i++) { if (beats[i].time >= cbs - 1e-4 && beats[i].time < target - 1e-4) remain++; }
+    for (let i = 0; i < beats.length; i++) { if (beats[i].time >= cbs - 1e-4 && beats[i].time < barEnd - 1e-4) remain++; }
     return { kind, target, start: cbs, remain: Math.max(1, remain) };
+  }
+  // The per-block SEAM VERDICT (Tier 3): at a genuine inter-block break in a
+  // multi-block Workout, which block just ended + which is next. Drives the DOM
+  // breath card (the NAMES) and the ruler's "NEXT ▸ <name>" label. Excludes the
+  // head count-in / resume runway (kind != 'break'), the trailing loop-wrap break
+  // (target = the loop point, ≥ dur), Jam, and single-drill charts (< 2 blocks).
+  function seamVerdictInfo(seam) {
+    seam = seam || seamCountInfo();
+    if (!seam || seam.kind !== 'break' || isJamMode()) return null;
+    const b = activeBundle; if (!b) return null;
+    const dur = b.songInfo?.duration || 0;
+    if (seam.target >= dur - 1e-3) return null;            // trailing loop-wrap, not an inter-block transition
+    const sb = Array.isArray(b.segmentBounds) ? b.segmentBounds : [];
+    if (sb.length < 2) return null;
+    let nextIdx = -1;
+    for (let i = 0; i < sb.length; i++) { if (sb[i].start >= seam.target - 0.05) { nextIdx = i; break; } }
+    if (nextIdx <= 0) return null;                          // no prior block to close
+    return { done: sb[nextIdx - 1], next: sb[nextIdx], idx: nextIdx, total: sb.length };
   }
   function drawRulerFrame() {
     const canvas = $('slopscale_beta-ruler-canvas');
@@ -11337,7 +11844,12 @@
       const rx0 = Math.max(0, px), rx1 = Math.min(W, xAt(seam.target));
       if (rx1 > rx0) { ctx.fillStyle = 'rgba(245,180,80,0.12)'; ctx.fillRect(rx0, lz, rx1 - rx0, H - lz); }
       ctx.fillStyle = 'rgba(245,180,80,0.20)'; ctx.fillRect(0, 0, W, lz);
-      const label = seam.kind === 'countin' ? 'COUNT-IN' : seam.kind === 'resume' ? 'RESUME' : 'NEXT ▸';
+      // The incoming block name rides the NEXT ▸ label (so 2D/Tab/Notation get it
+      // even when the overview band is too narrow to render text) — the ruler owns
+      // the digit, the DOM seam card owns the fuller closure. (Tier 3.)
+      const sv = seamVerdictInfo(seam);
+      let label = seam.kind === 'countin' ? 'COUNT-IN' : seam.kind === 'resume' ? 'RESUME' : 'NEXT ▸';
+      if (sv && sv.next && sv.next.name) label = `NEXT ▸ ${sv.next.name}`;
       ctx.fillStyle = 'rgba(247,206,140,0.95)'; ctx.font = 'bold 8px ui-sans-serif, sans-serif';
       ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
       ctx.fillText(label, padX + 4, lz / 2 + 0.5);
@@ -11564,7 +12076,48 @@
     }
   }
 
-  function drawOnce() { drawFretboardFrame(); drawRulerFrame(); drawOverviewFrame(); drawChordBoxFrame(); if (!renderer || !activeBundle) return; const vb = rendererBundle || activeBundle; vb.currentTime = currentPracticeTime; syncHighwaySettings(vb); try { renderer.draw(vb); } catch (e) { console.warn('[SlopScale] renderer draw failed', e); } syncTransportTime(); }
+  // Per-block SEAM VERDICT card (Tier 3): during a Workout inter-block breath, show
+  // the just-finished block's closure + the next block breadcrumb in the stage
+  // lower-third; hide otherwise. Text is written once per seam (keyed) so the frame
+  // loop doesn't thrash the DOM; the fade is CSS. Cleared on stop (drawOnce runs
+  // there too). The ruler owns the countdown digit — this card owns the NAMES.
+  let _seamCapKey = '';
+  function updateSeamCaption() {
+    const el = $('slopscale_beta-seam-caption'); if (!el) return;
+    const v = (playing && !paused) ? seamVerdictInfo() : null;
+    if (!v) { if (_seamCapKey) { el.classList.remove('is-on'); _seamCapKey = ''; } return; }
+    const key = `${v.idx}/${v.total}`;
+    if (key !== _seamCapKey) {
+      const doneEl = el.querySelector('.slopscale_beta-seam-done');
+      const nextEl = el.querySelector('.slopscale_beta-seam-next');
+      // Honest closure (Tier A): if the mic was live this run but the just-ended
+      // block got NO input, the player skipped/watched it — don't claim "✓ done"
+      // (silence is never narrated). Mic-less runs keep the plain completion line.
+      const blockSilent = _ptHadInput && !_blockHadInput[v.idx - 1];
+      if (doneEl) doneEl.textContent = blockSilent ? '' : `✓ ${v.done.name || 'Block'} — done`;
+      if (nextEl) nextEl.innerHTML = `Next ▸ ${v.next.name || 'next'} <span class="slopscale_beta-seam-pos">· block ${v.idx + 1} of ${v.total}</span>`;
+      el.classList.add('is-on');
+      _seamCapKey = key;
+    }
+  }
+  function drawOnce() { drawFretboardFrame(); drawRulerFrame(); drawOverviewFrame(); updateSeamCaption(); drawChordBoxFrame(); if (!renderer || !activeBundle) return; const vb = rendererBundle || activeBundle; vb.currentTime = currentPracticeTime; syncHighwaySettings(vb); try { renderer.draw(vb); } catch (e) { console.warn('[SlopScale] renderer draw failed', e); } syncTransportTime(); }
+  // Re-fit the borrowed renderer + redraw ACROSS a layout SLIDE (the fretboard strip /
+  // left pane now animate over ~0.3s). Doing this once synchronously used the PRE-slide
+  // size — the fretboard didn't render until a lane switch + the highway didn't re-fit
+  // on hide. Runs immediately (correct for reduced-motion/instant) then each frame for
+  // `ms`, so both canvases track the changing stage size and settle correct.
+  function refitStageDuring(ms) {
+    const t0 = performance.now();
+    const step = () => {
+      if (renderer && typeof renderer.resize === 'function') {
+        const host = $('slopscale_beta-render-host');
+        if (host) { const r = host.getBoundingClientRect(); renderer.resize(Math.round(r.width), Math.round(r.height)); }
+      }
+      drawOnce();
+      if (performance.now() - t0 < (ms || 0)) requestAnimationFrame(step);
+    };
+    step();
+  }
   // "Keep looping" — when on, a finite drill restores the old infinite loop (open
   // practice). Default off (finite). Persisted; loaded in bind(). An A–B loop and Jam
   // are unaffected (they loop via the segment-loop branch above, never this one).
@@ -11627,6 +12180,7 @@
         ? Math.max(0, (audioCtx.currentTime - playAnchorCtx) * 1000)
         : Math.max(0, nowMs - playAnchorMs);
       currentPracticeTime = playAnchorChartTime + elapsedMs / 1000;
+      if (currentPracticeTime > _runMaxChartTime) _runMaxChartTime = currentPracticeTime;   // recap reached-tracking (furthest this pass)
       if (_preRollUntil > 0 && currentPracticeTime >= _preRollUntil) _preRollUntil = 0;   // resume pre-roll done → normal play (notes audible, judge live)
       const duration = activeBundle.songInfo.duration || 1;
       // A-B segment loop wins over whole-chart wrap when both endpoints are
@@ -11635,6 +12189,7 @@
       // for the count-in / rewind plan.)
       if (segmentLoopA != null && segmentLoopB != null && currentPracticeTime >= segmentLoopB) {
         triggerWrapRewind(segmentLoopB, segmentLoopA);   // visible rewind tell on the overview
+        _runLooped = true;                               // recap: a wrap means the loop region was fully reached
         currentPracticeTime = segmentLoopA;
         anchorPlayClock(segmentLoopA);
         stopAudio();
@@ -11675,17 +12230,25 @@
           // phase so the loop stays drift-free.
           const contentLen = duration - (activeBundle.leadIn || 0);
           triggerWrapRewind(currentPracticeTime, currentPracticeTime - contentLen);   // visible rewind tell (the clock keeps phase-carry; this is draw-only)
+          _runLooped = true;                              // recap: a whole-chart wrap = every block reached
           playAnchorChartTime -= contentLen;
           currentPracticeTime -= contentLen;
-          // Scoring hygiene across the wrap is inherent: the window cursor
-          // re-searches on the backward clock jump (ptWinSeek), and credit is
-          // one-shot per window key — a prior pass can't re-credit this one.
+          // NOTE — this branch is now keepLooping-only (a Workout is FINITE, see
+          // makeBundle's finiteRun). Credit is one-shot per window, so on a manual
+          // loop the re-walked windows stay credited → they paint a STALE "hit" and
+          // the counter holds at pass-1's count (the ~250 dogfood bug, when sessions
+          // still looped). Acceptable for the opt-in loop toggle; a true per-loop
+          // re-judge (reset each window's credit/miss + the counter on wrap) is a
+          // flagged follow-up that needs the per-loop-vs-cumulative score decision.
         }
       }
-      // Verifier scoring: refresh the harmonic-comb verify target for the
-      // current playhead (cheap — only re-pushes when the active group
-      // changes). No-op unless verifier mode is active.
-      ndPushVerifyTarget();
+      // Verifier scoring. Contained mode (desktop engine): drain engine-
+      // finalized verdicts + push our playhead. Fallback mode (browser): refresh
+      // the timing-free verify target. Neither runs during the async arm window
+      // (both flags false) so no stray verify target is pushed before the path
+      // is chosen.
+      if (_ndContainedMode) ndDrainContainedVerdicts();
+      else if (_ndContainedFallback) ndPushVerifyTarget();
       // Settle tremolo spans whose end has passed (both ears; cheap — pops at
       // most the front of a short time-sorted list).
       ptFinalizeSpans(currentPracticeTime - ptLatency());
@@ -12286,9 +12849,11 @@
           && (f.instrument === 'all' || x.instrument === f.instrument); };
     const shown = ids.filter(match);
     if (cnt) cnt.textContent = `${shown.length} of ${ids.length}`;
-    body.innerHTML = shown.length
-      ? `<div class="slopscale_beta-lib-grid">${shown.map(_starterCardHtml).join('')}</div>`
+    const routinesHtml = routinesSectionHtml();   // the user's saved routines, above the built-in starters
+    const startersHtml = shown.length
+      ? `${routinesHtml ? '<div class="slopscale_beta-lib-group-title">Starters</div>' : ''}<div class="slopscale_beta-lib-grid">${shown.map(_starterCardHtml).join('')}</div>`
       : `<div class="slopscale_beta-lib-empty">No starters match these filters — clear one to see more.</div>`;
+    body.innerHTML = routinesHtml + startersHtml;
   }
   // Fork a starter into the editable timeline. Replace-guard: if the current draft
   // has edits, stage a confirm strip instead of clobbering (force=true confirms).
@@ -12299,6 +12864,70 @@
     _workoutDraft = workoutDraftFor(id); _workoutDraftId = id; _workoutDirty = false; _pendingStarter = null;
     clearRefreshSummary(); renderWorkoutDraft();
     toggleStarters(false);
+  }
+
+  // ── Named ROUTINES (engagement Tier B — a returnable Workout you OWN) ────────
+  // A saved Workout = a `kind:'workout'` preset whose `config_json` holds the whole
+  // session (the backend already stores arbitrary JSON). "My morning warmup" becomes
+  // a returnable object that lives in the starter picker — gamification's #1 "studio
+  // not a timer" move (persistence + identity + ritual). Host-check verdict: BUILD on
+  // our preset CRUD (the host ships no program/routine surface). Guardrails: no
+  // streak-on-the-routine, no "you haven't run this in N days" nag — it's a
+  // convenience, not an obligation.
+  let _savedRoutines = null;   // cache of the user's kind:'workout' presets
+  async function loadSavedRoutines() {
+    try {
+      const r = await fetch('/api/plugins/slopscale_beta/presets');
+      const data = r.ok ? await r.json() : null;
+      const all = (data && Array.isArray(data.presets)) ? data.presets : [];
+      _savedRoutines = all.filter(p => p && p.kind === 'workout' && p.config && Array.isArray(p.config.segments));
+    } catch (_) { _savedRoutines = _savedRoutines || []; }
+    return _savedRoutines;
+  }
+  function routineSlug(name) { return 'rt_' + String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) + '_' + Date.now().toString(36); }
+  async function saveRoutine(name) {
+    const draft = _workoutDraft;
+    if (!draft || !(draft.segments || []).length) { showStatus('Build a Workout first.'); return false; }
+    name = (name || '').trim() || 'My routine';
+    const session = Object.assign({}, draft, { version: 1, name });   // the editable draft IS the session
+    const id = routineSlug(name);
+    try {
+      const res = await fetch('/api/plugins/slopscale_beta/presets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name, kind: 'workout', config: session }) });
+      if (!res.ok) throw new Error(await res.text());
+    } catch (_) { showStatus('Could not save the routine.'); return false; }
+    showStatus(`Saved routine: ${name}`);
+    await loadSavedRoutines(); renderStarters();
+    return true;
+  }
+  function loadRoutine(id) {
+    const rt = (_savedRoutines || []).find(p => p.id === id); if (!rt) return;
+    _selectedStarterId = id;
+    _workoutDraft = JSON.parse(JSON.stringify(rt.config)); _workoutDraftId = id; _workoutDirty = false; _pendingStarter = null;
+    clearRefreshSummary(); renderWorkoutDraft(); toggleStarters(false);
+  }
+  async function deleteRoutine(id) {
+    try { await fetch('/api/plugins/slopscale_beta/presets/' + encodeURIComponent(id), { method: 'DELETE' }); } catch (_) {}
+    if (_savedRoutines) _savedRoutines = _savedRoutines.filter(p => p.id !== id);
+    renderStarters();
+  }
+  function routinesSectionHtml() {
+    const rts = _savedRoutines || [];
+    if (!rts.length) return '';
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const cards = rts.map(rt => {
+      const n = (rt.config.segments || []).length;
+      return `<div class="slopscale_beta-lib-card slopscale_beta-routine-card">
+        <div class="slopscale_beta-segment-header">
+          <span class="slopscale_beta-segment-name">${esc(rt.name || rt.id)}</span>
+          <span class="slopscale_beta-routine-card-actions">
+            <button type="button" class="slopscale_beta-lib-add slopscale_beta-routine-load" data-routine-id="${esc(rt.id)}" title="Load this routine into the timeline">Load</button>
+            <button type="button" class="slopscale_beta-routine-del" data-routine-id="${esc(rt.id)}" title="Delete this routine" aria-label="Delete routine">✕</button>
+          </span>
+        </div>
+        <div class="slopscale_beta-segment-meta">${n} block${n === 1 ? '' : 's'} · your routine</div>
+      </div>`;
+    }).join('');
+    return `<div class="slopscale_beta-lib-group-title">Your routines</div><div class="slopscale_beta-lib-grid slopscale_beta-routines-grid">${cards}</div>`;
   }
 
   // ── Pack manager (the band-bar "+") ─────────────────────────────────────────
@@ -12478,8 +13107,10 @@
         : (s.proof.transfer || '');
       proofLine = `<div class="slopscale_beta-ss-cleared">${claim}</div>` +
         (sub ? `<div class="slopscale_beta-ss-sub slopscale_beta-ss-transfer">${sub}</div>` : '');
-      copyBtn = `<button type="button" class="slopscale_beta-ss-copy" data-act="copy-proof" title="Copy a plain-text card to share">Copy progress card</button>`;
     }
+    // Tier C: the cooperative share card is offered for ANY shareworthy run (a tier/
+    // depth flip, a completed Workout, a new badge — not only the proof pilot).
+    copyBtn = shareRowHtml();   // Copy card + Save — every run (incl. Jam's descriptive card)
     return `<div class="slopscale_beta-progress-sheet-section slopscale_beta-ss-card">` +
       `<div class="slopscale_beta-ss-head"><h4>Last session</h4>` +
       `<button type="button" class="slopscale_beta-ss-dismiss" data-act="dismiss-summary" title="Dismiss" aria-label="Dismiss last-session card">✕</button></div>` +
@@ -12535,13 +13166,29 @@
     // (P-sheet) but never takes the hero slot here; only a pathway run's own
     // tier flip is an earned verdict.
     const ownTierFlip = !!(s.tierCleared && s.clearedTier != null && s.mode === 'pathway');
-    const earned = !!(s.proof || ownTierFlip || (s.depth && s.depth.travelRung));
-    const rough = judged && pct < 65 && !earned;
+    // A bass FELT-rung run (feltGate): the felt verdict WORD replaces the % entirely
+    // (felt-not-scored, Option A — never speed/accuracy as the bass headline).
+    const isFelt = !!(s.felt || s.feltResult);
+    const feltFlip = !!(s.feltResult && s.feltResult.flip);
+    const earned = !!(s.proof || (ownTierFlip && !isFelt) || feltFlip || (s.depth && s.depth.travelRung));
+    const rough = judged && pct < 65 && !earned && !isFelt;   // a felt run is never "rough" (no %)
     let xpOff = false; try { xpOff = (progressLoad().mode === 'off'); } catch (_) {}
+    // Workout RECAP branch (Tier 3): a multi-block Workout has no single grade — the
+    // chapter list REPLACES the aggregate % and the verdict slot becomes a
+    // descriptive session header (no earned-green edge). Built from s.chapters
+    // (descriptive, no per-block scoring). Single-config modes are unaffected.
+    const isWorkout = s.mode === 'session' && Array.isArray(s.chapters) && s.chapters.length > 1;
 
-    // 1 · VERDICT slot — earned outcomes only; ONE hero (proof > tier > travel).
+    // 1 · VERDICT slot — earned outcomes only; ONE hero (felt > proof > tier > travel).
+    // Bass felt FLIP: the verdict WORD is the hero, tempo demoted (Option A — the
+    // marketing + 3-lane call). Settling-or-better cleared the rung; Locked also owns
+    // the groove at this tempo. The copy card rides shareBtn (one button).
     let verdict = '';
-    if (s.proof) {
+    if (feltFlip) {
+      const word = (s.felt && s.felt.verdict === 'locked') ? 'Locked the pocket' : 'Settled into the pocket';
+      verdict = `<div class="slopscale_beta-ss-cleared slopscale_beta-results-verdict">✓ ${word} — cleared ${s.feltResult.tierName}</div>` +
+        (s.feltResult.feltPB ? `<div class="slopscale_beta-ss-sub slopscale_beta-ss-transfer">Grooves owned — held Locked to ${s.feltResult.feltBpm} BPM</div>` : '');
+    } else if (s.proof) {
       const claim = s.proof.kind === 'guide_tones'
         ? `✓ You proved: ${s.proof.label} — you connected the changes at ${s.proof.tierName} tempo`
         : `✓ You proved: ${s.proof.label} holds at ${s.proof.tierName} tempo`;
@@ -12549,9 +13196,9 @@
         ? `Your line voice-led to the guide tones (3rd &amp; 7th)${s.proof.progression ? ` through the ${s.proof.progression}` : ''}. ${s.proof.transfer || ''}`.trim()
         : (s.proof.transfer || '');
       verdict = `<div class="slopscale_beta-ss-cleared slopscale_beta-results-verdict">${claim}</div>` +
-        (psub ? `<div class="slopscale_beta-ss-sub slopscale_beta-ss-transfer">${psub}</div>` : '') +
-        `<button type="button" class="slopscale_beta-ss-copy" data-act="copy-proof" title="Copy a plain-text card to share">Copy progress card</button>`;
-    } else if (ownTierFlip) {
+        (psub ? `<div class="slopscale_beta-ss-sub slopscale_beta-ss-transfer">${psub}</div>` : '');
+        // (the share card now rides the unified shareRow below — every run)
+    } else if (ownTierFlip && !isFelt) {
       verdict = `<div class="slopscale_beta-ss-cleared slopscale_beta-results-verdict">▲ Rung cleared — ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}</div>`;
     } else if (s.depth && s.depth.travelRung) {
       verdict = `<div class="slopscale_beta-ss-cleared slopscale_beta-results-verdict">▲ Travel rung cleared — it travels now</div>`;
@@ -12599,7 +13246,7 @@
       // no "was", no gap — the UI never performs the comparison for the player.
       // Suppressed on rough runs, before 3 same-spec runs, and when today IS the
       // best (the recognizer below carries that, upward).
-      if (s.specBest && !rough && s.specBest.runs >= 3 && !s.specBest.isNew) {
+      if (s.specBest && !rough && !isFelt && s.specBest.runs >= 3 && !s.specBest.isNew) {
         stripBits.push(`<div class="slopscale_beta-results-deltas">Best here: ${s.specBest.best}%</div>`);
       }
       // ONE recognizer line, accent-colored (a new-best is new ground, not a clear).
@@ -12612,6 +13259,10 @@
       } else if (d && d.travelKey) {
         stripBits.push(`<div class="slopscale_beta-results-recog">New ground — first clean run in ${d.travelKey}</div>`);
       }
+      // Tier C — quiet AMBIENT deltas (never the accent recognizer slot, never the
+      // hero, never green): a woodshed level-up + any new competency badge(s).
+      if (s.levelUp) stripBits.push(`<div class="slopscale_beta-results-deltas">${s.levelUp.summit ? `${s.levelUp.name} — top of the ladder. The hours keep counting.` : `Reached Level ${s.levelUp.level} — ${s.levelUp.name}`}</div>`);
+      if (s.badgesNew && s.badgesNew.length) stripBits.push(`<div class="slopscale_beta-results-deltas">${s.badgesNew.length === 1 ? 'New badge' : 'New badges'}: ${s.badgesNew.map(b => b.name).join(' · ')}</div>`);
     }
     const strip = stripBits.length ? `<div class="slopscale_beta-results-strip">${stripBits.join('')}</div>` : '';
 
@@ -12710,17 +13361,101 @@
       (secondaryAgain ? `<button type="button" id="slopscale_beta-results-again" class="slopscale_beta-results-quiet">Run it back</button>` : '') +
       (stepdown ? `<button type="button" id="slopscale_beta-results-stepdown" class="slopscale_beta-results-quiet">${stepdown.label}</button>` : '') +
       (jamStyle && !rough && !(primary && primary.act === 'jam') ? `<button type="button" id="slopscale_beta-results-jam" class="slopscale_beta-results-quiet">Jam this skill</button>` : '') +
+      (isWorkout ? `<button type="button" id="slopscale_beta-results-build" class="slopscale_beta-results-quiet">Build another</button>` : '') +
       `<button type="button" id="slopscale_beta-results-done" class="slopscale_beta-results-quiet">Done</button>` +
       `</div>`;
 
+    // ── Workout recap session HTML (Tier 3) — header + chapter list ─────────────
+    // Descriptive: a session header (no earned green) + a per-block chapter list
+    // grouped by role so the player sees the arc they traveled. No aggregate %,
+    // no per-block %/score — the chapter list IS the readout.
+    let sessionHeadHtml = '', chaptersHtml = '';
+    if (isWorkout) {
+      const fmtMS = (sec) => { const m = Math.floor(sec / 60), x = Math.round(sec % 60); return `${m}:${String(x).padStart(2, '0')}`; };
+      const roleLabel = (role) => (SEGMENT_ROLES[role] && SEGMENT_ROLES[role].label) || (role ? prettyKind(role) : '');
+      // Arc line — the distinct roles traveled, in curriculum order.
+      const seenRoles = [];
+      s.chapters.forEach(c => { if (c.role && !seenRoles.includes(c.role)) seenRoles.push(c.role); });
+      seenRoles.sort((a, b) => ((SEGMENT_ROLES[a]?.order ?? 9) - (SEGMENT_ROLES[b]?.order ?? 9)));
+      const arc = seenRoles.map(roleLabel).filter(Boolean).join(' → ');
+      sessionHeadHtml =
+        `<div class="slopscale_beta-results-session-head">` +
+        `<div class="slopscale_beta-results-session-title">Workout complete</div>` +
+        `<div class="slopscale_beta-results-session-meta">${s.chapters.length} blocks · ${dur} practiced</div>` +
+        (arc ? `<div class="slopscale_beta-results-session-arc">You traveled the arc: ${arc}</div>` : '') +
+        `</div>`;
+      // Chapter rows, role-divider grouped (a divider when the role changes from the
+      // prior row — shows the real sequence). dot/✓ NEVER --ss-meter green.
+      let lastRole = null;
+      const rows2 = s.chapters.map(c => {
+        const out = [];
+        if (c.role !== lastRole) { out.push(`<div class="slopscale_beta-results-chapter-role">${roleLabel(c.role)}</div>`); lastRole = c.role; }
+        const color = ROLE_COLORS[c.role] || KIND_COLORS[c.kind] || '#64748b';
+        // Added review/2nd-app rows carry their context in the NAME ("Revisited —
+        // …") — so suppress the competency sub-line for them (no double-naming).
+        // Per-block glyph: ✓ PROVED (earned a real tier flip — the ONE place
+        // meter-green is allowed, a cleared competency) > ● played (reached + you
+        // sounded it, or no mic this run → default practiced, never shaming a
+        // DI/mic-less player) > ○ touched (reached but silent while the mic WAS
+        // live elsewhere) > — unreached. Never red.
+        const earned = c.earned;
+        const comp = earned ? `Cleared ${earned.tierName}` : (c.added ? '' : (c.competency || ''));
+        const touched = c.reached && r.hadInput && !c.hadInput;
+        const glyph = earned ? '✓' : (!c.reached ? '—' : (touched ? '○' : '●'));
+        const stateCls = earned ? ' is-earned' : (!c.reached ? ' is-unreached' : (touched ? ' is-touched' : ' is-played'));
+        out.push(
+          `<div class="slopscale_beta-results-chapter${stateCls}">` +
+          `<span class="slopscale_beta-results-chapter-dot" style="background:${color}"></span>` +
+          `<span class="slopscale_beta-results-chapter-main">` +
+          `<span class="slopscale_beta-results-chapter-name">${c.name || roleLabel(c.role)}</span>` +
+          (comp ? `<span class="slopscale_beta-results-chapter-comp">${comp}</span>` : '') +
+          `</span>` +
+          `<span class="slopscale_beta-results-chapter-dur">${fmtMS(c.durSec)}</span>` +
+          `<span class="slopscale_beta-results-chapter-done">${glyph}</span>` +
+          `</div>`);
+        return out.join('');
+      }).join('');
+      chaptersHtml = `<div class="slopscale_beta-results-chapters">${rows2}</div>`;
+    }
+
+    // Cooperative share card (Copy card + Save): on EVERY results page, every run —
+    // the card is an honest mirror (earned → green ✓; ordinary → descriptive log), so
+    // it can't inflate (gamification: the gate moved from the button to the content).
+    const shareBtn = shareRowHtml();
+
+    // Bass FELT body (Option A): the verdict WORD replaces the % entirely. A flip
+    // reuses the green hero `verdict`; otherwise a calm descriptive word (no green,
+    // no shame, no number). Tempo is demoted to the practiced line.
+    let feltBodyHtml = '';
+    if (isFelt) {
+      const v = s.felt && s.felt.verdict;
+      if (feltFlip) {
+        feltBodyHtml = verdict;
+      } else {
+        const MAP = { dragging: 'Dragging — behind the beat', rushing: 'Rushing — ahead of the kick', settling: 'Settling — finding the pocket', locked: 'Locked the pocket' };
+        const word = v ? (MAP[v] || 'Settling — finding the pocket')
+          : (s.felt && s.felt.untight ? 'Keep working the pocket' : 'Couldn’t catch the low strings — go by feel');
+        feltBodyHtml = `<div class="slopscale_beta-results-verdict slopscale_beta-results-felt">${word}</div>`;
+      }
+      feltBodyHtml += `<div class="slopscale_beta-results-practiced">${s.displayName || 'Practice'}${s.bpm ? ` · ${s.bpm} BPM` : ''}${(s.felt && s.felt.spanBars) ? ` · held ${s.felt.spanBars} bars` : ''}</div>`;
+    }
+
     if (title) title.textContent = `Results — ${s.displayName || 'Practice'}`;
+    // The judged-detail rows still carry honest counts/ear, but a Workout shows NO
+    // % anywhere (incl. here) — reframe the toggle label and drop the "Practiced @
+    // BPM" line (a session spans many tempos).
     body.innerHTML =
-      verdict +
-      `<div class="slopscale_beta-results-pct">${(judged && !reduceMotion) ? '0%' : headline}</div>` +
-      `<div class="slopscale_beta-results-head">${sub}</div>` +
-      strip +
-      `<div class="slopscale_beta-results-practiced">Practiced ${dur}${s.bpm ? ` @ ${s.bpm} BPM` : ''}</div>` +
-      `<button type="button" id="slopscale_beta-results-details-toggle" class="slopscale_beta-results-progress-toggle" aria-expanded="${detailsOpen}">${detailsOpen ? '▾' : '▸'} How this run was judged</button>` +
+      (isWorkout
+        ? sessionHeadHtml + chaptersHtml + strip + shareBtn
+        : isFelt
+        ? feltBodyHtml + strip + shareBtn
+        : verdict +
+          `<div class="slopscale_beta-results-pct">${(judged && !reduceMotion) ? '0%' : headline}</div>` +
+          `<div class="slopscale_beta-results-head">${sub}</div>` +
+          strip +
+          `<div class="slopscale_beta-results-practiced">Practiced ${dur}${s.bpm ? ` @ ${s.bpm} BPM` : ''}</div>` +
+          shareBtn) +
+      `<button type="button" id="slopscale_beta-results-details-toggle" class="slopscale_beta-results-progress-toggle" aria-expanded="${detailsOpen}">${detailsOpen ? '▾' : '▸'} How this ${isWorkout ? 'Workout' : 'run'} was judged</button>` +
       `<div id="slopscale_beta-results-details" class="slopscale_beta-results-rows"${detailsOpen ? '' : ' hidden'}>${rows.map(t => `<div>${t}</div>`).join('')}` +
       (verbose && info ? `<button type="button" id="slopscale_beta-results-copydiag" class="slopscale_beta-results-quiet">Copy diagnostics</button>` : '') +
       `</div>` +
@@ -12729,12 +13464,13 @@
     // Earned-outcome chrome (the meter-green top edge) + the entry animation.
     const card = root.querySelector('.slopscale_beta-results-card');
     if (card) {
-      card.classList.toggle('ss-earned', earned && hasResult);
+      card.classList.toggle('ss-earned', earned && hasResult && !isWorkout);   // a Workout never earns the green edge (it's "I did the map", not a cleared competency)
       card.classList.remove('ss-enter'); void card.offsetWidth; card.classList.add('ss-enter');
     }
     // The % count-up — the meter-settling idiom (an LCD landing on its value).
-    // Never on empty states; reduced-motion gets the final value immediately.
-    if (judged && !reduceMotion) {
+    // Never on empty states or a Workout (no % element); reduced-motion gets the
+    // final value immediately.
+    if (judged && !reduceMotion && !isWorkout && !isFelt) {
       const el = body.querySelector('.slopscale_beta-results-pct');
       const t0 = performance.now(), durMs = 550;
       const step = (now) => {
@@ -12748,6 +13484,7 @@
     // Wiring — all CTAs close-and-arm (load config, focus Play, start nothing).
     const focusPlay = () => { $('slopscale_beta-play')?.focus(); };
     $('slopscale_beta-results-done')?.addEventListener('click', () => closeResultsModal());
+    $('slopscale_beta-results-build')?.addEventListener('click', () => { closeResultsModal(); selectMode('session'); });
     $('slopscale_beta-results-primary')?.addEventListener('click', () => {
       closeResultsModal();
       if (primary && primary.act === 'next-tier') {
@@ -12808,9 +13545,7 @@
       btn.textContent = (open ? '▾' : '▸') + ' How this run was judged';
       try { localStorage.setItem('slopscale_beta.resultsDetails', open ? 'open' : 'closed'); } catch (_) {}
     });
-    body.querySelector('[data-act="copy-proof"]')?.addEventListener('click', (ev) => {
-      try { navigator.clipboard.writeText(proofCardText(s)); ev.target.textContent = 'Copied ✓'; } catch (_) {}
-    });
+    body.querySelectorAll('[data-act="copy-card"], [data-act="download-card"]').forEach(btn => btn.addEventListener('click', () => shareCardClick(btn, s)));
     root.classList.add('ss-results-open');
     // The dialog ships aria-hidden="true" in the markup (every other panel
     // toggles it in its open/close fns — this one was missed): flip it BEFORE
@@ -12841,12 +13576,110 @@
     }
   }
   // Progress sheet content (gamification's slot). Renders the "Last session" card
-  // (if any) + streak + per-pathway tempo-tier dots — with an honest "coming" state
-  // for XP/badges, since the slopscale_beta.progress store is unbuilt (don't fake XP).
+  // (if any) + streak + the woodshed log (time / your numbers / travels / level —
+  // Tier A+C) + the competency badge rack (Tier C) + per-pathway tempo-tier dots.
+  // All gained-only; the woodshed + badges collapse entirely in XP-Off.
+  // ── Woodshed log (engagement Tier A — cross-session accumulation) ───────────
+  // The "your practice over time" surface that makes the Workout feel like a
+  // CAMPAIGN, not a stopwatch — the single biggest "kills the timer feeling" lever
+  // (gamification). Aggregates REAL artifacts only, GAINED-ONLY, upward-only, no
+  // decay/quota/vanity-rank: time on the instrument (sessions), the clean-tempo PBs
+  // ("your numbers" — the guitar denomination, from pathway_tiers.bestBpm), and the
+  // keys traveled (depth). Built on OUR competency-typed stores (host-check: BUILD
+  // — the host ships no practice-history surface). Pure read; no DOM.
+  function woodshedLog() {
+    const sessions = sessionsLoad();
+    const pt = pathwayTiersLoad();
+    let store = { byNode: {}, xp: 0 }; try { store = progressLoad(); } catch (_) {}
+    const now = Date.now(), DAY = 86400000;
+    let totalMs = 0, weekMs = 0; const days = new Set();
+    for (const s of sessions) {
+      const ms = s.duration_ms || 0; totalMs += ms;
+      if (s.date) { days.add(s.date); const t = Date.parse(s.date); if (Number.isFinite(t) && (now - t) < 7 * DAY + DAY) weekMs += ms; }
+    }
+    const numbers = Object.keys(pt)
+      .filter(id => PATHWAYS[id] && pt[id].bestBpm)
+      .map(id => ({ label: PATHWAYS[id].label, bpm: pt[id].bestBpm }))
+      .sort((a, b) => b.bpm - a.bpm);
+    const byNode = store.byNode || {}, travels = [];
+    for (const id of Object.keys(byNode)) {
+      const keys = (byNode[id].keysCleared || []).length;
+      if (PATHWAYS[id] && keys > 0) travels.push({ label: PATHWAYS[id].label, keys, mastered: !!byNode[id].masteredAt });
+    }
+    travels.sort((a, b) => b.keys - a.keys);
+    // "Grooves owned" — the BASS denomination (felt-hold PB): pathways held Locked,
+    // shown at the tempo you hold (feltBpm), never speed-as-headline.
+    const grooves = Object.keys(pt)
+      .filter(id => PATHWAYS[id] && pt[id].feltBpm)
+      .map(id => ({ label: PATHWAYS[id].label, bpm: pt[id].feltBpm }))
+      .sort((a, b) => b.bpm - a.bpm);
+    return { totalMin: Math.round(totalMs / 60000), weekMin: Math.round(weekMs / 60000), sessions: sessions.length, days: days.size, xp: store.xp || 0, numbers, travels, grooves };
+  }
+  function fmtMins(min) { return min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min}m`; }
+  function woodshedSectionHtml() {
+    let xpOff = false; try { xpOff = progressLoad().mode === 'off'; } catch (_) {}
+    if (xpOff) return '';   // Off collapses the whole layer
+    const w = woodshedLog();
+    if (w.sessions === 0) return `<div class="slopscale_beta-progress-sheet-section"><h4>Woodshed</h4><div class="slopscale_beta-pm-coming">Your practice will accumulate here — time on the instrument, your tempo PBs, and the keys you've traveled.</div></div>`;
+    const rows = [`<div class="slopscale_beta-pm-row"><span>On the instrument</span><strong>${fmtMins(w.totalMin)}</strong></div>`];
+    if (w.weekMin > 0) rows.push(`<div class="slopscale_beta-pm-row"><span>This week</span><strong>${fmtMins(w.weekMin)}</strong></div>`);
+    rows.push(`<div class="slopscale_beta-pm-row"><span>Practice days</span><strong>${w.days}</strong></div>`);
+    // Tier C — the visible woodshed LEVEL (a legible readout of the accrued time×
+    // difficulty XP, never a featured headline; the forward hint is opportunity, not
+    // a grind bar). Behind XP-Off with the rest of this section.
+    const lv = xpLevelInfo(w.xp);
+    rows.push(`<div class="slopscale_beta-pm-row"><span>Woodshed level</span><strong>Lv ${lv.level} · ${lv.name}</strong></div>`);
+    // Forward line. Below the cap it names the next identity (opportunity, not a grind
+    // bar). AT the cap (Lifer, no nextName) the old code went SILENT — the "Lifer cliff"
+    // at our most-committed player. Reframe the summit as a graduation that points at the
+    // UNCAPPED lifetime ledger below (hours keep counting; PBs / keys / badges never cap).
+    // gamification+market verdict: keep finite levels, make the terminal state a graduation,
+    // never an infinite treadmill. project_xp_leveling_cap_prestige_verdict.
+    if (lv.nextName) rows.push(`<div class="slopscale_beta-pm-coming">${(lv.nextAt - lv.xp).toLocaleString()} XP of practice to ${lv.nextName}.</div>`);
+    else rows.push(`<div class="slopscale_beta-pm-coming">Lifer — top of the ladder. The hours keep counting; from here your tempo PBs, keys and badges are the climb.</div>`);
+    // "Your numbers" — the clean-tempo PBs to beat (gained-only; the come-back hook).
+    let numbersHtml = '';
+    if (w.numbers.length) {
+      numbersHtml = `<div class="slopscale_beta-pm-sub">Your numbers — clean tempo to beat</div>` +
+        w.numbers.slice(0, 5).map(n => `<div class="slopscale_beta-pm-row"><span>${n.label}</span><strong>${n.bpm} BPM</strong></div>`).join('');
+    }
+    // Traveled — keys cleared (portability; the depth axis made visible).
+    let travelHtml = '';
+    if (w.travels.length) {
+      travelHtml = `<div class="slopscale_beta-pm-sub">Traveled — held in new keys</div>` +
+        w.travels.slice(0, 5).map(t => `<div class="slopscale_beta-pm-row"><span>${t.label}${t.mastered ? ' ★' : ''}</span><strong>${t.keys} ${t.keys === 1 ? 'key' : 'keys'}</strong></div>`).join('');
+    }
+    // Grooves owned — the bass felt-hold PBs (held in the pocket; tempo a fact, not a rank).
+    let groovesHtml = '';
+    if (w.grooves && w.grooves.length) {
+      groovesHtml = `<div class="slopscale_beta-pm-sub">Grooves owned — held in the pocket</div>` +
+        w.grooves.slice(0, 5).map(g => `<div class="slopscale_beta-pm-row"><span>${g.label}</span><strong>to ${g.bpm} BPM</strong></div>`).join('');
+    }
+    return `<div class="slopscale_beta-progress-sheet-section"><h4>Woodshed</h4>${rows.join('')}${numbersHtml}${travelHtml}${groovesHtml}</div>`;
+  }
+  // Competency BADGE rack (Tier C) — earned-only, gained-only (a badge is a one-time
+  // false→true on a real competency artifact; nothing is ever shown locked-with-a-bar
+  // or lost). Collapses entirely in XP-Off; no empty rack to nag a new player.
+  function badgesSectionHtml() {
+    let xpOff = false; try { xpOff = progressLoad().mode === 'off'; } catch (_) {}
+    if (xpOff) return '';
+    const store = progressLoad();
+    const earned = Object.keys(store.badges || {});
+    if (!earned.length) return '';
+    const chips = BADGES.filter(b => earned.includes(b.id))
+      .map(b => `<span class="slopscale_beta-badge" title="${b.desc}">${b.name}</span>`).join('');
+    return `<div class="slopscale_beta-progress-sheet-section"><h4>Badges</h4><div class="slopscale_beta-badge-rack">${chips}</div></div>`;
+  }
   function renderProgressSheet() {
     const body = $('slopscale_beta-progress-sheet-body'); if (!body) return;
     const pt = pathwayTiersLoad();
-    const streak = (($('slopscale_beta-streak-num') || {}).textContent || '0').trim();
+    // Forgiving streak, framed to celebrate the return (never punish the break).
+    const _sessions = sessionsLoad();
+    const streakN = streakCount(_sessions);
+    const todayDone = new Set(_sessions.map(s => s.date)).has(localDateStr());
+    const streakLine = streakN > 0
+      ? `<div class="slopscale_beta-pm-row"><span>${todayDone ? 'Current streak' : 'Streak — alive today'}</span><strong>${streakN} ${streakN === 1 ? 'day' : 'days'}</strong></div>${todayDone ? '' : '<div class="slopscale_beta-pm-coming">Practice today to extend it.</div>'}`
+      : `<div class="slopscale_beta-pm-coming">Practice today to start a streak — and a single rest day won’t break it.</div>`;
     const touched = Object.keys(pt)
       .filter(id => PATHWAYS[id] && (pt[id].highest_tier ?? -1) >= 0)
       .sort((a, b) => (pt[b].highest_tier ?? -1) - (pt[a].highest_tier ?? -1));
@@ -12857,9 +13690,10 @@
     };
     body.innerHTML =
       sessionSummaryCardHtml() +
-      `<div class="slopscale_beta-progress-sheet-section"><h4>Streak</h4><div class="slopscale_beta-pm-row"><span>Current streak</span><strong>${streak} ${streak === '1' ? 'day' : 'days'}</strong></div></div>` +
-      `<div class="slopscale_beta-progress-sheet-section"><h4>Tempo-tier progress</h4>${touched.length ? touched.slice(0, 8).map(dotRow).join('') : '<div class="slopscale_beta-pm-coming">Clear a tempo tier to see progress here.</div>'}</div>` +
-      `<div class="slopscale_beta-progress-sheet-section"><h4>XP &amp; badges</h4><div class="slopscale_beta-pm-coming">Coming soon — your time-on-instrument and mastery will show here.</div></div>`;
+      `<div class="slopscale_beta-progress-sheet-section"><h4>Streak</h4>${streakLine}</div>` +
+      woodshedSectionHtml() +
+      badgesSectionHtml() +
+      `<div class="slopscale_beta-progress-sheet-section"><h4>Tempo-tier progress</h4>${touched.length ? touched.slice(0, 8).map(dotRow).join('') : '<div class="slopscale_beta-pm-coming">Clear a tempo tier to see progress here.</div>'}</div>`;
   }
   // Header Setup popover (instrument + strings + tuning). The button shows the live
   // instrument + tuning; the popover toggles open. Closing on outside-click is bound
@@ -12915,8 +13749,11 @@
   function toggleSettingsMenu(force) {
     const menu = $('slopscale_beta-settings-menu'), btn = $('slopscale_beta-settings-btn');
     if (!menu || !btn) return;
-    const open = force != null ? force : menu.hidden;
-    menu.hidden = !open;
+    // Class-toggled (animated slide/fade); the CSS closed state is visibility-hidden
+    // + pointer-events-none, so it's inert when closed without display:none (which
+    // would kill the transition). Replaces the old menu.hidden flip.
+    const open = force != null ? force : !menu.classList.contains('ss-open');
+    menu.classList.toggle('ss-open', open);
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
   function applyTheme(name) {
@@ -12928,7 +13765,12 @@
   }
   function applyXpModeDefault(mode) {
     try { localStorage.setItem('slopscale_beta.xpMode', mode); } catch (_) {}
+    // Tier C: this IS the live XP-Off switch — drive the real progress-store mode
+    // that gates the whole engagement layer (XP/level/badges/woodshed/depth), not
+    // just a settings default. Off genuinely collapses the layer everywhere.
+    try { progressSetMode(mode); } catch (_) {}
     document.querySelectorAll('#slopscale_beta-xp-mode .slopscale_beta-mini-btn').forEach(b => b.classList.toggle('active', b.dataset.xp === mode));
+    try { renderProgressSheet(); } catch (_) {}
   }
   // Count-in is always ≥1 bar (no 0-bar drop-in — a DAW recording convenience, not
   // a practice need). The setting picks the LENGTH (1/2/4); a stale '0' floors to 1.
@@ -13533,6 +14375,7 @@
     stopAudio(); syncHighwaySettings(activeBundle);
     playing = true;
     paused = false; _pausedAccumMs = 0; _pauseBeganMs = 0; _preRollUntil = 0; _wrapAnim = null;
+    _runMaxChartTime = currentPracticeTime; _runLooped = false; _blockHadInput = [];   // recap reached + per-block input tracking, fresh per run
     acquireWakeLock();   // hold the screen awake for the duration of this play
     // With an active A–B loop, playback begins at the loop start — not wherever
     // the playhead happens to sit (DAW cycle behavior; the playhead is just a
@@ -14833,6 +15676,21 @@
       if (tag) tag.textContent = modified ? 'Modified' : 'Goal';
       card.classList.toggle('modified', !!modified);
     }
+    // "Your number" (engagement Tier A): the clean-tempo PB to beat for this
+    // pathway — guitar-ped's "a number to beat tomorrow," surfaced at SELECT so it
+    // pulls the player back. Reads pathway_tiers.bestBpm (a clean run only); points
+    // toward the next rung. Hidden until a PB exists (no clutter on a fresh drill).
+    const pbEl = $('slopscale_beta-pathway-pb');
+    if (pbEl) {
+      const best = (pw && pathwayId) ? (pathwayTiersLoad()[pathwayId] || {}).bestBpm : null;
+      if (pw && best) {
+        const next = (pw.tempoTiers || []).find(t => t > best);
+        pbEl.textContent = next
+          ? `Your clean best here: ${best} BPM — beat it (next rung at ${next})`
+          : `Your clean best here: ${best} BPM — the top rung is yours`;
+        pbEl.style.display = '';
+      } else { pbEl.textContent = ''; pbEl.style.display = 'none'; }
+    }
     // One calm line when this rung was adapted to the player's saved tuning
     // (the lossless uniform-offset path adapts silently except for this note —
     // it names the transposition instead of hiding it, the Division-caption
@@ -15792,39 +16650,10 @@
   function _lvlPushSample(raw) {
     if (!(raw >= 0)) raw = 0;
     const jt = currentPracticeTime - ptLatency();
-    if (_lvlWarmEnd == null) _lvlWarmEnd = jt + PT_LVL_WARMUP;   // meter-start warm-up window (set on the very first sample)
-    const L = raw;   // raw level — an instant-down baseline catches a real attack's sharp rise reliably (no false-miss); a stray harness-jitter frame is tolerated by the test's "not wholesale" assertion, and the real desktop getLevels meter is stable
-    const lead = (activeBundle && activeBundle.leadIn) || 0;
-    if (!_lvlCalibrated) {
-      // Count-in [0, leadIn) is player-silent → pure resting residual. Floor =
-      // max(90th-pct(resting) × 4, 0.02). (For countIn>0 the warm-up window above
-      // elapses during the count-in, so the first PLAYED note fires normally.)
-      if (currentPracticeTime < lead) { _lvlRestBuf.push(L); if (L >= _lvlFloor) _ptHadInput = true; _lvlSamples.push({ jt, L }); if (_lvlSamples.length > 512) _lvlSamples.shift(); return; }
-      if (_lvlRestBuf.length) {
-        const sorted = _lvlRestBuf.slice().sort((a, b) => a - b);
-        const rest = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.9))];
-        _lvlFloor = Math.max(rest * PT_LVL_REST_MULT, PT_LVL_FLOOR_MIN);
-        _lvlBaseline = rest;
-      } else { _lvlFloor = PT_LVL_FLOOR_MIN; _lvlBaseline = L; }
-      _lvlCalibrated = true;
-    }
-    // Warm-up glue: while the tap settles (0→signal) — or a STEADY tone is already
-    // present at scoring start (an inaudible residual) — snap the baseline to the
-    // level so it never reads as a rising-edge onset. Only a LATER sharp rise
-    // (after a gap/decay) fires. count-in absorbs this; for countIn=0 it costs
-    // only note-0's onset (precision bias).
-    if (jt < _lvlWarmEnd) {
-      _lvlBaseline = L;
-      if (L >= _lvlFloor) _ptHadInput = true;
-      _lvlSamples.push({ jt, L }); if (_lvlSamples.length > 512) _lvlSamples.shift();
-      return;
-    }
-    if (L < _lvlBaseline) _lvlBaseline = L; else _lvlBaseline += 0.05 * (L - _lvlBaseline);   // floor-follower (on smoothed L): down fast, up slow
-    if (L >= _lvlFloor && L / Math.max(_lvlBaseline, _lvlFloor) >= PT_ONSET_RATIO && jt - _lvlLastOnset > PT_ONSET_REFRACT) {
-      _lvlLastOnset = jt; _lvlOnsets.push(jt); if (_lvlOnsets.length > 256) _lvlOnsets.shift();
-    }
-    if (L >= _lvlFloor) _ptHadInput = true;   // real input present → misses may light (replaces the circular / confidence arming)
-    _lvlSamples.push({ jt, L }); if (_lvlSamples.length > 512) _lvlSamples.shift();
+    // Input-presence (arms miss gems + the recap ●/○): real signal ≥ the host
+    // floor. No onset/baseline/calibration — the host's gate is level-only.
+    if (raw >= PT_LVL_FLOOR_MIN) { _ptHadInput = true; markBlockInput(); }
+    _lvlSamples.push({ jt, L: raw }); if (_lvlSamples.length > 512) _lvlSamples.shift();
   }
   function ptPeakLevelIn(lo, hi) {
     let pk = 0;
@@ -15835,41 +16664,71 @@
     }
     return pk;
   }
-  function ptOnsetIn(lo, hi) {
-    for (let i = _lvlOnsets.length - 1; i >= 0; i--) {
-      const t = _lvlOnsets[i];
-      if (t < lo - 0.5) break;
-      if (t >= lo && t <= hi) return true;
+  function ptHasSamplesIn(lo, hi) {               // did the level meter cover this window at all?
+    for (let i = _lvlSamples.length - 1; i >= 0; i--) {
+      const s = _lvlSamples[i];
+      if (s.jt < lo - 0.5) break;
+      if (s.jt >= lo && s.jt <= hi) return true;
     }
     return false;
   }
-  // The gate both ears pass through (in ptCreditWindow): real input energy
-  // in-window AND (for per-note windows) an attack onset in-window. Tremolo
-  // spans ride level + their own presence ratio (many attacks — onset is less
-  // meaningful; audio-engine ruling).
+  // The host's silence gate, mirrored — a ONE-WAY VETO (host note_detect
+  // :5550-5588): credit is forced to a MISS only when the meter SAW the window
+  // and it was genuinely silent (peak < 0.02); no samples covering it → SKIP
+  // (pass), like the host ("no telemetry ≠ silent").
+  //
+  // A SPAN is finalized only after it has fully passed, so its whole [t, spanEnd]
+  // is already sampled — veto it over its own span.
+  //
+  // A SINGLE/CHORD credit fires the INSTANT a verify/YIN hit lands at the
+  // playhead, and the note's own [matchStart, matchEnd] extends into the FUTURE
+  // (its ring hasn't elapsed yet). Sampling that window at the leading edge finds
+  // NO samples → the "no telemetry ≠ silent" skip would PASS every note the moment
+  // it opens, so an inaudible residual's `isHit` credits before the meter can veto
+  // it (the "guitar off, still scores" bug — present even with a working meter).
+  // Gate instead on the input level over a short window ENDING at the current
+  // judge clock — "is the player sounding NOW?": a real note has level in its
+  // ring at the credit moment; a silent residual does not.
   function ptCreditGatePasses(w) {
+    // Contained verifier: the engine owns silence/onset/persistence gating
+    // inside each note's timing window, so SlopScale's level veto is redundant
+    // (and would wrongly suppress a valid engine credit on a DI signal the
+    // host meter reads low). The level meter still runs — for _ptHadInput
+    // (miss-gem arming) only, not as a credit gate.
+    if (_ndContainedMode) return true;
     if (_lvlMode === 'none') return true;         // no host level source → gate inactive
-    const lo = w.span ? w.t : w.matchStart;
-    const hi = w.span ? w.spanEnd : w.matchEnd;
-    if (ptPeakLevelIn(lo, hi) < _lvlFloor) return false;
-    if (!w.span && !ptOnsetIn(lo, hi)) return false;
-    return true;
+    let lo, hi;
+    if (w.span) { lo = w.t; hi = w.spanEnd; }
+    else { hi = currentPracticeTime - ptLatency(); lo = hi - PT_LVL_RECENT_WIN; }
+    if (!ptHasSamplesIn(lo, hi)) return true;     // meter hasn't covered this window yet (startup) → honest skip
+    return ptPeakLevelIn(lo, hi) >= PT_LVL_FLOOR_MIN;   // silent → forced miss; else credit stands
   }
   function startLevelMeter() {
     stopLevelMeter();
-    _lvlMode = 'none'; _lvlSamples = []; _lvlOnsets = []; _lvlBaseline = 0;
-    _lvlFloor = PT_LVL_FLOOR_MIN; _lvlRestBuf = []; _lvlCalibrated = false; _lvlWarmEnd = null; _lvlLastOnset = -Infinity;
+    _lvlMode = 'none'; _lvlSamples = [];
     const bridge = window.slopsmithDesktop && window.slopsmithDesktop.audio;
     if (bridge && typeof bridge.getLevels === 'function') {
-      let okOnce = false;
+      // getLevels() is ASYNC on the desktop bridge — `ipcRenderer.invoke(...)`
+      // returns a Promise (note_detect itself awaits it). Reading `.inputLevel`
+      // off the Promise synchronously was ALWAYS undefined, so the desktop tap
+      // bailed to the web meter on the first poll; a DI player with no mic then
+      // landed at _lvlMode 'none' → the silence gate went INACTIVE → the
+      // false-positive judge returned (credits with the guitar off). Resolve the
+      // result as a Promise (handles a sync OR async bridge), one IPC in flight
+      // at a time so a slow engine can't pile up polls.
+      let okOnce = false, inFlight = false;
+      const myGen = ++_lvlGen;   // a teardown/restart bumps _lvlGen → ignore late IPC
+      const fallBack = () => { if (_lvlPoll) { clearInterval(_lvlPoll); _lvlPoll = null; } _startWebLevelMeter(); };
       _lvlPoll = setInterval(() => {
-        let lv = null;
-        try { lv = bridge.getLevels(); } catch (_) { lv = null; }
-        if (!lv || typeof lv.inputLevel !== 'number') {
-          if (!okOnce) { clearInterval(_lvlPoll); _lvlPoll = null; _startWebLevelMeter(); }   // bridge can't level → fall to web
-          return;
-        }
-        okOnce = true; _lvlMode = 'desktop'; _lvlPushSample(lv.inputLevel);
+        if (inFlight) return;
+        inFlight = true;
+        let p = null;
+        try { p = bridge.getLevels(); } catch (_) { p = null; }
+        Promise.resolve(p).then((lv) => {
+          if (myGen !== _lvlGen) return;   // meter was stopped/restarted while this IPC was in flight
+          if (!lv || typeof lv.inputLevel !== 'number') { if (!okOnce) fallBack(); return; }
+          okOnce = true; _lvlMode = 'desktop'; _lvlPushSample(lv.inputLevel);
+        }).catch(() => { if (myGen === _lvlGen && !okOnce) fallBack(); }).finally(() => { inFlight = false; });
       }, 50);
       return;
     }
@@ -15899,6 +16758,7 @@
       .catch(() => { /* mic denied / no device → stays 'none' (gate inactive) */ });
   }
   function stopLevelMeter() {
+    _lvlGen++;   // invalidate any in-flight async getLevels() so it can't revive the meter after stop
     if (_lvlPoll) { clearInterval(_lvlPoll); _lvlPoll = null; }
     if (_lvlRaf) { try { cancelAnimationFrame(_lvlRaf); } catch (_) {} _lvlRaf = 0; }
     if (_lvlStream) { try { _lvlStream.getTracks().forEach(t => t.stop()); } catch (_) {} _lvlStream = null; }
@@ -16055,12 +16915,11 @@
         openMidis: bundle.openMidis || [],
       };
       _ndVerifyActive = []; _ndVerifyActiveKey = null;
-      try {
-        if (!window.noteDetect.isEnabled?.()) { window.noteDetect.enable?.(); _ndWeEnabledNoteDetect = true; }
-      } catch (_) {}
-      _ndVerifyListener = ndOnVerify;
-      window.addEventListener('notedetect:verify', _ndVerifyListener);
-      ndPushVerifyTarget();
+      // Arm asynchronously: enabling note_detect establishes the desktop bridge
+      // (so isContainedVerifierAvailable can read it) only after startAudio
+      // resolves — checking it synchronously here would race and wrongly fall
+      // back on a fresh enable. _ndArmVerify awaits enable() first.
+      _ndArmVerify();
     }
 
     // Live pitch-strip / input-presence ear (host minigames YIN). Optional and
@@ -16127,7 +16986,7 @@
     // Input-presence: the level meter owns _ptHadInput when a host level source
     // exists (a confident YIN lock can come from a steady inaudible residual —
     // the bug). Fall back to confidence only when there is NO level source.
-    if (_lvlMode === 'none' && confidence >= PT_CONF_INPUT) _ptHadInput = true;
+    if (_lvlMode === 'none' && confidence >= PT_CONF_INPUT) { _ptHadInput = true; markBlockInput(); }   // no level source: confidence arms input (+ credit the block, recap ●/○)
     if (confidence < PT_CONF_INPUT) {
       ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: _ptScoredUnits, total: passedTotal });
       return;
@@ -16178,9 +17037,10 @@
           if (bi >= 0 && bi < best.bktN) best.bkts.add(bi);
         } else {
           // Single-frame commit (the host's rule): one fresh in-window
-          // in-pitch lock credits the note — IF the level+onset gate also
-          // passes. Timing tendency records only on a real credit.
-          if (ptCreditWindow(best)) _ptDevs.push(tJudge - best.t);
+          // in-pitch lock credits the note — IF the level gate also passes
+          // (host-mirror silence veto). Deviation { d, t } records only on a
+          // real credit (t = onset, for the felt-hold gap/trend detection).
+          if (ptCreditWindow(best)) _ptDevs.push({ d: tJudge - best.t, t: best.t });
         }
       } else {
         // Near-miss aggregate: a fresh in-pitch frame that lands just
@@ -16572,8 +17432,8 @@
   function _updatePathwayTier(pathwayId, tier) {
     const all = pathwayTiersLoad();
     const cur = all[pathwayId] || { highest_tier: -1 };
-    if (tier <= cur.highest_tier) return null;
-    all[pathwayId] = { highest_tier: tier };
+    if (tier <= (cur.highest_tier ?? -1)) return null;
+    all[pathwayId] = Object.assign({}, cur, { highest_tier: tier });   // MERGE — never drop bestBpm/feltBpm
     pathwayTiersSave(all);
     if (window.slopsmith && typeof window.slopsmith.emit === 'function') {
       window.slopsmith.emit('slopscale_beta:tier:unlocked', {
@@ -16581,6 +17441,82 @@
       });
     }
     return { pathwayId, tier };
+  }
+  // ── Bass FELT-HOLD (engagement foundations) — docs/bass-felt-hold-roundtable.md ──
+  // The bass analog of the guitar clean-tempo PB. Bass is felt-not-scored, so a
+  // FELT-rung pathway (feltGate:true) completes on a sustained POCKET, not a %: a
+  // verdict — Locked / Settling / Dragging / Rushing — from the onset-timing
+  // deviations we already collect (_ptDevs = { d:sec, t:sec }), NO new DSP, NO %, NO
+  // per-note flash. THREE numbers (rhythm-meter): leanMs (median placement), driftMs
+  // (Theil-Sen slope × span = tempo trend), jitterMs (MAD×1.4826 of the DETRENDED
+  // residuals = tightness). Sign (D1, the code's): + = LATE = behind, − = early =
+  // ahead. Bucketing order drift → lean → tightness, so a player sliding through
+  // center can't read Locked. Below the evidence gate → null (never a directional
+  // label); jitter-loose-but-centered → null+untight (encouraging "keep working it",
+  // NOT shaming). Thresholds bass-ped, v1 dogfood-tunable.
+  const FELT = { MIN_N: 12, MIN_BARS: 4, JITTER_LOCK: 25, JITTER_SETTLE: 45, LEAN_AHEAD: -18, LEAN_BEHIND: 28, DRIFT_FAIL: 35 };
+  function _feltMedian(a) { if (!a.length) return 0; const s = a.slice().sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+  function _feltTheilSen(pts) {   // median pairwise slope (ms per second) over { t:sec, d:ms }
+    const sl = [];
+    for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+      const dt = pts[j].t - pts[i].t; if (Math.abs(dt) > 1e-6) sl.push((pts[j].d - pts[i].d) / dt);
+    }
+    return sl.length ? _feltMedian(sl) : 0;
+  }
+  // devs = [{ d:sec, t:sec }]; opts.barSec. Returns { verdict, leanMs, driftMs,
+  // jitterMs, n, spanBars, untight } — verdict null = no pocket read (untight true →
+  // loose-but-played, false → too little evidence). Pure; no host/DOM.
+  function feltHoldAnalyze(devs, opts) {
+    opts = opts || {};
+    const barSec = opts.barSec > 0 ? opts.barSec : 2;
+    if (!Array.isArray(devs) || devs.length < FELT.MIN_N) return { verdict: null, n: devs ? devs.length : 0, untight: false };
+    const pts = devs.map(x => ({ t: x.t, d: x.d * 1000 })).sort((a, b) => a.t - b.t);   // d → ms
+    // Longest CONTINUOUS credited span (break the chain on a gap > ~2 bars).
+    const gapMax = 2 * barSec; let runStart = 0, best = [0, 0];
+    for (let i = 1; i <= pts.length; i++) {
+      if (i === pts.length || pts[i].t - pts[i - 1].t > gapMax) {
+        if (i - runStart > best[1] - best[0]) best = [runStart, i];
+        runStart = i;
+      }
+    }
+    const seg = pts.slice(best[0], best[1]);
+    const spanSec = seg.length ? (seg[seg.length - 1].t - seg[0].t) : 0;
+    const spanBars = barSec > 0 ? spanSec / barSec : 0;
+    if (seg.length < FELT.MIN_N || spanBars < FELT.MIN_BARS) return { verdict: null, n: seg.length, spanBars: Math.round(spanBars), untight: false };
+    const leanMs = Math.round(_feltMedian(seg.map(p => p.d)));
+    const slope = _feltTheilSen(seg);                  // ms/s
+    const driftMs = Math.round(slope * spanSec);
+    const resid = seg.map(p => p.d - slope * (p.t - seg[0].t));   // detrend
+    const medR = _feltMedian(resid);
+    const jitterMs = Math.round(1.4826 * _feltMedian(resid.map(r => Math.abs(r - medR))));
+    let verdict, untight = false;
+    if (Math.abs(driftMs) >= FELT.DRIFT_FAIL) verdict = driftMs > 0 ? 'dragging' : 'rushing';   // trend first (+ = behind)
+    else if (leanMs >= FELT.LEAN_BEHIND) verdict = 'dragging';
+    else if (leanMs <= FELT.LEAN_AHEAD) verdict = 'rushing';
+    else if (jitterMs <= FELT.JITTER_LOCK) verdict = 'locked';
+    else if (jitterMs <= FELT.JITTER_SETTLE) verdict = 'settling';
+    else { verdict = null; untight = true; }          // loose-but-centered: no pocket yet, encouraging copy
+    return { verdict, leanMs, driftMs, jitterMs, n: seg.length, spanBars: Math.round(spanBars), untight };
+  }
+  // Credit a FELT-rung pathway (the engine gap fix): Settling-or-better flips the
+  // tier (D2 — mirrors guitar's "clean enough" bar); LOCKED additionally raises the
+  // gained-only feltBpm PB ("grooves you own"). NO lenient self-confirm — a flip needs
+  // a real verdict (real onsets above the floor), so a sub-floor block self-enforces
+  // "practiced only". Returns the credit summary or null.
+  function creditFeltRung(pwId, bpm, fh) {
+    const pw = PATHWAYS[pwId]; if (!pw || !pw.feltGate || !fh) return null;
+    const v = fh.verdict;
+    const tiers = pw.tempoTiers || []; let tier = -1;
+    tiers.forEach((t, i) => { if ((bpm || 0) >= t) tier = i; });
+    if (tier < 0) return null;
+    let flip = null, feltPB = false;
+    if (v === 'locked' || v === 'settling') flip = _updatePathwayTier(pwId, tier);   // D2: settling-or-better flips
+    if (v === 'locked' && bpm) {
+      const all = pathwayTiersLoad(), cur = all[pwId] || {};
+      if (bpm > (cur.feltBpm || 0)) { cur.feltBpm = bpm; all[pwId] = cur; pathwayTiersSave(all); feltPB = true; try { emitProgress('felt', pwId, { bpm }); } catch (_) {} }
+    }
+    if (!flip && !feltPB) return null;
+    return { pathwayId: pwId, pathwayLabel: pw.label, tier, tierName: TIER_LABELS[tier] || ('Tier ' + (tier + 1)), verdict: v, flip: !!flip, feltPB, feltBpm: (pathwayTiersLoad()[pwId] || {}).feltBpm || null };
   }
   // ── Proof-loop slice (flagged, pilot-only) — docs/proof-loop-slice.md ────────
   // ONE flagged build, TRIPLE duty: (1) a per-rung CLEAN-PASS verdict — the
@@ -16643,19 +17579,187 @@
     blues_foundation: 'Next time you play a blues, reach for the ♭5 and resolve it up to the 5th — that one note is the blues.',
     vl_connect: 'Next time you solo over a ii–V–I, aim your line at the next chord\'s 3rd or 7th across the bar line — that is playing the changes.',
   };
-  // The shareable plaintext card — Discord-ready, rendered only on a real flip.
-  // Kind-aware: a guide-tones pilot leads with the musical claim, then the tempo.
-  function proofCardText(s) {
-    if (!s || !s.proof) return '';
-    const p = s.proof, mins = Math.floor(s.duration_ms / 60000), secs = Math.round((s.duration_ms % 60000) / 1000);
-    const lines = [`SlopScale — ${p.label}`];
-    if (p.kind === 'guide_tones') {
-      lines.push(`✓ Voice-led the changes (3rd & 7th)${p.progression ? ` through the ${p.progression}` : ''}${p.key ? ` in ${p.key}` : ''}`);
+  // ── COOPERATIVE SHARE CARD (engagement Tier C) — text + IMAGE, every lane ─────
+  // "Share and cheer", never a leaderboard/rank/score, never auto-posted (a Copy
+  // button — consent). ONE content model feeds BOTH the plain-text card and the
+  // canvas image (the image is a styled render of the SAME lines — never a superset,
+  // so a %/chart can't sneak into the public artifact). Gamification rulings
+  // (project_share_card_everywhere_and_jam): EVERY logged run is shareable (the ~2s
+  // session floor is the only gate — _lastEndedSession only exists past it); the card
+  // is a strict honest MIRROR — an earned run LEADS with a green ✓, an ordinary run
+  // is a dignified descriptive log (no ✓, no fabricated claim); NO %/grade/rank on
+  // ANY card, any mode; Jam is DESCRIPTIVE only (form/key/style/time — the mirror,
+  // never a judge); a Custom passive ±5 flip is NEVER the public hero. Level behind
+  // XP-Off. `isShareworthy` is repurposed: it now means "leads with an achievement"
+  // (the content fork), not "does the card exist".
+  function _scaleLabel(sc) { return sc ? String(sc).replace(/_/g, ' ') : ''; }
+  function isShareworthy(s) {
+    if (!s) return false;
+    return !!(s.proof || (s.tierCleared && s.mode === 'pathway') || (s.feltResult && s.feltResult.flip)
+      || (s.depth && (s.depth.travelRung || s.depth.cleanRung || s.depth.travelKey)) || (s.badgesNew && s.badgesNew.length));
+  }
+  // The single content model — { lane, eyebrow, hero, heroGreen, sub, dur, stats[], extra[] }.
+  function shareCardModel(s) {
+    if (!s) return null;
+    const isWorkout = s.mode === 'session' && Array.isArray(s.chapters) && s.chapters.length > 1;
+    const lane = s.jam ? 'JAM' : isWorkout ? 'WORKOUT' : s.mode === 'pathway' ? 'LADDER' : 'CUSTOM';
+    const mins = Math.floor((s.duration_ms || 0) / 60000), secs = Math.round(((s.duration_ms || 0) % 60000) / 1000);
+    const dur = `${mins}:${String(secs).padStart(2, '0')}`;
+    const m = { lane, dur, eyebrow: '', hero: '', heroGreen: false, sub: '', stats: [], extra: [] };
+    const stat = (label, value) => { if (value != null && value !== '') m.stats.push({ label, value: String(value) }); };
+    if (lane === 'JAM') {
+      m.eyebrow = 'JAMMED';
+      const style = s.style || _scaleLabel(s.scale) || 'a groove';
+      m.hero = `${style}${s.key ? ` in ${s.key}` : ''}`;
+      stat('STYLE', s.style || _scaleLabel(s.scale)); stat('KEY', s.key);
+      stat('TEMPO', s.bpm ? s.bpm + ' BPM' : null); stat('TIME', dur);
+      return m;
     }
-    lines.push(`✓ Holds at ${p.tierName} tempo${p.bpm ? ` (${p.bpm} BPM)` : ''}`);
-    if (s.depth && s.depth.travelKey) lines.push(`✓ Travels — first clean run in ${s.depth.travelKey}`);
-    lines.push(`Practiced ${mins}:${String(secs).padStart(2, '0')}${s.streak > 0 ? ` · Day ${s.streak}` : ''}`);
+    if (lane === 'WORKOUT') {
+      m.eyebrow = 'COMPLETED'; m.hero = s.displayName || 'Workout';
+      try {
+        const seen = []; s.chapters.forEach(c => { if (c.role && !seen.includes(c.role)) seen.push(c.role); });
+        const arc = seen.map(r => (SEGMENT_ROLES[r] && SEGMENT_ROLES[r].label) || r).filter(Boolean).join(' → ');
+        if (arc) m.sub = arc;
+      } catch (_) {}
+      const cleared = (s.chapters || []).filter(c => c.earned).length;
+      stat('BLOCKS', s.chapters.length); stat('TIME', dur); if (cleared > 0) stat('CLEARED', cleared);
+      return m;
+    }
+    // LADDER / CUSTOM — earned-led (green) or honest descriptive
+    if (s.feltResult && s.feltResult.flip) {
+      m.eyebrow = 'LOCKED IN'; m.heroGreen = true;
+      m.hero = (s.felt && s.felt.verdict === 'locked') ? 'Locked the pocket' : 'Settled into the pocket';
+      if (s.feltResult.feltBpm) m.sub = `held in the pocket to ${s.feltResult.feltBpm} BPM`;
+      stat('SKILL', s.feltResult.pathwayLabel || s.displayName); stat('KEY', s.key); stat('TIME', dur);
+    } else if (s.proof) {
+      m.eyebrow = 'PROVED'; m.heroGreen = true;
+      m.hero = s.proof.kind === 'guide_tones' ? 'Connected the changes' : s.proof.label;
+      m.sub = s.proof.kind === 'guide_tones'
+        ? `voice-led to the guide tones${s.proof.progression ? ` through the ${s.proof.progression}` : ''}`
+        : `holds at ${s.proof.tierName} tempo`;
+      stat('TEMPO', (s.proof.bpm || s.bpm) ? (s.proof.bpm || s.bpm) + ' BPM' : null); stat('KEY', s.proof.key || s.key); stat('TIME', dur);
+    } else if (s.tierCleared && s.clearedTier != null && s.mode === 'pathway') {
+      m.eyebrow = 'CLEARED'; m.heroGreen = true;
+      m.hero = `Cleared ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}`;
+      if (s.displayName) m.sub = s.displayName;
+      stat('TEMPO', s.bpm ? s.bpm + ' BPM' : null); stat('KEY', s.key); stat('TIME', dur);
+    } else if (s.depth && s.depth.travelRung) {
+      m.eyebrow = 'TRAVELS'; m.heroGreen = true; m.hero = 'It travels now';
+      if (s.displayName) m.sub = s.displayName;
+      stat('KEY', s.depth.travelKey || s.key); stat('TIME', dur);
+    } else {
+      // No earned event → an honest descriptive log (no ✓, no fabricated claim).
+      m.eyebrow = 'PRACTICED';
+      m.hero = `${_scaleLabel(s.scale) || (s.displayName || 'Practice')}${s.key ? ` in ${s.key}` : ''}`;
+      stat('TEMPO', s.bpm ? s.bpm + ' BPM' : null); stat('KEY', s.key); stat('TIME', dur);
+    }
+    // Secondary earned ✓ lines (text card only — the image keeps one hero).
+    if (s.depth && s.depth.travelKey && !s.depth.travelRung) m.extra.push(`Travels — first clean run in ${s.depth.travelKey}`);
+    if (s.depth && s.depth.cleanRung) m.extra.push('Clean — a supports-off pass');
+    if (s.badgesNew && s.badgesNew.length) s.badgesNew.forEach(b => m.extra.push(`${b.name} — ${b.desc}`));
+    return m;
+  }
+  function shareCardText(s) {
+    const m = shareCardModel(s); if (!m) return '';
+    let xpOff = false; try { xpOff = progressLoad().mode === 'off'; } catch (_) {}
+    const what = m.lane === 'JAM' ? 'Jam' : (s.displayName || m.hero);
+    const lines = [`SlopScale — ${what}`];
+    if (m.heroGreen) lines.push(`✓ ${m.hero}${m.sub ? ` — ${m.sub}` : ''}`);
+    else if (m.lane === 'JAM') lines.push(`Jammed over ${m.hero}`);
+    else if (m.lane === 'WORKOUT') lines.push(`Completed ${m.hero}${m.sub ? ` (${m.sub})` : ''}`);
+    else lines.push(`Practiced ${m.hero}`);
+    m.extra.forEach(e => lines.push(`✓ ${e}`));
+    const tail = [`Practiced ${m.dur}`];
+    if (s.streak > 0) tail.push(`Day ${s.streak}`);
+    if (!xpOff) { try { const lv = xpLevelInfo(progressLoad().xp); tail.push(`Level ${lv.level} · ${lv.name}`); } catch (_) {} }
+    lines.push(tail.join(' · '));
     return lines.join('\n');
+  }
+  function proofCardText(s) { return shareCardText(s); }   // back-compat alias
+  function _fitCanvasText(ctx, text, maxW) {
+    text = String(text == null ? '' : text);
+    if (ctx.measureText(text).width <= maxW) return text;
+    let t = text; while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+    return t + '…';
+  }
+  // The card IMAGE — a canvas render of the SAME model (ux spec: 1200×630, verdict-led,
+  // green ✓ only on a true clear, theme accent read live, system fonts so no webfont
+  // race; same-origin → toBlob won't taint). Returns the canvas, or null.
+  function renderShareCardImage(s) {
+    const m = shareCardModel(s); if (!m) return null;
+    const W = 1200, H = 630, P = 64;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d'); if (!ctx) return null;
+    let accent = '#60a5fa', accentSoft = 'rgba(96,165,250,0.18)';
+    try { const root = $('slopscale_beta-root'); if (root) { const cs = getComputedStyle(root);
+      const ae = cs.getPropertyValue('--ss-accent-edge').trim(); if (ae) accent = ae;
+      const as = cs.getPropertyValue('--ss-accent-soft').trim(); if (as) accentSoft = as; } } catch (_) {}
+    const GREEN = '#22c55e', TXT = '#f8fafc', DIM = '#cbd5e1', MUT = '#94a3b8', FAINT = '#64748b';
+    const SANS = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+    const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+    const font = (px, w, mono) => ctx.font = `${w} ${px}px ${mono ? MONO : SANS}`;
+    const pill = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); };
+    const bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#080812'); bg.addColorStop(1, '#0d0d18');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = accent; ctx.fillRect(0, 0, W, 5);                                   // accent spine
+    ctx.strokeStyle = 'rgba(148,163,184,0.16)'; ctx.lineWidth = 1; ctx.strokeRect(24.5, 24.5, W - 49, H - 49);
+    ctx.textBaseline = 'alphabetic';
+    // Brand strip
+    ctx.fillStyle = accent; pill(P, 70, 6, 40, 3); ctx.fill();
+    ctx.fillStyle = TXT; font(40, 800); ctx.fillText('SlopScale', P + 22, 104);
+    font(15, 700); const pT = m.lane, pW = ctx.measureText(pT).width + 28, pX = W - P - pW;
+    ctx.fillStyle = accentSoft; pill(pX, 72, pW, 34, 17); ctx.fill();
+    ctx.strokeStyle = accent; ctx.lineWidth = 1.5; pill(pX, 72, pW, 34, 17); ctx.stroke();
+    ctx.fillStyle = accent; ctx.fillText(pT, pX + 14, 95);
+    // Eyebrow + hero
+    ctx.fillStyle = accent; font(18, 700); ctx.fillText(m.eyebrow.toUpperCase(), P, 212);
+    const heroMaxW = W - P * 2;
+    let hs = 64; font(hs, 700); if (ctx.measureText((m.heroGreen ? '✓ ' : '') + m.hero).width > heroMaxW) { hs = 50; font(hs, 700); }
+    let hx = P; const hy = 296;
+    if (m.heroGreen) { ctx.fillStyle = GREEN; ctx.fillText('✓', hx, hy); hx += ctx.measureText('✓  ').width; font(hs, 700); }
+    ctx.fillStyle = TXT; ctx.fillText(_fitCanvasText(ctx, m.hero, heroMaxW - (hx - P)), hx, hy);
+    if (m.sub) { ctx.fillStyle = DIM; font(23, 500); ctx.fillText(_fitCanvasText(ctx, m.sub, heroMaxW), P, hy + 42); }
+    // Stats row
+    let sx = P; const sy = 452;
+    for (const st of m.stats.slice(0, 4)) {
+      ctx.fillStyle = MUT; font(13, 600); ctx.fillText(st.label.toUpperCase(), sx, sy);
+      ctx.fillStyle = TXT; font(27, 700, /\d/.test(st.value)); ctx.fillText(st.value, sx, sy + 38);
+      sx += Math.max(ctx.measureText(st.value).width, 70) + 54;
+    }
+    ctx.fillStyle = FAINT; font(14, 500); ctx.fillText('slopscale_beta · practice studio for guitar & bass', P, H - 42);
+    return cv;
+  }
+  // Copy/download with the host-checked fallback ladder (slopsmith-host-expert):
+  // image→clipboard (Promise to keep the click activation) → download PNG → text.
+  // Returns 'copied' | 'saved' | 'copied-text' | 'failed'.
+  async function shareCardAction(s, action) {
+    const cv = renderShareCardImage(s);
+    const toBlob = () => new Promise(r => cv.toBlob(r, 'image/png'));
+    const download = async () => { const b = await toBlob(); if (!b) return false; const url = URL.createObjectURL(b); const a = document.createElement('a'); a.href = url; a.download = 'slopscale_beta-card.png'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000); return true; };
+    if (action === 'download') { if (cv && await download()) return 'saved'; }
+    else {
+      try { if (cv && navigator.clipboard && window.ClipboardItem && window.isSecureContext) { await navigator.clipboard.write([new ClipboardItem({ 'image/png': toBlob() })]); return 'copied'; } } catch (_) {}
+      try { if (cv && await download()) return 'saved'; } catch (_) {}
+    }
+    try { await navigator.clipboard.writeText(shareCardText(s)); return 'copied-text'; } catch (_) {}
+    return 'failed';
+  }
+  // The share-button row (Copy card + Download) — on every results surface, every run.
+  function shareRowHtml() {
+    return `<div class="slopscale_beta-share-row">` +
+      `<button type="button" class="slopscale_beta-ss-copy" data-act="copy-card" title="Copy a shareable card image to the clipboard">Copy card</button>` +
+      `<button type="button" class="slopscale_beta-ss-copy" data-act="download-card" title="Save the card as a PNG to share">⤓ Save</button>` +
+      `</div>`;
+  }
+  // Shared click logic for a Copy card / Save button (called from the modal + the
+  // P-sheet card handlers — both pass the session the card describes).
+  async function shareCardClick(btn, s) {
+    if (!btn || !s) return;
+    const res = await shareCardAction(s, btn.dataset.act === 'download-card' ? 'download' : 'copy');
+    const label = res === 'copied' ? 'Copied ✓' : res === 'saved' ? 'Saved ✓' : res === 'copied-text' ? 'Copied text ✓' : 'Couldn’t copy';
+    const orig = btn.textContent; btn.textContent = label;
+    setTimeout(() => { if (btn.isConnected) btn.textContent = orig; }, 1600);
   }
   function advancePathwayTier(session) {
     const total = (session.hit_count || 0) + (session.miss_count || 0);
@@ -16684,6 +17788,53 @@
     return null;
   }
   // ── End pathway tier progress ───────────────────────────────────────────────
+
+  // ── Per-block CREDIT (engagement Tier A — the earned ✓ "proved") ────────────
+  // A WORKOUT block flips the SAME pathway tier a solo Ladder run would — but ONLY
+  // through a CONSERVATIVE front door (L&D mapping ruling project_workout_perblock_
+  // credit_mapping), never the fuzzy bpm-match (which would credit a generic block
+  // to whatever rung shares a tempo). Predicate, ALL must hold:
+  //   1. the source SEGMENT_TEMPLATE carries an authored `creditsPathway` (the
+  //      curatorial "this block IS this rung's drill"); no tag → "practiced" only;
+  //   2. its role is credit-eligible + its kind isn't an excluded primitive;
+  //   3. STRICT evidence in the block's window — ≥PT_MIN_JUDGED judged AND ≥65% hit
+  //      (the lenient mic-less self-confirm a solo run allows is FORBIDDEN per-block
+  //      — this clamp is the anti-inflation spine AND makes the bass caveat self-
+  //      enforce: a felt/sub-floor block can't muster 8 judged units, so it never
+  //      flips, only logs "practiced");
+  //   4. credited tier = the highest tempoTier the block's bpm meets (below tier 0
+  //      → practiced only; never skip-credit);
+  //   5. ONE ledger (pathway_tiers via _updatePathwayTier — idempotent, flips only
+  //      an UNcleared rung), tier flips ONLY, NO per-block XP (XP is session-level,
+  //      once per sitting), zero bonus. Returns the flip {pathwayId,…} or null.
+  const CREDIT_ROLES = new Set(['technique', 'scale_arp', 'application', 'review']);
+  const CREDIT_KIND_EXCLUDE = new Set(['chromatic', 'modal_vamp']);
+  function creditBlockTier(templateId, bpm, score) {
+    const tmpl = templateId ? SEGMENT_TEMPLATES[templateId] : null;
+    if (!tmpl || !tmpl.creditsPathway) return null;                      // (1) no tag → practiced only
+    if (!CREDIT_ROLES.has(tmpl.role) || CREDIT_KIND_EXCLUDE.has(tmpl.kind)) return null;   // (2)
+    const pw = PATHWAYS[tmpl.creditsPathway]; if (!pw) return null;
+    if (!score || score.judged < PT_MIN_JUDGED || (score.hits / score.judged) < 0.65) return null;   // (3) strict, no lenient path
+    const tiers = pw.tempoTiers || []; let tier = -1;                     // (4) bpm-reached tier
+    tiers.forEach((t, i) => { if ((bpm || 0) >= t) tier = i; });
+    if (tier < 0) return null;
+    if (proofPilot(tmpl.creditsPathway) && !proofHeld({ bpm, hit_count: score.hits, miss_count: Math.max(0, score.judged - score.hits) })) return null;
+    const r = _updatePathwayTier(tmpl.creditsPathway, tier);             // (5) one ledger, idempotent
+    return r ? { pathwayId: tmpl.creditsPathway, pathwayLabel: pw.label, tier, tierName: TIER_LABELS[tier] || ('Tier ' + (tier + 1)) } : null;
+  }
+  // Startup integrity guard (mirrors validateSegmentTemplates / the anchor guard) —
+  // throws at LOAD if a `creditsPathway` tag is mis-authored, so a bad mapping can
+  // never ship a false flip: the target must be a real PATHWAYS id, the role must be
+  // credit-eligible (a tagged warmup/cooldown/jam is a contradiction), the kind must
+  // not be an excluded primitive.
+  (function assertCreditTagsValid() {
+    for (const [id, t] of Object.entries(SEGMENT_TEMPLATES)) {
+      if (!t.creditsPathway) continue;
+      if (!PATHWAYS[t.creditsPathway]) throw new Error(`[SlopScale credit-tag] ${id}: creditsPathway "${t.creditsPathway}" is not a PATHWAYS id`);
+      if (!CREDIT_ROLES.has(t.role)) throw new Error(`[SlopScale credit-tag] ${id}: role "${t.role}" cannot credit (warmup/cooldown/jam never flip)`);
+      if (CREDIT_KIND_EXCLUDE.has(t.kind)) throw new Error(`[SlopScale credit-tag] ${id}: kind "${t.kind}" cannot credit a flip`);
+    }
+  })();
 
   // ── Depth Ladder + XP (slopscale_beta.progress) — Phase 8 ───────────────────────
   // The second mastery axis ABOVE the shipped Speed Climb (pathway_tiers). Locked
@@ -16795,6 +17946,92 @@
   }
   // ── End depth ladder ────────────────────────────────────────────────────────
 
+  // ── XP LEVEL + competency BADGES (engagement Tier C) ────────────────────────
+  // The purity-flex SPEND (gamification: the closest the layer gets to the cynical
+  // line) — kept deliberately UNDERSTATED and entirely behind the XP-Off switch.
+  // Two surfaces, both READOUTS of artifacts that already exist, never new currency:
+  //   • a visible LEVEL = a legible skill-tier name derived from the accumulated XP
+  //     (time-on-instrument × difficulty — already accrued by advanceDepthLadder).
+  //     XP stays derived / never-spent / never-gates; the level just makes the climb
+  //     legible. NOT a featured headline — its home is the woodshed/P-sheet (STATE);
+  //     a level-up shows in the run-end modal only as a quiet ambient delta (W0/W1).
+  //   • collectible BADGES = one-time false→true markers for real competency EVENTS
+  //     (a rung cleared, Push reached, a skill that travels, a supports-off pass),
+  //     computed PURELY from the gained-only stores (pathway_tiers + progress.byNode).
+  //     They name SKILLS, never rounds/time/attendance (showing-up ≠ a badge), so a
+  //     badge is never lost and never farmable — the only way to earn one is to play
+  //     better. NO leaderboard, NO rank, NO RNG. Off mode collapses both.
+  const WOODSHED_LEVELS = [
+    { at: 0,      name: 'First Steps' },
+    { at: 1500,   name: 'Picking It Up' },
+    { at: 5000,   name: 'Woodshedder' },
+    { at: 12000,  name: 'Regular' },
+    { at: 25000,  name: 'Journeyman' },
+    { at: 45000,  name: 'Roadworn' },
+    { at: 75000,  name: 'Seasoned' },
+    { at: 120000, name: 'Veteran' },
+    { at: 180000, name: 'Old Hand' },
+    { at: 300000, name: 'Lifer' },
+  ];
+  function xpLevelInfo(xp) {
+    xp = Math.max(0, xp || 0);
+    let idx = 0;
+    for (let i = 0; i < WOODSHED_LEVELS.length; i++) if (xp >= WOODSHED_LEVELS[i].at) idx = i;
+    const cur = WOODSHED_LEVELS[idx], next = WOODSHED_LEVELS[idx + 1] || null;
+    return {
+      level: idx + 1, name: cur.name, xp, at: cur.at,
+      nextName: next ? next.name : null, nextAt: next ? next.at : null,
+      into: xp - cur.at, span: next ? (next.at - cur.at) : 0,
+    };
+  }
+  // Competency badges — every test reads ONLY the gained-only artifact stores, so
+  // the set is a pure function of real competency (no rep/time/streak inputs).
+  const BADGES = [
+    { id: 'first_clear', name: 'On the Board',   desc: 'Cleared your first tempo rung.',          test: (c) => c.clearedPathways >= 1 },
+    { id: 'push',        name: 'Up to Speed',    desc: 'Reached Push — the top rung — on a skill.', test: (c) => c.pushPathways >= 1 },
+    { id: 'travels',     name: 'It Travels',     desc: 'Held a skill clean in a second key.',      test: (c) => c.anyTravel },
+    { id: 'clean',       name: 'Clean Hands',    desc: 'A supports-off clean pass.',               test: (c) => c.anyClean },
+    { id: 'breadth',     name: 'Broad Strokes',  desc: 'Cleared a rung on five different skills.',  test: (c) => c.clearedPathways >= 5 },
+    { id: 'polyglot',    name: 'Well-Traveled',  desc: 'Carried your skills into five keys.',       test: (c) => c.totalKeys >= 5 },
+    { id: 'in_pocket',   name: 'In the Pocket',  desc: 'Held a bass groove Locked in the pocket.',  test: (c) => c.anyFelt },
+  ];
+  function badgeContext() {
+    const pt = pathwayTiersLoad(), store = progressLoad(), byNode = store.byNode || {};
+    let clearedPathways = 0, pushPathways = 0, totalKeys = 0, anyTravel = false, anyClean = false, anyFelt = false;
+    for (const id of Object.keys(pt)) {
+      if (!PATHWAYS[id]) continue;
+      const hi = pt[id].highest_tier ?? -1;
+      if (hi >= 0) clearedPathways++;
+      const top = (PATHWAYS[id].tempoTiers || []).length - 1;
+      if (top >= 0 && hi >= top) pushPathways++;
+      if (pt[id].feltBpm) anyFelt = true;   // a bass groove held Locked
+    }
+    for (const id of Object.keys(byNode)) {
+      const n = byNode[id] || {};
+      totalKeys += (n.keysCleared || []).length;
+      if (n.depth && n.depth.travel) anyTravel = true;
+      if (n.depth && n.depth.clean) anyClean = true;
+    }
+    return { clearedPathways, pushPathways, totalKeys, anyTravel, anyClean, anyFelt };
+  }
+  function computeBadges() {
+    const c = badgeContext();
+    return BADGES.filter(b => { try { return b.test(c); } catch (_) { return false; } }).map(b => b.id);
+  }
+  const badgeMeta = (id) => { const b = BADGES.find(x => x.id === id); return { id, name: b ? b.name : id, desc: b ? b.desc : '' }; };
+  // Persist earned badges (gained-only) + return the NEW-this-run diff. Null in Off
+  // mode (the layer is collapsed). Called from sessionEnd AFTER the tier/depth stores
+  // are updated, so this run's competency is reflected.
+  function creditBadges() {
+    const store = progressLoad();
+    if (store.mode === 'off') return null;
+    store.badges = store.badges || {};
+    const fresh = [];
+    for (const id of computeBadges()) if (!store.badges[id]) { store.badges[id] = Date.now(); fresh.push(id); }
+    if (fresh.length) progressSave(store);
+    return { newBadges: fresh.map(badgeMeta), all: Object.keys(store.badges).map(badgeMeta) };
+  }
+
   function sessionBegin() {
     const isSessionMode = $('slopscale_beta-root')?.classList.contains('slopscale_beta-session-mode');
     let mode, pathway_id, bpm, bpm_tier, scale, key, practice_type;
@@ -16842,6 +18079,9 @@
       id: `${now}-${Math.random().toString(36).slice(2, 7)}`,
       date: localDateStr(),
       ts: now, mode, pathway_id, bpm, bpm_tier, scale, key, key_credit, tuning_offset, practice_type,
+      // Share-card fields (additive): the progression (Jam "form") + the Jam style label.
+      progression: (activeBundle && activeBundle.config && activeBundle.config.progression) || null,
+      style: (() => { try { return isJamMode() ? ((document.querySelector('#slopscale_beta-jam-styles .slopscale_beta-jam-style.active') || {}).textContent || '').trim() : null; } catch (_) { return null; } })(),
       // Hand-marks state at run start (Clean depth rung: a supports-off proving
       // run needs the marks OFF for the whole run — checked again at credit).
       hand_marks_on: handMarksOn(),
@@ -16863,6 +18103,24 @@
     _sessionStartMs = performance.now();
   }
 
+  // Per-block MEASUREMENT (engagement Tier A): bucket the run's settled scoring
+  // windows by which segment they fall in → per-block hits (credited units) +
+  // judged (units whose window fully passed = the denominator). A looped run
+  // judged the whole chart; a partial run only up to where it reached. Pure read
+  // of _ptWin + segmentBounds; target-independent. Feeds the recap chapters.
+  function perBlockScore(sb) {
+    const out = sb.map(() => ({ hits: 0, judged: 0 }));
+    const findBlock = (t) => { for (let i = 0; i < sb.length; i++) if (t >= sb[i].start - 1e-3 && t < sb[i].end + 1e-3) return i; return -1; };
+    const maxJudge = _runLooped ? Infinity : (currentPracticeTime - ptLatency());
+    for (const w of _ptWin) {
+      const bi = findBlock(w.t); if (bi < 0) continue;
+      const units = w.span ? 1 : (w.notes ? w.notes.length : 1);
+      if (w.matchEnd <= maxJudge) out[bi].judged += units;
+      if (w.credited) out[bi].hits += units;
+    }
+    return out;
+  }
+
   function sessionEnd() {
     if (!_activeSession) return;
     // Paused wall-time is not practice time: it must not inflate the
@@ -16881,7 +18139,7 @@
     // the run info BEFORE the modal reads it. Threshold-gating happens at
     // display (≥8 samples, |lean| ≥ 30ms) — the data is recorded regardless.
     if (_ptRunInfo) {
-      const devs = _ptDevs.slice().sort((a, b) => a - b);
+      const devs = _ptDevs.map(x => x.d).sort((a, b) => a - b);   // _ptDevs is { d, t }; the tendency line uses d
       _ptRunInfo.leanMs = devs.length ? Math.round(devs[Math.floor(devs.length / 2)] * 1000) : null;
       _ptRunInfo.leanN = devs.length;
       _ptRunInfo.nearMiss = _ptNearMiss;
@@ -16913,16 +18171,41 @@
     const sessions = sessionsLoad();
     sessions.unshift(_activeSession);
     sessionsSave(sessions);
-    const unlock = advancePathwayTier(_activeSession);
+    const _prevXp = (function () { try { return progressLoad().xp || 0; } catch (_) { return 0; } })();
+    // Bass FELT-rung path: a feltGate pathway completes on a sustained POCKET, not a
+    // % — route through the felt verdict + creditFeltRung instead of the %-hit gate
+    // (which can never fire below the mic floor). The verdict drives the run-end word.
+    const _feltGate = !!(_pw && PATHWAYS[_pw] && PATHWAYS[_pw].feltGate);
+    let felt = null, feltResult = null, unlock;
+    if (_feltGate) {
+      const barSec = (function () { try { return measureSeconds(activeBundle.config); } catch (_) { return 2; } })();
+      felt = feltHoldAnalyze(_ptDevs, { barSec });
+      feltResult = creditFeltRung(_pw, _activeSession.bpm, felt);
+      unlock = (feltResult && feltResult.flip) ? { pathwayId: _pw, tier: feltResult.tier } : null;
+    } else {
+      unlock = advancePathwayTier(_activeSession);
+    }
     const depthGain = advanceDepthLadder(_activeSession);   // XP + Travel axis (Phase 8)
+    // Tier C readouts (behind XP-Off): a quiet LEVEL-UP delta when this run's XP gain
+    // crossed a woodshed-level boundary, + any NEW competency badges (computed AFTER
+    // the tier/depth stores above are updated, so this run's competency is reflected).
+    let levelUp = null;
+    try {
+      const _newXp = progressLoad().xp || 0;
+      const a = xpLevelInfo(_prevXp), b = xpLevelInfo(_newXp);
+      if (b.level > a.level) levelUp = { level: b.level, name: b.name, summit: !b.nextName };   // summit = reached the terminal tier (Lifer) — a graduation, not a plain level-up
+    } catch (_) {}
     // Recognizers (gamification spec): DETERMINISTIC new-bests on stored artifacts —
     // the honest "variable" reward (unpredictable because the player's growth is;
     // zero RNG). One line max, precedence first-clear > fastest-clean; "new ground"
     // (travelKey) stays the render-time fallback. bestBpm rides the same
     // pathway_tiers entry; a clean run = ≥8 really-judged notes at ≥65% (the
     // minimum-denominator rule — never issue a claim off a tiny judged set).
+    // The %-based recognizers + bestBpm are the GUITAR denomination — never fire
+    // them for a bass felt-rung (felt is the bass denomination; speed/accuracy is
+    // never the bass headline). feltResult carries the bass recognition instead.
     let recognizer = null;
-    if (_pw) {
+    if (_pw && !_feltGate) {
       const judgedN = (_activeSession.hit_count || 0) + (_activeSession.miss_count || 0);
       const clean = judgedN >= 8 && (_activeSession.hit_count || 0) / judgedN >= 0.65;
       if (clean && _activeSession.bpm != null) {
@@ -16972,6 +18255,30 @@
     if (_activeSession.mode === 'pathway' && PATHWAYS[_activeSession.pathway_id]) displayName = PATHWAYS[_activeSession.pathway_id].label;
     else if (_activeSession.mode === 'session') displayName = (BUILT_IN_SESSIONS[_selectedStarterId]?.name || 'Session practice');
     else displayName = 'Custom practice';
+    // Workout RECAP chapters (Tier 3 + engagement Tier A) — the per-block chapter
+    // list. Built from the bundle's enriched segmentBounds. A block is "reached" if
+    // the run got to it (looped past everything); unreached read neutral (never
+    // red). Tier A adds the per-block MEASUREMENT (hits/judged bucketed from _ptWin
+    // by segment + hadInput) — the substrate for the played●/touched○ honesty, the
+    // per-block PR, and (later) per-block credit. Only for multi-block Workouts.
+    let chapters = null;
+    if (_activeSession.mode === 'session') {
+      const sb = (activeBundle && Array.isArray(activeBundle.segmentBounds)) ? activeBundle.segmentBounds : [];
+      if (sb.length > 1) {
+        const pbs = perBlockScore(sb);
+        chapters = sb.map((b, i) => ({
+          name: b.name, kind: b.kind, role: b.role, competency: b.competency || null,
+          added: !!b.added, key: b.key || null,
+          durSec: Math.max(0, (b.end || 0) - (b.start || 0)),
+          reached: _runLooped || (b.start <= _runMaxChartTime + 0.05),
+          hits: pbs[i].hits, judged: pbs[i].judged, hadInput: !!_blockHadInput[i],
+          // Per-block CREDIT (the earned ✓): a clean strict pass on a credit-tagged
+          // block flips its pathway rung through the conservative front door. null
+          // = no flip (untagged, ineligible, weak evidence, or already cleared).
+          earned: creditBlockTier(b.templateId, b.bpm, pbs[i]),
+        }));
+      }
+    }
     // Proof-loop competency claim (flagged, pilot, ONLY on a real flip — the
     // anti-inflation spine: a "you proved" claim exists only when something was proven).
     let proof = null;
@@ -16998,6 +18305,11 @@
         }
       }
     }
+    // Competency badges (Tier C) — computed LAST, after both the solo tier/depth
+    // flips above AND the Workout per-block creditBlockTier flips inside `chapters`
+    // have written the ledger, so a badge earned via a Workout block fires the same
+    // run. Null in Off mode. Gained-only diff.
+    const badgeGain = creditBadges();
     _lastEndedSession = {
       mode: _activeSession.mode, scale: _activeSession.scale, key: _activeSession.key,
       bpm: _activeSession.bpm, bpm_tier: _activeSession.bpm_tier,
@@ -17007,8 +18319,14 @@
       proof,              // proof-loop competency claim | null (flagged, pilot, on-flip only)
       streak: streakCount(sessions),
       jam: !!_activeSession.jam,   // Jam = mirror: the deliberate-end modal is suppressed
+      chapters,                    // Workout recap chapter list (Tier 3) | null — descriptive per-block rows
       recognizer,                  // { kind:'first_clear' } | { kind:'fastest', bpm, prev } | { kind:'best_pct', pct, prev } | null
       specBest,                    // { best, runs, isNew, prev } | null — the standing-target "Best here" line
+      levelUp,                     // { level, name } | null — Tier C: a woodshed level boundary crossed this run (quiet)
+      badgesNew: badgeGain ? badgeGain.newBadges : null,   // [{ id, name, desc }] | null — Tier C: competency badges earned this run
+      felt,                        // { verdict, leanMs, driftMs, jitterMs, untight } | null — bass felt-hold verdict (feltGate runs)
+      feltResult,                  // { flip, feltPB, feltBpm, tier, tierName, verdict } | null — the felt credit (a flip = a cleared pocket)
+      progression: _activeSession.progression, style: _activeSession.style,   // share-card (Jam form/style)
       // Mini rung-ladder context for the modal's progress strip (post-update state).
       ladder: (_pw && PATHWAYS[_pw]) ? {
         tiers: PATHWAYS[_pw].tempoTiers || [],
@@ -17039,17 +18357,24 @@
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
 
+  // FORGIVING practice streak (engagement Tier A — the #1 DAU lever, non-toxic
+  // form): a day counts when a real session happened (the 2s blip floor already
+  // filters non-practice; unit-based, never minutes/app-open). It SURVIVES a single
+  // rest day (an auto-freeze) — only TWO consecutive missed days end the run — so a
+  // bad day never nukes weeks of work (the market/gamification ruling against
+  // streak-guilt). `count` = practiced days in the surviving run (rest days don't
+  // increment it). The display celebrates the return, never punishes the break.
   function streakCount(sessions) {
+    const DAY = 86400000;
     const practiced = new Set(sessions.map(s => s.date));
-    const today = localDateStr();
-    const yesterday = localDateStr(new Date(Date.now() - 86400000));
-    // Streak is alive if today or yesterday has a session (grace until midnight)
-    if (!practiced.has(today) && !practiced.has(yesterday)) return 0;
-    let count = 0;
-    let d = practiced.has(today) ? new Date() : new Date(Date.now() - 86400000);
-    while (practiced.has(localDateStr(d))) {
-      count++;
-      d = new Date(d.getTime() - 86400000);
+    const today = localDateStr(), yesterday = localDateStr(new Date(Date.now() - DAY));
+    if (!practiced.has(today) && !practiced.has(yesterday)) return 0;   // grace until midnight
+    let count = 0, miss = 0, guard = 0;
+    let d = practiced.has(today) ? new Date() : new Date(Date.now() - DAY);
+    while (guard++ < 1000) {
+      if (practiced.has(localDateStr(d))) { count++; miss = 0; }
+      else { if (count === 0) break; if (++miss >= 2) break; }   // one rest day is frozen; two in a row ends the run
+      d = new Date(d.getTime() - DAY);
     }
     return count;
   }
@@ -18014,14 +19339,11 @@
       fretboardOn = !fretboardOn;
       try { localStorage.setItem('slopscale_beta.fretboard', fretboardOn ? '1' : '0'); } catch (_) {}
       syncFretboardUI();
-      // Showing/hiding the strip changes the render-host height. Re-fit the
-      // active renderer so a borrowed viz (Jumping Tab) re-lays-out to the new
-      // size instead of stretching its old canvas to fill the gap.
-      if (renderer && typeof renderer.resize === 'function') {
-        const host = $('slopscale_beta-render-host');
-        if (host) { const r = host.getBoundingClientRect(); renderer.resize(Math.round(r.width), Math.round(r.height)); }
-      }
-      drawOnce();
+      // The strip SLIDES (max-height, ~0.26s) → re-fit + redraw ACROSS the slide, not
+      // once before it settles (the regression: a synchronous re-fit used the pre-slide
+      // height → the fretboard didn't render until a lane switch + the highway didn't
+      // re-fit on hide). refitStageDuring tracks the size each frame and settles correct.
+      refitStageDuring(340);
     });
     // Keep-looping toggle: off (default) = a drill plays its right-sized run once then
     // ends; on = loop it forever for open practice. Read live by finiteRunActive() each
@@ -18032,8 +19354,8 @@
       try { localStorage.setItem('slopscale_beta.keepLooping', keepLooping ? '1' : '0'); } catch (_) {}
       syncKeepLoopUI();
     });
-    document.querySelectorAll('.slopscale_beta-modeview-btn').forEach(b =>
-      b.addEventListener('click', () => setPanelCollapsed(b.dataset.modeview === 'play')));
+    $('slopscale_beta-pane-collapse-btn')?.addEventListener('click', () => setPanelCollapsed(true));
+    $('slopscale_beta-pane-expand-btn')?.addEventListener('click', () => setPanelCollapsed(false));
     $('slopscale_beta-focus-btn')?.addEventListener('click', toggleFocus);
     document.addEventListener('fullscreenchange', onFullscreenChange);
     // Feel control: write the hidden swing field + bubble a change so the
@@ -18164,9 +19486,28 @@
       renderStarters();
     });
     $('slopscale_beta-starters-body')?.addEventListener('click', (e) => {
+      const rload = e.target.closest('.slopscale_beta-routine-load');
+      if (rload) { loadRoutine(rload.dataset.routineId); return; }
+      const rdel = e.target.closest('.slopscale_beta-routine-del');
+      if (rdel) { deleteRoutine(rdel.dataset.routineId); return; }
       const load = e.target.closest('.slopscale_beta-starter-load'); if (!load) return;
       loadStarter(load.dataset.starterId);
     });
+    // "Save routine" — reveal the inline name affordance; save on go/Enter.
+    $('slopscale_beta-save-routine')?.addEventListener('click', () => {
+      const row = $('slopscale_beta-routine-save-row'), input = $('slopscale_beta-routine-name');
+      const draft = _workoutDraft;
+      if (!draft || !(draft.segments || []).length) { showStatus('Build a Workout first.'); return; }
+      if (row) row.hidden = false;
+      if (input) { input.value = (draft.name && draft.name !== 'Session practice') ? draft.name : ''; input.focus(); input.select(); }
+    });
+    $('slopscale_beta-routine-save-cancel')?.addEventListener('click', () => { const r = $('slopscale_beta-routine-save-row'); if (r) r.hidden = true; });
+    $('slopscale_beta-routine-save-go')?.addEventListener('click', async () => {
+      const input = $('slopscale_beta-routine-name'), row = $('slopscale_beta-routine-save-row');
+      const ok = await saveRoutine(input ? input.value : '');
+      if (ok && row) row.hidden = true;
+    });
+    $('slopscale_beta-routine-name')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('slopscale_beta-routine-save-go')?.click(); } });
     $('slopscale_beta-starters-confirm')?.addEventListener('click', (e) => {
       if (e.target.closest('.slopscale_beta-starter-confirm-yes')) loadStarter(e.target.closest('.slopscale_beta-starter-confirm-yes').dataset.starterId, true);
       else if (e.target.closest('.slopscale_beta-starter-confirm-no')) { _pendingStarter = null; renderStarters(); }
@@ -18174,14 +19515,9 @@
     // "Last session" card dismiss (delegated — the sheet body is re-rendered each open).
     $('slopscale_beta-progress-sheet-body')?.addEventListener('click', (e) => {
       if (e.target.closest('[data-act="dismiss-summary"]')) { _lastEndedSession = null; renderProgressSheet(); }
-      else if (e.target.closest('[data-act="copy-proof"]')) {
-        // Copy the shareable card to the clipboard — silent (no sound/toast), per the
-        // proof-loop guardrails. A brief inline "Copied ✓" is the only feedback.
-        const btn = e.target.closest('[data-act="copy-proof"]');
-        const txt = proofCardText(_lastEndedSession);
-        try { navigator.clipboard?.writeText(txt); } catch (_) {}
-        btn.textContent = 'Copied ✓';
-        setTimeout(() => { if (btn.isConnected) btn.textContent = 'Copy progress card'; }, 1600);
+      else {
+        const sbtn = e.target.closest('[data-act="copy-card"], [data-act="download-card"]');
+        if (sbtn) shareCardClick(sbtn, _lastEndedSession);   // image card → clipboard / PNG, silent
       }
     });
     $('slopscale_beta-cheat-close')?.addEventListener('click', () => toggleCheatSheet(false));
@@ -18306,7 +19642,7 @@
     $('slopscale_beta-countin-default')?.addEventListener('change', (e) => { try { localStorage.setItem('slopscale_beta.countInDefault', e.target.value); } catch (_) {} applyCountInDefault(e.target.value); });
     loadSettingsPrefs();
     document.addEventListener('click', (e) => {
-      const menu = $('slopscale_beta-settings-menu'); if (!menu || menu.hidden) return;
+      const menu = $('slopscale_beta-settings-menu'); if (!menu || !menu.classList.contains('ss-open')) return;
       const btn = $('slopscale_beta-settings-btn');
       if (!menu.contains(e.target) && btn && !btn.contains(e.target)) toggleSettingsMenu(false);
     });
@@ -18328,6 +19664,7 @@
     syncSessionSummary(Object.keys(BUILT_IN_SESSIONS)[0]);
 
     loadPathwayFavorites();
+    loadSavedRoutines().then(() => { if ($('slopscale_beta-root')?.classList.contains('slopscale_beta-session-mode')) renderStarters(); });   // surface the user's saved routines in the starter picker
     // Populate the Shape dropdown for the initial (key, system) before any
     // pathway runs — applyInitialPathway may set the shape value, but it
     // can't select an option that doesn't exist yet.
@@ -18472,7 +19809,7 @@
   }
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
-  window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
+  window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier, xpLevelInfo, computeBadges, creditBadges, shareCardText, isShareworthy, feltHoldAnalyze, creditFeltRung, shareCardModel, shareCardText, renderShareCardImage, isShareworthy };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
