@@ -91,6 +91,24 @@ try {
   s = await state();
   ok(/crosses the 7\/8 pulse/.test(s.help) && /re-aligns every 2 bars/.test(s.help), "7/8 quarter cross-pulse caption", `“${s.help}”`);
 
+  console.log("\n-- count-in grid preview defaults (panel 2026-06-12) --");
+
+  // 16th-grid exercises default to a 2-bar count-in (pulse bar + gridded bar)
+  // ONLY when the player hasn't chosen a count-in; an explicit saved default
+  // always wins; 8ths keep 1 bar; under an /8 meter a 16th is only 2 ticks per
+  // felt pulse → no bump (meter-correct, not token-keyed).
+  await setMeter("4/4"); await setSubdiv("sixteenth");
+  let ci = await page.evaluate(() => { localStorage.removeItem("slopscale.countInDefault"); return window.SlopScale.readConfig().countInBars; });
+  ok(ci === 2, "sixteenth in 4/4 defaults to a 2-bar count-in", `bars=${ci}`);
+  ci = await page.evaluate(() => { localStorage.setItem("slopscale.countInDefault", "1"); const v = window.SlopScale.readConfig().countInBars; localStorage.removeItem("slopscale.countInDefault"); return v; });
+  ok(ci === 1, "an explicit saved 1-bar default wins over the 16th bump", `bars=${ci}`);
+  await setSubdiv("eighth");
+  ci = await page.evaluate(() => window.SlopScale.readConfig().countInBars);
+  ok(ci === 1, "eighth keeps the 1-bar count-in", `bars=${ci}`);
+  await setMeter("6/8"); await setSubdiv("sixteenth");
+  ci = await page.evaluate(() => window.SlopScale.readConfig().countInBars);
+  ok(ci === 1, "sixteenth under 6/8 (2 ticks per felt pulse) does NOT bump", `bars=${ci}`);
+
   ok(pageErrs.length === 0, "no uncaught page errors", pageErrs.join(" | "));
   console.log(`\n${fails === 0 ? "PASS" : "FAIL"}  meter-aware subdivision: ${fails} failure(s)`);
   process.exit(fails ? 1 : 0);

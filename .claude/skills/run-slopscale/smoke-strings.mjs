@@ -219,11 +219,13 @@ try {
     selPathway("metalcore_chug");
     cfg = S.readConfig();
     out.cKey = cfg.key; out.cFret = s0fret(S.generateExercise(cfg)); out.cSetup = cfg.stringSetup;
-    // (d) pulse_muting variation 2 = anchorFret:5 → station 'fret 5', key A (standard).
+    // (d) pulse_muting's anchorFret:5 variation → station 'fret 5', key A (standard).
+    // Vary order changed 2026-06-12 (beginner-entry panel): the sixteenth step
+    // moved LAST, so anchorFret:5 is now vary[1] — ONE Next-Variation click.
     localStorage.removeItem("slopscale.instrument");
     selPathway("pulse_muting");
     const next = document.querySelector("#slopscale-shape-next");
-    next.click(); next.click();
+    next.click();
     cfg = S.readConfig();
     out.dKey = cfg.key; out.dStation = cfg.anchorStation; out.dFret = s0fret(S.generateExercise(cfg));
     // Self-clean.

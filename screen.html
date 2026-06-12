@@ -528,6 +528,16 @@
   .slopscale-seam-next { font-size: 15px; font-weight: 800; color: var(--ss-text, #e8eef7); }
   .slopscale-seam-next .slopscale-seam-pos { font-size: 11.5px; font-weight: 600; color: var(--ss-text-muted, #94a3b8); }
   @media (prefers-reduced-motion: reduce) { .slopscale-seam-caption { transition: none; } }
+  /* Mid-run downshift chip — lower-left stage edge (near the ruler), never over
+     the note lane; quiet surface, accent only on the action. */
+  .slopscale-downshift { position: absolute; left: 12px; bottom: 10px; z-index: 14; display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 12px; border-radius: 999px; background: var(--ss-surface-bar, rgba(9,15,30,0.92)); border: 1px solid var(--ss-border, #334155); box-shadow: 0 4px 14px rgba(0,0,0,0.35); opacity: 0; transform: translateY(6px); transition: opacity 0.2s ease, transform 0.2s ease; pointer-events: none; }
+  .slopscale-downshift.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  .slopscale-downshift-msg { font-size: 12px; color: var(--ss-text-dim, #cbd5e1); }
+  .slopscale-downshift-go { padding: 4px 10px; font-size: 12px; font-weight: 600; border-radius: 999px; border: 1px solid var(--ss-accent-edge, #3b82f6); background: var(--ss-track, #141d33); color: var(--ss-text, #e2e8f0); cursor: pointer; }
+  .slopscale-downshift-go:hover { background: var(--ss-accent, #4080e0); }
+  .slopscale-downshift-x { padding: 2px 6px; font-size: 11px; border: none; background: none; color: var(--ss-text-faint, #64748b); cursor: pointer; border-radius: 6px; }
+  .slopscale-downshift-x:hover { color: var(--ss-text, #e2e8f0); background: rgba(148,163,184,0.15); }
+  @media (prefers-reduced-motion: reduce) { .slopscale-downshift { transition: none; } }
   /* Live fretboard strip docked under the highway. Hidden by default; shown only
      for fretboard-capable views (Jumping Tab + Notation) when the toggle is on.
      Always hidden for the Piano instrument. */
@@ -1833,6 +1843,10 @@
              Custom-mode "Backing / Feel" control later (slopscale-ux-designer). -->
         <input type="hidden" name="backingStyle" id="slopscale-backing-style" value="pad">
         <input type="hidden" name="swing" id="slopscale-swing" value="straight">
+        <!-- Beginner woodshed default (panel 2026-06-12): a core_beginner rung sets
+             drums:'none' so the kit doesn't raise perceived tempo on cold hands;
+             '' = auto (style groove). Anti-leak defaulted in applyPathwayConfig. -->
+        <input type="hidden" name="drums" id="slopscale-drums" value="">
 
         <div class="slopscale-grid-2">
           <label>Direction
@@ -2376,6 +2390,17 @@
         <div id="slopscale-seam-caption" class="slopscale-seam-caption" aria-hidden="true">
           <div class="slopscale-seam-done"></div>
           <div class="slopscale-seam-next"></div>
+        </div>
+
+        <!-- Mid-run downshift offer (beginner rungs only, panel 2026-06-12): a
+             non-blocking chip at the stage's lower edge when the first bars judge
+             low WITH input present. An OFFER, never automatic, never a modal;
+             copy frames the TEMPO as fast, never the player as failing. Once per
+             rung per session; dismiss suppresses for the session. -->
+        <div id="slopscale-downshift" class="slopscale-downshift" aria-hidden="true" hidden>
+          <span class="slopscale-downshift-msg">Feeling fast?</span>
+          <button type="button" id="slopscale-downshift-go" class="slopscale-downshift-go"></button>
+          <button type="button" id="slopscale-downshift-x" class="slopscale-downshift-x" title="Not now" aria-label="Dismiss">✕</button>
         </div>
 
         <!-- Mixer (M): slides UP over the stage. A console deck of vertical

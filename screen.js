@@ -644,10 +644,16 @@
   const PATHWAYS = {
     chromatic_warmup: {
       label:'Chromatic Warmup',
-      goal:'One finger per fret — 1-2-3-4 across all six strings. Builds fretting-hand synchronization, finger independence, and positional awareness. The universal warmup every method teaches. Start slow; speed comes from clean reps, not rushed ones.',
+      goal:'One finger per fret — 1-2-3-4 across all six strings. Builds fretting-hand synchronization, finger independence, and positional awareness. The universal warmup every method teaches. The ladder climbs density before speed: eighth notes first, sixteenths only at the top rung — speed comes from clean reps, not rushed ones.',
       scales:[],
-      tempoTiers:[60, 80, 100, 120],
-      base:{ practiceType:'chromatic', chromaticPattern:'1234', strokePolicy:'alternate', meter:'4/4', subdivision:'sixteenth', bpm:60, bars:8, direction:'up_down', advancedMode:false, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:1, fretMax:4 },
+      // Beginner density ladder (panel 2026-06-12): the old sixteenth@60 entry was
+      // 4 notes/sec cold — a fluent-player load mislabeled "easy" by its BPM (the
+      // beta "wrecked from ez mode" report). Tiers climb eighths, sixteenths land
+      // only at the top; short bars at the bottom so a cold-hands retry is cheap.
+      tempoTiers:[60, 70, 80, 90],
+      tempoTierSubdivs:['eighth', 'eighth', 'eighth', 'sixteenth'],
+      tempoTierBars:[4, 4, 8, 8],
+      base:{ practiceType:'chromatic', chromaticPattern:'1234', strokePolicy:'alternate', meter:'4/4', subdivision:'eighth', bpm:60, bars:4, direction:'up_down', advancedMode:false, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:1, fretMax:4 },
       vary:[
         { chromaticPattern:'1234', fretMin:1, fretMax:4 },
         { chromaticPattern:'4321', fretMin:1, fretMax:4 },
@@ -662,7 +668,7 @@
       goal:'Minor pentatonic with the flat-5 blue note added. That one extra note is what separates a scale run from a blues lick. Play it over a 12-bar blues and land on the b5 for tension — resolve it up to the 5th.',
       scales:['blues','minor_pentatonic'],
       tempoTiers:[60, 80, 100, 120],
-      base:{ practiceType:'scale', scale:'blues', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7' },
+      base:{ practiceType:'scale', scale:'blues', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7', drums:'none' },
       vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ]
     },
     blues_shuffle: {
@@ -678,7 +684,7 @@
       goal:'Play minor pentatonic box 1 over a 12-bar blues. The single most useful guitar drill — every rock and blues solo lives in this combination.',
       scales:['minor_pentatonic','blues','major_pentatonic'],
       tempoTiers:[60, 80, 100, 120],
-      base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7' },
+      base:{ practiceType:'scale', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:80, bars:12, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'12_bar_blues', chordDepth:'seventh', chordOverride:'dom7', drums:'none' },
       vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ]
     },
     major_pent_country: {
@@ -965,9 +971,15 @@
       label:'Root–3rd–5th by Ear',
       goal:"The three notes every chord is built from — root, third, fifth — spelled up through the scale (1-3-5, 2-4-6…). The third is the note that tells major from minor; the fifth is a bass player's home base. Hear and find these and you can outline any chord in the key by ear — the foundation of arpeggios, bass lines, and improvising. Start slow in one box; name each note as you play it.",
       scales:['major','natural_minor'],
-      tempoTiers:[50, 65, 80, 95],
+      // Density ladder (panel 2026-06-12, bass-pedagogy MUST-fix): a broken-triad
+      // sequence is constant position shifts — the cold-hands load is shifts/sec,
+      // not BPM. Quarter floor first (both instruments — the parity rule), eighths
+      // only after the shape is owned; short bars at the bottom.
+      tempoTiers:[50, 65, 70, 85],
+      tempoTierSubdivs:['quarter', 'quarter', 'eighth', 'eighth'],
+      tempoTierBars:[4, 4, 8, 8],
       instAgnostic:true,
-      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'eighth', bpm:55, bars:8, direction:'up_down', sequence:'broken_triads', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E', fretMin:2, fretMax:7 },
+      base:{ practiceType:'scale', scale:'major', meter:'4/4', subdivision:'quarter', bpm:50, bars:4, direction:'up_down', sequence:'broken_triads', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G', shape:'E', fretMin:2, fretMax:7 },
       vary:[ { key:'G', fretMin:2, fretMax:7 }, { key:'E', fretMin:0, fretMax:5 }, { key:'A', fretMin:4, fretMax:9 }, { key:'A', scale:'natural_minor', fretMin:4, fretMax:9 }, { key:'C', fretMin:5, fretMax:10 } ]
     },
     // ── Expression ladder (Concepts family) ─────────────────────────────────────
@@ -1286,8 +1298,12 @@
       label:'Alternating-Finger Pulse',
       goal:"The motor under every bassline: strict index–middle alternation, dead even, never breaking stride, while the floating thumb mutes the strings you're not playing. The hand pattern IS the drill — even attacks, even volume, locked to the click. Build this and everything else gets easier.",
       scales:['natural_minor','minor_pentatonic'],
-      tempoTiers:[60, 90, 120, 150],
-      base:{ practiceType:'right_hand_technique', rhTechMode:'pulse', scale:'natural_minor', progression:'static_i', chordDepth:'seventh', chordOverride:'min7', meter:'4/4', subdivision:'eighth', bpm:90, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'E', fretMin:5, fretMax:9 },
+      // Density ladder (panel 2026-06-12, bass-pedagogy): introduce the i-m
+      // alternation at quarters first — alternation fatigues faster than a pick
+      // at equal density — then climb eighths by BPM.
+      tempoTiers:[60, 70, 95, 120],
+      tempoTierSubdivs:['quarter', 'eighth', 'eighth', 'eighth'],
+      base:{ practiceType:'right_hand_technique', rhTechMode:'pulse', scale:'natural_minor', progression:'static_i', chordDepth:'seventh', chordOverride:'min7', meter:'4/4', subdivision:'quarter', bpm:60, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', key:'E', fretMin:5, fretMax:9 },
       vary:[ { key:'E' }, { key:'A' }, { key:'G' }, { key:'B', stringSetup:'bass_5_standard', fretMin:0, fretMax:4 }, { key:'C' } ]
     },
     bass_rh_crossing: {
@@ -1340,8 +1356,13 @@
       label:'Finger Gym',
       goal:"The fretting hand's foundation: one finger per fret, pressing just behind the fret, every note clean and even. Up at the 5th–8th frets the four frets sit comfortably under your four fingers (1-2-3-4). Down at the bottom of the neck the stretch is too wide — there you switch to 1-2-4 (index, middle, pinky) with a small shift, never a flat four-finger reach. Build finger independence and a relaxed hand before speed.",
       scales:['minor_pentatonic'],
-      tempoTiers:[55, 70, 85, 100],
-      base:{ practiceType:'chromatic', chromaticPattern:'1234', scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bpm:70, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', fretMin:5, fretMax:8 },
+      // Density ladder (panel 2026-06-12, bass-pedagogy): an eighth chromatic
+      // spider cold is a real demand on big strings — quarter floor first, then
+      // eighths; short bars at the bottom (cap continuous reps for cold hands).
+      tempoTiers:[55, 65, 75, 85],
+      tempoTierSubdivs:['quarter', 'quarter', 'eighth', 'eighth'],
+      tempoTierBars:[4, 4, 8, 8],
+      base:{ practiceType:'chromatic', chromaticPattern:'1234', scale:'minor_pentatonic', meter:'4/4', subdivision:'quarter', bpm:55, bars:4, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'bass_4_standard', renderer:'highway_3d', fretMin:5, fretMax:8 },
       vary:[ { chromaticPattern:'1234', fretMin:5, fretMax:8 }, { chromaticPattern:'1324', fretMin:5, fretMax:8 }, { chromaticPattern:'4321', fretMin:5, fretMax:8 }, { chromaticPattern:'1342', fretMin:5, fretMax:8 }, { chromaticPattern:'1234', fretMin:7, fretMax:10 } ]
     },
     // Bass pinky / legato rung (Discord ask — Daniel: "pinky hammer-ons & pull-offs,
@@ -1804,12 +1825,15 @@
       goal:'The foundation under everything: lock to the click and control the mute. A palm-muted pedal on your open lowest string chugs the beat while a tight power chord (root+5th) lands on each downbeat — straight feel first. The skill is the metronome relationship and both-hand muting (palm-mute + left-hand dampening), not the notes. The later steps move the pedal to a FRETTED root — a different mute: your fretting finger owns the note length. Own this and every riff sits in the pocket.',
       scales:['natural_minor','minor_pentatonic'],
       tempoTiers:[50, 65, 80, 95],
-      base:{ practiceType:'pedal_riff', harmonize:false, scale:'natural_minor', anchor:'open_lowest', anchorFret:0, meter:'4/4', subdivision:'eighth', bpm:60, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'static_i', chordOverride:'5', swing:'straight', fretMin:0, fretMax:5 },
+      base:{ practiceType:'pedal_riff', harmonize:false, scale:'natural_minor', anchor:'open_lowest', anchorFret:0, meter:'4/4', subdivision:'eighth', bpm:60, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'static_i', chordOverride:'5', swing:'straight', drums:'none', fretMin:0, fretMax:5 },
+      // The sixteenth step lands LAST (guitar-pedagogy 2026-06-12): the old
+      // order doubled 8th→16th straight out of the entry step with no bridge —
+      // the fretted-pedal moves come first, density doubles only at the end.
       vary:[
         { progression:'static_i', subdivision:'eighth' },
-        { progression:'static_i', subdivision:'sixteenth' },
         { progression:'static_i', anchorFret:5 },
         { progression:'static_i', anchorFret:3 },
+        { progression:'static_i', subdivision:'sixteenth' },
       ]
     },
     power_chord_comping: {
@@ -1817,7 +1841,7 @@
       goal:'Power chords as harmony, not metal — root+5th dyads moving through a musical minor progression (i–♭VII–♭VI–♭VII) over a tonic pedal. The skill is changing power-chord shapes cleanly in time and hearing the root motion. Works in any tuning — the riff anchors on your lowest string; this is the chord vocabulary every rock and pop rhythm part is built from.',
       scales:['natural_minor','minor_pentatonic','major'],
       tempoTiers:[60, 80, 100, 120],
-      base:{ practiceType:'pedal_riff', harmonize:false, scale:'natural_minor', anchor:'open_lowest', anchorFret:0, meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'i-VII-VI-VII', chordOverride:'5', swing:'straight', fretMin:0, fretMax:7 },
+      base:{ practiceType:'pedal_riff', harmonize:false, scale:'natural_minor', anchor:'open_lowest', anchorFret:0, meter:'4/4', subdivision:'eighth', bpm:80, bars:8, direction:'up_down', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', progression:'i-VII-VI-VII', chordOverride:'5', swing:'straight', drums:'none', fretMin:0, fretMax:7 },
       vary:[
         { progression:'i-VII-VI-VII' },
         { progression:'I-V-vi-IV', scale:'major', anchorFret:3 },
@@ -3982,7 +4006,21 @@
       // removed (2026-06-09) — count-in is always-on for players (a 0-bar drop-in
       // is a DAW recording convenience, not a practice need). 0 stays engine-
       // reachable (the smoke harness sets it for a note[0]-at-t=0 fixture).
-      countInBars: (() => { const v = parseInt(data.get('countIn'), 10); return Math.max(0, Math.min(8, Number.isFinite(v) ? v : 1)); })(),
+      countInBars: (() => {
+        const v = parseInt(data.get('countIn'), 10);
+        let bars = Math.max(0, Math.min(8, Number.isFinite(v) ? v : 1));
+        // 16th-grid default bump (rhythm-meter spec 2026-06-12): a pulse bar THEN a
+        // gridded bar before fast notes — only when the player hasn't chosen a
+        // count-in (no saved default, field at the 1-bar default). An explicit
+        // player choice — saved default or a touched field — always wins.
+        try {
+          if (bars === 1 && !localStorage.getItem('slopscale.countInDefault')) {
+            const m = parseMeter(data.get('meter'));
+            if (m && countInSubTicks({ subdivision: String(data.get('subdivision') || ''), meter: m }) >= 4) bars = 2;
+          }
+        } catch (_) {}
+        return bars;
+      })(),
       // Click subdivision: soft clicks per metric beat for BOTH the count-in and
       // the in-chart metronome. 1 = on the beat only; 2/3/4 = duplet/triplet/
       // quadruplet feel. This is a transport (click-track) setting, independent
@@ -4012,6 +4050,9 @@
       // 'shuffle'/'swing' bend the eighth grid (see applySwingToBundle).
       backingStyle: data.get('backingStyle') || 'pad',
       swing: data.get('swing') || 'straight',
+      // Drums suppression (beginner woodshed default): 'none' = no kit events
+      // (resolveGroove gates on it); '' = auto. Pathway-driven hidden field.
+      drums: (data.get('drums') || '').toString(),
       chromaticPattern: data.get('chromaticPattern') || '1234',
       voices: data.get('voices') || 'thirds_only',
       keyCycle: data.get('keyCycle') || 'none',
@@ -4814,6 +4855,44 @@
     }
   })();
 
+  // Density-ladder integrity guard (panel 2026-06-12; mirrors the anchor guard —
+  // throws at load so a mis-authored ladder can never ship). Two rules:
+  // (1) a rung with tempoTierSubdivs/tempoTierBars must keep its arrays aligned
+  //     with tempoTiers, use known subdivision tokens, and keep tempoTiers
+  //     STRICTLY INCREASING — every bpm→tier inference in crediting
+  //     (creditBlockTier / creditFeltRung / the custom-mode fuzzy match) scans
+  //     `bpm >= tier`, so duplicate or descending BPMs would mis-credit a
+  //     density tier it can't see;
+  // (2) the BEGINNER DENSITY FLOOR (learning-design ruling): tier 0 of any
+  //     core_beginner rung presents ≤ ~2 notes/sec — sixteenth@60-style entries
+  //     ("wrecked from ez mode") become a load-time error, not a beta report.
+  (function assertTierLaddersValid() {
+    const TIER_SUBDIV_OK = new Set(['quarter', 'eighth', 'triplet', 'eighth_triplet', 'sixteenth', 'sixteenth_triplet']);
+    const PER_BEAT = { quarter: 1, eighth: 2, triplet: 3, eighth_triplet: 3, sixteenth: 4, sixteenth_triplet: 6 };
+    for (const [id, pw] of Object.entries(PATHWAYS)) {
+      const tiers = pw.tempoTiers || [];
+      if (pw.tempoTierSubdivs || pw.tempoTierBars) {
+        if (pw.tempoTierSubdivs) {
+          if (pw.tempoTierSubdivs.length !== tiers.length) throw new Error(`[SlopScale tier-ladder] ${id}: tempoTierSubdivs length ${pw.tempoTierSubdivs.length} ≠ tempoTiers length ${tiers.length}`);
+          for (const s of pw.tempoTierSubdivs) if (!TIER_SUBDIV_OK.has(s)) throw new Error(`[SlopScale tier-ladder] ${id}: unknown tier subdivision '${s}'`);
+        }
+        if (pw.tempoTierBars && pw.tempoTierBars.length !== tiers.length) throw new Error(`[SlopScale tier-ladder] ${id}: tempoTierBars length ${pw.tempoTierBars.length} ≠ tempoTiers length ${tiers.length}`);
+        for (let i = 1; i < tiers.length; i++) {
+          if (!(tiers[i] > tiers[i - 1])) throw new Error(`[SlopScale tier-ladder] ${id}: tempoTiers must be strictly increasing when a density ladder is declared (bpm→tier crediting scans 'bpm ≥ tier'); got ${tiers[i - 1]} → ${tiers[i]}`);
+        }
+      }
+    }
+    const beginner = PATHWAY_BANDS.find(b => b.id === 'core_beginner');
+    for (const id of (beginner ? beginner.pathways : [])) {
+      const pw = PATHWAYS[id]; if (!pw || !pw.tempoTiers || !pw.tempoTiers.length) continue;
+      const sub0 = (pw.tempoTierSubdivs && pw.tempoTierSubdivs[0]) || (pw.base || {}).subdivision;
+      const perBeat = PER_BEAT[sub0];
+      if (perBeat == null) continue;   // cell tokens (gallop etc.) aren't entry-tier material; nothing to check
+      const nps = (pw.tempoTiers[0] / 60) * perBeat;
+      if (nps > 2.4) throw new Error(`[SlopScale tier-ladder] ${id}: core_beginner tier 0 is ${nps.toFixed(1)} notes/sec (${sub0}@${pw.tempoTiers[0]}) — over the ~2/sec beginner floor; ramp density before BPM`);
+    }
+  })();
+
   (function validateSegmentTemplates() {
     for (const id of Object.keys(SEGMENT_TEMPLATES)) {
       const t = SEGMENT_TEMPLATES[id];
@@ -5236,6 +5315,23 @@
   })();
   function scalePcs(cfg) { const keyPc = NOTE_ALIASES[cfg.key] ?? 0; return (SCALE_INTERVALS[cfg.scale] || SCALE_INTERVALS.major).map(i => (keyPc + i) % 12); }
   function secondsPerDivision(cfg) { const q = 60 / cfg.bpm; return ({ quarter:q, eighth:q/2, sixteenth:q/4, triplet:q/3, eighth_triplet:q/3, sixteenth_triplet:q/6, gallop:q/2, reverse_gallop:q/2 })[cfg.subdivision] || q/2; }
+  // Count-in grid preview (rhythm-meter spec 2026-06-12): how many sub-ticks per
+  // felt beat the COUNT-IN previews for this exercise — the underlying uniform
+  // grid, never the cell's onsets (a gallop previews its eighth floor; skip/snap
+  // live on a 16th grid). 1 = pulse only. Meter-correct via the beat-unit ratio
+  // (bpm cancels): under an /8 meter the pulse already IS the eighth, so an
+  // eighth-note exercise previews no extra ticks. Fixes the seam shock — the
+  // count-in taught a quarter pulse, then 8ths/16ths arrived unannounced ("the
+  // 8ths steamroll you unexpected when your hands are cold").
+  const COUNTIN_TOKEN_TICKS = { gallop: 2, reverse_gallop: 2, skip_chug: 4, snap: 4 };
+  const SUBDIV_BEAT_FRAC = { quarter: 1, eighth: 0.5, sixteenth: 0.25, triplet: 1 / 3, eighth_triplet: 1 / 3, sixteenth_triplet: 1 / 6 };
+  function countInSubTicks(cfg) {
+    const o = COUNTIN_TOKEN_TICKS[cfg.subdivision];
+    if (o != null) return o;
+    const f = SUBDIV_BEAT_FRAC[cfg.subdivision];
+    if (!f) return 1;
+    return Math.max(1, Math.min(6, Math.round((4 / cfg.meter.denominator) / f)));
+  }
   // Non-uniform rhythm patterns (genre-framework §2.5). Returns a cycling array of
   // per-note durations for one beat, or null for the uniform subdivisions (which
   // use secondsPerDivision instead). Gallop = eighth + two sixteenths; reverse =
@@ -9600,8 +9696,11 @@
         const brkBars = interBlockBreakBars(prevCfg, segCfg, breakMode);
         if (brkBars > 0) {
           const brkSec = brkBars * measureSeconds(segCfg);
+          // brkSub: the incoming block's count-in grid (rhythm-meter spec 2026-06-12)
+          // — the click scheduler previews the NEXT block's subdivision through the
+          // break, read per-beat (the session-level cfg can't know each block's grid).
           buildBeats(segCfg, Math.max(0, brkSec - 1e-4)).forEach(b =>
-            beats.push(Object.assign({}, b, { time: Number((b.time + t).toFixed(6)), brk: true })));
+            beats.push(Object.assign({}, b, { time: Number((b.time + t).toFixed(6)), brk: true, brkSub: countInSubTicks(segCfg) })));
           t += brkSec;
           // The break advances the slot offsets too (in the INCOMING block's
           // meter — the break IS the incoming block's count-in).
@@ -9707,7 +9806,7 @@
       if (wrapBars > 0) {
         const wrapSec = wrapBars * measureSeconds(firstCfg);
         buildBeats(firstCfg, Math.max(0, wrapSec - 1e-4)).forEach(b =>
-          beats.push(Object.assign({}, b, { time: Number((b.time + t).toFixed(6)), brk: true })));
+          beats.push(Object.assign({}, b, { time: Number((b.time + t).toFixed(6)), brk: true, brkSub: countInSubTicks(firstCfg) })));   // re-entry previews block-1's grid
         t += wrapSec;
       }
     }
@@ -12184,6 +12283,7 @@
       currentPracticeTime = playAnchorChartTime + elapsedMs / 1000;
       if (currentPracticeTime > _runMaxChartTime) _runMaxChartTime = currentPracticeTime;   // recap reached-tracking (furthest this pass)
       if (_preRollUntil > 0 && currentPracticeTime >= _preRollUntil) _preRollUntil = 0;   // resume pre-roll done → normal play (notes audible, judge live)
+      if (_preRollUntil === 0) maybeOfferDownshift();   // beginner mid-run offer (cheap: gated flags first, evaluates once per run)
       const duration = activeBundle.songInfo.duration || 1;
       // A-B segment loop wins over whole-chart wrap when both endpoints are
       // set. No count-in or rewind animation in this phase — just snap to A
@@ -13471,7 +13571,9 @@
       const hi = s.ladder ? s.ladder.highestCleared : -1;
       if (rough) {
         primary = { act: 'again', label: 'Run it back ▸' };   // no rung-talk at a rough moment
-        if (s.ladder && s.bpm_tier != null && s.bpm_tier > 0) {
+        // No double-offer: if the mid-run downshift chip already showed this
+        // run, the post-run step-down stays quiet (gamification ruling).
+        if (s.ladder && s.bpm_tier != null && s.bpm_tier > 0 && !_downshiftChipShown) {
           const dIdx = s.bpm_tier - 1;
           stepdown = { idx: dIdx, label: `Lock it in at ${s.ladder.tiers[dIdx]} ▸` };
         }
@@ -13629,7 +13731,9 @@
       closeResultsModal();
       if (primary && primary.act === 'next-tier') {
         activeTempoTierIdx = primary.idx;
-        setFieldSilent('bpm', String(s.ladder.tiers[primary.idx]));
+        const pw = s.ladder && PATHWAYS[s.ladder.pathwayId];
+        if (pw) applyTierFields(pw, primary.idx);   // bpm + the tier's density step
+        else setFieldSilent('bpm', String(s.ladder.tiers[primary.idx]));
         syncTempoTierButtons();
         onGenerate();
         focusPlay();
@@ -13665,7 +13769,9 @@
       closeResultsModal();
       if (stepdown) {
         activeTempoTierIdx = stepdown.idx;
-        setFieldSilent('bpm', String(s.ladder.tiers[stepdown.idx]));
+        const pw = s.ladder && PATHWAYS[s.ladder.pathwayId];
+        if (pw) applyTierFields(pw, stepdown.idx);   // bpm + the tier's density step
+        else setFieldSilent('bpm', String(s.ladder.tiers[stepdown.idx]));
         syncTempoTierButtons();
         onGenerate();
       }
@@ -14448,7 +14554,16 @@
     // the metronome off.
     {
       const beats = bundle.beats || [];
-      const perBeat = Math.max(1, cfg.clickSubdiv || 1);
+      const userPerBeat = Math.max(1, cfg.clickSubdiv || 1);
+      // Count-in grid preview (rhythm-meter spec 2026-06-12): the LAST count-in
+      // bar previews the exercise's subdivision with soft sub-ticks (teacher
+      // convention — pulse first, then the "and"s) regardless of the player's
+      // clickSubdiv. Break bars preview the INCOMING block's grid via the
+      // b.brkSub tag; the resume pre-roll stays pulse-only (the player already
+      // has the grid mid-run). Sub-ticks always preview the STRAIGHT grid —
+      // the click is the reference you shuffle against, never swung.
+      const ciTicks = countInSubTicks(cfg);
+      const ciMeas = measureSeconds(cfg);
       for (let i = 0; i < beats.length; i++) {
         const b = beats[i];
         if (b._tail) continue;  // visual loop-preview copy; don't double-click at the seam
@@ -14465,6 +14580,10 @@
         // as an ARRIVAL. The leading count-in + the metronome play at full.
         scheduleClick(ctx, base + (b.time - startFrom), accent, false, b.brk ? 0.75 : 1);
         schedEnd = Math.max(schedEnd, base + (b.time - startFrom) + 0.1);
+        const lastCountInBar = inCountIn && b.time >= lead - ciMeas - 1e-4;
+        const perBeat = lastCountInBar ? Math.max(userPerBeat, ciTicks)
+          : b.brk ? Math.max(userPerBeat, b.brkSub || 1)
+          : userPerBeat;
         if (perBeat > 1) {
           // Derive this beat's length from the actual gap to the next beat so
           // sub-ticks stay correct across bar lines and per-segment meters in
@@ -14522,6 +14641,53 @@
     if (_wakeLock) { try { _wakeLock.release(); } catch (_) {} _wakeLock = null; }
   }
 
+  // ── Mid-run downshift offer (P2 of the beginner-entry panel, 2026-06-12) ────
+  // BEGINNER RUNGS ONLY (Christian's scope: intermediate/expert know the process):
+  // when the first ~4 bars judge low WITH input present, offer the previous tier
+  // as a non-blocking chip. Gamification's constitution: an OFFER, never
+  // automatic, never gating; copy frames the tempo as fast, never the player as
+  // failing; once per rung per session (dismiss = quiet for the session); a
+  // shown chip suppresses the post-run step-down (no double-offer); accepting is
+  // not a penalty — the slower tier is its own rung with its own clean clear.
+  const _beginnerRungSet = new Set((PATHWAY_BANDS.find(b => b.id === 'core_beginner') || { pathways: [] }).pathways);
+  const _downshiftSeen = new Set();   // rung ids offered or dismissed this session
+  let _downshiftEvaluated = false;    // this run — the ~4-bar check fires once
+  let _downshiftChipShown = false;    // this run — read by the results modal's step-down
+  let _downshiftEvalAt = null;        // chart time of the check (lead + 4 bars)
+  function maybeOfferDownshift() {
+    if (_downshiftEvaluated || !activeBundle) return;
+    const id = activePathwayId;
+    if (!id || id === 'custom' || !_beginnerRungSet.has(id) || _downshiftSeen.has(id)) { _downshiftEvaluated = true; return; }
+    if (activeTempoTierIdx <= 0) { _downshiftEvaluated = true; return; }   // already at the floor — nothing kinder to offer
+    const pw = PATHWAYS[id];
+    if (!pw || !pw.tempoTiers || pw.tempoTiers[activeTempoTierIdx - 1] == null) { _downshiftEvaluated = true; return; }
+    if (_downshiftEvalAt == null) {
+      const cfgLike = (activeBundle.config && activeBundle.config.meter) ? activeBundle.config : readConfig();
+      _downshiftEvalAt = (activeBundle.leadIn || 0) + 4 * measureSeconds(cfgLike);
+    }
+    if (currentPracticeTime < _downshiftEvalAt) return;
+    // The judge must have RESOLVED enough notes, and the player must be audibly
+    // trying (never trigger on silence — an unplugged guitar is not "too fast").
+    const passed = ptWinPassedCount(currentPracticeTime - ptLatency());
+    if (passed < 6) return;            // sparse so far — keep waiting (cheap)
+    if (!_ptHadInput) return;          // no input yet — wait, don't consume the check
+    _downshiftEvaluated = true;        // one evaluation per run, whatever the outcome
+    if (_ptScoredUnits / passed >= 0.4) return;   // holding up fine — stay quiet
+    const idx = activeTempoTierIdx - 1;
+    const chip = $('slopscale-downshift'), go = $('slopscale-downshift-go');
+    if (!chip || !go) return;
+    go.textContent = `Try ${tierChipLabel(pw, idx)} ▸`;
+    go.dataset.idx = String(idx);
+    chip.hidden = false; chip.setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(() => chip.classList.add('show'));
+    _downshiftChipShown = true;
+    _downshiftSeen.add(id);            // once per rung per session
+  }
+  function hideDownshiftChip() {
+    const chip = $('slopscale-downshift');
+    if (!chip || chip.hidden) return;
+    chip.classList.remove('show'); chip.setAttribute('aria-hidden', 'true'); chip.hidden = true;
+  }
   function startPlayback() {
     if (!activeBundle) return;
     closeResultsModal();   // a new run dismisses the previous run's results
@@ -14532,6 +14698,7 @@
     playing = true;
     paused = false; _pausedAccumMs = 0; _pauseBeganMs = 0; _preRollUntil = 0; _wrapAnim = null;
     _runMaxChartTime = currentPracticeTime; _runLooped = false; _blockHadInput = [];   // recap reached + per-block input tracking, fresh per run
+    _downshiftEvaluated = false; _downshiftChipShown = false; _downshiftEvalAt = null; hideDownshiftChip();   // the mid-run offer re-arms per run (session suppression via _downshiftSeen)
     acquireWakeLock();   // hold the screen awake for the duration of this play
     // With an active A–B loop, playback begins at the loop start — not wherever
     // the playhead happens to sit (DAW cycle behavior; the playhead is just a
@@ -14552,7 +14719,7 @@
   // Stop returns the playhead to where playback last began (Logic Pro behaviour:
   // hit Play to instantly replay the same passage). The ⏮ button jumps to the
   // very start — Logic's "press Stop again to go to the top".
-  function stopPlayback() { sessionEnd(); playing = false; paused = false; _preRollUntil = 0; _wrapAnim = null; releaseWakeLock(); currentPracticeTime = playStartChartTime; playAnchorChartTime = playStartChartTime; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
+  function stopPlayback() { sessionEnd(); playing = false; paused = false; _preRollUntil = 0; _wrapAnim = null; hideDownshiftChip(); releaseWakeLock(); currentPracticeTime = playStartChartTime; playAnchorChartTime = playStartChartTime; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
   // Pause freezes the run in place: clock + audio + judgment stop, the session
   // and the pitch-tracker state stay alive, the playhead holds. Resume re-anchors
   // the clock/audio from the frozen playhead (the seekTo pattern). Wake lock is
@@ -15507,6 +15674,9 @@
     // (applyPathwayConfig doesn't reset the form; it only writes keys it's given).
     setFieldSilent('backingStyle', config.backingStyle || 'pad');
     setFieldSilent('swing', config.swing || 'straight');
+    // Drums suppression (beginner woodshed default) is rung-scoped → anti-leak
+    // defaulted, so a drumless beginner rung never mutes the next pathway's kit.
+    setFieldSilent('drums', config.drums || '');
     // Reggae-skank pulse flag is specialized → default OFF unless the rung opts in,
     // so a skank variation's offbeat never leaks into the next rung selected.
     setFieldSilent('pulseOffbeat', config.pulseOffbeat ? 'true' : '');
@@ -16186,6 +16356,11 @@
       if (!applyAnchorPolicy(tieredConfig)) applyTuningAdaptL1(tieredConfig);
       if (pw.tempoTiers && pw.tempoTiers[activeTempoTierIdx] != null) {
         tieredConfig.bpm = pw.tempoTiers[activeTempoTierIdx];
+        // Density ladder (panel 2026-06-12): a tier may carry a subdivision/bars
+        // step alongside its BPM — the beginner rungs climb density (quarters →
+        // eighths → sixteenths) before speed. Null-guarded like bpm.
+        if (pw.tempoTierSubdivs && pw.tempoTierSubdivs[activeTempoTierIdx]) tieredConfig.subdivision = pw.tempoTierSubdivs[activeTempoTierIdx];
+        if (pw.tempoTierBars && pw.tempoTierBars[activeTempoTierIdx] != null) tieredConfig.bars = pw.tempoTierBars[activeTempoTierIdx];
       }
       applyPathwayConfig(tieredConfig);
       setPathwayModeClass(true);
@@ -16425,6 +16600,26 @@
     const sevenNote = (SCALE_INTERVALS[scale] || []).length === 7;
     return sevenNote ? { seq: 'thirds', label: 'in 3rds' } : { seq: 'fours', label: 'in 4ths' };
   }
+  // Density-ladder tier realization (panel 2026-06-12). A rung's tier can carry a
+  // subdivision/bars step alongside its BPM; every tier-ENTRY path (the pathway
+  // apply above, the tier buttons, the results-modal ladder CTAs) realizes the
+  // same fields through this one helper so the form never half-applies a tier.
+  function applyTierFields(pw, idx) {
+    if (!pw || !pw.tempoTiers || pw.tempoTiers[idx] == null) return;
+    setFieldSilent('bpm', String(pw.tempoTiers[idx]));
+    if (pw.tempoTierSubdivs && pw.tempoTierSubdivs[idx]) setFieldSilent('subdivision', pw.tempoTierSubdivs[idx]);
+    if (pw.tempoTierBars && pw.tempoTierBars[idx] != null) setFieldSilent('bars', String(pw.tempoTierBars[idx]));
+  }
+  // Note-value glyph for a tier chip — once subdivision varies across tiers, a
+  // bare BPM can lie about difficulty ("♩ 60" and "♬ 60" are different climbs;
+  // gamification ruling). Only rendered when the rung declares tempoTierSubdivs.
+  const TIER_SUBDIV_GLYPH = { quarter:'♩', eighth:'♪', triplet:'♪₃', eighth_triplet:'♪₃', sixteenth:'♬', sixteenth_triplet:'♬₃' };
+  function tierChipLabel(pw, i) {
+    const bpm = pw.tempoTiers[i];
+    const sub = pw.tempoTierSubdivs && pw.tempoTierSubdivs[i];
+    const g = sub && TIER_SUBDIV_GLYPH[sub];
+    return g ? `${g} ${bpm} BPM` : `${bpm} BPM`;
+  }
   function syncTempoTierButtons() {
     const container = $('slopscale-tier-buttons');
     if (!container) return;
@@ -16448,10 +16643,10 @@
       // equal boxes. Label is the speed name; BPM is the readout below it.
       btn.innerHTML = `<span class="tier-step">Rung ${i + 1}</span>` +
         `<span class="tier-name">${TIER_LABELS[i] || `T${i+1}`}</span>` +
-        `<span class="tier-bpm">${bpm} BPM</span>`;
+        `<span class="tier-bpm">${tierChipLabel(pw, i)}</span>`;
       btn.addEventListener('click', () => {
         activeTempoTierIdx = i;
-        setFieldSilent('bpm', String(bpm));
+        applyTierFields(pw, i);   // bpm + the tier's subdivision/bars step (density ladder)
         syncTempoTierButtons();
         onGenerate();
       });
@@ -16477,7 +16672,7 @@
         }
       } else {
         const name = TIER_LABELS[nextIdx] || `Rung ${nextIdx + 1}`;
-        signpost.innerHTML = `<span class="climb-arrow">→</span>Next rung: <span class="climb-target">${name}</span> · ${tiers[nextIdx]} BPM`;
+        signpost.innerHTML = `<span class="climb-arrow">→</span>Next rung: <span class="climb-target">${name}</span> · ${tierChipLabel(pw, nextIdx)}`;
       }
     }
   }
@@ -18485,6 +18680,7 @@
       progression: _activeSession.progression, style: _activeSession.style,   // share-card (Jam form/style)
       // Mini rung-ladder context for the modal's progress strip (post-update state).
       ladder: (_pw && PATHWAYS[_pw]) ? {
+        pathwayId: _pw,   // the modal's tier CTAs realize the full tier (bpm + density step) via applyTierFields
         tiers: PATHWAYS[_pw].tempoTiers || [],
         highestCleared: (pathwayTiersLoad()[_pw] || {}).highest_tier ?? -1,
       } : null,
@@ -19769,6 +19965,22 @@
         }
       }
     });
+    // Mid-run downshift chip (beginner rungs): accept = close-and-arm the kinder
+    // tier (load it, focus Play, start nothing); dismiss = quiet for the session
+    // (the show path already recorded the rung in _downshiftSeen).
+    $('slopscale-downshift-go')?.addEventListener('click', () => {
+      const idx = parseInt($('slopscale-downshift-go')?.dataset.idx ?? '-1', 10);
+      hideDownshiftChip();
+      const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
+      if (!pw || !(idx >= 0)) return;
+      stopPlayback();
+      activeTempoTierIdx = idx;
+      applyTierFields(pw, idx);
+      syncTempoTierButtons();
+      onGenerate();
+      $('slopscale-play')?.focus();
+    });
+    $('slopscale-downshift-x')?.addEventListener('click', () => hideDownshiftChip());
     // Header Setup popover: toggle on the button, close on outside click, label tracks tuning.
     $('slopscale-setup-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSetupPopover(); });
     // Target-aware tuner: entry in the Setup popover; Done chip on the strip.
