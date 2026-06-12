@@ -1197,6 +1197,16 @@
   .slopscale_beta-jam-prog-row { display: block; font-size: 12px; color: #94a3b8; }
   .slopscale_beta-jam-prog-row select { width: 100%; margin-top: 3px; }
   .slopscale_beta-jam-try { font-size: 12.5px; line-height: 1.45; color: #cbd5e1; border-left: 3px solid var(--ss-accent, #4080e0); padding: 4px 0 4px 9px; font-style: italic; }
+  /* J-2 pending-change chip — the same anticipation amber as the strip's NEXT
+     pre-light (a queued thing, not an active thing; dashed = not yet landed). */
+  .slopscale_beta-jam-pending { font-size: 12px; font-weight: 600; color: #fbbf24; border: 1px dashed rgba(251, 191, 36, 0.55); border-radius: 7px; padding: 5px 9px; }
+  /* J-2 intent chips — quiet pills; the pick lights accent; the hand-off's
+     device chip gets a left accent bar (it came from the ladder). */
+  .slopscale_beta-jam-intents { display: flex; flex-wrap: wrap; gap: 5px; }
+  .slopscale_beta-jam-intent { font-size: 11.5px; line-height: 1.3; padding: 4px 9px; border-radius: 999px; border: 1px solid #334155; background: rgba(51, 65, 85, 0.35); color: #cbd5e1; cursor: pointer; text-align: left; }
+  .slopscale_beta-jam-intent:hover { border-color: var(--ss-accent, #4080e0); }
+  .slopscale_beta-jam-intent.active { border-color: var(--ss-accent, #4080e0); background: var(--ss-accent-grad); color: #f8fafc; }
+  .slopscale_beta-jam-intent.device { border-left: 3px solid var(--ss-accent-edge, #4080e0); }
   /* Bass band-mode row: bass players only (the root carries the instrument class). */
   .slopscale_beta-root:not(.slopscale_beta-bass-instrument) #slopscale_beta-jam-band-row { display: none; }
   .slopscale_beta-jam-go { margin-top: 4px; padding: 11px; font-size: 14px; font-weight: 700; border-radius: 9px; border: 1px solid var(--ss-accent, #4080e0); background: var(--ss-accent-grad); color: #f8fafc; cursor: pointer; transition: filter 0.12s; }
@@ -1464,6 +1474,15 @@
           <button type="button" class="slopscale_beta-jam-feel-btn" data-feel="swing">Swing</button>
           <button type="button" class="slopscale_beta-jam-feel-btn" data-feel="shuffle">Shuffle</button>
         </div>
+        <!-- J-2 Harmonic-Depth dial (D-J5b): staged chordDepth — Simple hears the
+             skeleton, Core is the style's authored depth, Rich enriches the upper
+             voices. Roots stay pinned; power-chord styles keep their 5ths. -->
+        <div class="slopscale_beta-group-title">Depth</div>
+        <div class="slopscale_beta-jam-feel" id="slopscale_beta-jam-depth" role="group" aria-label="Harmonic depth">
+          <button type="button" class="slopscale_beta-jam-feel-btn" data-depth="simple">Simple</button>
+          <button type="button" class="slopscale_beta-jam-feel-btn active" data-depth="core">Core</button>
+          <button type="button" class="slopscale_beta-jam-feel-btn" data-depth="rich">Rich</button>
+        </div>
         <!-- Highlight: the teaching mirror — lights the current chord's tones on the
              fretboard strip as the backing moves through changes. Default chord-tones. -->
         <div class="slopscale_beta-group-title">Highlight</div>
@@ -1492,8 +1511,15 @@
         </div>
         <!-- The per-style "try this" intent seed (goal-card grammar; JAM_PROMPTS). -->
         <div class="slopscale_beta-jam-try" id="slopscale_beta-jam-try"></div>
+        <!-- J-2 intent chips (D-J8): pick a musical aim — self-checked only, shown
+             on the status line, never judged. The drill→Jam hand-off injects the
+             drilled device as the first chip (D-J10). renderJamIntents() fills. -->
+        <div class="slopscale_beta-jam-intents" id="slopscale_beta-jam-intents" role="group" aria-label="Jam intent"></div>
+        <!-- J-2 (D-J3): the pending-change chip — a mid-jam panel edit lands at the
+             top of the next loop cycle (band convention), telegraphed here. -->
+        <div class="slopscale_beta-jam-pending" id="slopscale_beta-jam-pending" hidden></div>
         <button type="button" class="slopscale_beta-jam-go" id="slopscale_beta-jam-go">▶ Jam</button>
-        <div class="slopscale_beta-help">Loops a backing in the chosen style — every pass varies a little. No score, no rank; it's a mirror, not a judge.</div>
+        <div class="slopscale_beta-help">Loops a backing in the chosen style — every pass varies a little. Change anything mid-jam and the band picks it up at the top of the next cycle. No score, no rank; it's a mirror, not a judge.</div>
       </div>
 
       <!-- Single exercise mode — pathway + custom controls -->

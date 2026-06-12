@@ -709,6 +709,20 @@ def setup(app: FastAPI, context: dict) -> None:
             raise HTTPException(404, "Not found.")
         return FileResponse(str(path), media_type="application/json")
 
+    # License-cleared committed sample subsets (e.g. the CC0 Shinyguitar electric-DI
+    # guitar voice) under static/samples/ — see static/samples/README.md for
+    # provenance. Unlike irs/ and nam/, these ship in git.
+    _samples_dir = Path(__file__).resolve().parent / "static" / "samples"
+
+    @app.get(f"/api/plugins/{PLUGIN_ID}/sample/{{name}}")
+    def sample_asset(name: str):
+        if not name.endswith(".ogg") or "/" in name or "\\" in name or ".." in name:
+            raise HTTPException(404, "Not found.")
+        path = _samples_dir / name
+        if not path.is_file():
+            raise HTTPException(404, "Not found.")
+        return FileResponse(str(path), media_type="audio/ogg")
+
     @app.get(f"/api/plugins/{PLUGIN_ID}/presets")
     def list_presets():
         if meta_db is None:

@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.23-beta.8';
+  const SLOPSCALE_VERSION = '0.7.23-beta.9';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -3948,6 +3948,11 @@
   // foundation, so the band's bass drops unless they opt back in).
   let jamGuideLine = false;       // audible generated line: OFF by default
   let jamBandMode = 'no_bass';    // bass players: 'no_bass' | 'drums_only' | 'full' (guitar always full)
+  let _jamPending = false;        // J-2 (D-J3): a live panel change is queued for the next loop wrap
+  let _jamSnapshot = null;        // the panel state the CURRENT jam pass was built from (delta source)
+  let jamIntent = '';             // J-2 (D-J8): the picked intent — self-checked, shown, NEVER judged
+  let _jamDeviceIntent = null;    // J-2 (D-J10): the drill→Jam hand-off's device intent (chip injected first)
+  let jamDepth = 'core';          // J-2 (D-J5b): Harmonic-Depth dial — 'simple' | 'core' | 'rich' (persisted)
 
   function $(id) { return document.getElementById(id); }
   function pcName(pc) { return NOTE_NAMES[((pc % 12) + 12) % 12]; }
@@ -4268,14 +4273,19 @@
   //   audioProfile    AUDIO_PROFILES key (the sound), or null → clean family inferred
   const STYLE_PALETTES = {
     blues:   { label:'Blues',      defaultKey:'A', progressions:['12_bar_blues','quick_change_blues'], leadScales:['blues','minor_pentatonic'], chordDepth:'seventh', chordOverride:'dom7', guideTones:false, feel:{ swing:'shuffle', backingStyle:'boogie' }, audioProfile:'blues' },
-    rock:    { label:'Rock',       defaultKey:'E', progressions:['i-VII-VI-VII','I-V-vi-IV','I-IV-V','mixolydian_rock'], leadScales:['minor_pentatonic','natural_minor','mixolydian'], chordDepth:'triad', chordOverride:'5', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'rock' },
-    metal:   { label:'Metal',      defaultKey:'E', progressions:['metal_i_bVI_bVII','metal_pedal_chromatic','metal_i_bVII_bVI_V'], leadScales:['phrygian','natural_minor','harmonic_minor'], chordDepth:'triad', chordOverride:'5', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'metal' },
+    // J-2 (D-J5b) modal-vamp wiring: the dormant bright-modal tokens join the
+    // styles whose leadScales already speak the mode (rock/funk ride mixolydian's
+    // ♭VII; metal's phrygian i–♭II is its signature semitone move). lydian_vamp
+    // stays dormant — no style leads lydian yet. Genre-idiom vetting sweep owed
+    // (same batch as the JAM_PROMPTS/JAM_INTENTS copy).
+    rock:    { label:'Rock',       defaultKey:'E', progressions:['i-VII-VI-VII','I-V-vi-IV','I-IV-V','mixolydian_rock','mixolydian_vamp'], leadScales:['minor_pentatonic','natural_minor','mixolydian'], chordDepth:'triad', chordOverride:'5', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'rock' },
+    metal:   { label:'Metal',      defaultKey:'E', progressions:['metal_i_bVI_bVII','metal_pedal_chromatic','metal_i_bVII_bVI_V','phrygian_vamp'], leadScales:['phrygian','natural_minor','harmonic_minor'], chordDepth:'triad', chordOverride:'5', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'metal' },
     djent:   { label:'Djent',      defaultKey:'E', progressions:['metal_pedal_chromatic'], leadScales:['phrygian','natural_minor'], chordDepth:'triad', chordOverride:'5oct', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'djent' },
     jazz:    { label:'Jazz',       defaultKey:'C', progressions:['ii-V-I','vi-ii-V-I','minor_ii_V_i','rhythm_changes_a','so_what'], leadScales:['major','dorian','mixolydian'], chordDepth:'seventh', chordOverride:'auto', guideTones:true, feel:{ swing:'swing', backingStyle:'pad' }, audioProfile:'jazz' },
     // Funk goes Dorian (modal-M1 ride-along, approved 2026-06-05): dorian_vamp's
     // dom7 IV carries the ♮6 — the James Brown sound — so chordOverride must be
     // 'auto' (a min7 override would silence the vamp's major/dom IV).
-    funk:    { label:'Funk / R&B', defaultKey:'A', progressions:['dorian_vamp','static_i','i-VII-VI-VII'], leadScales:['dorian','minor_pentatonic'], chordDepth:'seventh', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:null },
+    funk:    { label:'Funk / R&B', defaultKey:'A', progressions:['dorian_vamp','static_i','i-VII-VI-VII','mixolydian_vamp'], leadScales:['dorian','minor_pentatonic'], chordDepth:'seventh', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:null },
     pop:     { label:'Pop',        defaultKey:'C', progressions:['I-V-vi-IV','vi-IV-I-V','I-vi-IV-V'], leadScales:['major','major_pentatonic'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:null },
     country: { label:'Country',    defaultKey:'G', progressions:['I-IV-V','I-V-vi-IV'], leadScales:['major_pentatonic','major'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'bluegrass' },
     gospel:  { label:'Gospel',     defaultKey:'C', progressions:['ii-V-I','I-vi-ii-V'], leadScales:['major','dorian'], chordDepth:'ninth', chordOverride:'auto', guideTones:true, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'gospel' },
@@ -4326,6 +4336,7 @@
     'ii-V-I':'ii–V–I', 'vi-ii-V-I':'vi–ii–V–I', minor_ii_V_i:'Minor ii–V–i',
     rhythm_changes_a:'Rhythm changes (A)', so_what:'Dorian modal vamp',
     dorian_vamp:'Dorian vamp', static_i:'One-chord vamp',
+    mixolydian_vamp:'Mixolydian vamp (I–♭VII–IV)', phrygian_vamp:'Phrygian vamp (i–♭II)',
   };
   function jamProgressionLabel(token) {
     return JAM_PROG_LABELS[token] || String(token || '').replace(/_/g, ' ');
@@ -4344,6 +4355,24 @@
     country: 'Try: major pentatonic over the I, then chase the chord tones through IV and V.',
     gospel:  'Try: answer the band — fill the space after each change with a 2-beat run-up.',
   };
+  // J-2 intent chips (D-J8: intents, not scores). An intent is a SELF-checked
+  // musical aim the player picks before/while jamming — shown on the status line,
+  // never judged, never scored (the mirror rule). Per-style guitar sets + a
+  // bass-native set (a bassist's job is the foundation, not lead intents).
+  // Draft copy — the genre-idiom refinement sweep (owed from J-1's JAM_PROMPTS)
+  // covers these too.
+  const JAM_INTENTS = {
+    blues:   ['Say it in 2 bars, leave 2 empty', 'End every phrase on a chord tone', 'One bend per phrase — in tune'],
+    rock:    ['Land the root on every change', 'Build a riff, repeat it ×4', 'Double-stops on the chorus'],
+    metal:   ['Lock 8ths with the pedal', 'Break out 2 bars, dive back in', 'Accent where the kick lands'],
+    djent:   ['Play the gaps in the band\'s accents', 'One fill per cycle — pocket first', 'Choke every note you don\'t mean'],
+    jazz:    ['Land the 3rd on beat 1', 'Approach each change from below', 'State a motif, then answer it'],
+    funk:    ['Ghost the 16ths, place ONE accent', 'Sit out beat 1 — own the &', 'One note, sixteen ways'],
+    pop:     ['Sing a hook, find it, repeat it', 'Melody only — no runs', 'Leave room for the vocal'],
+    country: ['Chase chord tones through IV and V', 'Double-stop the turnaround', 'Bend into the 3rd, steel-style'],
+    gospel:  ['Answer the band after each change', 'Walk up into beat 1', 'Resolve every run to a chord tone'],
+  };
+  const JAM_INTENTS_BASS = ['Walk into every change', 'Lock the one with the kick', 'Ghost notes between the roots'];
 
   // ===========================================================================
   // SEGMENT TEMPLATES + VARIATION ENGINE (Workout library substrate)
@@ -5182,6 +5211,7 @@
     resolveVoiceGms(bundle || activeBundle).forEach(gm => ensureWafPreset(gm));
     const dk = activeSampleDrumKit(bundle || activeBundle);
     if (dk) DRUM_CORE_PIECES.forEach(p => ensureDrumPiece(dk, p));   // preload the groove staples (Phase D4)
+    sgPrewarm(bundle || activeBundle);                               // sampled-guitar buffers (lazy, cached)
   }
   // The active sample-engine drum kit for this bundle (or null: synth kit / drums off).
   function activeSampleDrumKit(bundle) {
@@ -5204,10 +5234,122 @@
     const gms = resolveVoiceGms(bundle || activeBundle);
     const dk = activeSampleDrumKit(bundle || activeBundle);
     const drumPromises = dk ? DRUM_CORE_PIECES.map(p => ensureDrumPiece(dk, p)) : [];
-    if (!gms.length && !drumPromises.length) return;
+    const sgPromises = sgPrewarm(bundle || activeBundle);
+    if (!gms.length && !drumPromises.length && !sgPromises.length) return;
     let timer; const cap = new Promise(r => { timer = setTimeout(r, capMs || 2000); });
-    try { await Promise.race([Promise.all([...gms.map(gm => ensureWafPreset(gm)), ...drumPromises]), cap]); }
+    try { await Promise.race([Promise.all([...gms.map(gm => ensureWafPreset(gm)), ...drumPromises, ...sgPromises]), cap]); }
     finally { clearTimeout(timer); }
+  }
+
+  // ── Shinyguitar sample voice (tone:'shiny' — the committed CC0 electric-DI guitar) ──
+  // Plays the curated subset under static/samples/ (provenance + curation table:
+  // static/samples/README.md; band-intelligence Track C2-sample). 17 sustain
+  // keycenters (MIDI 37–84, minor-3rd spacing) × 2 velocity layers × 2 round-
+  // robins, served by the /sample route. Pitched palm-mutes are NOT separate
+  // samples: a 'chug' hit envelope-shortens the sustain on its gain node — the
+  // same technique the source library uses (its CC110 "mute" control), and the
+  // C1 artic-switch design (zero extra audio nodes beyond source+gain).
+  // Loading mirrors the WAF contract: lazy fetch + decodeAudioData, cached,
+  // per-chord all-or-nothing readiness so a half-sampled chord never sounds —
+  // until ready the WAF clean-electric preset (then the oscillator pad) covers.
+  // Selection is the mixer per-strip instrument override ('Electric DI') for the
+  // by-ear A/B vs the GM voice; profiles adopt it only after the gate.
+  const SG_BASE = '/api/plugins/slopscale_beta/sample/';
+  const SG_KEYCENTERS = [37, 40, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84];
+  const SG_VEL_HARD = 0.9;   // ev.vel ≥ 0.9 (accent tier) → the harder vl3 layer
+  const SG_LEVEL = 1.0;      // voice trim vs the WAF voices (by-ear tunable)
+  const sgBuffers = {};      // file -> { state:'loading'|'ready'|'failed', buf, promise }
+  const sgRR = {};           // keycenter_layer -> alternating round-robin pick
+  function sgNearestKc(midi) {
+    let best = SG_KEYCENTERS[0];
+    for (const kc of SG_KEYCENTERS) if (Math.abs(kc - midi) < Math.abs(best - midi)) best = kc;
+    return best;
+  }
+  const sgLayer = vel => (vel >= SG_VEL_HARD ? 'vl3' : 'vl2');
+  function ensureSgBuffer(file) {
+    const prev = sgBuffers[file];
+    if (prev && (prev.state === 'loading' || prev.state === 'ready')) return prev.promise || Promise.resolve();
+    const entry = { state: 'loading', buf: null, promise: null };
+    sgBuffers[file] = entry;
+    entry.promise = (async () => {
+      try {
+        const ctx = ensureAudioCtx();
+        const res = await fetch(SG_BASE + file);
+        if (!res.ok) throw new Error('http ' + res.status);
+        const raw = await res.arrayBuffer();
+        entry.buf = await ctx.decodeAudioData(raw);
+        entry.state = 'ready';
+      } catch (e) {
+        entry.state = 'failed'; entry.buf = null;   // silent → WAF/oscillator fallback
+      }
+    })();
+    return entry.promise;
+  }
+  // Both round-robins of the (keycenter, layer) a hit needs (prewarm loads both
+  // so the RR alternation never trips a cold buffer mid-run).
+  const sgFilesFor = (midi, vel) => {
+    const kc = sgNearestKc(midi), vl = sgLayer(vel);
+    return [`sg_sus_${kc}_${vl}_rr1.ogg`, `sg_sus_${kc}_${vl}_rr2.ogg`];
+  };
+  const sgReadyFor = (midis, vel) =>
+    (midis || []).every(m => sgFilesFor(m, vel).every(f => sgBuffers[f] && sgBuffers[f].state === 'ready'));
+  // Which strips the player has pinned to the sampled guitar (mixer override only
+  // until the by-ear gate; profiles never resolve to 'shiny' yet).
+  const sgToneFor = key => ((mixerState[key] && mixerState[key].instrument) === 'shiny');
+  // Kick the lazy loads for every buffer the bundle's shiny-pinned strips need.
+  // Returns the in-flight promises (awaitVoices races them against its cap).
+  function sgPrewarm(bundle) {
+    const wantHarm = sgToneFor('harmony'), wantPad = sgToneFor('pad'), wantNotes = sgToneFor('notes');
+    if (!wantHarm && !wantPad && !wantNotes) return [];
+    const files = new Set();
+    if (bundle && (wantHarm || wantPad)) for (const ev of bundle.backingEvents || []) {
+      if (ev.role === 'drums' || ev.role === 'bass') continue;
+      if (!(ev.comp != null ? wantHarm : wantPad)) continue;
+      for (const m of ev.midis || []) sgFilesFor(m, ev.vel || 1).forEach(f => files.add(f));
+    }
+    if (bundle && wantNotes) {
+      const opens = (bundle.openMidis && bundle.openMidis.length) ? bundle.openMidis : [];
+      for (const n of bundle.notes || []) {
+        if (n._tail || n.s < 0 || n.s >= opens.length || n.f < 0) continue;
+        sgFilesFor(opens[n.s] + n.f, 1).forEach(f => files.add(f));
+      }
+    }
+    return [...files].map(ensureSgBuffer);
+  }
+  // Schedule one sampled guitar note. Returns false (caller falls through to the
+  // WAF voice) when the buffer isn't decoded yet. artic 'chug' = the palm-mute
+  // envelope; everything else sustains to `d` then releases naturally. `vel` picks
+  // the velocity LAYER (timbre); `vol` is the gain — both vary, like a real hit.
+  function sgVoice(ctx, busName, when, midi, d, vol, artic, vel) {
+    const kc = sgNearestKc(midi), vl = sgLayer(vel == null ? 1 : vel);
+    const rrKey = kc + '_' + vl;
+    const rr = (sgRR[rrKey] = ((sgRR[rrKey] || 0) + 1) % 2);
+    const file = `sg_sus_${kc}_${vl}_rr${rr + 1}.ogg`;
+    const entry = sgBuffers[file];
+    if (!entry || entry.state !== 'ready') { ensureSgBuffer(file); return false; }
+    const src = ctx.createBufferSource();
+    src.buffer = entry.buf;
+    src.playbackRate.value = Math.pow(2, (midi - kc) / 12);
+    const g = ctx.createGain();
+    const v = Math.max(0.0001, vol * SG_LEVEL);
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(v, when + 0.003);
+    let stopAt;
+    if (artic === 'chug') {
+      // Palm-mute: a short hold then a fast exponential tail — thump, not a gate.
+      g.gain.setValueAtTime(v, when + 0.025);
+      g.gain.setTargetAtTime(0.0001, when + 0.025, 0.055);
+      stopAt = when + 0.45;
+    } else {
+      const end = when + Math.max(0.08, d);
+      g.gain.setValueAtTime(v, end);
+      g.gain.setTargetAtTime(0.0001, end, 0.08);
+      stopAt = end + 0.4;
+    }
+    src.connect(g); g.connect(trackBus(ctx, busName));
+    src.start(when); src.stop(stopAt);
+    audioNodes.push(src, g);
+    return true;
   }
 
   function openMidisForConfig(cfg) {
@@ -6810,6 +6952,7 @@
           hits.push({ t: +t0.toFixed(6), end: +end.toFixed(6), name: '',
                       midis: compTargetMidis(step, midis, c, lift),
                       vel: step.acc ? COMP_VEL.accent : step.a === 'chug' ? COMP_VEL.ghost : COMP_VEL.normal,
+                      a: step.a,   // articulation tag — the sample voice keys its open↔muted switch off it
                       comp: cellId });
         }
         hits.sort((a, b) => (a.t - b.t) || (a.role === 'bass' ? -1 : b.role === 'bass' ? 1 : 0));
@@ -11915,7 +12058,14 @@
     if (jamHighlightMode === 'scale') {
       const cfg = activeBundle.config; if (!cfg) return null;
       const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
-      const ivs = SCALE_INTERVALS[cfg.scale] || [];
+      let ivs = SCALE_INTERVALS[cfg.scale] || [];
+      // D-J6 (J-2): over a DOMINANT blues context the ♭3/♭5 are bends/passing
+      // colors, not landing targets — painting them as equal "targets" teaches
+      // the wrong notes. Light root/5/♭7 as home; leave ♭3/♭5 (and the 4 they
+      // pass through) unmarked. Minor contexts keep the full scale (♭3 is home).
+      if ((cfg.scale === 'blues' || cfg.scale === 'minor_pentatonic') && cfg.chordOverride === 'dom7') {
+        ivs = [0, 7, 10];
+      }
       return ivs.length ? new Set(ivs.map(i => (keyPc + i) % 12)) : null;
     }
     // chord / guide — the most recent backing chord at or before the playhead.
@@ -11975,10 +12125,25 @@
     let nextIdx = -1;
     for (let i = curIdx + 1; i < evs.length; i++) { if (evs[i].cpcs) { nextIdx = i; break; } }
     const next = nextIdx >= 0 ? evs[nextIdx] : (firstCar !== curIdx ? evs[firstCar] : null);
-    if (!next) return null;
     // only as the change approaches (wrap: time to the loop's top)
-    const timeToNext = nextIdx >= 0 ? next.t - t : Math.max(0, (activeBundle.songInfo?.duration || 0) - t);
+    const timeToNext = nextIdx >= 0 ? evs[nextIdx].t - t : Math.max(0, (activeBundle.songInfo?.duration || 0) - t);
     if (timeToNext > 1.6 * chartBeatSeconds(activeBundle)) return null;
+    // "Static" = no next carrier OR the next carrier is the SAME chord (sub-bar
+    // harmonic rhythm re-slots an unchanged vamp chord every half bar, so a
+    // one-chord vamp still has "next" events — compare identity, not existence).
+    const sameChord = next && evs[curIdx].cpcs && next.cpcs
+      && next.cpcs.length === evs[curIdx].cpcs.length && next.cpcs.every(pc => evs[curIdx].cpcs.includes(pc));
+    if (!next || sameChord) {
+      // D-J6 (J-2): a STATIC one-chord vamp has no "next chord" — instead of
+      // going dark, pre-light the tonality's COLOR note near the wrap (Dorian
+      // ♮6, Mixo ♭7, Lydian ♯4…): the note that says the mode, the thing worth
+      // reaching for at the top of the cycle.
+      const cfg = activeBundle.config || {};
+      const colorIv = { dorian: 9, mixolydian: 10, lydian: 6, phrygian: 1, natural_minor: 8, aeolian: 8 }[cfg.scale];
+      if (colorIv == null) return null;
+      const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+      return new Set([(keyPc + colorIv) % 12]);
+    }
     const pcs = next.gpcs || [];
     return pcs.length ? new Set(pcs) : null;
   }
@@ -12774,6 +12939,16 @@
       // and re-schedule audio. (See docs/section-looping.md "Phase 2 — UI"
       // for the count-in / rewind plan.)
       if (segmentLoopA != null && segmentLoopB != null && currentPracticeTime >= segmentLoopB) {
+        // J-2 (D-J3): the wrap is the change-quantum. A queued jam-panel change
+        // rebuilds the jam from the LIVE panel state right at the boundary —
+        // jamPlay stops this run (audio dies exactly where the wrap would have
+        // re-scheduled it anyway) and restarts at the new chart's music start
+        // (the A-B loop pins playback at leadIn, so no second count-in).
+        if (_jamPending && isJamMode()) {
+          jamPendingClear();
+          jamPlay();
+          return;
+        }
         triggerWrapRewind(segmentLoopB, segmentLoopA);   // visible rewind tell on the overview
         _runLooped = true;                               // recap: a wrap means the loop region was fully reached
         currentPracticeTime = segmentLoopA;
@@ -13176,7 +13351,7 @@
   // Per-channel instrument options (Phase C — backing-voice selection lives here now,
   // moved out of the form). Values are TONE_GM keys; '' = Auto (use the style profile).
   const MIXER_INSTRUMENTS = {
-    melodic: [['','Auto'],['epiano','E-piano'],['organ','Organ'],['piano','Piano'],['clean','Clean gtr'],['guitar','Acoustic'],['nylon','Nylon'],['clav','Clav'],['strings','Strings'],['brass','Brass'],['synthlead','Synth lead'],['pad','Synth pad']],
+    melodic: [['','Auto'],['epiano','E-piano'],['organ','Organ'],['piano','Piano'],['clean','Clean gtr'],['shiny','Electric DI'],['guitar','Acoustic'],['nylon','Nylon'],['clav','Clav'],['strings','Strings'],['brass','Brass'],['synthlead','Synth lead'],['pad','Synth pad']],
     bass:    [['','Auto'],['bass','Electric'],['upright','Upright']],
   };
   // Per-channel kit options for the Drums channel (Phase D). Values are KIT_REGISTRY
@@ -14404,8 +14579,9 @@
         onGenerate();
         focusPlay();
       } else if (primary && primary.act === 'jam') {
-        selectMode('jam');
-        document.querySelector(`#slopscale_beta-jam-styles .slopscale_beta-jam-style[data-style="${jamStyle}"]`)?.click();
+        // D-J10: carry the run's KEY + the drilled device into the jam (the
+        // device becomes the pre-selected first intent chip).
+        jamArmFromDrill(jamStyle, (readConfig() || {}).key, s.displayName || '');
       } else {
         focusPlay();
       }
@@ -14445,8 +14621,8 @@
     });
     $('slopscale_beta-results-jam')?.addEventListener('click', () => {
       closeResultsModal();
-      selectMode('jam');
-      document.querySelector(`#slopscale_beta-jam-styles .slopscale_beta-jam-style[data-style="${jamStyle}"]`)?.click();
+      // D-J10: same device hand-off as the primary jam CTA.
+      jamArmFromDrill(jamStyle, (readConfig() || {}).key, s.displayName || '');
     });
     $('slopscale_beta-results-details-toggle')?.addEventListener('click', () => {
       const sec = $('slopscale_beta-results-details'), btn = $('slopscale_beta-results-details-toggle');
@@ -15139,6 +15315,13 @@
     const padPreset = getReadyWafPreset(padGm);
     const bassPreset = getReadyWafPreset(bassGm);
     const notesPreset = getReadyWafPreset(notesGm);
+    // Sampled-guitar strip pins (the mixer 'Electric DI' override — see the
+    // Shinyguitar block in §14's loader area). Falls back per chord until warm.
+    // Like the ensureWafPreset calls above, scheduling kicks the lazy buffer
+    // loads itself — paths that skip prewarm (e.g. jamPlay) still warm up, and
+    // the rolling window picks the samples up at the next chunk/wrap.
+    const sgHarm = sgToneFor('harmony'), sgPad = sgToneFor('pad'), sgNotes = sgToneFor('notes');
+    if (sgHarm || sgPad || sgNotes) sgPrewarm(bundle);
     const wafVoice = (preset, busName, when, midi, d, vol) => {
       const e = wafPlayer.queueWaveTable(ctx, trackBus(ctx, busName), preset, when, midi, d, vol * wafLoudnessTrim(midi));
       if (e) audioNodes.push({ stop() { try { e.cancel(); } catch (_) {} }, disconnect() {} });
@@ -15165,11 +15348,17 @@
         // sustained pad plays on 'pad' (the Keys strip). One event, one strip.
         const busName = ev.comp != null ? 'harmony' : 'pad';
         const preset = busName === 'harmony' ? harmPreset : padPreset;
-        if (preset && wafPlayer) {
+        // Sampled-guitar pin (mixer 'Electric DI'): per-chord all-or-nothing so a
+        // half-sampled chord never sounds; WAF (then the pad) covers until warm.
+        const useSg = (busName === 'harmony' ? sgHarm : sgPad) && sgReadyFor(ev.midis, vel);
+        if (useSg || (preset && wafPlayer)) {
           // Scale per-voice level by 1/√(chord size) so a dense comp doesn't sum hot
           // into the limiter (anti-clip; matches the synth pad's density-scaling).
           const hn = (ev.midis || []).length, hScale = 1 / Math.sqrt(Math.max(1, hn));
-          for (const m of (ev.midis || [])) wafVoice(preset, busName, when, m, d, harmProfile.harmony.level * WAF_VOICE_VOL[busName] * hScale * vel);
+          for (const m of (ev.midis || [])) {
+            const v = harmProfile.harmony.level * WAF_VOICE_VOL[busName] * hScale * vel;
+            if ((!useSg || !sgVoice(ctx, busName, when, m, d, v, ev.a, vel)) && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v);
+          }
         } else {
           scheduleHarmonyPad(ctx, when, ev.midis || [], d, instrument, harmProfile.harmony.tone, { bright: harmProfile.brightness, level: harmProfile.harmony.level * vel, bus: busName });
         }
@@ -15201,7 +15390,13 @@
       schedEnd = Math.max(schedEnd, when + dur);
       // Sampled practice voice for plain notes; the oscillator voice still owns
       // BENT notes (the sampler can't slide pitch) so blues bends stay audible.
-      if (notesPreset && wafPlayer && bend <= 0) {
+      // The 'Electric DI' pin tries the Shinyguitar voice first (muted notes —
+      // n.mt — get the palm-mute envelope); WAF covers while it warms.
+      const sgPlayed = sgNotes && bend <= 0
+        && sgVoice(ctx, 'notes', when, midi, dur, harmProfile.notes.level * WAF_VOICE_VOL.notes, n.mt ? 'chug' : '', 1);
+      if (sgPlayed) {
+        // scheduled on the sample voice — nothing further
+      } else if (notesPreset && wafPlayer && bend <= 0) {
         wafVoice(notesPreset, 'notes', when, midi, dur, harmProfile.notes.level * WAF_VOICE_VOL.notes);
       } else {
         // When a sampled voice IS available but this note bends, the oscillator
@@ -15385,7 +15580,7 @@
   // Stop returns the playhead to where playback last began (Logic Pro behaviour:
   // hit Play to instantly replay the same passage). The ⏮ button jumps to the
   // very start — Logic's "press Stop again to go to the top".
-  function stopPlayback() { sessionEnd(); playing = false; paused = false; _preRollUntil = 0; _wrapAnim = null; hideDownshiftChip(); releaseWakeLock(); currentPracticeTime = playStartChartTime; playAnchorChartTime = playStartChartTime; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
+  function stopPlayback() { sessionEnd(); playing = false; paused = false; _preRollUntil = 0; _wrapAnim = null; hideDownshiftChip(); if (_jamPending) jamPendingClear(); releaseWakeLock(); currentPracticeTime = playStartChartTime; playAnchorChartTime = playStartChartTime; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
   // Pause freezes the run in place: clock + audio + judgment stop, the session
   // and the pitch-tracker state stay alive, the playhead holds. Resume re-anchors
   // the clock/audio from the frozen playhead (the seekTo pattern). Wake lock is
@@ -15751,7 +15946,7 @@
       // was left behind — the status line read "Chromatic…" mid-jam; J-1 fix).
       const js = lastExercise && lastExercise.session;
       if (isJamMode() && js && js.jamStyle && STYLE_PALETTES[js.jamStyle]) {
-        return `Jam — ${STYLE_PALETTES[js.jamStyle].label} in ${js.key} · ${js.bpm} BPM`;
+        return `Jam — ${STYLE_PALETTES[js.jamStyle].label} in ${js.key} · ${js.bpm} BPM` + (jamIntent ? ` · ${jamIntent}` : '');
       }
       const cfg = readConfig();
       if (cfg.mode === 'chromatic') {
@@ -16490,6 +16685,7 @@
         btn.classList.add('active');
         try { localStorage.setItem('slopscale_beta.jamStyle', id); } catch (_) {}
         syncJamStyleDetails(id);
+        jamQueueChange();   // mid-jam: applies at the next wrap (J-2)
       });
       host.appendChild(btn);
     });
@@ -16517,6 +16713,108 @@
     }
     const tryEl = $('slopscale_beta-jam-try');
     if (tryEl) tryEl.textContent = JAM_PROMPTS[styleId] || '';
+    renderJamIntents(styleId);
+  }
+  // J-2 intent chips (D-J8). One tappable row: the drill hand-off's device intent
+  // first (when armed), then the style's set — bass players get the bass-native
+  // set (their job is the foundation). Tap selects, tap again clears. The pick
+  // shows on the status line while jamming; it is SELF-checked only — no judge,
+  // no score, no tally (the mirror rule; the loop-end reflection is slice J-3).
+  function renderJamIntents(styleId) {
+    const host = $('slopscale_beta-jam-intents');
+    if (!host) return;
+    const list = isBassCfg(readConfig()) ? JAM_INTENTS_BASS : (JAM_INTENTS[styleId] || []);
+    const items = (_jamDeviceIntent ? [_jamDeviceIntent] : []).concat(list);
+    if (jamIntent && !items.includes(jamIntent)) jamIntent = '';   // stale pick (style/instrument switch)
+    host.innerHTML = '';
+    items.forEach(txt => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'slopscale_beta-jam-intent' + (txt === jamIntent ? ' active' : '')
+        + (_jamDeviceIntent && txt === _jamDeviceIntent ? ' device' : '');
+      b.textContent = txt;
+      b.addEventListener('click', () => {
+        jamIntent = (jamIntent === txt) ? '' : txt;
+        host.querySelectorAll('.slopscale_beta-jam-intent').forEach(x => x.classList.toggle('active', x.textContent === jamIntent));
+        refreshStatusFromState();
+      });
+      host.appendChild(b);
+    });
+    host.hidden = !items.length;
+  }
+  // J-2 (D-J5b) — the Harmonic-Depth dial, a staged chordDepth: Simple = bare
+  // triads (hear the skeleton), Core = the style's authored depth, Rich = one
+  // step richer (7ths→9ths, triads→7ths, 9ths→13ths — voiceChord still caps).
+  // Roots/bass stay pinned by construction: depth only widens the upper voicing.
+  // Power-chord styles (chordOverride '5'/'5oct') keep their 5ths — depth never
+  // overrides a style's authored chord QUALITY, only its extension ceiling.
+  function jamDepthChordDepth(palDepth) {
+    if (jamDepth === 'simple') return 'triad';
+    if (jamDepth === 'rich') {
+      return palDepth === 'ninth' ? 'thirteenth' : palDepth === 'seventh' ? 'ninth' : 'seventh';
+    }
+    return palDepth;   // core = the style's authored depth
+  }
+  // J-2 (D-J10) — the drill→Jam device hand-off: a cleared rung's "Jam this
+  // skill ▸" arms a jam pre-loaded with the style, the run's KEY, and the
+  // drilled device as the first (pre-selected) intent chip. Close-and-arm:
+  // the player presses ▶ Jam — nothing autoplays.
+  function jamArmFromDrill(styleId, key, deviceLabel) {
+    selectMode('jam');
+    document.querySelector(`#slopscale_beta-jam-styles .slopscale_beta-jam-style[data-style="${styleId}"]`)?.click();
+    const keySel = $('slopscale_beta-jam-key');
+    if (key && keySel && [...keySel.options].some(o => o.value === key)) keySel.value = key;
+    if (deviceLabel) {
+      _jamDeviceIntent = 'Quote what you drilled: ' + deviceLabel;
+      jamIntent = _jamDeviceIntent;
+    }
+    renderJamIntents(styleId);
+    $('slopscale_beta-jam-go')?.focus();
+  }
+
+  // ── J-2 wrap-boundary live changes (D-J3: the loop wrap is the change-quantum) ──
+  // While jamming, a jam-panel change never interrupts the pass: it queues a
+  // pending chip, and at the next A-B loop wrap the jam rebuilds from the LIVE
+  // panel state (band convention — the new key/tempo/feel/changes land at the
+  // top of the cycle, telegraphed, no stop+restart and no mid-phrase glitch).
+  // The current panel state, read the same way jamPlay reads it.
+  function jamPanelState() {
+    const styleBtn = document.querySelector('#slopscale_beta-jam-styles .slopscale_beta-jam-style.active');
+    return {
+      style: (styleBtn && styleBtn.dataset.style) || '',
+      key: (($('slopscale_beta-jam-key') || {}).value) || 'A',
+      tempo: Math.max(40, Math.min(220, parseInt(($('slopscale_beta-jam-tempo') || {}).value || '90', 10) || 90)),
+      feel: jamFeel,
+      prog: (($('slopscale_beta-jam-prog') || {}).value) || '__mix',
+      band: jamBandMode,
+      guide: !!jamGuideLine,
+      depth: jamDepth,
+    };
+  }
+  // Called by every jam-panel control while a jam is running: diff against the
+  // pass's snapshot, show/refresh (or clear) the pending chip. Changing a value
+  // back before the wrap cancels cleanly — nothing rebuilds.
+  function jamQueueChange() {
+    if (!playing || !isJamMode() || !_jamSnapshot) return;
+    const now = jamPanelState(), was = _jamSnapshot, parts = [];
+    if (now.style !== was.style) parts.push((STYLE_PALETTES[now.style] || {}).label || now.style);
+    if (now.key !== was.key) parts.push('key ' + now.key);
+    if (now.tempo !== was.tempo) parts.push(now.tempo + ' BPM');
+    if (now.feel !== was.feel) parts.push(now.feel);
+    if (now.prog !== was.prog) parts.push(now.prog === '__mix' ? 'mix the changes' : jamProgressionLabel(now.prog));
+    if (now.band !== was.band) parts.push(now.band === 'full' ? 'full band' : now.band === 'drums_only' ? 'drums only' : "you're the bassist");
+    if (now.guide !== was.guide) parts.push(now.guide ? '+ guide line' : 'band only');
+    if (now.depth !== was.depth) parts.push(now.depth === 'simple' ? 'simple chords' : now.depth === 'rich' ? 'rich chords' : 'core chords');
+    _jamPending = parts.length > 0;
+    const chip = $('slopscale_beta-jam-pending');
+    if (chip) {
+      chip.hidden = !_jamPending;
+      if (_jamPending) chip.textContent = '↻ At the wrap: ' + parts.join(' · ');
+    }
+  }
+  function jamPendingClear() {
+    _jamPending = false;
+    const chip = $('slopscale_beta-jam-pending'); if (chip) chip.hidden = true;
   }
 
   // Jam: loop a backing in the selected style through the contained player to play
@@ -16556,7 +16854,9 @@
       practiceType: 'scale',
       scale: palette.scale, key: palette.key,
       progression: palette.progression,
-      chordDepth: palette.chordDepth, chordOverride: palette.chordOverride,
+      // D-J5b: the Harmonic-Depth dial stages the style's authored depth
+      // (Simple/Core/Rich); the chord QUALITY override is never touched.
+      chordDepth: jamDepthChordDepth(palette.chordDepth), chordOverride: palette.chordOverride,
       swing: jamFeel, backingStyle: palette.backingStyle,
       fretboardSystem: 'position', fretMin, fretMax,
       bpm: jamTempo, bars: jamBars, harmonize: false, keyCycle: 'none', sequence: 'none', direction: 'up_down',
@@ -16578,6 +16878,8 @@
       if (dur > lead + 0.1) { try { setSegmentLoop(lead, dur); } catch (_) {} }
       startPlayback();
       refreshStatusFromState();
+      _jamSnapshot = jamPanelState();   // the delta baseline for wrap-boundary live changes (J-2)
+      jamPendingClear();
     } catch (e) {
       showStatus(`Jam error: ${e.message || e}`);
       console.error('[SlopScale] jam failed', e);
@@ -20488,6 +20790,11 @@
     $('slopscale_beta-go-library')?.addEventListener('click', () => { stopRenderer(); goScreen('home'); });
     $('slopscale_beta-go-plugins')?.addEventListener('click', () => { stopRenderer(); goScreen('plugins'); });
     $('slopscale_beta-controls').addEventListener('change', (ev) => {
+      // The Jam inspector's controls live inside this form but are NOT form
+      // fields: they have their own live-change path (wrap-quantized, J-2 D-J3).
+      // Without this bail, any jam select change regenerated the FORM's exercise
+      // and killed a running jam (latent since J-1; exposed by J-2's live edits).
+      if (ev && ev.target && ev.target.closest && ev.target.closest('.slopscale_beta-jam-inspector')) return;
       const name = ev && ev.target ? ev.target.name : '';
       if (name === 'shape') syncShapeDropdownSelectionToHidden();
       if (name === 'practiceType') syncChromaticVisibility();
@@ -20634,9 +20941,14 @@
         document.querySelectorAll('#slopscale_beta-jam-feel .slopscale_beta-jam-feel-btn').forEach(x => x.classList.remove('active'));
         b.classList.add('active');
         jamFeel = b.dataset.feel || 'straight';
+        jamQueueChange();   // mid-jam: applies at the next wrap (J-2)
       });
     });
     $('slopscale_beta-jam-go')?.addEventListener('click', jamPlay);
+    // J-2 wrap-boundary live changes: key/tempo/changes edits mid-jam queue the
+    // pending chip and land at the next loop wrap (no restart, no glitch).
+    ['slopscale_beta-jam-key', 'slopscale_beta-jam-tempo', 'slopscale_beta-jam-prog'].forEach(id =>
+      $(id)?.addEventListener('change', jamQueueChange));
     // Jam slice J-1: guide-line audio opt-in + bass band-mode (both persisted).
     try { jamGuideLine = localStorage.getItem('slopscale_beta.jamGuide') === 'on'; } catch (_) {}
     try { const b = localStorage.getItem('slopscale_beta.jamBand'); if (b === 'no_bass' || b === 'drums_only' || b === 'full') jamBandMode = b; } catch (_) {}
@@ -20647,6 +20959,7 @@
         b.classList.add('active');
         jamGuideLine = b.dataset.guide === 'on';
         try { localStorage.setItem('slopscale_beta.jamGuide', jamGuideLine ? 'on' : 'off'); } catch (_) {}
+        jamQueueChange();   // mid-jam: applies at the next wrap (J-2)
       });
     });
     document.querySelectorAll('#slopscale_beta-jam-band .slopscale_beta-jam-feel-btn').forEach(b => {
@@ -20656,6 +20969,19 @@
         b.classList.add('active');
         jamBandMode = b.dataset.band || 'no_bass';
         try { localStorage.setItem('slopscale_beta.jamBand', jamBandMode); } catch (_) {}
+        jamQueueChange();   // mid-jam: applies at the next wrap (J-2)
+      });
+    });
+    // J-2 Harmonic-Depth dial (D-J5b) — persisted; mid-jam edits wrap-quantize.
+    try { const d = localStorage.getItem('slopscale_beta.jamDepth'); if (d === 'simple' || d === 'core' || d === 'rich') jamDepth = d; } catch (_) {}
+    document.querySelectorAll('#slopscale_beta-jam-depth .slopscale_beta-jam-feel-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.depth === jamDepth);
+      b.addEventListener('click', () => {
+        document.querySelectorAll('#slopscale_beta-jam-depth .slopscale_beta-jam-feel-btn').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        jamDepth = b.dataset.depth || 'core';
+        try { localStorage.setItem('slopscale_beta.jamDepth', jamDepth); } catch (_) {}
+        jamQueueChange();   // mid-jam: applies at the next wrap (J-2)
       });
     });
     // Jam target-highlight selector (chord / guide / scale / off). Reflects the
@@ -21061,7 +21387,11 @@
   }
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
-  window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier, xpLevelInfo, computeBadges, creditBadges, shareCardText, isShareworthy, feltHoldAnalyze, creditFeltRung, shareCardModel, shareCardText, renderShareCardImage, isShareworthy };
+  window.SlopScale = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier, xpLevelInfo, computeBadges, creditBadges, shareCardText, isShareworthy, feltHoldAnalyze, creditFeltRung, shareCardModel, shareCardText, renderShareCardImage, isShareworthy,
+    // J-2 + sampled-guitar probe surface (feature entry points / readouts, not new behavior)
+    jamArmFromDrill, jamTargetPcs, jamNextGuidePcs,
+    getActiveBundleInfo: () => activeBundle ? { config: activeBundle.config, duration: activeBundle.songInfo && activeBundle.songInfo.duration, leadIn: activeBundle.leadIn } : null,
+    sgStats: () => { const out = { ready: 0, loading: 0, failed: 0 }; for (const k of Object.keys(sgBuffers)) out[sgBuffers[k].state] = (out[sgBuffers[k].state] || 0) + 1; return out; } };
   if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
