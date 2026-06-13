@@ -312,7 +312,11 @@
     modal_mixture:[1,4,{ deg:4, q:'min7' },5],               // I–IV–iv–V : borrowed-minor-iv modal mixture (the iv is the colour)
     // ── World / genre vamps (band-intel genre batch, 2026-06-13) ──────────────
     'i-iv':[1,4],                                             // i–iv minor vamp (reggae / minor soul) — pair with natural_minor so the iv stays MINOR (Am→Dm); distinct from dorian_vamp's major IV
-    soul_turnaround:[1, { semis:9, q:'dom7', rn:'VI7' }, 2, 5] // I–VI7–ii–V : the soul/Motown turnaround — the VI is a SECONDARY DOMINANT (the soul colour), not the diatonic vi
+    soul_turnaround:[1, { semis:9, q:'dom7', rn:'VI7' }, 2, 5], // I–VI7–ii–V : the soul/Motown turnaround — the VI is a SECONDARY DOMINANT (the soul colour), not the diatonic vi
+    // Ragtime secondary-dominant chain (III7–VI7–II7–V7–I) — every link a dom7 (the
+    // bright forward-leaning ragtime motion); same {semis,q:'dom7'} chromatic form as
+    // soul_turnaround (harmony-confirmed mechanism). Pair with major; the I lands home.
+    ragtime_circle:[{ semis:4, q:'dom7', rn:'III7' }, { semis:9, q:'dom7', rn:'VI7' }, { semis:2, q:'dom7', rn:'II7' }, { semis:7, q:'dom7', rn:'V7' }, 1]
   };
   // Per-progression chord quality overrides — win over diatonic scale harmony,
   // but lose to a user-specified chordOverride. Used by chordQualityForDegree.
@@ -4433,6 +4437,13 @@
     tango:       { family: 'acoustic',   harmony: { engine: 'sample', tone: 'piano',  level: 0.8 },  brightness: 0.5 },
     norteno:     { family: 'clean',      harmony: { engine: 'sample', tone: 'clean',  level: 0.78 }, brightness: 0.6 },
     new_orleans: { family: 'clean',      harmony: { engine: 'sample', tone: 'piano',  level: 0.82 }, brightness: 0.5 },
+    // World/genre Wave 3a (band-intel, 2026-06-13) — the DRUMLESS solo/technique
+    // idioms. classical/flamenco = nylon; folk/gypsy-jazz = steel-string acoustic.
+    classical:   { family: 'acoustic',   harmony: { engine: 'sample', tone: 'nylon',  level: 0.78 }, brightness: 0.5 },
+    flamenco:    { family: 'acoustic',   harmony: { engine: 'sample', tone: 'nylon',  level: 0.8 },  brightness: 0.58 },
+    folk:        { family: 'acoustic',   harmony: { engine: 'sample', tone: 'guitar', level: 0.78 }, brightness: 0.6 },
+    gypsy_jazz:  { family: 'acoustic',   harmony: { engine: 'sample', tone: 'guitar', level: 0.78 }, brightness: 0.62 },
+    ragtime:     { family: 'acoustic',   harmony: { engine: 'sample', tone: 'piano',  level: 0.8 },  brightness: 0.55 },
   };
 
   // ── Drum kits (audio-realism Phase D) ────────────────────────────────────────
@@ -4531,6 +4542,14 @@
     bluegrass:   { label:'Bluegrass',      defaultKey:'G', progressions:['I-IV-V','I-V-vi-IV','vi-IV-I-V'], leadScales:['major_pentatonic','major','mixolydian','blues'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'bluegrass' },
     'city-pop':  { label:'City Pop',       defaultKey:'F', progressions:['I-vi-ii-V','vi-ii-V-I','ii-V-I','I-V-vi-IV'], leadScales:['major','dorian','major_pentatonic','mixolydian'], chordDepth:'ninth', chordOverride:'auto', guideTones:true, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'city-pop' },
     new_orleans: { label:'New Orleans',    defaultKey:'C', progressions:['12_bar_blues','quick_change_blues','I-IV-V','blues_turnaround'], leadScales:['blues','mixolydian','major_pentatonic','minor_pentatonic'], chordDepth:'seventh', chordOverride:'dom7', guideTones:true, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'new_orleans' },
+    // ── World / genre Wave 3a (band-intel, panel 2026-06-13) — the DRUMLESS solo /
+    // technique idioms. feel straight/pad so the recipe drives; the fingerstyle/
+    // stride accompaniment carries the time (no kit).
+    classical:   { label:'Classical',      defaultKey:'C', progressions:['pachelbel','circle_diatonic','I-IV-V','ii-V-I','andalusian'], leadScales:['major','natural_minor','harmonic_minor','dorian'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'classical' },
+    flamenco:    { label:'Flamenco',       defaultKey:'E', progressions:['andalusian','phrygian_vamp'], leadScales:['phrygian','phrygian_dominant','harmonic_minor'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'flamenco' },
+    folk:        { label:'Folk',           defaultKey:'G', progressions:['I-IV-V','I-V-vi-IV','I-vi-IV-V','vi-IV-I-V','mixolydian_rock'], leadScales:['major','major_pentatonic','mixolydian','dorian'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'folk' },
+    gypsy_jazz:  { label:'Gypsy Jazz',     defaultKey:'A', progressions:['minor_ii_V_i','i-VI-III-VII','rhythm_changes_a','andalusian'], leadScales:['harmonic_minor','melodic_minor','dorian','major'], chordDepth:'seventh', chordOverride:'auto', guideTones:true, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'gypsy_jazz' },
+    ragtime:     { label:'Ragtime / Stride', defaultKey:'C', progressions:['I-IV-V','circle_diatonic','I-vi-ii-V','ragtime_circle'], leadScales:['major','major_pentatonic','mixolydian','blues'], chordDepth:'seventh', chordOverride:'auto', guideTones:true, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'ragtime' },
   };
   // Resolve a style palette into a mergeable partial config the way a Pathway/Custom/
   // Jam consumer uses it: Object.assign({}, base, stylePaletteConfig('blues')). opts let
@@ -4581,6 +4600,8 @@
     mixolydian_vamp:'Mixolydian vamp (I–♭VII–IV)', phrygian_vamp:'Phrygian vamp (i–♭II)',
     'i-iv':'i–iv minor vamp', soul_turnaround:'Soul turnaround (I–VI7–ii–V)',
     andalusian:'Andalusian (i–♭VII–♭VI–V)', blues_turnaround:'Blues turnaround',
+    pachelbel:'Pachelbel (I–V–vi–iii–IV…)', circle_diatonic:'Circle of 5ths', 'i-VI-III-VII':'i–♭VI–♭III–♭VII',
+    ragtime_circle:'Ragtime chain (III7–VI7–II7–V7–I)', 'I-vi-ii-V':'I–vi–ii–V',
   };
   function jamProgressionLabel(token) {
     return JAM_PROG_LABELS[token] || String(token || '').replace(/_/g, ' ');
@@ -4608,6 +4629,11 @@
     bluegrass:'Try: major-pentatonic flatpicking — drive the time yourself, no drummer to lean on.',
     'city-pop':'Try: glide the ii–V chain — land color tones (9ths, 13ths), not just roots.',
     new_orleans:'Try: lock to the tresillo "big four" — leave space, let the second-line strut.',
+    classical:'Try: let each broken chord ring — phrase your line over the harmony, not the beat.',
+    flamenco: 'Try: feel the compás — accent hard, then let the Phrygian ♭2 pull you home.',
+    folk:     'Try: a simple melody over the alternating thumb — let the open strings drone.',
+    gypsy_jazz:'Try: chase the arpeggio of each chord — outline the changes, Django-style.',
+    ragtime:  'Try: syncopate your right hand against the steady stride — land off the beat.',
   };
   // J-2 intent chips (D-J8: intents, not scores). An intent is a SELF-checked
   // musical aim the player picks before/while jamming — shown on the status line,
@@ -4635,6 +4661,11 @@
     bluegrass:['Drive the time yourself', 'Chase chord tones through the changes', 'One G-run per turnaround'],
     'city-pop':['Land the 9th, not the root', 'Glide through the ii–Vs', 'Sit back, glossy'],
     new_orleans:['Lock to the tresillo "big four"', 'Bluesy dom7 vocabulary', 'Leave space — let it strut'],
+    classical:['Phrase over the harmony', 'Let every note ring', 'Shape the dynamics'],
+    flamenco: ['Accent the compás', 'Lean on the Phrygian ♭2', 'Rasgueado fire, then silence'],
+    folk:     ['Melody over the drone', 'Keep it simple, song-serving', 'Ornament the Celtic turns'],
+    gypsy_jazz:['Chase each chord arpeggio', 'Enclose the target note', 'Swing the eighths hard'],
+    ragtime:  ['Syncopate against the stride', 'Land off the beat', 'Outline the secondary dominants'],
   };
   const JAM_INTENTS_BASS = ['Walk into every change', 'Lock the one with the kick', 'Ghost notes between the roots'];
 
@@ -7006,6 +7037,41 @@
              { t: 'chord', a: 'ring', acc: 1 }, '.', '.', '.', '.', '.', { t: 'root5', a: 'stab' }, '.',
              { t: 'root5', a: 'stab', acc: 1 }, '.', '.', '.', '.', '.', { t: 'root5', a: 'stab' }, '.',
              { t: 'chord', a: 'ring', acc: 1 }, '.', '.', '.', '.', '.', { t: 'top', a: 'stab' }, '.'] },
+    // ── World / genre comp cells Wave 3a (band-intel, panel 2026-06-13) — the
+    // DRUMLESS solo/technique accompaniments. Each is the genre's whole rhythm bed. ──
+    // Classical fingerstyle arpeggio: a let-ring broken chord walking up-and-back the
+    // voicing (root5→shell→top→shell) — a continuo/étude bed in good period taste. div:2.
+    classical_arp:  { div: 2, bars: 1, label: 'classical arpeggio (broken chord, let-ring)',
+      grid: [{ t: 'root5', a: 'ring' }, { t: 'shell', a: 'ring' }, { t: 'top', a: 'ring' }, { t: 'shell', a: 'ring' },
+             { t: 'root5', a: 'ring' }, { t: 'shell', a: 'ring' }, { t: 'top', a: 'ring' }, { t: 'shell', a: 'ring' }] },
+    // Flamenco rasgueado (tangos/rumba feel): sharp accented stab hits on 1 & 3 with
+    // golpe-ish muted chucks filling the 16ths and a ring resolve into beat 4 — the
+    // Phrygian color comes from the andalusian/phrygian_vamp progression. div:4.
+    rasgueado_tangos: { div: 4, bars: 1, label: 'flamenco rasgueado (tangos)',
+      grid: [{ t: 'chord', a: 'stab', acc: 1 }, '.', { t: 'top', a: 'chuck' }, { t: 'chord', a: 'stab' },
+             '.', { t: 'top', a: 'chuck' }, { t: 'chord', a: 'ring' }, '.',
+             { t: 'chord', a: 'stab', acc: 1 }, '.', { t: 'top', a: 'chuck' }, { t: 'chord', a: 'stab' },
+             { t: 'chord', a: 'ring' }, { t: 'top', a: 'chuck' }, { t: 'chord', a: 'stab' }, { t: 'top', a: 'chuck' }] },
+    // Folk Travis fingerpick: an alternating-thumb root5 bass on the quarters under
+    // fingers plucking the top chord-tone on every offbeat, all let-ring into the
+    // open-string drone — the alternating-thumb idiom. div:2.
+    travis_pick:    { div: 2, bars: 1, label: 'Travis fingerpick (alternating thumb)',
+      grid: [{ t: 'root5', a: 'ring', acc: 1 }, { t: 'top', a: 'ring' }, { t: 'top', a: 'ring' }, { t: 'top', a: 'ring' },
+             { t: 'root5', a: 'ring' }, { t: 'top', a: 'ring' }, { t: 'top', a: 'ring' }, { t: 'top', a: 'ring' }] },
+    // Gypsy-jazz la pompe (manouche): the percussive "boom-CHK" — a chord ON the beat +
+    // a clipped dead up-chuck on the 2nd 16th, weight on 2 & 4 so it gallops. The
+    // swing lilt is baked into the grid (the palette stays straight so the recipe drives). div:4.
+    la_pompe:       { div: 4, bars: 1, label: 'la pompe (manouche)',
+      grid: [{ t: 'chord', a: 'ring' }, { t: 'chord', a: 'chuck' }, '.', '.',
+             { t: 'chord', a: 'stab', acc: 1 }, { t: 'chord', a: 'chuck' }, '.', '.',
+             { t: 'chord', a: 'ring' }, { t: 'chord', a: 'chuck' }, '.', '.',
+             { t: 'chord', a: 'stab', acc: 1 }, { t: 'chord', a: 'chuck' }, '.', '.'] },
+    // Ragtime/stride left hand: the leaping "oom-pah" — a low bass note (root5, ~E2)
+    // on 1 & 3 + a ringing mid chord stab on 2 & 4 (a stab, NOT boom_chuck's mute, so
+    // the harmony blooms). The bass figure register-lifts it into the stride spread. div:1.
+    stride_oompah:  { div: 1, bars: 1, label: 'stride oom-pah (L.H.)',
+      grid: [{ t: 'root5', a: 'stab', acc: 1 }, { t: 'chord', a: 'stab' },
+             { t: 'root5', a: 'stab' }, { t: 'chord', a: 'stab', acc: 1 }] },
   };
   // Startup integrity guard (mirrors validateStrumPatterns): grid shape, known
   // targets/artics, a label on every cell (player-facing from day one).
@@ -7830,6 +7896,22 @@
     'bluegrass:default:full':     { picks: { comp: 'boom_chuck',      bass: 'walking' },                                   ensemble: { drums: 'off', bass: 'on', comp: 'on' } },
     'city-pop:default:groove':    { picks: { comp: 'citypop_maj9_16', bass: 'funk_pocket_16', drums: 'straight_8th_rock' }, ensemble: { drums: 'on',  bass: 'on', comp: 'on' } },
     'new_orleans:default:groove': { picks: { comp: 'rhumba_boogie',   bass: 'tresillo_nola',  drums: 'second_line' },      ensemble: { drums: 'on',  bass: 'on', comp: 'on' } },
+    // ── World / genre recipes Wave 3a (band-intel, panel 2026-06-13) — the DRUMLESS
+    // solo/technique idioms (all profiles in DRUMLESS_PROFILES → resolveGroove null;
+    // ensemble.drums:'off' documents it). The fingerstyle/stride comp is the whole
+    // rhythm bed; a light bass (sustained_root / two_feel) anchors the harmony.
+    //   classical — a let-ring broken-chord arpeggio over a sustained root.
+    //   flamenco — the rasgueado tangos strum (Phrygian) over a sustained tonic.
+    //   folk — Travis alternating-thumb fingerpicking over the upright two-feel.
+    //   gypsy-jazz — la pompe over the manouche two-feel.
+    //   ragtime — the stride oom-pah left hand over two_feel; the `boogie` feel rolls
+    //     the eight-to-the-bar boogie-woogie (boogie_stab + bass_ostinato).
+    'classical:default:groove':   { picks: { comp: 'classical_arp',    bass: 'sustained_root' }, ensemble: { drums: 'off', bass: 'on', comp: 'on' } },
+    'flamenco:default:groove':    { picks: { comp: 'rasgueado_tangos', bass: 'sustained_root' }, ensemble: { drums: 'off', bass: 'on', comp: 'on' } },
+    'folk:default:groove':        { picks: { comp: 'travis_pick',      bass: 'two_feel' },       ensemble: { drums: 'off', bass: 'on', comp: 'on' } },
+    'gypsy_jazz:default:groove':  { picks: { comp: 'la_pompe',         bass: 'two_feel' },       ensemble: { drums: 'off', bass: 'on', comp: 'on' } },
+    'ragtime:default:groove':     { picks: { comp: 'stride_oompah',    bass: 'two_feel' },       ensemble: { drums: 'off', bass: 'on', comp: 'on' } },
+    'ragtime:boogie:groove':      { picks: { comp: 'boogie_stab',      bass: 'bass_ostinato' },  ensemble: { drums: 'off', bass: 'on', comp: 'on' } },
   };
   const ARRANGEMENT_BASE = { picks: {}, ensemble: { drums: 'auto', bass: 'auto', comp: 'auto', pad: 'auto', lead: 'auto' }, registers: {}, tier: 'groove' };
   // Which density tier a cfg sits in: authored cfg.densityTier wins; else derive
@@ -7884,7 +7966,7 @@
   // upright two-feel) qualify — `bluegrass` is no longer shared (country now uses
   // its own `country` profile). Per-config `drums:'none'`/`groove:'none'` still
   // works for one-off drumless overrides. (folk/classical/gypsy-jazz join in Wave 3.)
-  const DRUMLESS_PROFILES = new Set(['tango', 'bluegrass']);
+  const DRUMLESS_PROFILES = new Set(['tango', 'bluegrass', 'classical', 'flamenco', 'folk', 'gypsy_jazz', 'ragtime']);
   // Resolve which groove a config plays, or null for a deliberately drumless style.
   // Precedence: explicit cfg.groove → shuffle feel → jazz profile → straight backbeat.
   function resolveGroove(cfg) {

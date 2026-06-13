@@ -709,6 +709,29 @@ try {
     });
     const tbe = (S.makeBundle(S.generateExercise(tcfg)).backingEvents) || [];
     out.tangoDrumless = !tbe.some((e) => e.role === "drums") && tbe.some((e) => e.role === "bass");
+    // Wave 3a — the DRUMLESS solo/technique idioms (band-intel 2026-06-13).
+    const w3classical = D.resolveArrangement({ audio: { profile: "classical" } });
+    const w3flamenco = D.resolveArrangement({ audio: { profile: "flamenco" } });
+    const w3folk = D.resolveArrangement({ audio: { profile: "folk" } });
+    const w3gypsy = D.resolveArrangement({ audio: { profile: "gypsy_jazz" } });
+    const w3rag = D.resolveArrangement({ audio: { profile: "ragtime" } });
+    out.wave3aPicks =
+         w3classical.picks.comp === "classical_arp" && !w3classical.picks.drums
+      && w3flamenco.picks.comp === "rasgueado_tangos" && !w3flamenco.picks.drums
+      && w3folk.picks.comp === "travis_pick" && w3folk.picks.bass === "two_feel" && !w3folk.picks.drums
+      && w3gypsy.picks.comp === "la_pompe" && w3gypsy.picks.bass === "two_feel" && !w3gypsy.picks.drums
+      && w3rag.picks.comp === "stride_oompah" && w3rag.picks.bass === "two_feel" && !w3rag.picks.drums;
+    out.wave3aDrumless = [w3classical, w3flamenco, w3folk, w3gypsy, w3rag].every((r) => r.ensemble.drums === "off");
+    // the NEW ragtime_circle token (III7–VI7–II7–V7–I secondary-dominant chain) generates a valid chart
+    const rgcfg = Object.assign(S.readConfig(), {
+      practiceType: "scale", mode: "scale", shapeNotes: null, fretboardSystem: "position",
+      key: "C", scale: "major", stringSetup: "guitar_6_standard", bpm: 90, bars: 8, fretMin: 0, fretMax: 5,
+      direction: "up_down", sequence: "none", progression: "ragtime_circle", chordOverride: "auto", chordDepth: "seventh",
+      meter: { numerator: 4, denominator: 4, grouping: [4] }, backingStyle: "pad", swing: "straight",
+      backingComp: "", backingBass: "", audio: { notes: true, harmony: true, metronome: false, profile: "ragtime", brightness: 0.55 },
+    });
+    const rgch = S.generateExercise(rgcfg);
+    out.ragtimeToken = !!(rgch && rgch.chart && (rgch.chart.notes || []).length);
     // (b) tier derivation: full tier picks the heavier djent texture + double kick
     const metalFull = D.resolveArrangement({ audio: { profile: "metal" }, densityTier: "full" });
     out.fullTier = metalFull.picks.comp === "metal_pedal_16" && metalFull.picks.drums === "metal_double_kick";
@@ -756,6 +779,9 @@ try {
   ok(c6f.reggaeBand, "the un-wired reggae cfg gets the offbeat skank + the riddim bass from the recipe alone");
   ok(c6f.wave2Picks, "Wave 2 recipes resolve: norteno=bajo_chop/oompah, tango=marcato4/habanera (drumless), bluegrass=boom_chuck/two_feel (drumless), city-pop=maj9/funk_pocket, new-orleans=rhumba/tresillo/second_line");
   ok(c6f.tangoDrumless, "DRUMLESS proof: a tango chart emits a bass line but NO drum events (DRUMLESS_PROFILES)");
+  ok(c6f.wave3aPicks, "Wave 3a recipes resolve: classical=classical_arp, flamenco=rasgueado_tangos, folk=travis_pick, gypsy_jazz=la_pompe, ragtime=stride_oompah — all drumless");
+  ok(c6f.wave3aDrumless, "Wave 3a all 5 solo idioms declare drums:off (DRUMLESS_PROFILES)");
+  ok(c6f.ragtimeToken, "ragtime_circle (III7–VI7–II7–V7–I secondary-dominant chain) generates a valid chart");
 
   if (errs.length) { fail++; console.log(`  FAIL page errors: ${errs.join(" | ")}`); }
 } finally { await browser.close(); }
