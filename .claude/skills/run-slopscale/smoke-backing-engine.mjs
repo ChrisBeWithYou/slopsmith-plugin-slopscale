@@ -617,8 +617,62 @@ try {
   ok(c6e.sg && c6e.amp === "metal", "the metal profile resolves the DI comp through the Metal amp (the realism)", `sg=${c6e.sg} amp=${c6e.amp}`);
   ok(c6e.padSynth, "the distorted Keys/sustain layer stays the synth pad");
 
+  // ── (6f) ARRANGEMENT_RECIPES — band-intelligence B1 (2026-06-13): the recipe
+  // layer that lets a STYLE declare its band (pointers onto comp/bass/drum tables)
+  // so an un-wired styled cfg gets a band for free. Additive: authored cfg.backing*
+  // and the boogie/swing routes always win, un-recipe'd styles fall through. ────
+  step("ARRANGEMENT_RECIPES (band-intel B1)");
+  const c6f = await page.evaluate(() => {
+    const S = window.SlopScale, D = globalThis.__ss_debug;
+    const out = {};
+    // (a) resolveArrangement: metal/djent resolve their picks at the groove tier;
+    // an un-recipe'd style (blues) returns EMPTY picks (so the old logic runs).
+    const metal = D.resolveArrangement({ audio: { profile: "metal" } });
+    const djent = D.resolveArrangement({ audio: { profile: "djent" } });
+    const blues = D.resolveArrangement({ audio: { profile: "blues" } });
+    out.metalPicks = metal.picks.comp === "metal_chug_8" && metal.picks.bass === "root_pump" && metal.tier === "groove";
+    out.djentPicks = djent.picks.comp === "metal_pedal_16" && djent.picks.bass === "root_pump";
+    out.bluesEmpty = !blues.picks.comp && !blues.picks.bass && !blues.picks.drums;
+    // (b) tier derivation: full tier picks the heavier djent texture + double kick
+    const metalFull = D.resolveArrangement({ audio: { profile: "metal" }, densityTier: "full" });
+    out.fullTier = metalFull.picks.comp === "metal_pedal_16" && metalFull.picks.drums === "metal_double_kick";
+    // (c) THE SUBSTRATE VALUE: an UN-WIRED metal cfg (no backingComp/backingBass)
+    // gets the band from the recipe — comp + bass + drums, no hand-wiring.
+    const cfg = Object.assign(S.readConfig(), {
+      practiceType: "scale", mode: "scale", shapeNotes: null, fretboardSystem: "position",
+      key: "E", scale: "natural_minor", stringSetup: "guitar_6_standard", bpm: 100, bars: 8,
+      fretMin: 11, fretMax: 15, direction: "up_down", sequence: "none",
+      progression: "metal_i_bVI_bVII", chordOverride: "5", meter: { numerator: 4, denominator: 4, grouping: [4] },
+      backingStyle: "pad", swing: "straight", backingComp: "", backingBass: "",   // NOT hand-wired
+      backingDensity: undefined, backingPadDev: false,
+      audio: { notes: true, harmony: true, metronome: false, profile: "metal", brightness: 0.42 },
+    });
+    out.compDefault = D.compCellForConfig(cfg);
+    const be = (S.makeBundle(S.generateExercise(cfg)).backingEvents) || [];
+    out.recipeComp = be.some((e) => e.comp === "metal_chug_8");
+    out.recipeBass = be.some((e) => e.role === "bass");
+    // (d) NON-REGRESSION: a blues boogie cfg is byte-identical with vs without the
+    // recipe layer (it has no recipe → the boogie route still wins).
+    const bz = Object.assign(S.readConfig(), {
+      practiceType: "scale", mode: "scale", shapeNotes: null, fretboardSystem: "caged", shape: "E",
+      key: "A", scale: "blues", stringSetup: "guitar_6_standard", bpm: 100, bars: 12, fretMin: 0, fretMax: 12,
+      progression: "12_bar_blues", chordOverride: "dom7", meter: { numerator: 4, denominator: 4, grouping: [4] },
+      backingStyle: "boogie", swing: "shuffle", backingComp: "", backingBass: "",
+      audio: { notes: false, harmony: true, metronome: false, profile: "blues", brightness: 0.5 },
+    });
+    out.bluesComp = D.compCellForConfig(bz);   // still boogie_stab (the boogie route, not a recipe)
+    return out;
+  });
+  ok(c6f.metalPicks, "resolveArrangement: metal → metal_chug_8 + root_pump @ groove tier");
+  ok(c6f.djentPicks, "resolveArrangement: djent → metal_pedal_16 + root_pump");
+  ok(c6f.bluesEmpty, "an un-recipe'd style (blues) returns EMPTY picks — the old logic runs (no regression)");
+  ok(c6f.fullTier, "the full density tier picks the heavier texture (metal_pedal_16 + metal_double_kick)");
+  ok(c6f.compDefault === "metal_chug_8", "compCellForConfig: an UN-WIRED metal cfg inherits metal_chug_8 from the recipe", `got=${c6f.compDefault}`);
+  ok(c6f.recipeComp && c6f.recipeBass, "the un-wired metal cfg gets a full band (comp + bass) from the recipe alone");
+  ok(c6f.bluesComp === "boogie_stab", "NON-REGRESSION: a blues boogie cfg still resolves boogie_stab (recipe never overrides the boogie route)", `got=${c6f.bluesComp}`);
+
   if (errs.length) { fail++; console.log(`  FAIL page errors: ${errs.join(" | ")}`); }
 } finally { await browser.close(); }
 
 if (fail) { console.log(`FAIL  backing-engine: ${fail} failure(s) (${pass} passed)`); process.exit(1); }
-console.log(`PASS  backing-engine: ${pass} checks passed (timeline validity x styles, 2/bar, push, determinism, key-cycle + session assembly, drum grooves + fills, metal lead-over-backing comp)`);
+console.log(`PASS  backing-engine: ${pass} checks passed (timeline validity x styles, 2/bar, push, determinism, key-cycle + session assembly, drum grooves + fills, metal lead-over-backing comp, arrangement recipes B1)`);
