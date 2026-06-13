@@ -574,8 +574,51 @@ try {
   await page.evaluate(() => document.getElementById("slopscale-play")?.click());
   await page.waitForTimeout(400);
 
+  // ── (6e) Metal lead-over-backing (band-intel 2026-06-13): the SHIPPED trigger
+  // for the distorted-comp double-track. A metal LEAD over a real rhythm section —
+  // a metal_chug_8 power-5th comp (low register, under the lead) + a root_pump
+  // bass under the metal profile, whose comp resolves the Metal amp insert. This
+  // path was LATENT before the metal_lead_* pathways: no shipped pathway emitted
+  // distorted comp (riff drills back with a pad; strum_comp suppresses comp). ──
+  step("metal lead-over-backing (distorted-comp trigger)");
+  const c6e = await page.evaluate(() => {
+    const S = window.SlopScale, D = globalThis.__ss_debug;
+    const cfg = Object.assign(S.readConfig(), {
+      practiceType: "scale", mode: "scale", shapeNotes: null, fretboardSystem: "position",
+      key: "E", scale: "natural_minor", stringSetup: "guitar_6_standard", bpm: 100, bars: 8,
+      fretMin: 11, fretMax: 15, direction: "up_down", sequence: "none",
+      progression: "metal_i_bVI_bVII", chordOverride: "5", meter: { numerator: 4, denominator: 4, grouping: [4] },
+      backingStyle: "pad", swing: "straight", backingComp: "metal_chug_8", backingBass: "root_pump",
+      backingDensity: undefined, backingPadDev: false,
+      audio: { notes: true, harmony: true, metronome: false, profile: "metal", brightness: 0.42 },
+    });
+    const ex = S.generateExercise(cfg);
+    const b = S.makeBundle(ex);
+    const be = b.backingEvents || [];
+    const comp = be.filter((e) => e.comp != null);
+    const bass = be.filter((e) => e.role === "bass");
+    const prof = D.resolveAudioProfile(cfg);
+    const compMids = comp.flatMap((e) => e.midis || []);
+    return {
+      notes: (ex.chart.notes || []).length,
+      comp: comp.length,
+      allChug8: comp.length > 0 && comp.every((e) => e.comp === "metal_chug_8"),
+      allRoot5: comp.length > 0 && comp.every((e) => (e.midis || []).length === 2 && e.midis[1] - e.midis[0] === 7),
+      compLow: compMids.length > 0 && Math.max(...compMids) <= 59,
+      bass: bass.length,
+      sg: !!prof.harmony.sg, amp: prof.harmony.amp, padSynth: !!(prof.pad && !prof.pad.engine),
+    };
+  });
+  ok(c6e.notes > 0, "the metal LEAD generates over the backing", `notes=${c6e.notes}`);
+  ok(c6e.comp > 0 && c6e.allChug8, "backing emits the metal_chug_8 comp — the distorted double-track trigger", `comp=${c6e.comp}`);
+  ok(c6e.allRoot5, "the comp is power 5ths (root+5th, 3rd-less — clean under high gain)");
+  ok(c6e.compLow, "the comp sits LOW (≤ midi 59) so it stays under the lead");
+  ok(c6e.bass > 0, "the band has a root_pump bass (not just the comp)", `bass=${c6e.bass}`);
+  ok(c6e.sg && c6e.amp === "metal", "the metal profile resolves the DI comp through the Metal amp (the realism)", `sg=${c6e.sg} amp=${c6e.amp}`);
+  ok(c6e.padSynth, "the distorted Keys/sustain layer stays the synth pad");
+
   if (errs.length) { fail++; console.log(`  FAIL page errors: ${errs.join(" | ")}`); }
 } finally { await browser.close(); }
 
 if (fail) { console.log(`FAIL  backing-engine: ${fail} failure(s) (${pass} passed)`); process.exit(1); }
-console.log(`PASS  backing-engine: ${pass} checks passed (timeline validity x styles, 2/bar, push, determinism, key-cycle + session assembly, drum grooves + fills)`);
+console.log(`PASS  backing-engine: ${pass} checks passed (timeline validity x styles, 2/bar, push, determinism, key-cycle + session assembly, drum grooves + fills, metal lead-over-backing comp)`);

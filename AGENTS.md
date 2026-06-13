@@ -64,6 +64,7 @@ Promoted from patterns in past-session feedback — the things Christian kept ha
 | `routes.py` | FastAPI routes under `/api/plugins/slopscale/…` — preset CRUD, status, and `POST /temp-sloppak` (the chart builder). |
 | `settings.html` | Plugin settings panel fragment rendered by Slopsmith. |
 | `static/` | Self-hosted audio assets served by `routes.py` — `wafonts/` (WebAudioFont sampler assets, committed); `samples/` (license-cleared committed sample subsets, e.g. the CC0 Shinyguitar electric-DI voice — see its README); `irs/` + `nam/` (cab IRs / NAM amp captures, **gitignored** pending licensing). |
+| `assets/` | Plugin chrome assets served to the host — `thumb.png`/`thumb.svg` (the nav icon, referenced by `plugin.json` `icon`). Designated home for a compiled `plugin.css` if the host `styles` capability is ever adopted (see the Tailwind constraint in Part 3). |
 | `docs/architecture.md` | Integration design — the authoritative spec for how the plugin interacts with Slopsmith (incl. the Sloppak on-disk format, field-name translation, audio stem generation). Read this first before changing the launch flow. |
 | `docs/code-map.md` | Per-section walkthrough of `screen.js` (the §1–§15 sections) + `routes.py` (routes, storage). **Read before working inside either file.** |
 | `docs/exercise-schema.md` | Internal generated exercise/chart JSON schema + the compact note-field key meanings. |
