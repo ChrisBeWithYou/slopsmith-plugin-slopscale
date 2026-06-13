@@ -685,9 +685,10 @@ def setup(app: FastAPI, context: dict) -> None:
     # Distorted-track DSP assets: cab impulse responses (.wav) under static/irs/
     # and NAM amp captures (.nam, which are JSON) under static/nam/. Served locally
     # so the amp/cab chain is offline-safe. The NAM *engine* (worklet + wasm) is
-    # borrowed from the host's nam_tone plugin at runtime — not bundled here. Both
-    # dirs are gitignored (commercial IRs / captures pending licensing clearance);
-    # only the declared extension is served and path traversal is rejected.
+    # borrowed from the host's nam_tone plugin at runtime — not bundled here.
+    # static/nam/ is gitignored; static/irs/ ships ONLY the GPL-3 metal V30
+    # (v30_4x12.wav) and gitignores the commercial clean/overdrive cabs (see
+    # static/irs/README.md). Only the declared extension is served + traversal rejected.
     _irs_dir = Path(__file__).resolve().parent / "static" / "irs"
     _nam_dir = Path(__file__).resolve().parent / "static" / "nam"
 

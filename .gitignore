@@ -26,6 +26,10 @@ docs/sources/
 # On-hand alternate soundfonts for A/B auditioning (not shipped)
 static/wafonts/alt/
 
-# Local DSP assets pending licensing clearance (commercial cab IRs, NAM captures) — not shipped
-static/irs/
+# Local DSP assets pending licensing clearance (commercial cab IRs, NAM captures) — not shipped.
+# EXCEPTION: the metal V30 cab IR is GPL-3 (Deer Ink Studios via AIDA-X) → it SHIPS;
+# the clean/overdrive cabs are commercial (Christian's lib) → local-only dogfood.
+static/irs/*
+!static/irs/v30_4x12.wav
+!static/irs/README.md
 static/nam/
