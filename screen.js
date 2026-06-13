@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.24-beta.3';
+  const SLOPSCALE_VERSION = '0.7.24-beta.4';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -13854,20 +13854,46 @@
   const IR_BASE = '/api/plugins/slopscale_beta/ir/';
   let _irBufs = {}, _irBufCtx = null;       // name -> { state, buf }  (reset per ctx)
   const _irPending = {};                    // name -> [convolver nodes awaiting the buffer]
+  // ── Rig: user cab IRs + per-amp output trim (the Mixer's "Rig" view, 2026-06-13)
+  // A power user LOADs their own cab IR per amp (Clean/Overdrive/Metal) and trims
+  // its output. The IR BYTES live in IndexedDB (binary, too big for localStorage);
+  // the metadata (name + output) in localStorage. A user IR is keyed 'user:<ampId>'
+  // in the SAME _irBufs cache, just resolved from IndexedDB instead of the /ir
+  // route — the never-wait _irPending swap, the procedural fallback, the per-ctx
+  // reset are all identical. A user upload is THEIR licensing problem (never
+  // committed); a bad file decode-fails → the procedural cab stays (never silent).
+  const RIG_AMPS = ['clean', 'drive', 'metal'];
+  let rigState = (() => { try { return JSON.parse(localStorage.getItem('slopscale_beta.rig')) || {}; } catch (_) { return {}; } })();
+  function rigSave() { try { localStorage.setItem('slopscale_beta.rig', JSON.stringify(rigState)); } catch (_) {} }
+  let _rigDbP = null;
+  function rigDb() {
+    if (_rigDbP) return _rigDbP;
+    _rigDbP = new Promise((res, rej) => {
+      let r; try { r = indexedDB.open('slopscale_beta-rig', 1); } catch (e) { rej(e); return; }
+      r.onupgradeneeded = () => { try { r.result.createObjectStore('irs'); } catch (_) {} };
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    });
+    return _rigDbP;
+  }
+  function rigIdbPut(id, ab) { return rigDb().then(db => new Promise((res, rej) => { const tx = db.transaction('irs', 'readwrite'); tx.objectStore('irs').put(ab, id); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); })); }
+  function rigIdbGet(id) { return rigDb().then(db => new Promise((res, rej) => { const tx = db.transaction('irs', 'readonly'); const rq = tx.objectStore('irs').get(id); rq.onsuccess = () => res(rq.result || null); rq.onerror = () => rej(rq.error); })); }
+  function rigIdbDel(id) { return rigDb().then(db => new Promise((res) => { const tx = db.transaction('irs', 'readwrite'); tx.objectStore('irs').delete(id); tx.oncomplete = () => res(); tx.onerror = () => res(); })); }
   function ensureCabIr(ctx, name) {
     if (_irBufCtx !== ctx) { _irBufs = {}; _irBufCtx = ctx; }
     const e = _irBufs[name];
     if (e) return e.state === 'ready' ? e.buf : null;
     _irBufs[name] = { state: 'loading', buf: null };
-    fetch(IR_BASE + name + '.wav')
-      .then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); })
-      .then(ab => ctx.decodeAudioData(ab))
-      .then(buf => {
-        _irBufs[name] = { state: 'ready', buf };
-        const list = _irPending[name] || []; _irPending[name] = [];
-        for (const cab of list) { try { cab.buffer = buf; } catch (_) {} }
-      })
-      .catch(() => { _irBufs[name] = { state: 'failed', buf: null }; });   // absent (local-only/public) → procedural stays
+    const ok = buf => {
+      _irBufs[name] = { state: 'ready', buf };
+      const list = _irPending[name] || []; _irPending[name] = [];
+      for (const cab of list) { try { cab.buffer = buf; } catch (_) {} }
+    };
+    const bad = () => { _irBufs[name] = { state: 'failed', buf: null }; };   // absent/bad → procedural stays
+    if (name.indexOf('user:') === 0) {
+      rigIdbGet(name.slice(5)).then(ab => ab ? ctx.decodeAudioData(ab.slice(0)) : Promise.reject(0)).then(ok).catch(bad);
+    } else {
+      fetch(IR_BASE + name + '.wav').then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); }).then(ab => ctx.decodeAudioData(ab)).then(ok).catch(bad);
+    }
     return null;
   }
   let _cabIr = null, _cabIrCtx = null;
@@ -13887,7 +13913,8 @@
     _cabIr = buf; _cabIrCtx = ctx;
     return buf;
   }
-  function buildAmpChain(ctx, p) {
+  function buildAmpChain(ctx, p, ampId) {
+    const ov = (ampId && rigState[ampId]) || {};   // user cab IR + output override (Rig view)
     const nodes = [];
     const mk = (n) => { nodes.push(n); return n; };
     const preHp = mk(ctx.createBiquadFilter()); preHp.type = 'highpass'; preHp.frequency.value = p.preHp; preHp.Q.value = 0.7;
@@ -13905,10 +13932,13 @@
       head.connect(eq); head = eq;
     }
     const cab = mk(ctx.createConvolver());
-    const irBuf = p.ir ? ensureCabIr(ctx, p.ir) : null;
+    // A user cab (Rig view) overrides the preset's; else the preset's IR; else procedural.
+    const irName = ov.irName ? ('user:' + ampId) : p.ir;
+    const irBuf = irName ? ensureCabIr(ctx, irName) : null;
     cab.buffer = irBuf || cabIrBuffer(ctx);          // the real cab IR, or the procedural fallback while it loads / when absent
-    if (p.ir && !irBuf) (_irPending[p.ir] = _irPending[p.ir] || []).push(cab);
-    const makeup = mk(ctx.createGain()); makeup.gain.value = p.makeup;
+    if (irName && !irBuf) (_irPending[irName] = _irPending[irName] || []).push(cab);
+    // makeup = the amp output; a user output trim (Rig view) overrides the preset default.
+    const makeup = mk(ctx.createGain()); makeup.gain.value = (ov.output != null ? ov.output : p.makeup);
     head.connect(cab); cab.connect(makeup);
     let out = makeup;
     if (p.comp) {
@@ -13917,7 +13947,7 @@
       c.attack.value = p.comp[2]; c.release.value = p.comp[3]; c.knee.value = 6;
       makeup.connect(c); out = c;
     }
-    return { input: preHp, output: out, nodes };
+    return { input: preHp, output: out, nodes, makeup };   // makeup exposed for the Rig's live output trim
   }
   // Per-strip amp resolution: an explicit pick wins; 'off' = bypass; Auto ('')
   // gives the sampled DI guitar voice the Clean amp (a raw DI line is sterile)
@@ -13945,9 +13975,54 @@
     try { entry.disconnect(); } catch (_) {}
     if (cur) for (const n of cur.nodes) { try { n.disconnect(); } catch (_) {} }
     if (!want || !AMP_PRESETS[want]) { entry.connect(fader); bus.amps[name] = { id: '', nodes: [] }; return; }
-    const chain = buildAmpChain(ctx, AMP_PRESETS[want]);
+    const chain = buildAmpChain(ctx, AMP_PRESETS[want], want);
     entry.connect(chain.input); chain.output.connect(fader);
-    bus.amps[name] = { id: want, nodes: chain.nodes };
+    bus.amps[name] = { id: want, nodes: chain.nodes, makeup: chain.makeup };
+  }
+  // ── Rig actions (the Mixer "Rig" view) ──────────────────────────────────────
+  // Force a rebuild of every live amp chain using ampId (a cab IR change/reset is
+  // a user action, infrequent — rebuilding beats hand-swapping the convolver). The
+  // sentinel id defeats wireTrackAmp's idempotence so it re-reads the (new) cab.
+  function rigRewireAmp(ampId) {
+    const bus = audioBus, ctx = audioCtx; if (!bus || !bus.amps || !ctx) return;
+    for (const name in bus.amps) { const a = bus.amps[name]; if (a && a.id === ampId) { a.id = '__rig_force__'; wireTrackAmp(ctx, name); } }
+  }
+  // Live output trim — set the makeup gain on every live chain using ampId (ramped,
+  // no rebuild; the slider is dragged). The master limiter still backstops loud.
+  function rigApplyOutput(ampId) {
+    const bus = audioBus, ctx = audioCtx; if (!bus || !bus.amps) return;
+    const ov = rigState[ampId] || {}, v = (ov.output != null ? ov.output : (AMP_PRESETS[ampId] ? AMP_PRESETS[ampId].makeup : 1));
+    for (const name in bus.amps) { const a = bus.amps[name]; if (a && a.id === ampId && a.makeup) { try { a.makeup.gain.setTargetAtTime(v, ctx ? ctx.currentTime : 0, 0.02); } catch (_) { try { a.makeup.gain.value = v; } catch (__) {} } }
+  } }
+  // Load a user cab IR onto an amp: validate by decoding, store the bytes in
+  // IndexedDB + the name in localStorage, invalidate the decode cache, rewire.
+  function rigLoadIr(ampId, file) {
+    if (!file) return Promise.resolve(false);
+    return file.arrayBuffer().then(ab => {
+      const ctx = audioCtx || (window.AudioContext ? new AudioContext() : null);
+      const decodeCheck = ctx ? ctx.decodeAudioData(ab.slice(0)) : Promise.resolve();
+      return decodeCheck.then(() => rigIdbPut(ampId, ab)).then(() => {
+        rigState[ampId] = Object.assign({}, rigState[ampId], { irName: file.name }); rigSave();
+        delete _irBufs['user:' + ampId];               // drop any stale decode
+        rigRewireAmp(ampId); renderRig();
+        return true;
+      });
+    }).catch(() => { renderRig('bad'); return false; });   // decode failed → keep the current cab, flag it
+  }
+  function rigResetIr(ampId) {
+    return rigIdbDel(ampId).then(() => {
+      if (rigState[ampId]) { delete rigState[ampId].irName; if (!Object.keys(rigState[ampId]).length) delete rigState[ampId]; rigSave(); }
+      delete _irBufs['user:' + ampId];
+      rigRewireAmp(ampId); renderRig();
+    });
+  }
+  function rigSetOutput(ampId, v) {
+    rigState[ampId] = Object.assign({}, rigState[ampId], { output: v }); rigSave();
+    rigApplyOutput(ampId);
+  }
+  function rigResetOutput(ampId) {
+    if (rigState[ampId]) { delete rigState[ampId].output; if (!Object.keys(rigState[ampId]).length) delete rigState[ampId]; rigSave(); }
+    rigApplyOutput(ampId); renderRig();
   }
   function trackBus(ctx, name) {
     const bus = ensureAudioBus(ctx);
@@ -14194,6 +14269,45 @@
       `</div>`;
     host.innerHTML = `<div class="slopscale_beta-mixer-deck">${inputHtml}${MIXER_CHANNELS.map(stripHtml).join('')}${masterHtml}</div>`;
   }
+  // The Rig view (Mixer's second tab) — per-amp cab IR + output trim for the
+  // BACKING band. The cab is per-AMP (one Metal cab serves every metal-amped strip),
+  // so this manages the 3 amps, not the 7 strips. The player's OWN live amp stays
+  // the Input "YOU" strip's "Tone…" handoff to nam_tone — band tone ≠ live tone.
+  const RIG_AMP_LABELS = { clean: 'Clean', drive: 'Overdrive', metal: 'Metal' };
+  const RIG_DEFAULT_CAB = { clean: 'Built-in (procedural)', drive: 'Built-in (procedural)', metal: 'V30 4×12' };
+  function rigOutputDb(ampId) {
+    const ov = rigState[ampId] || {}, v = (ov.output != null ? ov.output : (AMP_PRESETS[ampId] ? AMP_PRESETS[ampId].makeup : 1));
+    return v <= 0.0001 ? '−∞' : (20 * Math.log10(v)).toFixed(1);
+  }
+  function renderRig(flag) {
+    const host = $('slopscale_beta-mixer-rig'); if (!host) return;
+    const card = (id) => {
+      const ov = rigState[id] || {}, p = AMP_PRESETS[id] || {};
+      const custom = !!ov.irName;
+      const cabName = custom ? ov.irName.replace(/\.wav$/i, '') : (RIG_DEFAULT_CAB[id] || 'Default');
+      const outV = (ov.output != null ? ov.output : (p.makeup || 0.5));
+      return `<div class="slopscale_beta-rig-card" data-amp="${id}">` +
+        `<div class="slopscale_beta-rig-cardhead">${RIG_AMP_LABELS[id] || id}</div>` +
+        `<div class="slopscale_beta-rig-row">` +
+          `<span class="slopscale_beta-rig-rowlbl">Cab</span>` +
+          `<span class="slopscale_beta-rig-cabname${custom ? ' custom' : ''}" title="${custom ? 'Your cab IR' : 'Built-in cab'}">${cabName}</span>` +
+          `<button type="button" class="slopscale_beta-rig-load" data-amp="${id}">Load…</button>` +
+          (custom ? `<button type="button" class="slopscale_beta-rig-reset" data-amp="${id}" data-what="ir" title="Reset to the built-in cab" aria-label="Reset cab">↺</button>` : '') +
+        `</div>` +
+        `<div class="slopscale_beta-rig-row">` +
+          `<span class="slopscale_beta-rig-rowlbl">Output</span>` +
+          `<input type="range" class="slopscale_beta-rig-out" data-amp="${id}" min="0" max="1.2" step="0.01" value="${outV}" aria-label="${RIG_AMP_LABELS[id]} amp output">` +
+          `<span class="slopscale_beta-rig-outdb" data-amp="${id}">${rigOutputDb(id)} dB</span>` +
+          (ov.output != null ? `<button type="button" class="slopscale_beta-rig-reset" data-amp="${id}" data-what="out" title="Reset output" aria-label="Reset output">↺</button>` : '') +
+        `</div>` +
+      `</div>`;
+    };
+    host.innerHTML =
+      `<p class="slopscale_beta-rig-intro">Your <b>backing band's</b> amp cabs — load your own cab IR (<code>.wav</code>) per amp. <span class="slopscale_beta-rig-dim">For your own live tone, use the <b>YOU</b> strip → Tone…</span></p>` +
+      (flag === 'bad' ? `<p class="slopscale_beta-rig-bad">That file couldn't be read as audio — kept the current cab.</p>` : '') +
+      `<div class="slopscale_beta-rig-cards">${RIG_AMPS.map(card).join('')}</div>` +
+      `<input type="file" id="slopscale_beta-rig-file" accept=".wav,audio/wav,audio/*" hidden>`;
+  }
   // Live console meters — drawn only while the Mixer is open (its own rAF loop;
   // the playback tick is untouched, and there is zero cost while closed). Reads
   // the post-fader AnalyserNode taps (trackBus) + the post-limiter master tap,
@@ -14265,7 +14379,7 @@
     $('slopscale_beta-mixer')?.setAttribute('aria-hidden', open ? 'false' : 'true');
     $('slopscale_beta-mixer-btn')?.classList.toggle('active', open);
     if (open) {
-      renderMixer(); applyMixer();
+      renderMixer(); renderRig(); applyMixer();
       if (!_mixMeterRaf) _mixMeterRaf = requestAnimationFrame(mixerMeterFrame);   // meters run only while open
     }
   }
@@ -21873,6 +21987,35 @@
       const id = e.dataTransfer.getData('text/plain'); if (!id || !_packsDraft) return;
       _packUninstall(id); _packsSel = null; renderPackManager();
     });
+    // Mixer view tabs (Console | Rig) + the Rig view actions (per-amp cab IR +
+    // output trim). The Rig manages the 3 amps' cabs (per-amp, not per-strip).
+    const mixEl = $('slopscale_beta-mixer'), rigHost = $('slopscale_beta-mixer-rig');
+    mixEl?.addEventListener('click', (ev) => {
+      const tab = ev.target.closest && ev.target.closest('.slopscale_beta-mixer-viewtab');
+      if (!tab) return;
+      const rig = tab.dataset.view === 'rig';
+      mixEl.classList.toggle('ss-rig-view', rig);
+      mixEl.querySelectorAll('.slopscale_beta-mixer-viewtab').forEach(b => { const on = b.dataset.view === tab.dataset.view; b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); });
+      if (rig) renderRig();
+    });
+    let _rigPendingAmp = null;
+    rigHost?.addEventListener('click', (ev) => {
+      const load = ev.target.closest && ev.target.closest('.slopscale_beta-rig-load');
+      if (load) { _rigPendingAmp = load.dataset.amp; const fi = $('slopscale_beta-rig-file'); if (fi) { fi.value = ''; fi.click(); } return; }
+      const rst = ev.target.closest && ev.target.closest('.slopscale_beta-rig-reset');
+      if (rst) { const amp = rst.dataset.amp; if (rst.dataset.what === 'out') rigResetOutput(amp); else rigResetIr(amp); }
+    });
+    rigHost?.addEventListener('change', (ev) => {
+      const fi = ev.target.closest && ev.target.closest('#slopscale_beta-rig-file');
+      if (fi && _rigPendingAmp && fi.files && fi.files[0]) { rigLoadIr(_rigPendingAmp, fi.files[0]); _rigPendingAmp = null; }
+    });
+    rigHost?.addEventListener('input', (ev) => {
+      const out = ev.target.closest && ev.target.closest('.slopscale_beta-rig-out');
+      if (!out) return;
+      const amp = out.dataset.amp, v = Math.max(0, Math.min(1.2, parseFloat(out.value) || 0));
+      rigSetOutput(amp, v);
+      const db = rigHost.querySelector(`.slopscale_beta-rig-outdb[data-amp="${amp}"]`); if (db) db.textContent = rigOutputDb(amp) + ' dB';
+    });
     const mixCh = $('slopscale_beta-mixer-channels');
     mixCh?.addEventListener('input', (ev) => {
       // Fader (vertical, cube-law dB taper): the slider speaks positions, the
@@ -22178,6 +22321,6 @@
     jamArmFromDrill, jamTargetPcs, jamNextGuidePcs,
     getActiveBundleInfo: () => activeBundle ? { config: activeBundle.config, duration: activeBundle.songInfo && activeBundle.songInfo.duration, leadIn: activeBundle.leadIn } : null,
     sgStats: () => { const out = { ready: 0, loading: 0, failed: 0 }; for (const k of Object.keys(sgBuffers)) out[sgBuffers[k].state] = (out[sgBuffers[k].state] || 0) + 1; return out; } };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, ARRANGEMENT_RECIPES, resolveArrangement, compCellForConfig, irState: () => Object.fromEntries(Object.entries(_irBufs).map(([k, v]) => [k, v.state])), buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, resolveAudioProfile, sgNotesWanted, ampState: () => ({ want: { ..._ampWant }, wired: audioBus && audioBus.amps ? Object.fromEntries(Object.entries(audioBus.amps).map(([k, v]) => [k, v.id])) : null }), avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, ARRANGEMENT_RECIPES, resolveArrangement, compCellForConfig, irState: () => Object.fromEntries(Object.entries(_irBufs).map(([k, v]) => [k, v.state])), rigState: () => JSON.parse(JSON.stringify(rigState)), buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, resolveAudioProfile, sgNotesWanted, ampState: () => ({ want: { ..._ampWant }, wired: audioBus && audioBus.amps ? Object.fromEntries(Object.entries(audioBus.amps).map(([k, v]) => [k, v.id])) : null }), avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
