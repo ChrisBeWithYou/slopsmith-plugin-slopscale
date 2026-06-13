@@ -7535,6 +7535,23 @@
     'metal:default:full':   { picks: { comp: 'metal_pedal_16', bass: 'root_pump',      drums: 'metal_double_kick' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
     'djent:default:groove': { picks: { comp: 'metal_pedal_16', bass: 'root_pump',      drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
     'djent:default:full':   { picks: { comp: 'metal_pedal_16', bass: 'root_pump',      drums: 'metal_double_kick' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
+    // ── Genre recipes (band-intel B1 authoring batch, panel 2026-06-13) — each its
+    // idiom agent's call. The DEFAULT band a bare style config / Jam inherits
+    // (authored cfg.backing* + the boogie/swing routes still win → additive, so
+    // this mainly lights up Jam mode + bare configs). blues = the shipped boogie
+    // backing; jazz = the swing pilot; rock + gospel genre-vetted (rock-idiom:
+    // rock_chug's beat-3 ring IS the rock signature, not the heavier metal chug;
+    // gospel-idiom: the charleston push + a walking bass over the gospel_pocket).
+    // Only groove is authored where sparse/full == groove (the resolver falls back).
+    'blues:default:groove':  { picks: { comp: 'boogie_stab', bass: 'bass_ostinato',  drums: 'shuffle_blues' },     ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'jazz:default:groove':   { picks: { comp: 'charleston',  bass: 'walking',        drums: 'jazz_swing' },        ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'rock:default:sparse':   { picks: { comp: 'vamp_half',   bass: 'two_feel',       drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'rock:default:groove':   { picks: { comp: 'rock_chug',   bass: 'root_pump',      drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'gospel:default:sparse': { picks: { comp: 'vamp_half',   bass: 'sustained_root', drums: 'gospel_pocket' },     ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'gospel:default:groove': { picks: { comp: 'charleston',  bass: 'walking',        drums: 'gospel_pocket' },     ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    // gospel full: the shout/praise-break energy — root_pump + the charleston push
+    // until a real gospel_shout double-time drum cell lands (gospel-idiom GAP-1).
+    'gospel:default:full':   { picks: { comp: 'charleston',  bass: 'root_pump',      drums: 'gospel_pocket' },     ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
   };
   const ARRANGEMENT_BASE = { picks: {}, ensemble: { drums: 'auto', bass: 'auto', comp: 'auto', pad: 'auto', lead: 'auto' }, registers: {}, tier: 'groove' };
   // Which density tier a cfg sits in: authored cfg.densityTier wins; else derive

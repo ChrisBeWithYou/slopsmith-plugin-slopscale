@@ -625,14 +625,21 @@ try {
   const c6f = await page.evaluate(() => {
     const S = window.SlopScale, D = globalThis.__ss_debug;
     const out = {};
-    // (a) resolveArrangement: metal/djent resolve their picks at the groove tier;
-    // an un-recipe'd style (blues) returns EMPTY picks (so the old logic runs).
+    // (a) resolveArrangement: the genre recipes resolve their picks at groove tier;
+    // a still-un-recipe'd style (city-pop — has a profile, no recipe yet) returns
+    // EMPTY picks, so the old logic runs (additive, no regression).
     const metal = D.resolveArrangement({ audio: { profile: "metal" } });
     const djent = D.resolveArrangement({ audio: { profile: "djent" } });
     const blues = D.resolveArrangement({ audio: { profile: "blues" } });
+    const jazz = D.resolveArrangement({ audio: { profile: "jazz" } });
+    const rock = D.resolveArrangement({ audio: { profile: "rock" } });
+    const gospel = D.resolveArrangement({ audio: { profile: "gospel" } });
+    const unrec = D.resolveArrangement({ audio: { profile: "city-pop" } });
     out.metalPicks = metal.picks.comp === "metal_chug_8" && metal.picks.bass === "root_pump" && metal.tier === "groove";
     out.djentPicks = djent.picks.comp === "metal_pedal_16" && djent.picks.bass === "root_pump";
-    out.bluesEmpty = !blues.picks.comp && !blues.picks.bass && !blues.picks.drums;
+    out.genrePicks = blues.picks.comp === "boogie_stab" && jazz.picks.comp === "charleston" && jazz.picks.bass === "walking"
+      && rock.picks.comp === "rock_chug" && rock.picks.bass === "root_pump" && gospel.picks.comp === "charleston" && gospel.picks.drums === "gospel_pocket";
+    out.bluesEmpty = !unrec.picks.comp && !unrec.picks.bass && !unrec.picks.drums;
     // (b) tier derivation: full tier picks the heavier djent texture + double kick
     const metalFull = D.resolveArrangement({ audio: { profile: "metal" }, densityTier: "full" });
     out.fullTier = metalFull.picks.comp === "metal_pedal_16" && metalFull.picks.drums === "metal_double_kick";
@@ -665,7 +672,8 @@ try {
   });
   ok(c6f.metalPicks, "resolveArrangement: metal → metal_chug_8 + root_pump @ groove tier");
   ok(c6f.djentPicks, "resolveArrangement: djent → metal_pedal_16 + root_pump");
-  ok(c6f.bluesEmpty, "an un-recipe'd style (blues) returns EMPTY picks — the old logic runs (no regression)");
+  ok(c6f.genrePicks, "genre recipes resolve: blues=boogie_stab, jazz=charleston/walking, rock=rock_chug/root_pump, gospel=charleston/gospel_pocket");
+  ok(c6f.bluesEmpty, "a still-un-recipe'd style (city-pop) returns EMPTY picks — the old logic runs (no regression)");
   ok(c6f.fullTier, "the full density tier picks the heavier texture (metal_pedal_16 + metal_double_kick)");
   ok(c6f.compDefault === "metal_chug_8", "compCellForConfig: an UN-WIRED metal cfg inherits metal_chug_8 from the recipe", `got=${c6f.compDefault}`);
   ok(c6f.recipeComp && c6f.recipeBass, "the un-wired metal cfg gets a full band (comp + bass) from the recipe alone");
