@@ -637,7 +637,9 @@ try {
     const funk = D.resolveArrangement({ audio: { profile: "funk" } });
     const country = D.resolveArrangement({ audio: { profile: "country" } });
     const pop = D.resolveArrangement({ audio: { profile: "pop" } });
-    const unrec = D.resolveArrangement({ audio: { profile: "city-pop" } });
+    // every shipped profile now has a recipe → use a BOGUS id to prove the
+    // empty-picks fallthrough (the additive/no-regression invariant).
+    const unrec = D.resolveArrangement({ audio: { profile: "__no_such_style__" } });
     out.metalPicks = metal.picks.comp === "metal_chug_8" && metal.picks.bass === "root_pump" && metal.tier === "groove";
     out.djentPicks = djent.picks.comp === "metal_pedal_16" && djent.picks.bass === "root_pump";
     out.genrePicks = blues.picks.comp === "boogie_stab" && jazz.picks.comp === "charleston" && jazz.picks.bass === "walking"
@@ -682,6 +684,31 @@ try {
     out.reggaeComp = D.compCellForConfig(rcfg);
     const rbe = (S.makeBundle(S.generateExercise(rcfg)).backingEvents) || [];
     out.reggaeBand = rbe.some((e) => e.comp === "reggae_skank") && rbe.some((e) => e.role === "bass");
+    // Wave 2 world genres (band-intel 2026-06-13).
+    const w2norteno = D.resolveArrangement({ audio: { profile: "norteno" } });
+    const w2tango = D.resolveArrangement({ audio: { profile: "tango" } });
+    const w2blue = D.resolveArrangement({ audio: { profile: "bluegrass" } });
+    const w2city = D.resolveArrangement({ audio: { profile: "city-pop" } });
+    const w2nola = D.resolveArrangement({ audio: { profile: "new_orleans" } });
+    out.wave2Picks =
+         w2norteno.picks.comp === "bajo_chop" && w2norteno.picks.bass === "oompah_polka" && w2norteno.picks.drums === "straight_8th_rock"
+      && w2tango.picks.comp === "marcato4" && w2tango.picks.bass === "habanera_332" && !w2tango.picks.drums
+      && w2blue.picks.comp === "boom_chuck" && w2blue.picks.bass === "two_feel" && !w2blue.picks.drums
+      && w2city.picks.comp === "citypop_maj9_16" && w2city.picks.bass === "funk_pocket_16"
+      && w2nola.picks.comp === "rhumba_boogie" && w2nola.picks.bass === "tresillo_nola" && w2nola.picks.drums === "second_line";
+    // DRUMLESS proof: a tango chart emits a bass line but NO drum events.
+    const tcfg = Object.assign(S.readConfig(), {
+      practiceType: "scale", mode: "scale", shapeNotes: null, fretboardSystem: "position",
+      key: "A", scale: "harmonic_minor", stringSetup: "guitar_6_standard", bpm: 90, bars: 8,
+      fretMin: 5, fretMax: 9, direction: "up_down", sequence: "none",
+      progression: "andalusian", chordOverride: "auto", chordDepth: "seventh",
+      meter: { numerator: 4, denominator: 4, grouping: [4] },
+      backingStyle: "pad", swing: "straight", backingComp: "", backingBass: "",
+      backingDensity: undefined, backingPadDev: false,
+      audio: { notes: true, harmony: true, metronome: false, profile: "tango", brightness: 0.5 },
+    });
+    const tbe = (S.makeBundle(S.generateExercise(tcfg)).backingEvents) || [];
+    out.tangoDrumless = !tbe.some((e) => e.role === "drums") && tbe.some((e) => e.role === "bass");
     // (b) tier derivation: full tier picks the heavier djent texture + double kick
     const metalFull = D.resolveArrangement({ audio: { profile: "metal" }, densityTier: "full" });
     out.fullTier = metalFull.picks.comp === "metal_pedal_16" && metalFull.picks.drums === "metal_double_kick";
@@ -727,6 +754,8 @@ try {
   ok(c6f.soulBallad, "soul `ballad` feel swaps in the 12/8 triplet drummer (soul_12_8)");
   ok(c6f.reggaeComp === "reggae_skank", "compCellForConfig: an un-wired reggae cfg inherits reggae_skank from the recipe", `got=${c6f.reggaeComp}`);
   ok(c6f.reggaeBand, "the un-wired reggae cfg gets the offbeat skank + the riddim bass from the recipe alone");
+  ok(c6f.wave2Picks, "Wave 2 recipes resolve: norteno=bajo_chop/oompah, tango=marcato4/habanera (drumless), bluegrass=boom_chuck/two_feel (drumless), city-pop=maj9/funk_pocket, new-orleans=rhumba/tresillo/second_line");
+  ok(c6f.tangoDrumless, "DRUMLESS proof: a tango chart emits a bass line but NO drum events (DRUMLESS_PROFILES)");
 
   if (errs.length) { fail++; console.log(`  FAIL page errors: ${errs.join(" | ")}`); }
 } finally { await browser.close(); }

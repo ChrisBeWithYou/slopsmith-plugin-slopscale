@@ -4426,6 +4426,13 @@
     latin:      { family: 'acoustic',   harmony: { engine: 'sample', tone: 'nylon',  level: 0.78 }, brightness: 0.6 },
     soul:       { family: 'clean',      harmony: { engine: 'sample', tone: 'epiano', level: 0.82 }, brightness: 0.56 },
     afrobeat:   { family: 'clean',      harmony: { engine: 'sample', tone: 'clean',  level: 0.78 }, brightness: 0.62 },
+    // World/genre Wave 2 (band-intel, 2026-06-13): tango = bandoneón-on-keys via a
+    // marcato piano (drumless); norteño = the bajo-sexto clean guitar (accordion is
+    // the player's lead); new-orleans = the tack/upright R&B piano. (bluegrass +
+    // city-pop reuse their existing profiles.)
+    tango:       { family: 'acoustic',   harmony: { engine: 'sample', tone: 'piano',  level: 0.8 },  brightness: 0.5 },
+    norteno:     { family: 'clean',      harmony: { engine: 'sample', tone: 'clean',  level: 0.78 }, brightness: 0.6 },
+    new_orleans: { family: 'clean',      harmony: { engine: 'sample', tone: 'piano',  level: 0.82 }, brightness: 0.5 },
   };
 
   // ── Drum kits (audio-realism Phase D) ────────────────────────────────────────
@@ -4516,6 +4523,14 @@
     latin:    { label:'Latin / Bossa', defaultKey:'A', progressions:['ii-V-I','minor_ii_V_i','I-vi-ii-V'], leadScales:['major','dorian','minor_pentatonic'], chordDepth:'seventh', chordOverride:'auto', guideTones:true, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'latin' },
     soul:     { label:'Soul / Motown', defaultKey:'C', progressions:['I-vi-IV-V','soul_turnaround','ii-V-I','I-IV-V'], leadScales:['major_pentatonic','dorian','minor_pentatonic'], chordDepth:'seventh', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'soul' },
     afrobeat: { label:'Afrobeat',     defaultKey:'A', progressions:['static_i','dorian_vamp','mixolydian_vamp','I-IV-V'], leadScales:['dorian','mixolydian','major_pentatonic'], chordDepth:'seventh', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'afrobeat' },
+    // ── World / genre Wave 2 (band-intel, panel 2026-06-13) — feel is straight/pad
+    // for ALL so the genre's ARRANGEMENT_RECIPE drives (backingStyle:'boogie' or a
+    // non-straight swing pre-empt the recipe; the recipe cells carry each feel).
+    norteno:     { label:'Norteño',        defaultKey:'G', progressions:['I-IV-V','I-V-vi-IV','I-vi-IV-V','ii-V-I'], leadScales:['major','major_pentatonic','mixolydian'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'norteno' },
+    tango:       { label:'Tango',          defaultKey:'A', progressions:['andalusian','i-VII-VI-VII','minor_ii_V_i'], leadScales:['harmonic_minor','natural_minor','phrygian_dominant','minor_pentatonic'], chordDepth:'seventh', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'tango' },
+    bluegrass:   { label:'Bluegrass',      defaultKey:'G', progressions:['I-IV-V','I-V-vi-IV','vi-IV-I-V'], leadScales:['major_pentatonic','major','mixolydian','blues'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'bluegrass' },
+    'city-pop':  { label:'City Pop',       defaultKey:'F', progressions:['I-vi-ii-V','vi-ii-V-I','ii-V-I','I-V-vi-IV'], leadScales:['major','dorian','major_pentatonic','mixolydian'], chordDepth:'ninth', chordOverride:'auto', guideTones:true, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'city-pop' },
+    new_orleans: { label:'New Orleans',    defaultKey:'C', progressions:['12_bar_blues','quick_change_blues','I-IV-V','blues_turnaround'], leadScales:['blues','mixolydian','major_pentatonic','minor_pentatonic'], chordDepth:'seventh', chordOverride:'dom7', guideTones:true, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'new_orleans' },
   };
   // Resolve a style palette into a mergeable partial config the way a Pathway/Custom/
   // Jam consumer uses it: Object.assign({}, base, stylePaletteConfig('blues')). opts let
@@ -4565,6 +4580,7 @@
     dorian_vamp:'Dorian vamp', static_i:'One-chord vamp',
     mixolydian_vamp:'Mixolydian vamp (I–♭VII–IV)', phrygian_vamp:'Phrygian vamp (i–♭II)',
     'i-iv':'i–iv minor vamp', soul_turnaround:'Soul turnaround (I–VI7–ii–V)',
+    andalusian:'Andalusian (i–♭VII–♭VI–V)', blues_turnaround:'Blues turnaround',
   };
   function jamProgressionLabel(token) {
     return JAM_PROG_LABELS[token] || String(token || '').replace(/_/g, ' ');
@@ -4587,6 +4603,11 @@
     latin:   'Try: state the melody once, then trade space with the clave — never crowd it.',
     soul:    'Try: land the chank on 2 and 4 only — leave beats 1 and 3 for the pocket.',
     afrobeat:'Try: pick one 2-bar phrase and loop it hypnotically — the groove is repetition.',
+    norteno: 'Try: float your line over the oom-pah — land the downbeat with the bass, then run.',
+    tango:   'Try: play it staccato and dramatic — hit the marcato beats hard, then breathe.',
+    bluegrass:'Try: major-pentatonic flatpicking — drive the time yourself, no drummer to lean on.',
+    'city-pop':'Try: glide the ii–V chain — land color tones (9ths, 13ths), not just roots.',
+    new_orleans:'Try: lock to the tresillo "big four" — leave space, let the second-line strut.',
   };
   // J-2 intent chips (D-J8: intents, not scores). An intent is a SELF-checked
   // musical aim the player picks before/while jamming — shown on the status line,
@@ -4609,6 +4630,11 @@
     latin:   ['Trade space with the clave', 'Land the 3rd, bossa-soft', 'State the melody, then vary it'],
     soul:    ['Chank on 2 and 4 only', 'Answer the vocal line', 'Sit in the pocket — less is more'],
     afrobeat:['Loop one 2-bar phrase', 'Interlock, don\'t solo', 'Lock to the kick, hypnotic'],
+    norteno: ['Float over the oom-pah', 'Harmonize the melody in 3rds', 'Land the downbeat with the bass'],
+    tango:   ['Marcato — hit every beat hard', 'Stark loud/soft contrast', 'Lean into the downbeat'],
+    bluegrass:['Drive the time yourself', 'Chase chord tones through the changes', 'One G-run per turnaround'],
+    'city-pop':['Land the 9th, not the root', 'Glide through the ii–Vs', 'Sit back, glossy'],
+    new_orleans:['Lock to the tresillo "big four"', 'Bluesy dom7 vocabulary', 'Leave space — let it strut'],
   };
   const JAM_INTENTS_BASS = ['Walk into every change', 'Lock the one with the kick', 'Ghost notes between the roots'];
 
@@ -6946,6 +6972,40 @@
              { t: 'top', a: 'ring' }, '.', { t: 'chord', a: 'chuck' }, '.',
              { t: 'chord', a: 'chuck' }, { t: 'top', a: 'ring' }, '.', { t: 'chord', a: 'chuck' },
              '.', { t: 'chord', a: 'chuck' }, { t: 'top', a: 'ring', acc: 1 }, '.'] },
+    // ── World / genre comp cells Wave 2 (band-intel, panel 2026-06-13) ───────────
+    // Norteño bajo-sexto offbeat chop (the "pah"): the bass owns the "oom" (1 & 3),
+    // so the bajo chops the chord on 2 & 4. The accordion lead rides on top. div:1.
+    bajo_chop:      { div: 1, bars: 1, label: 'bajo-sexto offbeat chop (the pah)',
+      grid: ['.', { t: 'chord', a: 'chuck' }, '.', { t: 'chord', a: 'chuck', acc: 1 }] },
+    // Tango marcato (marca en cuatro): every beat struck as a hard staccato chord
+    // stab — the relentless bandoneón/piano drive. The off-16ths stay empty. div:4.
+    marcato4:       { div: 4, bars: 1, label: 'tango marcato (4)',
+      grid: [{ t: 'chord', a: 'stab', acc: 1 }, '.', '.', '.',
+             { t: 'chord', a: 'stab', acc: 1 }, '.', '.', '.',
+             { t: 'chord', a: 'stab', acc: 1 }, '.', '.', '.',
+             { t: 'chord', a: 'stab', acc: 1 }, '.', '.', '.'] },
+    // Bluegrass boom-chuck (DRUMLESS — the GUITAR owns BOTH): bass-note "boom" (root5)
+    // on 1 & 3, full-chord "chuck" on the 2 & 4 backbeat. Unlike country_chuck (offbeat
+    // only — there a drummer+bass own the boom), here the guitar carries the time. div:1.
+    boom_chuck:     { div: 1, bars: 1, label: 'bluegrass boom-chuck',
+      grid: [{ t: 'root5', a: 'ring' }, { t: 'chord', a: 'chuck', acc: 1 },
+             { t: 'root5', a: 'ring' }, { t: 'chord', a: 'chuck', acc: 1 }] },
+    // City Pop maj9 stabs (the AOR-fusion gloss): lush maj9 chord bloom on beat 1 +
+    // top-voice motion, a syncopated push, sustained ring — jazzier/more sustained
+    // than funk_chank_16's percussive chuck. The harmony IS the gloss. div:4.
+    citypop_maj9_16: { div: 4, bars: 1, label: 'City Pop maj9 stabs',
+      grid: [{ t: 'chord', a: 'ring', acc: 1 }, '.', { t: 'top', a: 'stab' }, '.',
+             '.', { t: 'chord', a: 'stab' }, '.', { t: 'shell', a: 'stab' },
+             { t: 'chord', a: 'sus' }, '.', '.', { t: 'top', a: 'stab' },
+             '.', { t: 'chord', a: 'stab', acc: 1 }, '.', '.'] },
+    // New Orleans rhumba-boogie keys (Professor Longhair): a tresillo-locked LH root5
+    // stab under a sustained RH chord ring — the rolling soul of NOLA R&B. 2-bar cell
+    // so the cross-bar tresillo breathes. div:4, cellBars via bars:2.
+    rhumba_boogie:  { div: 4, bars: 2, label: 'rhumba-boogie (NOLA keys)',
+      grid: [{ t: 'root5', a: 'stab', acc: 1 }, '.', '.', '.', '.', '.', { t: 'root5', a: 'stab' }, '.',
+             { t: 'chord', a: 'ring', acc: 1 }, '.', '.', '.', '.', '.', { t: 'root5', a: 'stab' }, '.',
+             { t: 'root5', a: 'stab', acc: 1 }, '.', '.', '.', '.', '.', { t: 'root5', a: 'stab' }, '.',
+             { t: 'chord', a: 'ring', acc: 1 }, '.', '.', '.', '.', '.', { t: 'top', a: 'stab' }, '.'] },
   };
   // Startup integrity guard (mirrors validateStrumPatterns): grid shape, known
   // targets/artics, a label on every cell (player-facing from day one).
@@ -7074,6 +7134,27 @@
     afro_ostinato:    { kind: 'pattern', div: 4, bars: 1, label: 'Afrobeat melodic ostinato',
       grid: [{ iv: 0, acc: 1 }, '.', { iv: 7 }, '.', { iv: 0 }, '.', { iv: 10 }, { iv: 12, hold: 1 },
              '.', '.', { iv: 7 }, '.', { iv: 5 }, '.', { iv: 0, g: 1 }, '.'] },
+    // ── World / genre bass figures Wave 2 (band-intel, bass-pedagogy-vetted
+    // 2026-06-13 — all 4 confirmed ship-as-written) ─────────────────────────────
+    // Norteño tuba/tololoche oom-pah: root "oom" on 1, the 5th-up "oom" on 3 — the
+    // fat low foundation under the bajo chop. div:1.
+    oompah_polka:     { kind: 'pattern', div: 1, bars: 1, label: 'oom-pah polka bass (root–5)',
+      grid: [{ iv: 0, acc: 1 }, '.', { iv: 7, acc: 1 }, '.'] },
+    // Norteño full-tier with a tololoche approach: the oom-pah, then the 4th late as a
+    // descending approach into the next bar's root (bass-ped: a walk-DOWN, idiomatic). div:2.
+    oompah_walk:      { kind: 'pattern', div: 2, bars: 1, label: 'oom-pah bass with approach',
+      grid: [{ iv: 0, acc: 1 }, '.', { iv: 7 }, '.', { iv: 7, acc: 1 }, '.', { iv: 5 }, '.'] },
+    // Tango habanera 3-3-2 síncopa: root/5th onsets at 16th-slots 0,3,6,8,11,14 = the
+    // dotted tango bass, the slot-14 hit leaning as an arrastre pickup into beat 1. div:4.
+    habanera_332:     { kind: 'pattern', div: 4, bars: 1, label: 'habanera (3-3-2)',
+      grid: [{ iv: 0, acc: 1 }, '.', '.', { iv: 7 }, '.', '.', { iv: 0, acc: 1 }, '.',
+             { iv: 7 }, '.', '.', { iv: 0 }, '.', '.', { iv: 7, acc: 1 }, '.'] },
+    // New Orleans tresillo "big four": the habanera-derived 3-3-2 root figure (hits at
+    // bar-1 slots 0,6,8 = the tresillo) with the 5th "big four" push (slot 14) propelling
+    // bar 2 — the Earl-Palmer Crescent-City lift. div:4, bars:2.
+    tresillo_nola:    { kind: 'pattern', div: 4, bars: 2, label: 'tresillo (NOLA big four)',
+      grid: [{ iv: 0, acc: 1 }, '.', '.', '.', '.', '.', { iv: 0 }, '.', { iv: 0, acc: 1 }, '.', '.', '.', '.', '.', { iv: 7 }, '.',
+             { iv: 0, acc: 1 }, '.', '.', '.', '.', '.', { iv: 0 }, '.', { iv: 0, acc: 1 }, '.', '.', '.', '.', '.', { iv: 0 }, '.'] },
   };
   // Startup integrity guard (mirrors validateCompGrooves): grid shape, the
   // beat-1 root (the kick lock is structural), iv range, a root window under
@@ -7730,6 +7811,25 @@
     'soul:default:groove':     { picks: { comp: 'soul_stab_16',       bass: 'motown_counter',   drums: 'soul_backbeat' },   ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
     'soul:ballad:groove':      { picks: { comp: 'vamp_half',          bass: 'sustained_root',   drums: 'soul_12_8' },       ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
     'afrobeat:default:groove': { picks: { comp: 'afrobeat_interlock', bass: 'afro_ostinato',    drums: 'afrobeat' },        ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    // ── World / genre recipes Wave 2 (band-intel, panel 2026-06-13) — each its idiom
+    // agent's call + bass-pedagogy sign-off on the 4 new bass figures. tango +
+    // bluegrass are DRUMLESS (their profiles are in DRUMLESS_PROFILES → resolveGroove
+    // returns null; ensemble.drums:'off' documents it). The others reuse existing kits.
+    //   norteño — bajo-sexto offbeat chop ("pah") + tuba oom-pah ("oom" on 1 & 3) over
+    //     a polka kick-on-1&3 (straight_8th_rock shares the lock); full walks the bass.
+    //   tango — the every-beat marcato over the 3-3-2 habanera bass; piano + bass only.
+    //   bluegrass — boom-chuck guitar (owns boom+chuck) over the upright two-feel;
+    //     full tier walks the bass between changes.
+    //   city-pop — lush maj9 stabs + the busy 16th fusion bass over a tight backbeat.
+    //   new-orleans — Professor-Longhair rhumba-boogie keys + the tresillo "big four"
+    //     bass over the second-line street beat.
+    'norteno:default:groove':     { picks: { comp: 'bajo_chop',       bass: 'oompah_polka',   drums: 'straight_8th_rock' }, ensemble: { drums: 'on',  bass: 'on', comp: 'on' } },
+    'norteno:default:full':       { picks: { comp: 'bajo_chop',       bass: 'oompah_walk',    drums: 'straight_8th_rock' }, ensemble: { drums: 'on',  bass: 'on', comp: 'on' } },
+    'tango:default:groove':       { picks: { comp: 'marcato4',        bass: 'habanera_332' },                              ensemble: { drums: 'off', bass: 'on', comp: 'on' } },
+    'bluegrass:default:groove':   { picks: { comp: 'boom_chuck',      bass: 'two_feel' },                                  ensemble: { drums: 'off', bass: 'on', comp: 'on' } },
+    'bluegrass:default:full':     { picks: { comp: 'boom_chuck',      bass: 'walking' },                                   ensemble: { drums: 'off', bass: 'on', comp: 'on' } },
+    'city-pop:default:groove':    { picks: { comp: 'citypop_maj9_16', bass: 'funk_pocket_16', drums: 'straight_8th_rock' }, ensemble: { drums: 'on',  bass: 'on', comp: 'on' } },
+    'new_orleans:default:groove': { picks: { comp: 'rhumba_boogie',   bass: 'tresillo_nola',  drums: 'second_line' },      ensemble: { drums: 'on',  bass: 'on', comp: 'on' } },
   };
   const ARRANGEMENT_BASE = { picks: {}, ensemble: { drums: 'auto', bass: 'auto', comp: 'auto', pad: 'auto', lead: 'auto' }, registers: {}, tier: 'groove' };
   // Which density tier a cfg sits in: authored cfg.densityTier wins; else derive
@@ -7777,12 +7877,14 @@
   // Profile → groove (the reconciled style-keyed route; jazz-idiom: do NOT route a
   // bare swing:'swing' to a jazz ride — only an explicit jazz audioProfile).
   const GROOVE_FOR_PROFILE = { jazz: 'jazz_swing' };
-  // Genres that traditionally have NO drum kit (bluegrass/folk/classical/gypsy-jazz)
-  // opt out per-config via `drums:'none'` (or `groove:'none'`) → resolveGroove
-  // returns null and the comp/bass carry the time. We deliberately do NOT silence by
-  // audioProfile TOKEN: 'bluegrass' is shared by the country palette, which DOES have
-  // a drummer (the train beat). A token earns a place here only once it's DISTINCT.
-  const DRUMLESS_PROFILES = new Set();
+  // Genres that traditionally have NO drum kit opt out by audioProfile TOKEN →
+  // resolveGroove returns null and the comp/bass carry the time. A token earns a
+  // place here only once it's DISTINCT (not shared by a drummed palette): `tango`
+  // (piano marcato + habanera bass carry it) and `bluegrass` (boom-chuck guitar +
+  // upright two-feel) qualify — `bluegrass` is no longer shared (country now uses
+  // its own `country` profile). Per-config `drums:'none'`/`groove:'none'` still
+  // works for one-off drumless overrides. (folk/classical/gypsy-jazz join in Wave 3.)
+  const DRUMLESS_PROFILES = new Set(['tango', 'bluegrass']);
   // Resolve which groove a config plays, or null for a deliberately drumless style.
   // Precedence: explicit cfg.groove → shuffle feel → jazz profile → straight backbeat.
   function resolveGroove(cfg) {
