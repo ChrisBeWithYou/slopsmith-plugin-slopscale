@@ -695,6 +695,32 @@
   .slopscale-mixer-led { width: 8px; height: 8px; border-radius: 50%; background: var(--ss-surface, #0b1220); border: 1px solid var(--ss-border, #334155); }
   .slopscale-mixer-lim.lit { color: #fde68a; }
   .slopscale-mixer-lim.lit .slopscale-mixer-led { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
+  /* Mixer view tabs (Console | Rig) + the Rig view: per-amp cab IR + output trim
+     for the BACKING band (the cab is per-amp, not per-strip). */
+  .slopscale-mixer-viewtabs { display: inline-flex; gap: 2px; background: var(--ss-inset, #0b1220); border: 1px solid var(--ss-border, #334155); border-radius: 7px; padding: 2px; }
+  .slopscale-mixer-viewtab { padding: 3px 13px; font-size: 11px; font-weight: 600; border-radius: 5px; border: none; background: transparent; color: var(--ss-text-dim, #94a3b8); cursor: pointer; transition: background 0.12s, color 0.12s; }
+  .slopscale-mixer-viewtab:hover { color: var(--ss-text, #e2e8f0); }
+  .slopscale-mixer-viewtab.active { background: var(--ss-accent-soft, rgba(64,128,224,0.2)); color: #dbeafe; }
+  .slopscale-mixer-rig { display: none; margin-top: 10px; }
+  #slopscale-mixer.ss-rig-view .slopscale-mixer-channels { display: none; }
+  #slopscale-mixer.ss-rig-view .slopscale-mixer-rig { display: block; }
+  .slopscale-rig-intro { font-size: 11.5px; color: var(--ss-text-dim, #94a3b8); margin: 2px 0 11px; line-height: 1.5; }
+  .slopscale-rig-intro code { font-family: var(--ss-mono, monospace); font-size: 10.5px; color: #cbd5e1; }
+  .slopscale-rig-dim { color: var(--ss-text-muted, #64748b); }
+  .slopscale-rig-bad { font-size: 11.5px; color: #fca5a5; margin: 0 0 9px; }
+  .slopscale-rig-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 9px; }
+  .slopscale-rig-card { border: 1px solid var(--ss-border, #334155); border-radius: 9px; padding: 10px 12px; background: var(--ss-track, #141d33); display: flex; flex-direction: column; gap: 9px; }
+  .slopscale-rig-cardhead { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #cbd5e1; }
+  .slopscale-rig-row { display: flex; align-items: center; gap: 8px; }
+  .slopscale-rig-rowlbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ss-text-muted, #64748b); width: 48px; flex-shrink: 0; }
+  .slopscale-rig-cabname { flex: 1; min-width: 0; font-size: 11.5px; color: var(--ss-text-dim, #94a3b8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .slopscale-rig-cabname.custom { color: #86efac; }
+  .slopscale-rig-load { padding: 3px 11px; font-size: 10.5px; font-weight: 700; border-radius: 6px; border: 1px solid var(--ss-accent-edge, #60a5fa); background: var(--ss-inset, #0b1220); color: var(--ss-accent-edge, #60a5fa); cursor: pointer; flex-shrink: 0; }
+  .slopscale-rig-load:hover { background: rgba(37,99,235,0.3); color: #fff; }
+  .slopscale-rig-reset { background: none; border: none; color: #64748b; font-size: 13px; cursor: pointer; padding: 2px 6px; line-height: 1; border-radius: 5px; flex-shrink: 0; }
+  .slopscale-rig-reset:hover { color: #e2e8f0; background: rgba(148,163,184,0.12); }
+  .slopscale-rig-out { flex: 1; min-width: 0; accent-color: var(--ss-accent, #4080e0); }
+  .slopscale-rig-outdb { font-size: 10px; color: var(--ss-text-faint, #64748b); font-family: var(--ss-mono, monospace); width: 54px; text-align: right; flex-shrink: 0; }
   /* Progress sheet — slides in from the right. */
   .slopscale-progress-sheet { position: absolute; top: 0; right: 0; bottom: 0; width: min(320px, 82%); z-index: 21; background: var(--ss-surface, #0d1424); border-left: 1px solid var(--ss-border, #334155); box-shadow: -8px 0 24px rgba(0,0,0,0.4); transform: translateX(105%); transition: transform 0.22s ease; display: flex; flex-direction: column; }
   .slopscale-root.ss-progress-open .slopscale-progress-sheet { transform: translateX(0); }
@@ -2509,9 +2535,14 @@
         <div id="slopscale-mixer" class="slopscale-mixer" aria-hidden="true">
           <div class="slopscale-mixer-head">
             <span class="slopscale-mixer-title">Mixer</span>
+            <div class="slopscale-mixer-viewtabs" role="tablist" aria-label="Mixer view">
+              <button type="button" class="slopscale-mixer-viewtab active" data-view="console" aria-pressed="true">Console</button>
+              <button type="button" class="slopscale-mixer-viewtab" data-view="rig" aria-pressed="false" title="Backing band amps &amp; cabs">Rig</button>
+            </div>
             <button type="button" id="slopscale-mixer-close" class="slopscale-sheet-close" title="Close mixer (M)" aria-label="Close mixer">▾</button>
           </div>
           <div class="slopscale-mixer-channels" id="slopscale-mixer-channels"><!-- renderMixer() --></div>
+          <div class="slopscale-mixer-rig" id="slopscale-mixer-rig"><!-- renderRig() --></div>
         </div>
 
         <!-- Library (Browse): slides UP over the stage (mirrors the Mixer M idiom).
