@@ -634,11 +634,21 @@ try {
     const jazz = D.resolveArrangement({ audio: { profile: "jazz" } });
     const rock = D.resolveArrangement({ audio: { profile: "rock" } });
     const gospel = D.resolveArrangement({ audio: { profile: "gospel" } });
+    const funk = D.resolveArrangement({ audio: { profile: "funk" } });
+    const country = D.resolveArrangement({ audio: { profile: "country" } });
+    const pop = D.resolveArrangement({ audio: { profile: "pop" } });
     const unrec = D.resolveArrangement({ audio: { profile: "city-pop" } });
     out.metalPicks = metal.picks.comp === "metal_chug_8" && metal.picks.bass === "root_pump" && metal.tier === "groove";
     out.djentPicks = djent.picks.comp === "metal_pedal_16" && djent.picks.bass === "root_pump";
     out.genrePicks = blues.picks.comp === "boogie_stab" && jazz.picks.comp === "charleston" && jazz.picks.bass === "walking"
       && rock.picks.comp === "rock_chug" && rock.picks.bass === "root_pump" && gospel.picks.comp === "charleston" && gospel.picks.drums === "gospel_pocket";
+    // batch 2 — funk/country/pop, each instrument idiomatic (NOT a generic kit):
+    // funk on a 16th funk kit (NOT straight_8th), country boom split (bass two_feel
+    // + guitar chuck), pop on an 8th backbeat (NOT four-on-the-floor by default).
+    out.genrePicks2 = funk.picks.comp === "funk_chank_16" && funk.picks.bass === "funk_pocket_16" && funk.picks.drums === "funk_16th"
+      && country.picks.comp === "country_chuck" && country.picks.bass === "two_feel" && country.picks.drums === "train_beat"
+      && pop.picks.comp === "pop_push" && pop.picks.bass === "root_pump" && pop.picks.drums === "straight_8th_rock";
+    out.popNotFourFloor = pop.picks.drums !== "four_on_floor";   // the mandate: not four-on-the-floor for everything
     out.bluesEmpty = !unrec.picks.comp && !unrec.picks.bass && !unrec.picks.drums;
     // (b) tier derivation: full tier picks the heavier djent texture + double kick
     const metalFull = D.resolveArrangement({ audio: { profile: "metal" }, densityTier: "full" });
@@ -673,6 +683,8 @@ try {
   ok(c6f.metalPicks, "resolveArrangement: metal → metal_chug_8 + root_pump @ groove tier");
   ok(c6f.djentPicks, "resolveArrangement: djent → metal_pedal_16 + root_pump");
   ok(c6f.genrePicks, "genre recipes resolve: blues=boogie_stab, jazz=charleston/walking, rock=rock_chug/root_pump, gospel=charleston/gospel_pocket");
+  ok(c6f.genrePicks2, "batch 2 idiomatic: funk=funk_chank_16/funk_pocket_16/funk_16th, country=country_chuck/two_feel/train_beat, pop=pop_push/root_pump/straight_8th_rock");
+  ok(c6f.popNotFourFloor, "the mandate: pop's DEFAULT drummer is NOT four-on-the-floor (that's the dance sub-feel)");
   ok(c6f.bluesEmpty, "a still-un-recipe'd style (city-pop) returns EMPTY picks — the old logic runs (no regression)");
   ok(c6f.fullTier, "the full density tier picks the heavier texture (metal_pedal_16 + metal_double_kick)");
   ok(c6f.compDefault === "metal_chug_8", "compCellForConfig: an UN-WIRED metal cfg inherits metal_chug_8 from the recipe", `got=${c6f.compDefault}`);

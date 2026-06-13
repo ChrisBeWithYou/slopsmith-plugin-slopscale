@@ -4407,6 +4407,13 @@
     gospel:     { family: 'clean',      harmony: { engine: 'sample', tone: 'organ',  level: 0.9 },  brightness: 0.55 },
     bluegrass:  { family: 'acoustic',   harmony: { engine: 'sample', tone: 'guitar', level: 0.78 }, brightness: 0.62, drums: { kit: 'kit_acoustic_soft' } },
     'city-pop': { family: 'electronic', harmony: { engine: 'sample', tone: 'epiano', level: 0.8 },  brightness: 0.68 },
+    // Genre profiles for the B1 batch (so the recipe can key off them + the comp
+    // plays an idiomatic VOICE): funk = clavinet, pop = e-piano, country = clean
+    // electric (tele). These were null/shared before → a bare funk/pop/country
+    // Jam now sounds like its instrument, not a generic pad.
+    funk:       { family: 'clean',      harmony: { engine: 'sample', tone: 'clav',   level: 0.8 },  brightness: 0.6 },
+    pop:        { family: 'clean',      harmony: { engine: 'sample', tone: 'epiano', level: 0.8 },  brightness: 0.62 },
+    country:    { family: 'clean',      harmony: { engine: 'sample', tone: 'clean',  level: 0.78 }, brightness: 0.6 },
   };
 
   // ── Drum kits (audio-realism Phase D) ────────────────────────────────────────
@@ -4486,9 +4493,9 @@
     // Funk goes Dorian (modal-M1 ride-along, approved 2026-06-05): dorian_vamp's
     // dom7 IV carries the ♮6 — the James Brown sound — so chordOverride must be
     // 'auto' (a min7 override would silence the vamp's major/dom IV).
-    funk:    { label:'Funk / R&B', defaultKey:'A', progressions:['dorian_vamp','static_i','i-VII-VI-VII','mixolydian_vamp'], leadScales:['dorian','minor_pentatonic'], chordDepth:'seventh', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:null },
-    pop:     { label:'Pop',        defaultKey:'C', progressions:['I-V-vi-IV','vi-IV-I-V','I-vi-IV-V'], leadScales:['major','major_pentatonic'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:null },
-    country: { label:'Country',    defaultKey:'G', progressions:['I-IV-V','I-V-vi-IV'], leadScales:['major_pentatonic','major'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'bluegrass' },
+    funk:    { label:'Funk / R&B', defaultKey:'A', progressions:['dorian_vamp','static_i','i-VII-VI-VII','mixolydian_vamp'], leadScales:['dorian','minor_pentatonic'], chordDepth:'seventh', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'funk' },
+    pop:     { label:'Pop',        defaultKey:'C', progressions:['I-V-vi-IV','vi-IV-I-V','I-vi-IV-V'], leadScales:['major','major_pentatonic'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'pop' },
+    country: { label:'Country',    defaultKey:'G', progressions:['I-IV-V','I-V-vi-IV'], leadScales:['major_pentatonic','major'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'country' },
     gospel:  { label:'Gospel',     defaultKey:'C', progressions:['ii-V-I','I-vi-ii-V'], leadScales:['major','dorian'], chordDepth:'ninth', chordOverride:'auto', guideTones:true, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'gospel' },
   };
   // Resolve a style palette into a mergeable partial config the way a Pathway/Custom/
@@ -6860,6 +6867,20 @@
              { t: 'root5', a: 'chug', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' },
              { t: 'root5', a: 'chug', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' },
              { t: 'root5', a: 'chug', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }] },
+    // ── Genre comp cells (B1 batch, panel 2026-06-13) ───────────────────────────
+    // Funk 16th chank (funk-idiom): the constant-strum-hand 16th part — muted
+    // chucks with chord stabs landing on the syncopations, accent the one. div:4.
+    funk_chank_16:  { div: 4, bars: 1, label: '16th funk chank',
+      grid: [{ t: 'chord', a: 'stab', acc: 1 }, '.', { t: 'chord', a: 'chuck' }, '.',
+             { t: 'chord', a: 'stab' }, '.', '.', { t: 'chord', a: 'stab' },
+             '.', { t: 'chord', a: 'chuck' }, { t: 'chord', a: 'stab' }, '.',
+             '.', { t: 'chord', a: 'stab' }, { t: 'chord', a: 'chuck' }, '.'] },
+    // Country chuck — the "chicka" of boom-chicka (country-idiom + bass-pedagogy:
+    // in a full band the BASS owns the "boom" via the two_feel figure, so the
+    // GUITAR plays only the offbeat muted chord chuck, riding the backbeat). div:2.
+    country_chuck:  { div: 2, bars: 1, label: 'country chuck (the chicka)',
+      grid: ['.', { t: 'chord', a: 'chuck' }, '.', { t: 'chord', a: 'chuck', acc: 1 },
+             '.', { t: 'chord', a: 'chuck' }, '.', { t: 'chord', a: 'chuck', acc: 1 }] },
   };
   // Startup integrity guard (mirrors validateStrumPatterns): grid shape, known
   // targets/artics, a label on every cell (player-facing from day one).
@@ -6959,6 +6980,14 @@
       grid: [{ iv: 0, acc: 1 }, { iv: 7 }, { iv: 9 }, { iv: 10 }] },
     walking:        { kind: 'gen', label: 'walking bass' },
     motown_counter: { kind: 'gen', label: 'Motown-style counter-line' },
+    // Funk 16th pocket (funk-idiom + bass-pedagogy sign-off): accented root on the
+    // one (kick-locked), ghost-thumb chucks on the 'a' subdivisions, then the
+    // melodic 5th→♭7 answer late in the bar (the ♭7 sits ABOVE the root, iv:10, in
+    // the anchor window — bass-ped: no octave wrap). Only the one + the 5/♭7 tail
+    // are full notes; everything between is a ghost (the funk contour). div:4.
+    funk_pocket_16: { kind: 'pattern', div: 4, bars: 1, label: '16th funk pocket',
+      grid: [{ iv: 0, acc: 1 }, '.', '.', { iv: 0, g: 1 }, '.', '.', { iv: 0, g: 1 }, '.',
+             '.', { iv: 0, g: 1 }, '.', { iv: 7 }, '.', '.', { iv: 10 }, '.'] },
   };
   // Startup integrity guard (mirrors validateCompGrooves): grid shape, the
   // beat-1 root (the kick lock is structural), iv range, a root window under
@@ -7552,6 +7581,23 @@
     // gospel full: the shout/praise-break energy — root_pump + the charleston push
     // until a real gospel_shout double-time drum cell lands (gospel-idiom GAP-1).
     'gospel:default:full':   { picks: { comp: 'charleston',  bass: 'root_pump',      drums: 'gospel_pocket' },     ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    // ── B1 batch 2 (panel 2026-06-13): funk / country / pop — each instrument in
+    // its idiomatic role (funk-idiom: NEVER a straight-8th/four-floor kit; pop-
+    // idiom: the DEFAULT pop is 8th-strum, NOT four-on-the-floor — that's the
+    // dance SUB-style; country split bass-ped's way: bass booms (two_feel), guitar
+    // chucks). New cells funk_chank_16 / funk_pocket_16 / country_chuck.
+    'funk:default:sparse':    { picks: { comp: 'pop_push',      bass: 'two_feel',       drums: 'half_time' },        ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'funk:default:groove':    { picks: { comp: 'funk_chank_16', bass: 'funk_pocket_16', drums: 'funk_16th' },        ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'funk:default:full':      { picks: { comp: 'funk_chank_16', bass: 'funk_pocket_16', drums: 'gospel_pocket' },    ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'country:default:sparse': { picks: { comp: 'vamp_half',     bass: 'two_feel',       drums: 'train_beat' },       ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'country:default:groove': { picks: { comp: 'country_chuck', bass: 'two_feel',       drums: 'train_beat' },       ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'country:default:full':   { picks: { comp: 'country_chuck', bass: 'root_pump',      drums: 'train_beat' },       ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'pop:default:sparse':     { picks: { comp: 'vamp_half',     bass: 'two_feel',       drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'pop:default:groove':     { picks: { comp: 'pop_push',      bass: 'root_pump',      drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    // Dance-pop sub-feel (cfg.arrangementFeel:'dance') — the four-on-the-floor
+    // sizzle, deliberately NOT the bare-pop default. (octave_jump_bass deferred —
+    // root_pump stands in.)
+    'pop:dance:groove':       { picks: { comp: 'pop_push',      bass: 'root_pump',      drums: 'four_on_floor' },     ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
   };
   const ARRANGEMENT_BASE = { picks: {}, ensemble: { drums: 'auto', bass: 'auto', comp: 'auto', pad: 'auto', lead: 'auto' }, registers: {}, tier: 'groove' };
   // Which density tier a cfg sits in: authored cfg.densityTier wins; else derive
