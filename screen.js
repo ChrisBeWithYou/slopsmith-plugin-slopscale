@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.24-beta.2';
+  const SLOPSCALE_VERSION = '0.7.24-beta.3';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -13803,12 +13803,12 @@
     // does. The default Auto pick for the sampled DI guitar voice.
     clean: { label: 'Clean', preHp: 40, drive: 1.6, curve: 'soft',
              post: [['lowshelf', 120, 0, 1.5], ['peaking', 500, 0.8, -1], ['peaking', 3200, 0.9, 2]],
-             makeup: 0.85 },
+             makeup: 0.85, ir: 'cab_clean' },
     // Overdrive: the screamer-into-crunch-amp recipe — pre-clip mid push +
     // soft asymmetric clip, presence on top.
     drive: { label: 'Overdrive', preHp: 75, preMid: [800, 0.8, 4], drive: 6, curve: 'soft',
              post: [['lowshelf', 100, 0, -1], ['peaking', 850, 0.9, 2], ['peaking', 3000, 0.9, 2]],
-             makeup: 0.42, comp: [-16, 3, 0.008, 0.12] },
+             makeup: 0.42, comp: [-16, 3, 0.008, 0.12], ir: 'cab_drive' },
     // Metal: tight high-gain — hard pre-HP so chugs don't flub, hard clip,
     // post mid scoop + thump + presence. comp = the distorted lane's own soft
     // compressor (threshold/ratio/attack/release — band-intel C3 spec), so
@@ -13818,7 +13818,7 @@
              post: [['lowshelf', 95, 0, 2], ['peaking', 580, 1.1, -5], ['peaking', 3500, 0.9, 3]],
              // makeup raised 0.24→0.38 (2026-06-13 dogfood: the rhythm comp read
              // "low volume"); the master limiter still guards peaks. By-ear tunable.
-             makeup: 0.38, comp: [-16, 3, 0.008, 0.12] },
+             makeup: 0.38, comp: [-16, 3, 0.008, 0.12], ir: 'v30_4x12' },
   };
   const AMP_OPTIONS = [['', 'Amp: Auto'], ['off', 'No amp'], ['clean', 'Clean'], ['drive', 'Overdrive'], ['metal', 'Metal']];
   function ampCurve(kind, drive) {
@@ -13841,6 +13841,35 @@
   // by crude in-place one-pole passes (LP ≈ speaker top-end rolloff, HP ≈ cone
   // low cut) + one short reflection for cone/edge character. ConvolverNode's
   // default normalize:true handles loudness. Cached per AudioContext.
+  // ── Per-preset cab IR loading (2026-06-13) ──────────────────────────────────
+  // An amp preset may name a real cab IR file (p.ir → static/irs/<name>.wav,
+  // served by the /ir route). Lazy-loaded + decoded once per ctx; the PROCEDURAL
+  // cabIrBuffer is the immediate fallback (the chain never waits) AND the permanent
+  // fallback when the file is absent — the LOCAL-ONLY case: the clean/overdrive
+  // cab IRs are gitignored (commercial captures), so the PUBLIC build falls back
+  // to procedural while a local dogfood build plays the real cab. The metal V30
+  // (v30_4x12.wav, GPL-3 via AIDA-X) ships, so everyone gets the real metal cab.
+  // wireTrackAmp builds a chain once + caches it (not per-pass), so when an IR
+  // decodes after the chain was built, swap the buffer on the waiting convolver.
+  const IR_BASE = '/api/plugins/slopscale_beta/ir/';
+  let _irBufs = {}, _irBufCtx = null;       // name -> { state, buf }  (reset per ctx)
+  const _irPending = {};                    // name -> [convolver nodes awaiting the buffer]
+  function ensureCabIr(ctx, name) {
+    if (_irBufCtx !== ctx) { _irBufs = {}; _irBufCtx = ctx; }
+    const e = _irBufs[name];
+    if (e) return e.state === 'ready' ? e.buf : null;
+    _irBufs[name] = { state: 'loading', buf: null };
+    fetch(IR_BASE + name + '.wav')
+      .then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); })
+      .then(ab => ctx.decodeAudioData(ab))
+      .then(buf => {
+        _irBufs[name] = { state: 'ready', buf };
+        const list = _irPending[name] || []; _irPending[name] = [];
+        for (const cab of list) { try { cab.buffer = buf; } catch (_) {} }
+      })
+      .catch(() => { _irBufs[name] = { state: 'failed', buf: null }; });   // absent (local-only/public) → procedural stays
+    return null;
+  }
   let _cabIr = null, _cabIrCtx = null;
   function cabIrBuffer(ctx) {
     if (_cabIr && _cabIrCtx === ctx) return _cabIr;
@@ -13875,7 +13904,10 @@
       if (q) eq.Q.value = q; eq.gain.value = g;
       head.connect(eq); head = eq;
     }
-    const cab = mk(ctx.createConvolver()); cab.buffer = cabIrBuffer(ctx);
+    const cab = mk(ctx.createConvolver());
+    const irBuf = p.ir ? ensureCabIr(ctx, p.ir) : null;
+    cab.buffer = irBuf || cabIrBuffer(ctx);          // the real cab IR, or the procedural fallback while it loads / when absent
+    if (p.ir && !irBuf) (_irPending[p.ir] = _irPending[p.ir] || []).push(cab);
     const makeup = mk(ctx.createGain()); makeup.gain.value = p.makeup;
     head.connect(cab); cab.connect(makeup);
     let out = makeup;
@@ -22146,6 +22178,6 @@
     jamArmFromDrill, jamTargetPcs, jamNextGuidePcs,
     getActiveBundleInfo: () => activeBundle ? { config: activeBundle.config, duration: activeBundle.songInfo && activeBundle.songInfo.duration, leadIn: activeBundle.leadIn } : null,
     sgStats: () => { const out = { ready: 0, loading: 0, failed: 0 }; for (const k of Object.keys(sgBuffers)) out[sgBuffers[k].state] = (out[sgBuffers[k].state] || 0) + 1; return out; } };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, ARRANGEMENT_RECIPES, resolveArrangement, compCellForConfig, buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, resolveAudioProfile, sgNotesWanted, ampState: () => ({ want: { ..._ampWant }, wired: audioBus && audioBus.amps ? Object.fromEntries(Object.entries(audioBus.amps).map(([k, v]) => [k, v.id])) : null }), avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, ARRANGEMENT_RECIPES, resolveArrangement, compCellForConfig, irState: () => Object.fromEntries(Object.entries(_irBufs).map(([k, v]) => [k, v.state])), buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, resolveAudioProfile, sgNotesWanted, ampState: () => ({ want: { ..._ampWant }, wired: audioBus && audioBus.amps ? Object.fromEntries(Object.entries(audioBus.amps).map(([k, v]) => [k, v.id])) : null }), avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
