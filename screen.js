@@ -397,6 +397,18 @@
     reverse_gallop: { beats:[0.25, 0.25, 0.5], strokes:['d','u','d'], label:'Reverse gallop (♬ ♪)' },   // thrash/death
     skip_chug:      { beats:[0.75, 0.25],      label:'Skip / dotted (♩. ♬)' },   // thrash skip
     snap:           { beats:[0.25, 0.75],      label:'Snap (♬ ♩.)' },            // front-weighted pickup
+    // The HERTA CHUG (Christian's ask 2026-06-12 — the famous modern-djent
+    // rhythm figure; what the melodic pick_herta drill was NOT). Canonical form
+    // per the drum-transcription literature: a 16th grid accented in groups of
+    // THREE sixteenths with an extra 32nd after every accent — i.e. the cell
+    // [16th, 32nd, 32nd, 16th] spanning ¾ of a beat, a 3-over-2 that phases
+    // against the 4/4 backbeat and re-aligns every 3 beats. Encoded as the full
+    // 3-beat cycle (4 cells) for the whole-beat guard; accentEvery:4 puts the
+    // accent on every CELL start (the audible 3-over-2 lean), not just the
+    // cycle start. NO declared strokes: strict-alternate territory at any
+    // usable tempo, so the rung's strokePolicy:'alternate' marks it.
+    herta_chug: { beats:[0.25, 0.125, 0.125, 0.25,  0.25, 0.125, 0.125, 0.25,  0.25, 0.125, 0.125, 0.25,  0.25, 0.125, 0.125, 0.25],
+                  accentEvery: 4, label:'Herta chug (16th + two 32nds + 16th)' },
     // World-rhythm cells (tap on one note = "the TIME of the feel"). Bar-commensurate.
     tresillo:       { beats:[1.5, 1.5, 1.0],            label:'Tresillo (3-3-2)' },          // 1 bar — the cross-idiom atom
     son_clave:      { beats:[1.5, 1.5, 2.0, 1.0, 2.0],  label:'Son clave (2-3, 2-bar)' },    // onsets 0,3,6,10,12 / 16 eighths
@@ -457,6 +469,7 @@
     chromatic:'Chromatic', scale:'Scale', modal_vamp:'Modal Vamp',
     chord_scales:'Chord Scales', diatonic_arpeggios:'Dia. Arps',
     progression_arpeggios:'Prog. Arps', sweep_arpeggios:'Sweeps', guide_tones:'Guide Tones',
+    spider:'Spider', fingerstyle_arp:'Fingerstyle',
   };
   const KIND_COLORS = {
     chromatic:'#f97316', scale:'#22c55e', modal_vamp:'#22c55e',
@@ -523,6 +536,13 @@
     ['modal_vamp',          'ii_V_I_workout'],
     // Guitar Core ★ nodes — prerequisite flow (build-queue #1).
     ['chromatic_warmup',    'pulse_muting'],          // B0 → B1
+    ['chromatic_warmup',    'pick_chromatic_16ths'],  // the warmup's speed version (16ths moved out of B0)
+    // Fingerstyle pack: pima → the spider widths (first edge = the "Builds on" hint).
+    ['chord_cowboy',        'fs_pima_foundation'],
+    ['fs_pima_foundation',  'fs_spider_adjacent'],
+    ['chromatic_warmup',    'fs_spider_adjacent'],
+    ['fs_spider_adjacent',  'fs_spider_skip'],
+    ['fs_spider_skip',      'fs_spider_wide'],
     ['pulse_muting',        'power_chord_comping'],   // B1 → B3 (power chords in Beginner)
     ['pulse_muting',        'sixteenth_pocket'],      // B1 → I8
     ['pent_foundation',     'major_scale_caged'],     // B2 → I1
@@ -544,7 +564,8 @@
     ['djent_accent_grid',  'djent_polymeter'],
     ['djent_polymeter',    'djent_skip_gallop'],
     ['djent_skip_gallop',  'djent_moving_chug'],
-    ['djent_moving_chug',  'djent_lock_the_cell'],
+    ['djent_moving_chug',  'djent_herta_chug'],
+    ['djent_herta_chug',   'djent_lock_the_cell'],
     // ── CORE: BASS spine prereqs (2026-06-08) — the bass Beginner→Advanced climb
     // through the instrument-aware Core bands (bass_rh_pulse is the on-ramp).
     ['bass_rh_pulse',          'bass_root_click'],
@@ -612,7 +633,7 @@
     { id:'core_advanced',     label:'Advanced',     kind:'core', pinned:true, pathways:['seventh_vocab','whole_neck_freedom','guide_tones_path','ii_V_I_workout','modal_vamp','melmin_exotic_12key','harmonic_minor_exotic','sweep_arpeggio_primer','bass_scale_modes','bass_scale_shifts','bass_scale_whole_neck','bass_arp_changes','bass_lc_guide_tones','bass_lc_approach','bass_rh_three_finger','bass_lc_capstone','bass_lc_trade'] },
     { id:'style_blues',       label:'Blues',        kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner — minor-pentatonic box 1, the blue note (♭5), and a steady pulse over the 12-bar form.', pathways:['blues_box','blues_shuffle','blues_bends','blues_call_response','blues_mix','blues_turnaround','blues_turnaround_build'] },
     { id:'style_country',     label:'Country',      kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner→Intermediate — major pentatonic and the CAGED major scale; you target chord tones inside the shape, then add the country idiom (double-stops, chicken pickin\', the ♭VII train change).', pathways:['major_pent_country','country_cowboy_changes','country_double_stops','country_chicken_pickin','country_pedal_bends','country_train'] },
-    { id:'style_metal',       label:'Metal',        kind:'style', family:'High-Gain & Technical', buildsOn:'Builds on Core — power chords and palm-mute pulse (Beginner), tight 16th picking (Intermediate), plus exotic/harmonic-minor scales and sweep mechanics (Advanced). The djent sub-ladder climbs chug precision → accent control → grouping cells → cell vocabulary → moving stacks, topping out in a trade-bars jam.', pathways:['metalcore_chug','melodic_metal_gallop','djent_chug_lock','djent_accent_grid','djent_polymeter','djent_skip_gallop','djent_moving_chug','djent_lock_the_cell','melodeath_twin_leads','death_chromatic'] },
+    { id:'style_metal',       label:'Metal',        kind:'style', family:'High-Gain & Technical', buildsOn:'Builds on Core — power chords and palm-mute pulse (Beginner), tight 16th picking (Intermediate), plus exotic/harmonic-minor scales and sweep mechanics (Advanced). The djent sub-ladder climbs chug precision → accent control → grouping cells → cell vocabulary → moving stacks, topping out in a trade-bars jam.', pathways:['metalcore_chug','melodic_metal_gallop','djent_chug_lock','djent_accent_grid','djent_polymeter','djent_skip_gallop','djent_moving_chug','djent_herta_chug','djent_lock_the_cell','melodeath_twin_leads','death_chromatic'] },
     { id:'style_rock',        label:'Rock',         kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core — power chords + the backbeat (Beginner), the pentatonic box (Beginner), then the blues-rock mix, pedal-tone riffs, and the ♭VII classic-rock changes.', pathways:['rock_power_backbeat','rock_pentatonic','rock_lead_vocab','rock_pedal_riff','rock_classic_changes'] },
     // Concepts family — "concept ladders" (one skill, sequenced easy→mastery): a
     // VERTICAL column through difficulty, vs the Core bands' horizontal staircase.
@@ -627,7 +648,7 @@
     { id:'concept_intervals', label:'Intervals', kind:'style', family:'Concepts', buildsOn:'Builds on Core — a scale you can play in one box and a steady pulse. Stop playing the scale step-by-step: skip through it in thirds, then fourths & fifths, then sixths, then take the same intervals up and down the neck and finally mix them over a backing. The ear/hand drill behind melody, bass fills, and connecting chord tones — diatonic, so it transposes for free. Works on guitar or bass.', pathways:['diatonic_intervals','int_sixths','bass_int_sixths','int_across_neck','bass_int_walk','int_mixed'] },
     { id:'concept_expression', label:'Expression', kind:'style', family:'Concepts', buildsOn:'Builds on Core Beginner — a fretted note and a target pitch. Make the note SING: vibrato width first, then bends that land dead in tune (half → whole → mixed).', pathways:['exp_vibrato','exp_bend_half','exp_bend_whole','exp_bend_mixed'] },
     { id:'concept_rhythm', label:'Rhythm', kind:'style', family:'Concepts', buildsOn:'Builds on Core — a steady pulse and the pentatonic box. Own TIME itself, easy→mastery: the grid (subdivisions, the 16th pocket) → the feel (swing, syncopation, the gallop, moving the accent) → the pulse frame (one-note pulse, half/double-time, odd meters) → two pulses at once (over the barline) → trade bars and make your own groove. World rhythms (tresillo, clave) ride the one-note pulse. Instrument-agnostic — works on guitar or bass.', pathways:['rhy_subdivision','rhy_sixteenth','rhy_swing','rhy_displacement','rhy_gallop_snap','rhy_accent_displace','rhy_single_string','rhy_half_double','rhy_odd_meter','rhy_over_barline','rhy_trade_bars'] },
-    { id:'concept_picking', label:'Picking', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the chromatic warmup and one-finger-per-fret sync. The pick-hand engine: tremolo, alternate across strings, economy crossings, string skipping, hybrid picking.', pathways:['pick_tremolo','pick_alternate','pick_economy','pick_string_skip','pick_hybrid','pick_herta'] },
+    { id:'concept_picking', label:'Picking', kind:'style', family:'Concepts', buildsOn:'Builds on Core — the chromatic warmup and one-finger-per-fret sync. The pick-hand engine: tremolo, alternate across strings, economy crossings, string skipping, hybrid picking.', pathways:['pick_tremolo','pick_alternate','pick_chromatic_16ths','pick_economy','pick_string_skip','pick_hybrid','pick_herta'] },
     { id:'concept_legato', label:'Legato', kind:'style', family:'Concepts', buildsOn:'Builds on Core — clean fretting and a scale shape. The fretting-hand engine: hammer-ons/pull-offs, 3NPS legato runs, then two-hand tapping.', pathways:['leg_hopo','leg_runs','leg_tapping'] },
     { id:'concept_sweeps', label:'Sweep Picking', kind:'style', family:'Concepts', buildsOn:'Builds on the Arpeggios pack — you can already spell a triad across the neck in a shape. Sweep picking turns that vertical chord shape into one fluid raked motion, the fretting hand muting everything not sounding: 3-string triad -> the 5-string box -> the finger-roll & clean apex -> seventh sweeps -> sweeps through the changes. Cleanliness comes first; speed is a byproduct.', pathways:['sweep3_triad','sweep5_box','sweep_roll_apex','sweep7_color','sweep_changes'] },
     // Bass family — DISSOLVED into the instrument-aware Core (2026-06-08): the former
@@ -636,6 +657,10 @@
     // (de-dup: a rung is in Core OR a Style pack, never both). What remains a genuine
     // opt-in elective is the genre-specific Slap & Funk lane (slap moves OUT of the
     // old Foundations capstone here) + the arpeggio-inversions deepening.
+    // First band of the Acoustic & Fingerstyle family (the slot has waited in
+    // PACK_FAMILY_ORDER since the pack-manager build). Community-seeded: the
+    // spider trio came from the 2026-06-12 beta thread, graded by pair width.
+    { id:'style_fingerstyle', label:'Fingerstyle', kind:'style', family:'Acoustic & Fingerstyle', buildsOn:'Builds on Core Beginner — the chromatic warmup\'s one-finger-per-fret frame — and the Chords pack\'s open grips. The fingerstyle hand from the ground up: name the fingers (p-i-m-a, each owning its string), run the free-stroke pattern over open chords, then the two-string crossing spider at three widths — adjacent strings, a skip, then the full-width stretch. The standing rule: let everything ring.', pathways:['fs_pima_foundation','fs_spider_adjacent','fs_spider_skip','fs_spider_wide'] },
     { id:'bass_slap_funk', label:'Bass: Slap & Funk', kind:'style', family:'Bass', buildsOn:"Builds on Core: Bass — the dead-note pocket, the i-m motor, and arpeggios. The funk-bass lane: the 16th funk pocket at speed, string-crossing rakes, arpeggio inversions for slap fills, then thumb-slap & pop.", pathways:['bass_rh_funk_pocket','bass_rh_crossing','bass_arp_inversions','bass_slap'] },
   ];
   // Family display order for the Pack-manager Available column (Core-branch-point
@@ -655,16 +680,18 @@
   const PATHWAYS = {
     chromatic_warmup: {
       label:'Chromatic Warmup',
-      goal:'One finger per fret — 1-2-3-4 across all six strings. Builds fretting-hand synchronization, finger independence, and positional awareness. The universal warmup every method teaches. The ladder climbs density before speed: eighth notes first, sixteenths only at the top rung — speed comes from clean reps, not rushed ones.',
+      goal:'One finger per fret — 1-2-3-4 across all six strings. Builds fretting-hand synchronization, finger independence, and positional awareness. The universal warmup every method teaches. Quarter notes on purpose — one clean note per click; speed comes from clean reps, not rushed ones. When this feels easy, Chromatic Sixteenths in the Picking band is the speed version.',
       scales:[],
-      // Beginner density ladder (panel 2026-06-12): the old sixteenth@60 entry was
-      // 4 notes/sec cold — a fluent-player load mislabeled "easy" by its BPM (the
-      // beta "wrecked from ez mode" report). Tiers climb eighths, sixteenths land
-      // only at the top; short bars at the bottom so a cold-hands retry is cheap.
+      // Beginner density ladder, retuned 2026-06-12 on REAL beginner dogfood
+      // (the eighth@60 entry was still pronounced too complicated by an actual
+      // beginner): quarters now own the rung — and at quarters each 4/4 bar is
+      // exactly one string of the 1-2-3-4, so short runs end on a string
+      // boundary. Eighths only at the top tier; sixteenths moved OUT to the
+      // Picking band (pick_chromatic_16ths) as the advanced follow-on.
       tempoTiers:[60, 70, 80, 90],
-      tempoTierSubdivs:['eighth', 'eighth', 'eighth', 'sixteenth'],
-      tempoTierBars:[4, 4, 8, 8],
-      base:{ practiceType:'chromatic', chromaticPattern:'1234', strokePolicy:'alternate', meter:'4/4', subdivision:'eighth', bpm:60, bars:4, direction:'up_down', advancedMode:false, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:1, fretMax:4 },
+      tempoTierSubdivs:['quarter', 'quarter', 'quarter', 'eighth'],
+      tempoTierBars:[4, 6, 8, 8],
+      base:{ practiceType:'chromatic', chromaticPattern:'1234', strokePolicy:'alternate', meter:'4/4', subdivision:'quarter', bpm:60, bars:4, direction:'up_down', advancedMode:false, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:1, fretMax:4 },
       vary:[
         { chromaticPattern:'1234', fretMin:1, fretMax:4 },
         { chromaticPattern:'4321', fretMin:1, fretMax:4 },
@@ -1593,6 +1620,25 @@
       base:{ practiceType:'scale', strokePolicy:'alternate', scale:'major', meter:'4/4', subdivision:'sixteenth', bpm:85, bars:8, direction:'up_down', sequence:'fours', advancedMode:true, fretboardSystem:'3nps', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'C', shape:1 },
       vary:[ { sequence:'fours' }, { sequence:'none' }, { shape:2 }, { sequence:'triplets', subdivision:'triplet' }, { shape:3 } ]
     },
+    // The 16th-note chromatic — moved OUT of chromatic_warmup (2026-06-12 beginner
+    // dogfood: 16ths in the entry rung were "too complicated by an actual
+    // beginner"). Here it is what it always really was: an alternate-picking
+    // speed/endurance drill that assumes the warmup's hand sync is already owned.
+    pick_chromatic_16ths: {
+      label:'Chromatic Sixteenths',
+      goal:'The 1-2-3-4 warmup grown into a picking workout — strict alternate sixteenths across all six strings, four notes per click. Your hands already know the pattern from the Chromatic Warmup; now the pick leads: down-up unbroken through every string crossing, evenness before speed. The endurance builder fast scale runs ride on.',
+      scales:[],
+      tempoTiers:[60, 75, 90, 105],
+      base:{ practiceType:'chromatic', chromaticPattern:'1234', strokePolicy:'alternate', meter:'4/4', subdivision:'sixteenth', bpm:60, bars:8, direction:'up_down', advancedMode:false, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:1, fretMax:4 },
+      vary:[
+        { chromaticPattern:'1234', fretMin:1, fretMax:4 },
+        { chromaticPattern:'4321', fretMin:1, fretMax:4 },
+        { chromaticPattern:'1324', fretMin:1, fretMax:4 },
+        { chromaticPattern:'1342', fretMin:1, fretMax:4 },
+        { chromaticPattern:'1234', fretMin:5, fretMax:8 },
+        { chromaticPattern:'1234', fretMin:9, fretMax:12 }
+      ]
+    },
     // Economy crossings (hand-marks Slice 2; the Picking band's crossing-strategy
     // gap — L&D's named rung). The strokePolicy field drives the pkd marks: the
     // economy school's crossing continues the pick's travel direction (the mini
@@ -1720,6 +1766,69 @@
       tempoTiers:[50, 60, 72, 85],
       base:{ practiceType:'sweep_arpeggios', scale:'natural_minor', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII', meter:'4/4', subdivision:'sixteenth', bpm:52, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'A', shape:'E', fretMin:0, fretMax:17 },
       vary:[ { key:'A', shape:'E', progression:'i-VI-III-VII' }, { key:'A', shape:'A', progression:'i-VII-VI-VII' }, { key:'C', shape:'E', scale:'major', progression:'ii-V-I' }, { key:'G', shape:'E', scale:'major', progression:'I-vi-IV-V' }, { key:'A', shape:'E', scale:'harmonic_minor', chordDepth:'seventh', progression:'minor_ii_V_i' } ]
+    },
+    // ── FINGERSTYLE pack (Acoustic & Fingerstyle — 2026-06-12, the community
+    // spider thread). The fingerstyle hand from the ground up: the p-i-m-a
+    // free-stroke pattern over open grips, then the two-string crossing spider
+    // at three widths (adjacent → skip → full-width). Let everything ring.
+    fs_pima_foundation: {
+      label:'p-i-m-a Foundation',
+      goal:'The fingerstyle hand, named: thumb is p, index i, middle m, ring a — each finger owns its string (thumb on the bass, i-m-a on G, B and E). Hold an open chord and run the pattern, free stroke, letting every note ring into the next — the arpeggio-study tradition every classical method starts from. The skill is independence and evenness: four equal voices from four different fingers, no pick anywhere.',
+      scales:['major'],
+      tempoTiers:[55, 65, 80, 95],
+      tempoTierSubdivs:['quarter', 'eighth', 'eighth', 'eighth'],
+      tempoTierBars:[4, 8, 8, 8],
+      base:{ practiceType:'fingerstyle_arp', pimaPattern:'pima', scale:'major', chordDepth:'triad', chordOverride:'auto', progression:'I-IV-V', voicingPosition:'open', meter:'4/4', subdivision:'quarter', bpm:55, bars:4, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'caged', stringSetup:'guitar_6_standard', renderer:'highway_3d', key:'G' },
+      vary:[
+        { pimaPattern:'pima' },
+        { pimaPattern:'pami' },
+        { pimaPattern:'pimami' },
+        { pimaPattern:'pmim' },
+        { pimaPattern:'pima', key:'C' },
+        { pimaPattern:'pami', key:'G', progression:'I-vi-IV-V' }
+      ]
+    },
+    fs_spider_adjacent: {
+      label:'Spider — Middle Strings',
+      goal:'The fingerstyle spider (a teacher-handed warmup from our beta thread): one finger per fret, but EVERY note crosses between the D and G strings — first the treble string leads, then the bar mirrors and the bass string leads. Thumb takes every D-string note, index every G-string note, and everything RINGS — the crossing only counts if the previous note keeps sounding. The frame walks up the neck one fret per cycle and back. Start at the 5th fret where the stretches are kind.',
+      scales:[],
+      tempoTiers:[60, 75, 90, 105],
+      tempoTierSubdivs:['quarter', 'quarter', 'quarter', 'eighth'],
+      base:{ practiceType:'spider', spiderPair:'adjacent', chromaticPattern:'1342', meter:'4/4', subdivision:'quarter', bpm:60, bars:8, direction:'up_down', advancedMode:false, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:5, fretMax:12 },
+      vary:[
+        { spiderPair:'adjacent', chromaticPattern:'1342', fretMin:5, fretMax:12 },
+        { spiderPair:'adjacent', chromaticPattern:'1234', fretMin:5, fretMax:12 },
+        { spiderPair:'adjacent', chromaticPattern:'1324', fretMin:5, fretMax:12 },
+        { spiderPair:'adjacent', chromaticPattern:'4321', fretMin:5, fretMax:12 },
+        { spiderPair:'adjacent', chromaticPattern:'1342', fretMin:1, fretMax:8 }
+      ]
+    },
+    fs_spider_skip: {
+      label:'Spider — Skip Strings',
+      goal:'The spider stretched: the same crossing pattern, but the pair jumps to the A and B strings — a string skipped on both sides. The right hand reaches further (thumb low, middle finger high), the left hand stretches wider, and the untouched middle strings must stay silent while the played ones ring. This is where the spider starts earning its name.',
+      scales:[],
+      tempoTiers:[60, 72, 85, 100],
+      tempoTierSubdivs:['quarter', 'quarter', 'quarter', 'eighth'],
+      base:{ practiceType:'spider', spiderPair:'skip', chromaticPattern:'1342', meter:'4/4', subdivision:'quarter', bpm:60, bars:8, direction:'up_down', advancedMode:false, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:5, fretMax:12 },
+      vary:[
+        { spiderPair:'skip', chromaticPattern:'1342', fretMin:5, fretMax:12 },
+        { spiderPair:'skip', chromaticPattern:'1234', fretMin:5, fretMax:12 },
+        { spiderPair:'skip', chromaticPattern:'1324', fretMin:5, fretMax:12 },
+        { spiderPair:'skip', chromaticPattern:'1342', fretMin:7, fretMax:12 }
+      ]
+    },
+    fs_spider_wide: {
+      label:'Spider — Full Width',
+      goal:'The capstone stretch: the crossing pattern across BOTH outside strings — low E under the thumb, high E under the ring finger, four silent strings in between. Maximum right-hand span, maximum left-hand reach, and the let-ring rule still applies. Slow is the whole point here; if the index-to-middle stretch complains, drop back a rung. (In the source thread this one came with a warning: "if you like pain".)',
+      scales:[],
+      tempoTiers:[55, 70, 85, 95],
+      tempoTierSubdivs:['quarter', 'quarter', 'quarter', 'eighth'],
+      base:{ practiceType:'spider', spiderPair:'wide', chromaticPattern:'1342', meter:'4/4', subdivision:'quarter', bpm:55, bars:8, direction:'up_down', advancedMode:false, fretboardSystem:'position', stringSetup:'guitar_6_standard', renderer:'highway_3d', fretMin:5, fretMax:12 },
+      vary:[
+        { spiderPair:'wide', chromaticPattern:'1342', fretMin:5, fretMax:12 },
+        { spiderPair:'wide', chromaticPattern:'1234', fretMin:5, fretMax:12 },
+        { spiderPair:'wide', chromaticPattern:'1342', fretMin:7, fretMax:12 }
+      ]
     },
     // ── CHORDS concept ladder (new concept_chords pack) ─────────────────────────
     // Triads/grips SOUNDED TOGETHER (vs the Triads ladder's arpeggios). 6-agent panel
@@ -2063,6 +2172,27 @@
     },
     // Capstone — the on-ramp to creation (mirror of the Rhythm band's Trade Bars):
     // echo the chug cell, then construct your own grouping. Mirror, not judge.
+    // The HERTA CHUG (Christian's dogfood ask 2026-06-12: the melodic
+    // pick_herta drill was NOT this — he wanted the famous djent RHYTHM
+    // figure). One palm-muted chug note, the [16th + two 32nds + 16th] herta
+    // cell repeated gapless — a ¾-beat cell that phases 3-over-2 against the
+    // 4/4 backbeat and re-aligns every 3 beats. Canonical tempo ≈115 (the
+    // Push tier). Cell ruling verified against the drum-transcription
+    // literature 2026-06-12 (metal-idiom review + source check).
+    djent_herta_chug: {
+      label:'Herta Chug',
+      goal:'THE modern-djent rhythm figure, on one palm-muted chug note: a sixteenth, two thirty-seconds, then another sixteenth — the drummers\' "herta" — repeated with no gap. The cell is three sixteenths long, so its accent walks across the 4/4 backbeat (a 3-over-2) and only re-lands on a downbeat every 3 beats: that lurch-that-isn\'t-a-meter-change is the entire sound. Strict alternate picking, machine-even, accents from the wrist not the forearm; the drums hold a dead-simple half-time groove underneath — your job is to phase against it without losing the one. When the doubles smear into a buzz or the forearm pumps, drop a tier. The Push tier sits at the figure\'s canonical tempo; the straight-16ths variation is the endurance contrast (same wrist motion, no lurch).',
+      scales:['phrygian','natural_minor'],
+      tempoTiers:[60, 80, 100, 115],
+      instAgnostic:true,
+      base:{ practiceType:'rhythm_pulse', pulseAccent:0, pulseOffbeat:false, strokePolicy:'alternate', scale:'phrygian', anchor:'open_lowest', anchorFret:0, meter:'4/4', subdivision:'herta_chug', bpm:60, bars:9, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', stringSetup:'guitar_6_drop_d', renderer:'highway_3d', audioProfile:'djent', fretMin:0, fretMax:4 },
+      vary:[
+        { subdivision:'herta_chug' },
+        { subdivision:'sixteenth' },
+        { subdivision:'herta_chug', anchorFret:1 },
+        { subdivision:'herta_chug', stringSetup:'guitar_7_standard' },
+      ]
+    },
     djent_lock_the_cell: {
       label:'Lock the Cell — Djent Jam',
       goal:'The payoff: two bars of call, two bars of space to answer. Echo the call\'s RHYTHM back, then start bending it — your accents, your gallop, your grouping — until the answer is YOUR riff. This is where the cell grammar becomes writing: you\'re not running a drill anymore, you\'re constructing djent over a steady pulse, the way the bands you listen to actually write. Trade with the click and make the space heavy — in this style the silence between chugs is part of the riff.',
@@ -4000,8 +4130,16 @@
     // generation loops (e.g. chordScalePositions). Hard-cap the window so a
     // malicious link can't hang the tab with a giant fret range.
     const MAX_FRET = 36;
-    let fretMin = Math.min(MAX_FRET - 1, Math.max(0, parseInt(data.get('fretMin') || '0', 10) || 0));
-    let fretMax = Math.min(MAX_FRET, Math.max(fretMin + 1, parseInt(data.get('fretMax') || '5', 10) || 5));
+    // Read the fret window from the ELEMENT values, not FormData: the inputs sit
+    // in the advanced-only card, which is DISABLED under advancedMode:false — and
+    // a disabled input drops out of FormData, so every beginner-pane rung's
+    // pathway-set fret window silently reverted to 0/5 (the chromatic warmup's
+    // 5th/9th-fret vary steps were inert; surfaced by the 2026-06-12 spider
+    // build). Element value == FormData value whenever the card is enabled.
+    const _fretForm = $('slopscale-controls');
+    const _fretVal = (name, dflt) => { const el = _fretForm && _fretForm.elements[name]; return (el && el.value) || data.get(name) || dflt; };
+    let fretMin = Math.min(MAX_FRET - 1, Math.max(0, parseInt(_fretVal('fretMin', '0'), 10) || 0));
+    let fretMax = Math.min(MAX_FRET, Math.max(fretMin + 1, parseInt(_fretVal('fretMax', '5'), 10) || 5));
     const practiceType = data.get('practiceType') || data.get('mode') || 'scale';
     const advancedMode = data.get('advancedMode') === 'on';
     // Default fretboard system is CAGED in beginner mode and whatever the user
@@ -4011,7 +4149,13 @@
     const fretboardSystem = advancedMode ? (data.get('fretboardSystem') || 'caged') : 'caged';
     let shape = data.get('shape');
     let shapeNotes = null, shapeDisplayName = null;
-    if (isShapeAwareSystem(fretboardSystem)) {
+    // Frame-window types (the chromatic warmup, the fingerstyle spider) take
+    // their fretMin/fretMax LITERALLY — the beginner-mode CAGED fallback above
+    // must not let a resolved shape clobber the window (it silently pinned the
+    // chromatic warmup's 5th/9th-fret vary steps to the C-shape window; found
+    // 2026-06-12 building the spider, whose whole walk rides the window).
+    const frameWindowType = practiceType === 'chromatic' || practiceType === 'spider';
+    if (isShapeAwareSystem(fretboardSystem) && !frameWindowType) {
       const resolved = resolveCurrentShape({ fretboardSystem, key: data.get('key') || 'C', scale: data.get('scale') || 'major', shape }, effectiveOpenMidis);
       if (resolved) {
         shape = resolved.shape;
@@ -4150,6 +4294,10 @@
       // 'construct' flips the drill into call-and-answer (the construct step).
       motifCell: (data.get('motifCell') || '').toString(),
       motifPhase: (data.get('motifPhase') || '').toString(),
+      // Fingerstyle pack (pathway-driven hidden fields): the spider's string-pair
+      // spread + the p-i-m-a study's pattern. '' = builder defaults.
+      spiderPair: (data.get('spiderPair') || '').toString(),
+      pimaPattern: (data.get('pimaPattern') || '').toString(),
       // sweepStrings (Sweep ladder entry rung): constrain a sweep to the top N
       // strings. Pathway-driven hidden field; 0/absent = the full box. 2–6 clamp.
       sweepStrings: Math.max(0, Math.min(6, parseInt(data.get('sweepStrings') || '0', 10) || 0)),
@@ -4184,16 +4332,21 @@
   // loads. The distorted family keeps the synth pad for now — a distorted comp's
   // real voice is the NAM amp model (in progress); a sampled e-piano under metal
   // would be a regression, so pad stays its placeholder/failover until NAM lands.
+  // notes.sg — the GUIDE voice defaults to the sampled Shinyguitar electric DI
+  // (Christian's by-ear gate PASSED 2026-06-12: now the default, not a pin-only
+  // A/B). The WAF tone stays declared as the warm-up cover + bend voice; the
+  // acoustic family keeps its steel-string (an electric DI under a bluegrass
+  // exercise would be wrong); resolveAudioProfile clears sg for bass instruments.
   const AUDIO_FAMILY_DEFAULTS = {
-    clean:      { harmony: { engine: 'sample', tone: 'epiano', level: 0.9 },  notes: { tone: 'clean'  }, bass: { tone: 'bass'    }, brightness: 0.5 },
-    acoustic:   { harmony: { engine: 'sample', tone: 'piano',  level: 0.8 },  notes: { tone: 'guitar' }, bass: { tone: 'upright' }, brightness: 0.6 },
-    distorted:  { harmony: { tone: 'pad',    level: 0.7 },  notes: { tone: 'clean'  }, bass: { tone: 'bass'    }, brightness: 0.42 },
-    electronic: { harmony: { engine: 'sample', tone: 'epiano', level: 0.85 }, notes: { tone: 'clean'  }, bass: { tone: 'bass'    }, brightness: 0.7 },
+    clean:      { harmony: { engine: 'sample', tone: 'epiano', level: 0.9 },  notes: { tone: 'clean', sg: true }, bass: { tone: 'bass'    }, brightness: 0.5 },
+    acoustic:   { harmony: { engine: 'sample', tone: 'piano',  level: 0.8 },  notes: { tone: 'guitar', sg: false }, bass: { tone: 'upright' }, brightness: 0.6 },
+    distorted:  { harmony: { tone: 'pad',    level: 0.7 },  notes: { tone: 'clean', sg: true }, bass: { tone: 'bass'    }, brightness: 0.42 },
+    electronic: { harmony: { engine: 'sample', tone: 'epiano', level: 0.85 }, notes: { tone: 'clean', sg: true }, bass: { tone: 'bass'    }, brightness: 0.7 },
   };
   const GLOBAL_AUDIO_DEFAULT = {
     family: 'clean',
     harmony: { engine: 'sample', tone: 'epiano', level: 0.9 },
-    notes:   { engine: 'sample', tone: 'clean', level: 1.0 },
+    notes:   { engine: 'sample', tone: 'clean', level: 1.0, sg: true },
     bass:    { engine: 'sample', tone: 'bass',  level: 0.95 },
     brightness: 0.5,
   };
@@ -4219,9 +4372,9 @@
   // preset file per GM percussion note, served from static/wafonts/ by the /wafont
   // route (zero route changes), same MIT WAF provenance as the melodic tones. The
   // piece→GM-note map is shared (FluidR3_GM kit); kits differ by level/groove, not
-  // sample set (brush/percussion sample sets are a later curation pass). NOTE: the
-  // FluidR3_GM drum DATA redistribution should be verified before any public release
-  // (same caveat as the bundled JCLive melodic data).
+  // sample set (brush/percussion sample sets are a later curation pass). NOTE:
+  // FluidR3_GM is MIT (verified 2026-06-12; provenance in static/wafonts/README.md)
+  // — the same font now also supplies the melodic tones.
   // Voice ids mirror the host's lib/drums.py PIECES vocabulary (snake_case) so a
   // SlopScale drum event maps 1:1 onto the host's 18-piece kit (and a future
   // drum_tab.json export needs no translation). GM notes match where we overlap.
@@ -4942,6 +5095,7 @@
     bending:'bend intonation', sweep_arpeggios:'clean sweep picking', strum_comp:'comping feel',
     shell_voicings:'shell voicings', rhythm_pulse:'subdivision + feel', herta:'burst control',
     motif:'riff vocabulary',
+    spider:'string-crossing independence', fingerstyle_arp:'p-i-m-a control',
     concept_chords:'chord concepts', walking_bass:'walking lines', root_fifth_octave:'root-fifth lock',
     octave_groove:'octave groove', dead_note_groove:'dead-note feel', slap_pop:'slap & pop',
     right_hand_technique:'right-hand control', tapping:'tapping fluency', hybrid_picking:'hybrid picking',
@@ -5065,6 +5219,8 @@
     tapping:          { bass:'adapted' },     // single-line, advanced only
     herta:            { bass:'adapted' },     // bass realizes the burst as a rake (or fretting trill), not pick-h-p-pick
     motif:            { bass:'adapted' },     // single-line realization: the cell's lower voice IS the bass line (no dyads)
+    spider:           { bass:'adapted' },     // the crossing drill transfers (i/m instead of p+treble); pairs narrow on 4 strings
+    fingerstyle_arp:  { bass:'n-a' },         // held-grip arpeggiation is guitar-coded (same rationale as strum_comp)
     pentatonic_super: { bass:'adapted' },     // low-mid register, stretch caveat
     sweep_arpeggios:  { bass:'adapted' },     // a raked broken arpeggio, not a metal sweep
     shell_voicings:   { bass:'adapted' },     // 2-note low-register, no clusters below ~fret 7
@@ -5121,27 +5277,29 @@
                 : GLOBAL_AUDIO_DEFAULT.brightness,
     };
     // The practice voice tracks the instrument, not the genre: a bass exercise's
-    // notes should sound like a bass regardless of the backing's family.
-    if (cfg && cfg.instrument === 'bass') out.notes.tone = 'bass';
+    // notes should sound like a bass regardless of the backing's family — and
+    // never the sampled GUITAR DI (its keycenters bottom out at MIDI 37).
+    if (cfg && cfg.instrument === 'bass') { out.notes.tone = 'bass'; out.notes.sg = false; }
     if (Number.isFinite(a.brightness)) out.brightness = a.brightness;           // slider overrides
     // (backing-voice override moved to the Mixer's per-channel instrument select — Phase C)
     return out;
   }
 
   // ── WebAudioFont sampler (the engine:'sample' path) ───────────────────────
-  // Borrows the host's GM-multisample approach (the same JCLive soundfont its
-  // piano plugin plays). Loads the player + a GM preset on demand, caches it,
-  // and harmony notes for sampled profiles play via queueWaveTable onto the
-  // 'harmony' bus — with the oscillator voice as the fallback until the (async)
-  // preset finishes loading. NOTE: loads from the soundfont CDN today (proven,
-  // exactly as the host does); the agreed hardening step is to self-host the
-  // handful of GM programs we actually use under a plugin static route.
-  // Self-hosted: bundled under static/wafonts/, served by routes.py (no runtime
-  // CDN dependency, offline-safe). WebAudioFont code is MIT; the JCLive GM
-  // soundfont data is bundled for the backing — verify redistribution before public release.
+  // Borrows the host's GM-multisample approach. Loads the player + a GM preset
+  // on demand, caches it, and harmony notes for sampled profiles play via
+  // queueWaveTable onto the 'harmony' bus — with the oscillator voice as the
+  // fallback until the (async) preset finishes loading. Self-hosted: bundled
+  // under static/wafonts/, served by routes.py (no runtime CDN dependency,
+  // offline-safe). LICENSING (verified 2026-06-12): WebAudioFont code is MIT;
+  // the sound data is FluidR3_GM (MIT — provenance + license pointers in
+  // static/wafonts/README.md). The previously-bundled JCLive variants were
+  // REMOVED the same day: their sound-data provenance is unverifiable upstream
+  // (an open license-clarification issue with no maintainer answer) — don't
+  // reintroduce them in tracked files.
   const WAF_BASE = '/api/plugins/slopscale/wafont/';
   const WAF_PLAYER_URL = '/api/plugins/slopscale/wafont/WebAudioFontPlayer.js';
-  const WAF_SF = 'JCLive_sf2_file';
+  const WAF_SF = 'FluidR3_GM_sf2_file';
   // Symbolic voice id → General MIDI program. Bundled under static/wafonts/ and
   // served by routes.py (offline-safe). guitar = steel acoustic (25); clean =
   // clean electric (27); bass = fingered electric (33); upright = acoustic bass (32).
@@ -5252,8 +5410,9 @@
   // Loading mirrors the WAF contract: lazy fetch + decodeAudioData, cached,
   // per-chord all-or-nothing readiness so a half-sampled chord never sounds —
   // until ready the WAF clean-electric preset (then the oscillator pad) covers.
-  // Selection is the mixer per-strip instrument override ('Electric DI') for the
-  // by-ear A/B vs the GM voice; profiles adopt it only after the gate.
+  // Selection: the GUIDE (notes) voice now DEFAULTS to this sample for guitar
+  // instruments (profile notes.sg — the by-ear gate passed 2026-06-12, see
+  // sgNotesWanted); Rhythm/Keys still opt in via the mixer 'Electric DI' pin.
   const SG_BASE = '/api/plugins/slopscale/sample/';
   const SG_KEYCENTERS = [37, 40, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84];
   const SG_VEL_HARD = 0.9;   // ev.vel ≥ 0.9 (accent tier) → the harder vl3 layer
@@ -5293,13 +5452,23 @@
   };
   const sgReadyFor = (midis, vel) =>
     (midis || []).every(m => sgFilesFor(m, vel).every(f => sgBuffers[f] && sgBuffers[f].state === 'ready'));
-  // Which strips the player has pinned to the sampled guitar (mixer override only
-  // until the by-ear gate; profiles never resolve to 'shiny' yet).
+  // Which strips the player has pinned to the sampled guitar.
   const sgToneFor = key => ((mixerState[key] && mixerState[key].instrument) === 'shiny');
+  // GUIDE (notes) voice resolution — the by-ear gate PASSED 2026-06-12, so the
+  // DI sample is now the profile DEFAULT for guitar instruments (notes.sg): an
+  // explicit mixer pin wins both ways (pin 'shiny' forces it, any other pin
+  // defeats it); with no pin, the resolved profile's sg flag decides.
+  const sgNotesWanted = prof => {
+    const pin = mixerState.notes && mixerState.notes.instrument;
+    if (pin) return pin === 'shiny';
+    return !!(prof && prof.notes && prof.notes.sg);
+  };
   // Kick the lazy loads for every buffer the bundle's shiny-pinned strips need.
   // Returns the in-flight promises (awaitVoices races them against its cap).
   function sgPrewarm(bundle) {
-    const wantHarm = sgToneFor('harmony'), wantPad = sgToneFor('pad'), wantNotes = sgToneFor('notes');
+    const wantHarm = sgToneFor('harmony'), wantPad = sgToneFor('pad');
+    let wantNotes = sgToneFor('notes');
+    if (!wantNotes) { try { wantNotes = sgNotesWanted(resolveAudioProfile((bundle && bundle.config) || {})); } catch (_) {} }
     if (!wantHarm && !wantPad && !wantNotes) return [];
     const files = new Set();
     if (bundle && (wantHarm || wantPad)) for (const ev of bundle.backingEvents || []) {
@@ -5566,7 +5735,7 @@
   // eighth-note exercise previews no extra ticks. Fixes the seam shock — the
   // count-in taught a quarter pulse, then 8ths/16ths arrived unannounced ("the
   // 8ths steamroll you unexpected when your hands are cold").
-  const COUNTIN_TOKEN_TICKS = { gallop: 2, reverse_gallop: 2, skip_chug: 4, snap: 4 };
+  const COUNTIN_TOKEN_TICKS = { gallop: 2, reverse_gallop: 2, skip_chug: 4, snap: 4, herta_chug: 4 };
   const SUBDIV_BEAT_FRAC = { quarter: 1, eighth: 0.5, sixteenth: 0.25, triplet: 1 / 3, eighth_triplet: 1 / 3, sixteenth_triplet: 1 / 6 };
   function countInSubTicks(cfg) {
     const o = COUNTIN_TOKEN_TICKS[cfg.subdivision];
@@ -7808,6 +7977,110 @@
     return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration };
   }
 
+  // ── Fingerstyle generators (the Acoustic & Fingerstyle pack, 2026-06-12) ──
+
+  // The two-string crossing "spider" (community-contributed warmup, beta thread
+  // 2026-06-12). A chromatic 4-finger frame where EVERY pluck changes string:
+  // the pattern alternates treble/bass within a string pair, and each
+  // repetition MIRRORS which string leads — so the right hand never rests and
+  // the left hand holds the frame across the gap. Let everything ring (the
+  // fingerstyle point, per the source thread); RH marks = thumb (p) on the
+  // bass-side string, the treble side takes its classical home finger (i/m/a
+  // by string). The frame walks up the neck one fret per cell and back down
+  // (the "4 reps then move a fret" loop, with reps left to the A-B loop).
+  // spiderPair widens the pair: adjacent (D+G) → skip (A+B) → wide (E+e) —
+  // the three difficulty grades from the source thread, stretch + skip width.
+  function buildSpiderExercise(cfg) {
+    const opens = openMidisForConfig(cfg);
+    const count = opens.length;
+    const step = secondsPerDivision(cfg);
+    const mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
+    const offsets = CHROMATIC_PATTERNS[cfg.chromaticPattern] || CHROMATIC_PATTERNS['1342'];
+    const spread = cfg.spiderPair === 'wide' ? 2 : cfg.spiderPair === 'skip' ? 1 : 0;
+    const mid = Math.floor(count / 2);                       // 6-string: lo=2 (D), hi=3 (G)
+    const lo = Math.max(0, mid - 1 - spread), hi = Math.min(count - 1, mid + spread);
+    if (lo === hi) throw new Error('Spider needs two distinct strings — widen the setup.');
+    // Treble-side home finger: top string → a, next → m, then i (E/B/G on guitar).
+    const trebleRh = hi >= count - 1 ? 3 : hi === count - 2 ? 2 : 1;
+    // Frame walk: fretMin is the starting frame (the thread starts at 5 — fret 1
+    // is harder on the hand), climbing while the 4-fret span stays ≤ fretMax,
+    // then back down — an up_down cycle with no doubled turnaround.
+    const frameLo = Math.max(1, cfg.fretMin || 5);
+    const frameHi = Math.max(frameLo, Math.min((cfg.fretMax || 12) - 3, 12));
+    const frames = [];
+    for (let f = frameLo; f <= frameHi; f++) frames.push(f);
+    for (let f = frameHi - 1; f > frameLo; f--) frames.push(f);
+    const notes = [];
+    const sections = [{ name: `Spider — strings ${count - lo} & ${count - hi}`, number: 1, time: 0 }];
+    const cellLen = offsets.length * 2;                      // hi-lead pass + the lo-lead mirror
+    let t = 0, k = 0;
+    while (t < totalTime - 0.001) {
+      const cell = Math.floor(k / cellLen), inCell = k % cellLen;
+      const F = frames[cell % frames.length];
+      const mirrored = inCell >= offsets.length;
+      const off = offsets[inCell % offsets.length];
+      const onHi = (inCell % 2 === 0) !== mirrored;          // who leads flips each half-cell
+      const nf = { t: Number(t.toFixed(6)), s: onHi ? hi : lo, f: F + off,
+                   sus: Number(Math.min(step * 1.9, 2.4).toFixed(6)),   // let it ring
+                   rh: onHi ? trebleRh : 0 };
+      if (off >= 0 && off <= 3) nf.fg = off + 1;             // one finger per frame fret
+      notes.push(noteDefaults(nf));
+      t += step; k++;
+    }
+    return { notes, chords: [], chordTemplates: [], handShapes: [], sections, duration: Math.max(t, totalTime) };
+  }
+
+  // p-i-m-a broken-chord study over a progression — the classical arpeggio-
+  // study tradition, genericized: hold each bar's grip (the same open/CAGED
+  // grips strum_comp picks) and arpeggiate it one string at a time, thumb on
+  // the bass string, i-m-a on their home strings, every note ringing through
+  // the bar (free stroke, let ring). The pattern restarts on each chord.
+  const PIMA_PATTERNS = {
+    pima:   ['p', 'i', 'm', 'a'],                  // the ascending foundation
+    pami:   ['p', 'a', 'm', 'i'],                  // descending answer
+    pimami: ['p', 'i', 'm', 'a', 'm', 'i'],        // the up-and-back wave
+    pmim:   ['p', 'm', 'i', 'm'],                  // inner-voice alternation
+  };
+  function buildFingerstyleArpExercise(cfg) {
+    const mLen = measureSeconds(cfg), totalTime = cfg.bars * mLen;
+    const step = secondsPerDivision(cfg);
+    const degrees = progressionDegreesForConfig(cfg);
+    const seq = PIMA_PATTERNS[cfg.pimaPattern] || PIMA_PATTERNS.pima;
+    const notes = [], chords = [], chordTemplates = [], handShapes = [];
+    const sections = [{ name: `Fingerstyle — ${cfg.key}`, number: 1, time: 0 }];
+    let templateId = 0, prevRootFret = -1;
+    for (let bar = 0, t = 0; t < totalTime - 0.001; bar++, t += mLen) {
+      const deg = degrees[bar % degrees.length];
+      const rootPc = chordRootForDegree(cfg, deg);
+      const quality = chordQualityForDegree(cfg.scale, cfg.chordDepth, deg, cfg.chordOverride, cfg.progression);
+      const grip = pickStrumGrip(cfg, rootPc, quality, prevRootFret, {});
+      if (!grip || !grip.gripNotes.length) continue;
+      prevRootFret = grip.rootFret;
+      const id = templateId++;
+      chordTemplates.push(grip.template || templateFromPositions(chordName(rootPc, quality), grip.gripNotes, cfg, false));
+      chords.push({ t: Number(t.toFixed(6)), id, hd: false, notes: grip.gripNotes.map(p => noteDefaults({ s: p.s, f: p.f, sus: 0 })) });
+      handShapes.push({ chord_id: id, start_time: Number(t.toFixed(6)), end_time: Number((t + mLen).toFixed(6)), arp: true });
+      // Thumb = the grip's lowest sounded string; i/m/a = its top three (low→high).
+      const sorted = grip.gripNotes.slice().sort((a, b) => a.s - b.s);
+      const bassN = sorted[0];
+      const top = sorted.slice(-3);
+      const forTok = (tok) => tok === 'p' ? { n: bassN, rh: 0 }
+        : tok === 'i' ? { n: top[0] || bassN, rh: 1 }
+        : tok === 'm' ? { n: top[1] || top[0] || bassN, rh: 2 }
+        :               { n: top[2] || top[1] || top[0] || bassN, rh: 3 };
+      const barEnd = Math.min(t + mLen, totalTime);
+      for (let k = 0; ; k++) {
+        const tk = t + k * step;
+        if (tk >= barEnd - 0.0005) break;
+        const { n, rh } = forTok(seq[k % seq.length]);
+        notes.push(noteDefaults({ t: Number(tk.toFixed(6)), s: n.s, f: n.f,
+                                  sus: Number(Math.min(barEnd - tk, 2.4).toFixed(6)), rh }));
+      }
+    }
+    if (!notes.length) throw new Error('No fingerstyle notes generated (needs a 6-string guitar setup).');
+    return { notes, chords, chordTemplates, handShapes, sections, duration: totalTime };
+  }
+
   // Guide tones generator — jazz entry-point exercise for any progression.
   // Generates only the 3rd and/or 7th of each chord, voice-led so each note
   // moves by the smallest possible interval to the next chord's guide tone.
@@ -8469,9 +8742,13 @@
     const notes = [], sections = [{ name: `Single-string pulse — ${cfg.key} (${offbeat ? 'skank, ' : ''}${cellLabel})`, number: 1, time: 0 }];
     let t = offbeat ? beat / 2 : 0, idx = 0;
     while (t < totalTime - 0.001) {
-      // Cells accent their downbeat (first onset of each repetition); even
-      // subdivisions accent the accentAt-th note of each beat (Accent Displacement).
-      const isAccent = stepsLen ? (idx % stepsLen === 0)
+      // Cells accent their downbeat (first onset of each repetition) — or every
+      // accentEvery-th onset when the cell declares one (the herta chug's
+      // 3-over-2 lean: the accent rides each ¾-beat cell inside the 3-beat
+      // cycle encoding). Even subdivisions accent the accentAt-th note of each
+      // beat (Accent Displacement).
+      const cellAccentEvery = RHYTHM_CELLS[cfg.subdivision] && RHYTHM_CELLS[cfg.subdivision].accentEvery;
+      const isAccent = stepsLen ? (idx % (cellAccentEvery || stepsLen) === 0)
                                 : ((idx % subsPerBeat) === (accentAt % subsPerBeat));
       notes.push(noteDefaults({ t: Number(t.toFixed(6)), s: 0, f: rootFret, sus, pm: true, ac: isAccent }));
       t += stepsLen ? steps[idx % stepsLen] : step; idx++;
@@ -9679,6 +9956,8 @@
     if (mode === 'chord_scales')      return buildChordScaleExercise(cfg);
     if (mode === 'sweep_arpeggios')   return buildSweepArpeggioExercise(cfg);
     if (mode === 'chromatic')              return buildChromaticExercise(cfg);
+    if (mode === 'spider')                 return buildSpiderExercise(cfg);
+    if (mode === 'fingerstyle_arp')        return buildFingerstyleArpExercise(cfg);
     if (mode === 'guide_tones')            return buildGuideTonesExercise(cfg);
     if (mode === 'bending')                return buildBendingExercise(cfg);
     if (mode === 'legato')                 return buildLegatoExercise(cfg);
@@ -9967,6 +10246,9 @@
     guide_tones:60, chord_scales:75, bebop_scale:50, chromatic_enclosures:50,
     call_response:60, walking_bass:60, motif:60,
     pentatonic_super:55, triadic_pairs:55, shell_voicings:55, strum_comp:55,
+    // Fingerstyle pack: the spider is a pass-bounded warmup; the p-i-m-a study
+    // is cycle-bounded (its unit is the progression lap).
+    spider:45, fingerstyle_arp:55,
   };
   // Types whose UNIT is a harmonic cycle / whole-neck traversal, not the bar — they
   // get the higher ceiling (180s) and a longer base. The `scale` type joins this
@@ -9975,7 +10257,7 @@
     'chord_scales','guide_tones','progression_arpeggios','diatonic_arpeggios',
     'walking_bass','arpeggio_inversions','bebop_scale','chromatic_enclosures',
     'call_response','pentatonic_super','triadic_pairs','shell_voicings','strum_comp',
-    'motif',
+    'motif','fingerstyle_arp',
   ]);
   const RUN_FLOOR_SEC = 25;             // never shorter than this (settling + a couple judged passes)
   const RUN_CEIL_PASS_SEC = 90;         // pass-bounded ceiling (past it grinds sloppiness in)
@@ -10111,6 +10393,7 @@
     legato:'technique', bending:'technique', sweep_arpeggios:'technique', pedal_riff:'technique',
     rhythm_pulse:'technique', herta:'technique', concept_chords:'application',
     motif:'application',
+    spider:'warmup', fingerstyle_arp:'technique',
   };
   function blockRole(seg) {
     if (seg.role) return seg.role;
@@ -13266,6 +13549,125 @@
     }
     return bus.reverb;
   }
+
+  // ── Amp inserts (Clean / Overdrive / Metal) — Guide + Rhythm strips ─────────
+  // The in-house amp chain (band-intel Track C; 2026-06-05 audio-engine verdict:
+  // nam_tone is an EXTERNAL host plugin whose .nam models are user-uploaded and
+  // never shipped, so the WaveShaper + cab chain is OUR first-class amp — the
+  // "NAM profile" deliverable is these three designed presets, zero assets).
+  // Chain (pre-FADER insert, console semantics — the fader stays a loudness
+  // control, never a drive knob):
+  //   voices → entry → preHP (tighten) → [pre-mid push] → drive → WaveShaper
+  //          → post EQ stack → cab (ConvolverNode, PROCEDURAL IR — the same
+  //            zero-asset precedent as ensureSharedReverb; swap for a cleared
+  //            CC0 4×12 capture via the /ir route when the hunt lands)
+  //          → makeup → fader g → (existing carve/pan/out path)
+  // Makeup gains are loudness-matched by design (clipping raises RMS, so higher
+  // drive = lower makeup) and the master limiter still backstops — by-ear trim
+  // welcome (the SS_AMP levels are the knobs).
+  const AMP_PRESETS = {
+    // Clean: warm + sparkle, barely driven — what a DI line into a clean combo
+    // does. The default Auto pick for the sampled DI guitar voice.
+    clean: { label: 'Clean', preHp: 40, drive: 1.6, curve: 'soft',
+             post: [['lowshelf', 120, 0, 1.5], ['peaking', 500, 0.8, -1], ['peaking', 3200, 0.9, 2]],
+             makeup: 0.85 },
+    // Overdrive: the screamer-into-crunch-amp recipe — pre-clip mid push +
+    // soft asymmetric clip, presence on top.
+    drive: { label: 'Overdrive', preHp: 75, preMid: [800, 0.8, 4], drive: 6, curve: 'soft',
+             post: [['lowshelf', 100, 0, -1], ['peaking', 850, 0.9, 2], ['peaking', 3000, 0.9, 2]],
+             makeup: 0.42 },
+    // Metal: tight high-gain — hard pre-HP so chugs don't flub, hard clip,
+    // post mid scoop + thump + presence.
+    metal: { label: 'Metal', preHp: 110, drive: 16, curve: 'hard',
+             post: [['lowshelf', 95, 0, 2], ['peaking', 580, 1.1, -5], ['peaking', 3500, 0.9, 3]],
+             makeup: 0.24 },
+  };
+  const AMP_OPTIONS = [['', 'Amp: Auto'], ['off', 'No amp'], ['clean', 'Clean'], ['drive', 'Overdrive'], ['metal', 'Metal']];
+  function ampCurve(kind, drive) {
+    const n = 2048, c = new Float32Array(n);
+    const norm = Math.tanh(drive);
+    for (let i = 0; i < n; i++) {
+      const x = (i / (n - 1)) * 2 - 1;
+      // 'soft' = symmetric tanh; 'hard' adds a small DC pre-bias (asymmetric clip
+      // = even harmonics) and a touch of hard limiting on top for the metal edge.
+      if (kind === 'hard') {
+        const y = Math.tanh(drive * (x + 0.03)) - Math.tanh(drive * 0.03);
+        c[i] = Math.max(-0.98, Math.min(0.98, y / norm * 1.12));
+      } else {
+        c[i] = Math.tanh(drive * x) / norm;
+      }
+    }
+    return c;
+  }
+  // Procedural mono cab IR (~50 ms): direct spike + decaying noise body, voiced
+  // by crude in-place one-pole passes (LP ≈ speaker top-end rolloff, HP ≈ cone
+  // low cut) + one short reflection for cone/edge character. ConvolverNode's
+  // default normalize:true handles loudness. Cached per AudioContext.
+  let _cabIr = null, _cabIrCtx = null;
+  function cabIrBuffer(ctx) {
+    if (_cabIr && _cabIrCtx === ctx) return _cabIr;
+    const sr = ctx.sampleRate, len = Math.floor(sr * 0.05);
+    const buf = ctx.createBuffer(1, len, sr), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (sr * 0.008));
+    d[0] = 1;
+    const refl = Math.max(1, Math.round(sr * 0.0007));
+    for (let i = len - 1; i >= refl; i--) d[i] += 0.35 * d[i - refl];
+    // LP ~4.3 kHz ×2 (12 dB/oct speaker rolloff), then HP ~90 Hz.
+    const aLp = Math.exp(-2 * Math.PI * 4300 / sr);
+    for (let pass = 0; pass < 2; pass++) { let y = 0; for (let i = 0; i < len; i++) { y = (1 - aLp) * d[i] + aLp * y; d[i] = y; } }
+    const aHp = Math.exp(-2 * Math.PI * 90 / sr);
+    { let y = 0, px = 0; for (let i = 0; i < len; i++) { const x = d[i]; y = aHp * (y + x - px); px = x; d[i] = y; } }
+    _cabIr = buf; _cabIrCtx = ctx;
+    return buf;
+  }
+  function buildAmpChain(ctx, p) {
+    const nodes = [];
+    const mk = (n) => { nodes.push(n); return n; };
+    const preHp = mk(ctx.createBiquadFilter()); preHp.type = 'highpass'; preHp.frequency.value = p.preHp; preHp.Q.value = 0.7;
+    let head = preHp;
+    if (p.preMid) {
+      const pm = mk(ctx.createBiquadFilter()); pm.type = 'peaking';
+      pm.frequency.value = p.preMid[0]; pm.Q.value = p.preMid[1]; pm.gain.value = p.preMid[2];
+      head.connect(pm); head = pm;
+    }
+    const shaper = mk(ctx.createWaveShaper()); shaper.curve = ampCurve(p.curve, p.drive); shaper.oversample = '4x';
+    head.connect(shaper); head = shaper;
+    for (const [type, f, q, g] of p.post) {
+      const eq = mk(ctx.createBiquadFilter()); eq.type = type; eq.frequency.value = f;
+      if (q) eq.Q.value = q; eq.gain.value = g;
+      head.connect(eq); head = eq;
+    }
+    const cab = mk(ctx.createConvolver()); cab.buffer = cabIrBuffer(ctx);
+    const makeup = mk(ctx.createGain()); makeup.gain.value = p.makeup;
+    head.connect(cab); cab.connect(makeup);
+    return { input: preHp, output: makeup, nodes };
+  }
+  // Per-strip amp resolution: an explicit pick wins; 'off' = bypass; Auto ('')
+  // gives the sampled DI guitar voice the Clean amp (a raw DI line is sterile)
+  // and leaves every other voice (EP/organ/WAF guitars/synths) un-amped.
+  // _ampWant is set by the scheduler each pass (it knows the resolved voices);
+  // wireTrackAmp is idempotent on the wanted id, so re-calls are free.
+  const _ampWant = { notes: null, harmony: null };
+  function resolveAmpId(name, voiceIsSgSample) {
+    const sel = (mixerState[name] && mixerState[name].amp) || '';
+    if (sel === 'off') return null;
+    if (AMP_PRESETS[sel]) return sel;
+    return voiceIsSgSample ? 'clean' : null;
+  }
+  function wireTrackAmp(ctx, name) {
+    const bus = audioBus;
+    if (!bus || !bus.voiceIn || !bus.voiceIn[name]) return;
+    const want = _ampWant[name] || '';
+    const cur = bus.amps[name];
+    if (cur && cur.id === want) return;
+    const entry = bus.voiceIn[name], fader = bus.tracks[name];
+    try { entry.disconnect(); } catch (_) {}
+    if (cur) for (const n of cur.nodes) { try { n.disconnect(); } catch (_) {} }
+    if (!want || !AMP_PRESETS[want]) { entry.connect(fader); bus.amps[name] = { id: '', nodes: [] }; return; }
+    const chain = buildAmpChain(ctx, AMP_PRESETS[want]);
+    entry.connect(chain.input); chain.output.connect(fader);
+    bus.amps[name] = { id: want, nodes: chain.nodes };
+  }
   function trackBus(ctx, name) {
     const bus = ensureAudioBus(ctx);
     if (!bus.tracks[name]) {
@@ -13323,8 +13725,19 @@
         out.connect(groupOut); mkTap(out);
       }
       bus.tracks[name] = g;
+      // Amp-insert seam (Guide + Rhythm only): voices connect to a unity ENTRY
+      // node routed through the selected amp preset INTO the fader g — a
+      // pre-fader console insert, so the fader stays a loudness control and
+      // never becomes a drive knob. applyMixer's contract (bus.tracks[name] is
+      // the fader) is untouched; trackBus returns the entry as the voice input.
+      if (name === 'notes' || name === 'harmony') {
+        bus.voiceIn = bus.voiceIn || {}; bus.amps = bus.amps || {};
+        const entry = ctx.createGain(); entry.gain.value = 1;
+        bus.voiceIn[name] = entry;
+        wireTrackAmp(ctx, name);
+      }
     }
-    return bus.tracks[name];
+    return (bus.voiceIn && bus.voiceIn[name]) || bus.tracks[name];
   }
 
   // ── Shell mixer (M) — console strips: fader/pan/mute/solo per bus + MASTER ──
@@ -13341,8 +13754,8 @@
     // 'notes' is labeled Guide, NOT "Player": it's the tool's rendition of the
     // exercise line (the guide voice), not the player's own input — that's the
     // INPUT strip (live level + interface/tone shortcuts; we never process it).
-    { key:'notes',   label:'Guide',   backing:false, instr:'melodic', pan:0 },
-    { key:'harmony', label:'Rhythm',  backing:true,  instr:'melodic', pan:0.18 },
+    { key:'notes',   label:'Guide',   backing:false, instr:'melodic', amp:true, pan:0 },
+    { key:'harmony', label:'Rhythm',  backing:true,  instr:'melodic', amp:true, pan:0.18 },
     { key:'pad',     label:'Keys',    backing:true,  instr:'melodic', pan:-0.18 },
     { key:'bass',    label:'Bass',    backing:true,  instr:'bass',    pan:-0.06 },
     { key:'drums',   label:'Drums',   backing:true,  kit:true,        pan:-0.1 },
@@ -13360,7 +13773,7 @@
   const mixerState = {};
   let mixerBackingDim = false;
   let mixerMasterLevel = 1;   // multiplier over MASTER_TRIM (the headroom trim stays the engine's)
-  MIXER_CHANNELS.forEach(c => { mixerState[c.key] = { level:1, pan:c.pan || 0, mute:false, solo:false, instrument:null, kit:null }; });
+  MIXER_CHANNELS.forEach(c => { mixerState[c.key] = { level:1, pan:c.pan || 0, mute:false, solo:false, instrument:null, kit:null, amp:null }; });
   // Console fader taper (cube law): slider position p∈[0,1] → gain 0..2, so the
   // throw reads in dB like a DAW fader (−∞ at the bottom, unity ≈ 0.79, +6 dB
   // at the top). Stored mixerState levels stay LINEAR gain (back-compat with
@@ -13444,8 +13857,15 @@
             MIXER_KITS.map(([v, l]) => `<option value="${v}"${(st.kit || '') === v ? ' selected' : ''}>${l}</option>`).join('') +
           `</select>`
         : `<span class="slopscale-mixer-instr-none" aria-hidden="true"></span>`;
+      // Amp insert row (Guide + Rhythm); other strips get a spacer so the
+      // console rows stay aligned (design-in-context: one grid, no ragged strips).
+      const ampHtml = c.amp
+        ? `<select class="slopscale-mixer-amp" data-k="${c.key}" title="${c.label} amp (Clean / Overdrive / Metal)" aria-label="${c.label} amp">` +
+            AMP_OPTIONS.map(([v, l]) => `<option value="${v}"${(st.amp || '') === v ? ' selected' : ''}>${l}</option>`).join('') +
+          `</select>`
+        : `<span class="slopscale-mixer-instr-none" aria-hidden="true"></span>`;
       return `<div class="slopscale-mixer-strip" data-strip="${c.key}">` +
-        selHtml +
+        selHtml + ampHtml +
         `<input type="range" class="slopscale-mixer-pan" data-k="${c.key}" min="-1" max="1" step="0.01" value="${mixerPanFor(c.key)}" aria-label="${c.label} pan" title="Pan — double-click to reset">` +
         `<div class="slopscale-mixer-msrow">` +
           `<button type="button" class="slopscale-mixer-tog mute${st.mute ? ' active' : ''}" data-k="${c.key}" data-act="mute" title="Mute" aria-pressed="${st.mute}">M</button>` +
@@ -14865,6 +15285,15 @@
   function countInDefaultBars() {
     try { return Math.max(1, Math.min(8, parseInt(localStorage.getItem('slopscale.countInDefault') || '1', 10) || 1)); } catch (_) { return 1; }
   }
+  // Count-in grid preview (the soft sub-ticks at the exercise's subdivision in the
+  // last count-in bar / Workout break bars) — OPT-IN since 2026-06-12: real
+  // beginner dogfood found the extra ticks made slow exercises FEEL faster.
+  function countInGridOn() {
+    try { return localStorage.getItem('slopscale.countInGrid') === 'on'; } catch (_) { return false; }
+  }
+  function applyCountInGrid(val) {
+    document.querySelectorAll('#slopscale-countin-grid .slopscale-mini-btn').forEach(b => b.classList.toggle('active', b.dataset.grid === val));
+  }
   function applyCountInDefault(val) {
     const bars = Math.max(1, Math.min(8, parseInt(val, 10) || 1));
     setFieldSilent('countIn', String(bars));   // the field is the source; syncTransport reflects the segments
@@ -14884,6 +15313,7 @@
     applyCountInDefault(ci);
     const sel = $('slopscale-countin-default');
     if (sel) sel.value = ci;
+    applyCountInGrid(countInGridOn() ? 'on' : 'off');
   }
 
   function schedulePluckedString(ctx, when, freq, dur, instrument, gainScale, bendSemis) {
@@ -15320,8 +15750,14 @@
     // Like the ensureWafPreset calls above, scheduling kicks the lazy buffer
     // loads itself — paths that skip prewarm (e.g. jamPlay) still warm up, and
     // the rolling window picks the samples up at the next chunk/wrap.
-    const sgHarm = sgToneFor('harmony'), sgPad = sgToneFor('pad'), sgNotes = sgToneFor('notes');
+    const sgHarm = sgToneFor('harmony'), sgPad = sgToneFor('pad'), sgNotes = sgNotesWanted(harmProfile);
     if (sgHarm || sgPad || sgNotes) sgPrewarm(bundle);
+    // Amp inserts (Guide + Rhythm): resolve each strip's amp for THIS pass (an
+    // explicit pick wins; Auto = Clean for the DI sample voice, none otherwise)
+    // and (re)wire the pre-fader insert — idempotent, so per-chunk calls are free.
+    _ampWant.notes = resolveAmpId('notes', sgNotes);
+    _ampWant.harmony = resolveAmpId('harmony', sgHarm);
+    wireTrackAmp(ctx, 'notes'); wireTrackAmp(ctx, 'harmony');
     const wafVoice = (preset, busName, when, midi, d, vol) => {
       const e = wafPlayer.queueWaveTable(ctx, trackBus(ctx, busName), preset, when, midi, d, vol * wafLoudnessTrim(midi));
       if (e) audioNodes.push({ stop() { try { e.cancel(); } catch (_) {} }, disconnect() {} });
@@ -15441,9 +15877,13 @@
         // as an ARRIVAL. The leading count-in + the metronome play at full.
         scheduleClick(ctx, base + (b.time - startFrom), accent, false, b.brk ? 0.75 : 1);
         schedEnd = Math.max(schedEnd, base + (b.time - startFrom) + 0.1);
+        // The grid-preview boosts (last count-in bar + break bars) are OPT-IN
+        // (slopscale.countInGrid; 2026-06-12 beginner dogfood: the extra ticks
+        // made slow exercises FEEL faster). An explicit clickSubdiv always plays.
+        const gridOn = countInGridOn();
         const lastCountInBar = inCountIn && b.time >= lead - ciMeas - 1e-4;
-        const perBeat = lastCountInBar ? Math.max(userPerBeat, ciTicks)
-          : b.brk ? Math.max(userPerBeat, b.brkSub || 1)
+        const perBeat = (lastCountInBar && gridOn) ? Math.max(userPerBeat, ciTicks)
+          : b.brk ? Math.max(userPerBeat, gridOn ? (b.brkSub || 1) : 1)
           : userPerBeat;
         if (perBeat > 1) {
           // Derive this beat's length from the actual gap to the next beat so
@@ -16560,6 +17000,10 @@
     // or construct phase never rides into the next pathway selected.
     setFieldSilent('motifCell', config.motifCell || '');
     setFieldSilent('motifPhase', config.motifPhase || '');
+    // Fingerstyle pack: anti-leak defaulted — a spider rung's pair / a study's
+    // p-i-m-a pattern never rides into the next pathway.
+    setFieldSilent('spiderPair', config.spiderPair || '');
+    setFieldSilent('pimaPattern', config.pimaPattern || '');
     // sweepStrings (Sweep ladder): anti-leak defaulted → a 3-string entry rung's
     // limiter never persists into the next pathway's full-box sweep.
     setFieldSilent('sweepStrings', config.sweepStrings != null ? config.sweepStrings : '0');
@@ -16976,9 +17420,15 @@
     melodeath_twin_leads: ['roll_dont_barre'],
     pick_tremolo: ['wrist_neutral', 'anchor_palm'],
     pick_alternate: ['wrist_neutral', 'anchor_palm'],
+    pick_chromatic_16ths: ['wrist_neutral', 'finger_proximity'],
     pick_economy: ['wrist_neutral', 'light_grip'],
     pick_string_skip: ['anchor_palm'],
     pick_herta: ['light_grip', 'finger_proximity'],
+    djent_herta_chug: ['wrist_neutral', 'light_grip'],
+    fs_pima_foundation: ['light_grip'],
+    fs_spider_adjacent: ['finger_proximity', 'light_grip'],
+    fs_spider_skip: ['finger_proximity', 'light_grip'],
+    fs_spider_wide: ['finger_proximity', 'light_grip'],
     leg_hopo: ['finger_proximity', 'light_grip'],
     leg_runs: ['finger_proximity', 'light_grip'],
     leg_tapping: ['finger_proximity'],
@@ -21150,6 +21600,22 @@
     // Per-channel instrument select (Phase C) — set the override, load the voice,
     // and (if playing) re-schedule from the playhead so it switches on WAF cleanly.
     mixCh?.addEventListener('change', async (ev) => {
+      // Amp select (Guide/Rhythm): bus-level insert — rewire live, no re-schedule
+      // needed (sounding voices flow through the new chain). Auto resolution
+      // happens in the scheduler per pass; here we wire the explicit picks and
+      // let the next chunk settle an Auto.
+      const ampSel = ev.target.closest && ev.target.closest('.slopscale-mixer-amp');
+      if (ampSel) {
+        const k = ampSel.dataset.k;
+        mixerState[k].amp = ampSel.value || null;
+        mixerSave();
+        if (audioBus) {
+          if (ampSel.value && ampSel.value !== 'off') _ampWant[k] = ampSel.value;
+          else if (ampSel.value === 'off') _ampWant[k] = null;
+          wireTrackAmp(audioBus.ctx, k);
+        }
+        return;
+      }
       const kitSel = ev.target.closest && ev.target.closest('.slopscale-mixer-kit');
       const sel = kitSel || (ev.target.closest && ev.target.closest('.slopscale-mixer-instr')); if (!sel) return;
       if (kitSel) mixerState[sel.dataset.k].kit = sel.value || null;
@@ -21218,6 +21684,7 @@
     document.querySelectorAll('#slopscale-theme-pick .slopscale-theme-swatch').forEach(b => b.addEventListener('click', () => applyTheme(b.dataset.theme || '')));
     document.querySelectorAll('#slopscale-xp-mode .slopscale-mini-btn').forEach(b => b.addEventListener('click', () => applyXpModeDefault(b.dataset.xp)));
     $('slopscale-countin-default')?.addEventListener('change', (e) => { try { localStorage.setItem('slopscale.countInDefault', e.target.value); } catch (_) {} applyCountInDefault(e.target.value); });
+    document.querySelectorAll('#slopscale-countin-grid .slopscale-mini-btn').forEach(b => b.addEventListener('click', () => { try { localStorage.setItem('slopscale.countInGrid', b.dataset.grid); } catch (_) {} applyCountInGrid(b.dataset.grid); }));
     loadSettingsPrefs();
     document.addEventListener('click', (e) => {
       const menu = $('slopscale-settings-menu'); if (!menu || !menu.classList.contains('ss-open')) return;
@@ -21392,6 +21859,6 @@
     jamArmFromDrill, jamTargetPcs, jamNextGuidePcs,
     getActiveBundleInfo: () => activeBundle ? { config: activeBundle.config, duration: activeBundle.songInfo && activeBundle.songInfo.duration, leadIn: activeBundle.leadIn } : null,
     sgStats: () => { const out = { ready: 0, loading: 0, failed: 0 }; for (const k of Object.keys(sgBuffers)) out[sgBuffers[k].state] = (out[sgBuffers[k].state] || 0) + 1; return out; } };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, resolveAudioProfile, sgNotesWanted, ampState: () => ({ want: { ..._ampWant }, wired: audioBus && audioBus.amps ? Object.fromEntries(Object.entries(audioBus.amps).map(([k, v]) => [k, v.id])) : null }), avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();

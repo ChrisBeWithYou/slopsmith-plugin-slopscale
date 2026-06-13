@@ -426,7 +426,12 @@ async function run() {
       // consecutive pairs are consecutive scale degrees (position mode orders by
       // string, which would scramble the pairs).
       const row = (seq, expect) => {
-        const cfg = Object.assign(S.readConfig(), { shapeNotes: null, stringSetup: "guitar_6_standard", practiceType: "scale", scale: "major", key: "C", fretboardSystem: "caged", shape: "E", direction: "ascending", sequence: seq, bars: 8 });
+        // fretMin/fretMax pinned (2026-06-12): readConfig stopped letting the
+        // beginner-mode CAGED fallback clobber frame-type fret windows, so the
+        // form residue here is now the literal window (e.g. the chromatic
+        // warmup's 1-4) — which skews the re-resolved run. The row must stand
+        // on its own cfg, like the sweep row.
+        const cfg = Object.assign(S.readConfig(), { shapeNotes: null, stringSetup: "guitar_6_standard", practiceType: "scale", scale: "major", key: "C", fretboardSystem: "caged", shape: "E", direction: "ascending", sequence: seq, bars: 8, fretMin: 0, fretMax: 12 });
         cfg.mode = "scale";
         const ex = S.generateExercise(cfg);
         const opens = S.makeBundle(ex).openMidis || [];
@@ -507,7 +512,12 @@ async function run() {
         return fatal;
       }));
       rows.push(row("sweep: directional pkd both ways, apex legato pick-transparent", () => {
-        const sweep = gen({ practiceType: "sweep_arpeggios", key: "A", scale: "natural_minor", fretMin: 5, fretMax: 17, stringSetup: "guitar_6_standard", stringCount: 6 });
+        // Pin the grid (every sweep rung declares sixteenth): this row used to
+        // inherit the form residue, and the 2026-06-12 beginner retune moved the
+        // auto-applied first pathway to quarter@60 — where a sweep chart is
+        // degenerate (ascending rakes only). The invariant under test is stroke
+        // DIRECTION, so the cfg must stand on its own like the economy row.
+        const sweep = gen({ practiceType: "sweep_arpeggios", key: "A", scale: "natural_minor", fretMin: 5, fretMax: 17, stringSetup: "guitar_6_standard", stringCount: 6, subdivision: "sixteenth", bpm: 65 });
         all.push(...sweep);
         const sw = sweep.filter((n) => !n.ho && !n.po);
         const fatal = [];

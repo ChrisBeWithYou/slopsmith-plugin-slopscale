@@ -667,7 +667,7 @@
   .slopscale-mixer-deck { display: flex; align-items: stretch; justify-content: center; gap: 8px; min-width: min-content; padding-bottom: 2px; }
   .slopscale-mixer-strip { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 88px; flex: 0 0 auto; padding: 8px 6px 6px; border: 1px solid var(--ss-border, #334155); border-radius: 8px; background: var(--ss-track, #141d33); }
   .slopscale-mixer-strip.master { border-color: var(--ss-accent-edge, #3b82f6); margin-left: 14px; }
-  .slopscale-mixer-instr, .slopscale-mixer-kit { width: 100%; font-size: 10px; padding: 2px 2px; border-radius: 5px; border: 1px solid var(--ss-border, #334155); background: var(--ss-surface, #0b1220); color: #cbd5e1; min-width: 0; }
+  .slopscale-mixer-instr, .slopscale-mixer-kit, .slopscale-mixer-amp { width: 100%; font-size: 10px; padding: 2px 2px; border-radius: 5px; border: 1px solid var(--ss-border, #334155); background: var(--ss-surface, #0b1220); color: #cbd5e1; min-width: 0; }
   .slopscale-mixer-instr-none { display: block; height: 21px; }   /* keeps strip rows aligned */
   .slopscale-mixer-pan { width: 72px; height: 14px; margin: 0; accent-color: var(--ss-accent, #4080e0); }
   .slopscale-mixer-msrow { display: flex; gap: 4px; }
@@ -1423,6 +1423,16 @@
             <option value="4">4 bars</option>
           </select>
         </div>
+        <!-- Grid preview = the soft sub-ticks in the last count-in bar (and Workout
+             break bars) at the exercise's subdivision. OPT-IN (2026-06-12 beginner
+             dogfood: the extra ticks made slow exercises FEEL faster). -->
+        <div class="slopscale-settings-group">
+          <span class="slopscale-settings-lbl">Count-in grid ticks</span>
+          <div class="slopscale-settings-row" id="slopscale-countin-grid">
+            <button type="button" class="slopscale-mini-btn active" data-grid="off">Off</button>
+            <button type="button" class="slopscale-mini-btn" data-grid="on">On</button>
+          </div>
+        </div>
         <div class="slopscale-settings-divider"></div>
         <button type="button" class="slopscale-settings-item" id="slopscale-settings-shortcuts" role="menuitem">Keyboard shortcuts</button>
         <button type="button" class="slopscale-settings-item" id="slopscale-settings-host" role="menuitem">Plugin settings ↗</button>
@@ -1601,6 +1611,7 @@
           <option value="rhy_half_double">Half-Time &amp; Double-Time</option>
           <option value="pick_tremolo">Tremolo Picking</option>
           <option value="pick_alternate">Alternate Across Strings</option>
+          <option value="pick_chromatic_16ths">Chromatic Sixteenths</option>
           <option value="pick_economy">Economy Crossings</option>
           <option value="pick_string_skip">String Skipping</option>
           <option value="pick_hybrid">Hybrid Picking</option>
@@ -1616,6 +1627,10 @@
           <option value="sweep_roll_apex">The Roll &amp; Clean Apex</option>
           <option value="sweep7_color">Seventh Sweeps</option>
           <option value="sweep_changes">Sweeps Over Changes</option>
+          <option value="fs_pima_foundation">p-i-m-a Foundation</option>
+          <option value="fs_spider_adjacent">Spider — Middle Strings</option>
+          <option value="fs_spider_skip">Spider — Skip Strings</option>
+          <option value="fs_spider_wide">Spider — Full Width</option>
         </optgroup>
         <optgroup label="Genre">
           <option value="blues_box">The Box &amp; the Blue Note</option>
@@ -1682,6 +1697,7 @@
           <option value="djent_polymeter">Chug &amp; Stab (Grouping Cells)</option>
           <option value="djent_skip_gallop">Skip &amp; Gallop Chug</option>
           <option value="djent_moving_chug">Moving Power-Chord Chug</option>
+          <option value="djent_herta_chug">Herta Chug</option>
           <option value="djent_lock_the_cell">Lock the Cell — Djent Jam</option>
           <option value="melodeath_twin_leads">Melodic Death Twin Leads</option>
           <option value="death_chromatic">Death Metal Chromatic Riffs</option>
@@ -1748,6 +1764,8 @@
       <label class="slopscale-custom-only">Practice type
         <select name="practiceType">
           <option value="chromatic">Chromatic warmup</option>
+          <option value="spider">Spider (fingerstyle crossing)</option>
+          <option value="fingerstyle_arp">Fingerstyle p-i-m-a</option>
           <option value="scale" selected>Scale pattern</option>
           <option value="chord_scales">Scales over changes</option>
           <option value="diatonic_arpeggios">Diatonic arpeggios</option>
@@ -1825,6 +1843,14 @@
         </select>
       </label>
 
+      <!-- Fingerstyle pack: spiderPair widens the spider's string pair
+           (adjacent | skip | wide); pimaPattern names the PIMA_PATTERNS entry.
+           Pathway-driven hidden fields (setFieldSilent→readConfig, anti-leak in
+           applyPathwayConfig). They sit OUTSIDE the advanced-only card on purpose:
+           the spider rungs run advancedMode:false (beginner pane), and a disabled
+           card's inputs drop out of FormData — which silently blanked the pair. -->
+      <input type="hidden" name="spiderPair" id="slopscale-spider-pair" value="">
+      <input type="hidden" name="pimaPattern" id="slopscale-pima-pattern" value="">
       <details class="slopscale-advanced-card slopscale-advanced-only slopscale-custom-only">
         <summary class="slopscale-advanced-summary">Advanced fretboard logic</summary>
         <label>Visual layout
@@ -2074,7 +2100,7 @@
           <select name="meter"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="6/8">6/8</option><option value="7/8:2+2+3">7/8 — 2+2+3</option><option value="7/8:3+2+2">7/8 — 3+2+2</option><option value="5/4">5/4</option><option value="5/8:3+2">5/8 — 3+2</option><option value="9/8:3+3+3">9/8 — 3+3+3</option><option value="11/8:3+3+3+2">11/8 — 3+3+3+2</option><option value="12/8:3+3+3+3">12/8 — 3+3+3+3</option><option value="8/8:3+3+2">Djent — 3+3+2 (8/8)</option><option value="16/8:3+3+3+3+2+2">Djent — 3+3+3+3+2+2 (2-bar)</option></select>
         </label>
         <label class="slopscale-custom-only">Division
-          <select name="subdivision"><option value="quarter">Quarter</option><option value="eighth" selected>Eighth</option><option value="sixteenth">Sixteenth</option><option value="triplet">Triplet</option><option value="eighth_triplet">Eighth triplet</option><option value="sixteenth_triplet">Sixteenth triplet</option><option value="gallop">Gallop (♪ ♬)</option><option value="reverse_gallop">Reverse gallop (♬ ♪)</option><option value="skip_chug">Skip / dotted (♩. ♬)</option><option value="snap">Snap (♬ ♩.)</option><option value="tresillo">Tresillo (3-3-2)</option><option value="son_clave">Son clave (2-bar)</option><option value="rumba_clave">Rumba clave (2-bar)</option><option value="habanera">Habanera</option></select>
+          <select name="subdivision"><option value="quarter">Quarter</option><option value="eighth" selected>Eighth</option><option value="sixteenth">Sixteenth</option><option value="triplet">Triplet</option><option value="eighth_triplet">Eighth triplet</option><option value="sixteenth_triplet">Sixteenth triplet</option><option value="gallop">Gallop (♪ ♬)</option><option value="reverse_gallop">Reverse gallop (♬ ♪)</option><option value="herta_chug">Herta chug (16th + two 32nds + 16th)</option><option value="skip_chug">Skip / dotted (♩. ♬)</option><option value="snap">Snap (♬ ♩.)</option><option value="tresillo">Tresillo (3-3-2)</option><option value="son_clave">Son clave (2-bar)</option><option value="rumba_clave">Rumba clave (2-bar)</option><option value="habanera">Habanera</option></select>
         </label>
         <!-- Calm pulse caption: names the meter's felt pulse and, when a coarse
              Division crosses an odd bar (e.g. quarters in 7/8), frames the phasing
