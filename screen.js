@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.24-beta.1';
+  const SLOPSCALE_VERSION = '0.7.24-beta.2';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -5485,6 +5485,16 @@
     return best;
   }
   const sgLayer = vel => (vel >= SG_VEL_HARD ? 'vl3' : 'vl2');
+  // Per-register source trim (by-ear, 2026-06-13): the Shinyguitar DI's high
+  // keycenters read quieter than the low/mid (a real guitar's top strings put out
+  // less) — Christian's dogfood: "the guide's top two strings are quieter than the
+  // rest." Lift the upper register to balance a run. Below MIDI 64 = no change, so
+  // the metal comp's low power-5ths (root5 ≤ ~57) are untouched. By-ear tunable.
+  function sgSourceTrim(midi) {
+    if (midi <= 64) return 1;
+    const db = Math.min(4, ((midi - 64) / 17) * 4);   // +0 dB @64 → +4 dB @~81
+    return Math.pow(10, db / 20);
+  }
   function ensureSgBuffer(file) {
     const prev = sgBuffers[file];
     if (prev && (prev.state === 'loading' || prev.state === 'ready')) return prev.promise || Promise.resolve();
@@ -5602,7 +5612,9 @@
       ? 1
       : Math.pow(2, ((midi - sgNearestKc(midi)) + ((opts && opts.cents) || 0) / 100) / 12);
     const g = ctx.createGain();
-    const v = Math.max(0.0001, vol * SG_LEVEL);
+    // Per-register source trim on pitched hits only (the upper-register lift);
+    // unpitched chucks/mutes play at their recorded level.
+    const v = Math.max(0.0001, vol * SG_LEVEL * (unpitched ? 1 : sgSourceTrim(midi)));
     g.gain.setValueAtTime(0.0001, when);
     g.gain.exponentialRampToValueAtTime(v, when + 0.003);
     let stopAt;
@@ -5610,10 +5622,12 @@
       // Recorded thunk — play it as-is, just bound the tail.
       stopAt = when + Math.min(0.5, entry.buf.duration + 0.05);
     } else if (artic === 'chug') {
-      // Palm-mute: a short hold then a fast exponential tail — thump, not a gate.
-      g.gain.setValueAtTime(v, when + 0.025);
-      g.gain.setTargetAtTime(0.0001, when + 0.025, 0.055);
-      stopAt = when + 0.45;
+      // Palm-mute: a short hold then an exponential tail — thump, not a gate.
+      // (2026-06-13 dogfood: the rhythm chug "cut off too quickly to feel
+      // realistic" — longer hold + slower decay so the muted chug has body.)
+      g.gain.setValueAtTime(v, when + 0.04);
+      g.gain.setTargetAtTime(0.0001, when + 0.04, 0.105);
+      stopAt = when + 0.6;
     } else {
       const end = when + Math.max(0.08, d);
       g.gain.setValueAtTime(v, end);
@@ -6874,6 +6888,8 @@
     if (cfg.backingDensity === 1) return 'vamp_half';
     if (cfg.backingStyle === 'boogie') return 'boogie_stab';
     if (cfg.swing && cfg.swing !== 'straight') return 'charleston';   // the jazz pilot
+    const recComp = resolveArrangement(cfg).picks.comp;               // band-intel B1: the genre's comp (un-wired styles)
+    if (recComp && COMP_GROOVES[recComp]) return recComp;
     return null;
   }
   // Resolve a cell step's TARGET into midis from the chord's voiced stack.
@@ -6978,6 +6994,8 @@
     if (cfg.backingBass && BASS_FIGURES[cfg.backingBass]) return cfg.backingBass;
     if (cfg.backingStyle === 'boogie') return 'bass_ostinato';
     if (cfg.swing && cfg.swing !== 'straight') return 'walking';
+    const recBass = resolveArrangement(cfg).picks.bass;            // band-intel B1: the genre's bass (un-wired styles)
+    if (recBass && BASS_FIGURES[recBass]) return recBass;
     return null;
   }
   // Fold a chord root into the figure's root window: ≥ the E1 floor, low
@@ -7491,6 +7509,76 @@
   // The audio profile lives at cfg.audio.profile on the readConfig path but at a
   // top-level cfg.audioProfile on palette/pathway/session partials — read both.
   function cfgAudioProfile(cfg) { return cfg.audioProfile || (cfg.audio && cfg.audio.profile) || ''; }
+
+  // ── ARRANGEMENT_RECIPES — band-intelligence Track B1 (2026-06-13) ────────────
+  // "The band knows the genre." A recipe is PURE DATA — pointers onto the existing
+  // tables (COMP_GROOVES / BASS_FIGURES / DRUM_GROOVES) + ensemble role flags +
+  // register hints — keyed `style:feel:densityTier`. `resolveArrangement` mirrors
+  // `resolveAudioProfile`; its `picks` are consumed as DEFAULTS by the comp/bass/
+  // drum resolvers, placed AFTER every existing rule so an authored cfg.backing*
+  // and the boogie/swing/profile routes ALWAYS win — additive, never a regression
+  // (an un-recipe'd style returns empty picks → the old logic runs unchanged). The
+  // density tier (sparse|groove|full) is also the alive-band SECTION mask the
+  // Jam/section FSM will consume. Phase 1 ships ONLY metal/djent (the just-built,
+  // vetted styles), matching today's picks; the full genre matrix is the genre-
+  // idiom authoring batch (each style's recipe is its idiom agent's call — e.g.
+  // metal's drummer SHOULD upgrade straight_8th_rock → metal_double_kick, ratified
+  // by metal-idiom + drum-pedagogy, NOT changed silently here mid-dogfood).
+  const ARRANGEMENT_TIERS = ['sparse', 'groove', 'full'];
+  const ARRANGEMENT_RECIPES = {
+    // Metal lead-over-backing: power-5th chug + root-pump bass + a rock backbeat.
+    // groove = today's metal-lead picks; full = the heavier djent texture; sparse
+    // = a held root. (The metal lead pathways still hand-wire comp/bass, so the
+    // recipe is the default an UN-wired metal context inherits for free.)
+    'metal:default:sparse': { picks: { comp: 'metal_chug_8',   bass: 'sustained_root', drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
+    'metal:default:groove': { picks: { comp: 'metal_chug_8',   bass: 'root_pump',      drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
+    'metal:default:full':   { picks: { comp: 'metal_pedal_16', bass: 'root_pump',      drums: 'metal_double_kick' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
+    'djent:default:groove': { picks: { comp: 'metal_pedal_16', bass: 'root_pump',      drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
+    'djent:default:full':   { picks: { comp: 'metal_pedal_16', bass: 'root_pump',      drums: 'metal_double_kick' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
+  };
+  const ARRANGEMENT_BASE = { picks: {}, ensemble: { drums: 'auto', bass: 'auto', comp: 'auto', pad: 'auto', lead: 'auto' }, registers: {}, tier: 'groove' };
+  // Which density tier a cfg sits in: authored cfg.densityTier wins; else derive
+  // from backingDensity (0/1 = sparse, 3 = full, else groove).
+  function arrangementTier(cfg) {
+    if (cfg.densityTier && ARRANGEMENT_TIERS.includes(cfg.densityTier)) return cfg.densityTier;
+    if (cfg.backingDensity === 0 || cfg.backingDensity === 1) return 'sparse';
+    if (cfg.backingDensity === 3) return 'full';
+    return 'groove';
+  }
+  // Resolve the arrangement recipe for a cfg (mirrors resolveAudioProfile). Walks
+  // style:feel:tier → style:default:tier → style:default:groove. An un-recipe'd
+  // style returns ARRANGEMENT_BASE (empty picks → the resolvers fall through to
+  // their existing logic; this never regresses a shipped style).
+  function resolveArrangement(cfg) {
+    const style = cfgAudioProfile(cfg || {}) || '';
+    const feel = (cfg && cfg.arrangementFeel) || 'default';
+    const tier = arrangementTier(cfg || {});
+    const out = { picks: {}, ensemble: Object.assign({}, ARRANGEMENT_BASE.ensemble), registers: {}, tier };
+    if (!style) return out;
+    let rec = null;
+    for (const k of [`${style}:${feel}:${tier}`, `${style}:default:${tier}`, `${style}:default:groove`, `${style}:${feel}:groove`]) {
+      if (ARRANGEMENT_RECIPES[k]) { rec = ARRANGEMENT_RECIPES[k]; break; }
+    }
+    if (rec) {
+      Object.assign(out.picks, rec.picks);
+      Object.assign(out.ensemble, rec.ensemble);
+      Object.assign(out.registers, rec.registers);
+    }
+    return out;
+  }
+  // Startup integrity guard (mirrors validateCompGrooves/validateBassFigures): the
+  // key shape is style:feel:tier with a known tier, and every pointer resolves.
+  (function validateArrangementRecipes() {
+    for (const key of Object.keys(ARRANGEMENT_RECIPES)) {
+      const parts = key.split(':');
+      if (parts.length !== 3 || !ARRANGEMENT_TIERS.includes(parts[2])) throw new Error(`[SlopScale arrangement] bad recipe key "${key}" — want style:feel:tier with tier in ${ARRANGEMENT_TIERS.join('|')}`);
+      const p = ARRANGEMENT_RECIPES[key].picks || {};
+      if (p.comp && !COMP_GROOVES[p.comp]) throw new Error(`[SlopScale arrangement] ${key} comp "${p.comp}" is not a COMP_GROOVES cell`);
+      if (p.bass && !BASS_FIGURES[p.bass]) throw new Error(`[SlopScale arrangement] ${key} bass "${p.bass}" is not a BASS_FIGURES figure`);
+      if (p.drums && !DRUM_GROOVES[p.drums]) throw new Error(`[SlopScale arrangement] ${key} drums "${p.drums}" is not a DRUM_GROOVES groove`);
+    }
+  })();
+
   // Profile → groove (the reconciled style-keyed route; jazz-idiom: do NOT route a
   // bare swing:'swing' to a jazz ride — only an explicit jazz audioProfile).
   const GROOVE_FOR_PROFILE = { jazz: 'jazz_swing' };
@@ -7510,6 +7598,8 @@
     if (cfg.swing === 'shuffle') return 'shuffle_blues';
     const byProf = ap && GROOVE_FOR_PROFILE[ap];
     if (byProf && DRUM_GROOVES[byProf]) return byProf;
+    const recDrums = resolveArrangement(cfg).picks.drums;   // band-intel B1: the genre's drummer (un-recipe'd → falls to the rock backbeat)
+    if (recDrums && DRUM_GROOVES[recDrums]) return recDrums;
     return 'straight_8th_rock';
   }
   // Emit role:'drums' backing events for [0, duration). Pitch-less: each event is
@@ -13726,7 +13816,9 @@
     // limiter.
     metal: { label: 'Metal', preHp: 110, drive: 16, curve: 'hard',
              post: [['lowshelf', 95, 0, 2], ['peaking', 580, 1.1, -5], ['peaking', 3500, 0.9, 3]],
-             makeup: 0.24, comp: [-16, 3, 0.008, 0.12] },
+             // makeup raised 0.24→0.38 (2026-06-13 dogfood: the rhythm comp read
+             // "low volume"); the master limiter still guards peaks. By-ear tunable.
+             makeup: 0.38, comp: [-16, 3, 0.008, 0.12] },
   };
   const AMP_OPTIONS = [['', 'Amp: Auto'], ['off', 'No amp'], ['clean', 'Clean'], ['drive', 'Overdrive'], ['metal', 'Metal']];
   function ampCurve(kind, drive) {
@@ -22054,6 +22146,6 @@
     jamArmFromDrill, jamTargetPcs, jamNextGuidePcs,
     getActiveBundleInfo: () => activeBundle ? { config: activeBundle.config, duration: activeBundle.songInfo && activeBundle.songInfo.duration, leadIn: activeBundle.leadIn } : null,
     sgStats: () => { const out = { ready: 0, loading: 0, failed: 0 }; for (const k of Object.keys(sgBuffers)) out[sgBuffers[k].state] = (out[sgBuffers[k].state] || 0) + 1; return out; } };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, resolveAudioProfile, sgNotesWanted, ampState: () => ({ want: { ..._ampWant }, wired: audioBus && audioBus.amps ? Object.fromEntries(Object.entries(audioBus.amps).map(([k, v]) => [k, v.id])) : null }), avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, ARRANGEMENT_RECIPES, resolveArrangement, compCellForConfig, buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, resolveAudioProfile, sgNotesWanted, ampState: () => ({ want: { ..._ampWant }, wired: audioBus && audioBus.amps ? Object.fromEntries(Object.entries(audioBus.amps).map(([k, v]) => [k, v.id])) : null }), avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
