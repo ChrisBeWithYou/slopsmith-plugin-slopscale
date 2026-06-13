@@ -67,7 +67,7 @@ The **Ladder** picker grew from a handful of routines into **~80**, grouped into
 </p>
 
 - **8 Concept ladders** — one skill, sequenced easy → mastery: **Triads, Arpeggios, Guide Tones, Fretboard Freedom, Expression, Rhythm, Picking, Legato.** Each is a vertical climb through a single idea (Fretboard: one box → CAGED links → position shifts → 3NPS → whole-neck map) rather than another grab-bag.
-- **Deeper genre packs** — **Blues** (box → shuffle → bends → call-and-response → mixing major/minor), **Rock** (power + backbeat → pentatonic → lead vocab → pedal riffs → ♭VII changes), **Country** (major pentatonic → cowboy changes → double-stops → chicken pickin' → pedal bends → train beat), alongside the existing **Metal / djent** pack — a genre ladder is the *application* layer: take the grammar into a style's accent.
+- **Deeper genre packs** — **Blues** (box → shuffle → bends → call-and-response → mixing major/minor), **Rock** (power + backbeat → pentatonic → lead vocab → pedal riffs → ♭VII changes), **Country** (major pentatonic → cowboy changes → double-stops → chicken pickin' → pedal bends → train beat), alongside the existing **Metal / djent** pack and the community-seeded **Fingerstyle** pack (p-i-m-a + the spider trio) — a genre ladder is the *application* layer: take the grammar into a style's accent.
 - **A bass-native ladder** — **Bass Foundations** on a 4-string, groove-first the way bass is actually learned: root–5th–octave → octave groove → dead-note pocket → walking bass → slap & pop. The picker is now **instrument-aware** — guitar-only shapes hide on bass, and the reverse.
 - **Own your time** — the Rhythm ladder runs subdivisions → the 16th pocket → swing → displacement → **odd meters** → an **"Over the Barline"** metric-superimposition capstone, plus a **herta** burst drill in the Picking ladder. And Division now **follows your meter** — a quarter-note pick in 7/8 auto-bumps to the felt eighth pulse, with a caption that *names* the cross-pulse instead of letting it feel like a bug.
 
@@ -129,6 +129,16 @@ The biggest batch yet. The **Workout** pillar grew from "a timer over your drill
 
 **And some polish** — the Setup/Play pill became a tidy **`«` collapse icon** that widens the stage (and now scales cleanly across window sizes), the inspector panels **slide** instead of snapping, and a fretboard-render regression is fixed.
 
+### Plug into an amp — and the community wrote a ladder <sub><i>(new in v0.7.23)</i></sub>
+
+The guide track became a real guitar through a real rig, the first community-contributed pack landed, and the most-requested djent figure got built *right*:
+
+- **A real guitar guide voice, through an amp.** The line you play along to is now a **sampled electric guitar (DI)** by default — and the Mixer's Guide and Rhythm strips grew an **Amp** row: **Clean / Overdrive / Metal**, three designed amp+cab presets that work across every exercise, Workout and Jam. Auto puts the DI through the Clean amp so it always sounds like an instrument, not a beep; pick Metal and your djent drills finally *sound* like djent. (Acoustic styles keep their steel-string, and bass keeps its bass.)
+- **The Fingerstyle pack** — the first **Acoustic & Fingerstyle** band, seeded by a beta tester's own teacher-handed warmup: name the picking hand (**p-i-m-a Foundation**, broken chords over open grips with honest per-note finger letters), then the three **spider** rungs — a two-string crossing drill where every note swaps strings and everything rings, graded *adjacent strings → a skip → full width* ("if you like pain"). Straight from the Discord thread to the Ladder — switch it on from the `+` Pack manager (it's an opt-in pack, like the genre ladders).
+- **The Herta Chug.** The relentless modern-djent figure — a sixteenth, two thirty-seconds, a sixteenth, repeated with no gap so the accent walks across the beat (a 3-over-2) — verified against the drum-transcription literature, with the Push tier at the figure's canonical tempo. The drummers call the cell a *herta*; now the Metal ladder teaches it on guitar, strict alternate, palm-muted, honest.
+- **A kinder first rung.** Real-beginner feedback round two: the Chromatic Warmup now enters at **quarter notes** (one clean note per click — a bar is exactly one string), the count-in's subdivision ticks became **opt-in**, and the sixteenth-note version moved to the Picking band as its own *Chromatic Sixteenths* rung. Bonus: this hunt uncovered and fixed a long-silent bug that had pinned the warmup's up-the-neck variations to one spot.
+- **A cleanly-licensed backing band.** Every bundled instrument sample — melodic voices and drums — now comes from one clearly-MIT soundfont, with a provenance README in the repo. And the plugin ships a proper **thumbnail + description** for the host's upcoming pedalboard Plugins page.
+
 ## Highlights
 
 - **Jam is a mirror, not a judge** — play along over a live backing band while the fretboard strip lights up the chord/guide tones to reach for. No score, no rank — a sandbox to *apply* what you drilled, not a track to mimic
@@ -163,8 +173,8 @@ A docked **live fretboard strip** sits under the Tab and Notation views (togglea
 Playback is fully contained in the plugin (its own clock, Web Audio graph, and pitch tracker). The signal path is **per-track buses → a master safety limiter → output**, so stacked notes stay clean and normalised — no clipping, no surprise full-volume hits.
 
 <p align="center">
-  <img src="docs/images/mixer.png" width="820" alt="The live Mixer slid up over the 3D Highway — per-bus faders with mute/solo, instrument pickers, and a Backing dim.">
-  <br><sub><i>The live Mixer (<code>M</code>) — balance or mute the practice voice, bass, comp, drums and click, swap instruments, or dim the backing, all while you play.</i></sub>
+  <img src="docs/images/mixer.png" width="820" alt="The live Mixer slid up over the 3D Highway — per-bus faders with mute/solo, instrument pickers, an Amp row (Clean / Overdrive / Metal) on the Guide and Rhythm strips, and a Backing dim.">
+  <br><sub><i>The live Mixer (<code>M</code>) — balance or mute the practice voice, bass, comp, drums and click, swap instruments, pick an <b>amp</b> (Clean / Overdrive / Metal) for the guide and rhythm guitars, or dim the backing, all while you play.</i></sub>
 </p>
 
 - **Practice voice** — sampled, at the actual string/fret pitches; the oscillator voice is the fallback so you're never left silent on a cold load
@@ -190,7 +200,7 @@ Dial in anything — 12 keys, 25+ scales, any tuning, any meter, any feel — or
 30–260 BPM · 4/4, 3/4, 6/8, 7/8 (2+2+3 or 3+2+2), 5/4 · quarter / eighth / sixteenth / triplet subdivisions · straight / swing / shuffle feel · count-in None / 1 / 2 / 4 bars.
 
 ### Practice types
-Scale patterns · chord-scales (mode-of-the-moment or chord-tone emphasis) · diatonic arpeggios · progression arpeggios · sweep arpeggios (HOPO turnaround) · chromatic warmups · guide tones · and a deep **technique/vocabulary** library (legato, bends, vibrato, scale in 3rds/6ths, call-and-response, tremolo, tapping, pedal point, string skipping, position shifts, rhythmic displacement, chromatic enclosures, bebop scale, arpeggio inversions, walking bass, hybrid picking, triadic pairs, pentatonic superimposition, shell voicings, octave displacement, the metal pedal-riff / gallop / twin-lead primitives, **strumming / comping**, and the **bass groove set** — root–5th–octave, octave groove, dead-note pocket, slap & pop, right-hand technique).
+Scale patterns · chord-scales (mode-of-the-moment or chord-tone emphasis) · diatonic arpeggios · progression arpeggios · sweep arpeggios (HOPO turnaround) · chromatic warmups · guide tones · and a deep **technique/vocabulary** library (legato, bends, vibrato, scale in 3rds/6ths, call-and-response, tremolo, tapping, pedal point, string skipping, position shifts, rhythmic displacement, chromatic enclosures, bebop scale, arpeggio inversions, walking bass, hybrid picking, triadic pairs, pentatonic superimposition, shell voicings, octave displacement, the metal pedal-riff / gallop / herta-chug / twin-lead primitives, **strumming / comping**, the **fingerstyle set** — p-i-m-a broken chords + the two-string spider, and the **bass groove set** — root–5th–octave, octave groove, dead-note pocket, slap & pop, right-hand technique).
 
 ### Fretboard systems
 CAGED position (auto fret-window per key + shape) · CAGED single-shape (strict-ascend or closest-position) · 3-notes-per-string (seven modal positions) · open position · manual position box · single-string run · full-neck map. Shapes are **degree-driven** with a no-unison guarantee — a run never sounds the same pitch twice across strings.
