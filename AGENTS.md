@@ -63,7 +63,7 @@ Promoted from patterns in past-session feedback — the things Christian kept ha
 | `screen.js` | All generator logic, CAGED/3NPS data, pathway definitions, built-in renderers, audio playback, and Slopsmith integration. Runs in Slopsmith page scope. |
 | `routes.py` | FastAPI routes under `/api/plugins/slopscale/…` — preset CRUD, status, and `POST /temp-sloppak` (the chart builder). |
 | `settings.html` | Plugin settings panel fragment rendered by Slopsmith. |
-| `static/` | Self-hosted audio assets served by `routes.py` — `wafonts/` (WebAudioFont sampler assets, committed); `irs/` + `nam/` (cab IRs / NAM amp captures, **gitignored** pending licensing). |
+| `static/` | Self-hosted audio assets served by `routes.py` — `wafonts/` (WebAudioFont sampler assets, committed); `samples/` (license-cleared committed sample subsets, e.g. the CC0 Shinyguitar electric-DI voice — see its README); `irs/` + `nam/` (cab IRs / NAM amp captures, **gitignored** pending licensing). |
 | `docs/architecture.md` | Integration design — the authoritative spec for how the plugin interacts with Slopsmith (incl. the Sloppak on-disk format, field-name translation, audio stem generation). Read this first before changing the launch flow. |
 | `docs/code-map.md` | Per-section walkthrough of `screen.js` (the §1–§15 sections) + `routes.py` (routes, storage). **Read before working inside either file.** |
 | `docs/exercise-schema.md` | Internal generated exercise/chart JSON schema + the compact note-field key meanings. |
@@ -174,7 +174,7 @@ In **Jam** (`isJamMode`) the overview becomes the **chord loop** — function-ti
 
 `screen.js` is **one IIFE, ~21,000 lines** — it loads as a classic `<script>` (no `type="module"`), so it **cannot use `import`/`export`; keep it one file.** Sections are marked with `§N` banner comments and indexed in a **table-of-contents header at the top of the file** (the canonical §1–§15 order) — **grep `§` or read that header to navigate before editing.**
 
-`routes.py` registers FastAPI routes under `/api/plugins/slopscale/…` (status, preset + tuning CRUD, the dormant `POST /temp-sloppak` chart builder, and the self-hosted `/wafont` `/ir` `/nam` audio-asset routes). **Storage is DB-backed** (the shared Slopsmith meta-DB via `context["meta_db"]` → tables `slopscale_presets` + `slopscale_tunings`), not flat files.
+`routes.py` registers FastAPI routes under `/api/plugins/slopscale/…` (status, preset + tuning CRUD, the dormant `POST /temp-sloppak` chart builder, and the self-hosted `/wafont` `/ir` `/nam` `/sample` audio-asset routes). **Storage is DB-backed** (the shared Slopsmith meta-DB via `context["meta_db"]` → tables `slopscale_presets` + `slopscale_tunings`), not flat files.
 
 **The full per-section walkthrough of both files lives in `docs/code-map.md`** (the screen.js §-walkthrough — constants, `CAGED_SHAPES`, `PATHWAYS`, `BUILT_IN_SESSIONS`, the exercise/session builders, voicing engine, renderer factory, fretboard strip, audio engine §14, segment-template engine, public surface — plus the routes.py route list + storage model). **Read it before working in either file.** For the rest: the on-disk **Sloppak format, the `chordTemplates`→`templates` / `handShapes`→`handshapes` field translation, and audio stem generation** are in `docs/architecture.md`; the **exercise/chart JSON schema + the compact note-field key meanings** (`t`/`s`/`f`/`sus`/`bn`/`ho`/`po`/…) are in `docs/exercise-schema.md`.
 
