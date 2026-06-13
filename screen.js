@@ -309,7 +309,10 @@
     so_what:[1,7],                                           // i–♭VII over dorian : the modal-jazz two-chord vamp (true quartal voicing = the M2 engine task)
     phrygian_vamp:[1, { semis:1, q:'maj', rn:'♭II' }],       // i–♭II over phrygian/phrygian_dominant : the Spanish/flamenco move (q pinned major)
     andalusian:[1,7,6,5],                                    // i–♭VII–♭VI–V over natural_minor : the Andalusian cadence (V→dom7 via override below)
-    modal_mixture:[1,4,{ deg:4, q:'min7' },5]                // I–IV–iv–V : borrowed-minor-iv modal mixture (the iv is the colour)
+    modal_mixture:[1,4,{ deg:4, q:'min7' },5],               // I–IV–iv–V : borrowed-minor-iv modal mixture (the iv is the colour)
+    // ── World / genre vamps (band-intel genre batch, 2026-06-13) ──────────────
+    'i-iv':[1,4],                                             // i–iv minor vamp (reggae / minor soul) — pair with natural_minor so the iv stays MINOR (Am→Dm); distinct from dorian_vamp's major IV
+    soul_turnaround:[1, { semis:9, q:'dom7', rn:'VI7' }, 2, 5] // I–VI7–ii–V : the soul/Motown turnaround — the VI is a SECONDARY DOMINANT (the soul colour), not the diatonic vi
   };
   // Per-progression chord quality overrides — win over diatonic scale harmony,
   // but lose to a user-specified chordOverride. Used by chordQualityForDegree.
@@ -4414,6 +4417,15 @@
     funk:       { family: 'clean',      harmony: { engine: 'sample', tone: 'clav',   level: 0.8 },  brightness: 0.6 },
     pop:        { family: 'clean',      harmony: { engine: 'sample', tone: 'epiano', level: 0.8 },  brightness: 0.62 },
     country:    { family: 'clean',      harmony: { engine: 'sample', tone: 'clean',  level: 0.78 }, brightness: 0.6 },
+    // World/genre batch (band-intel, 2026-06-13): reggae = bright clean skank;
+    // disco = clean 16th scratch guitar; latin = nylon (bossa); soul = warm Rhodes;
+    // afrobeat = clean percussive interlock. One comp VOICE each (the engine plays a
+    // single comp lane) — the most identifiable instrument of the genre's groove.
+    reggae:     { family: 'clean',      harmony: { engine: 'sample', tone: 'clean',  level: 0.78 }, brightness: 0.58 },
+    disco:      { family: 'clean',      harmony: { engine: 'sample', tone: 'clean',  level: 0.78 }, brightness: 0.66 },
+    latin:      { family: 'acoustic',   harmony: { engine: 'sample', tone: 'nylon',  level: 0.78 }, brightness: 0.6 },
+    soul:       { family: 'clean',      harmony: { engine: 'sample', tone: 'epiano', level: 0.82 }, brightness: 0.56 },
+    afrobeat:   { family: 'clean',      harmony: { engine: 'sample', tone: 'clean',  level: 0.78 }, brightness: 0.62 },
   };
 
   // ── Drum kits (audio-realism Phase D) ────────────────────────────────────────
@@ -4497,6 +4509,13 @@
     pop:     { label:'Pop',        defaultKey:'C', progressions:['I-V-vi-IV','vi-IV-I-V','I-vi-IV-V'], leadScales:['major','major_pentatonic'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'pop' },
     country: { label:'Country',    defaultKey:'G', progressions:['I-IV-V','I-V-vi-IV'], leadScales:['major_pentatonic','major'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'country' },
     gospel:  { label:'Gospel',     defaultKey:'C', progressions:['ii-V-I','I-vi-ii-V'], leadScales:['major','dorian'], chordDepth:'ninth', chordOverride:'auto', guideTones:true, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'gospel' },
+    // ── World / genre batch (band-intel, panel 2026-06-13) — each genre vetted by
+    // its idiom agent; the band each one declares lives in ARRANGEMENT_RECIPES.
+    reggae:   { label:'Reggae',       defaultKey:'A', progressions:['static_i','i-iv','i-VII-VI-VII','I-IV-V','I-V-vi-IV'], leadScales:['minor_pentatonic','natural_minor','dorian'], chordDepth:'seventh', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'reggae' },
+    disco:    { label:'Disco',        defaultKey:'A', progressions:['i-VII-VI-VII','dorian_vamp','vi-IV-I-V','static_i'], leadScales:['minor_pentatonic','dorian','natural_minor'], chordDepth:'seventh', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'disco' },
+    latin:    { label:'Latin / Bossa', defaultKey:'A', progressions:['ii-V-I','minor_ii_V_i','I-vi-ii-V'], leadScales:['major','dorian','minor_pentatonic'], chordDepth:'seventh', chordOverride:'auto', guideTones:true, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'latin' },
+    soul:     { label:'Soul / Motown', defaultKey:'C', progressions:['I-vi-IV-V','soul_turnaround','ii-V-I','I-IV-V'], leadScales:['major_pentatonic','dorian','minor_pentatonic'], chordDepth:'seventh', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'soul' },
+    afrobeat: { label:'Afrobeat',     defaultKey:'A', progressions:['static_i','dorian_vamp','mixolydian_vamp','I-IV-V'], leadScales:['dorian','mixolydian','major_pentatonic'], chordDepth:'seventh', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'afrobeat' },
   };
   // Resolve a style palette into a mergeable partial config the way a Pathway/Custom/
   // Jam consumer uses it: Object.assign({}, base, stylePaletteConfig('blues')). opts let
@@ -4545,6 +4564,7 @@
     rhythm_changes_a:'Rhythm changes (A)', so_what:'Dorian modal vamp',
     dorian_vamp:'Dorian vamp', static_i:'One-chord vamp',
     mixolydian_vamp:'Mixolydian vamp (I–♭VII–IV)', phrygian_vamp:'Phrygian vamp (i–♭II)',
+    'i-iv':'i–iv minor vamp', soul_turnaround:'Soul turnaround (I–VI7–ii–V)',
   };
   function jamProgressionLabel(token) {
     return JAM_PROG_LABELS[token] || String(token || '').replace(/_/g, ' ');
@@ -4562,6 +4582,11 @@
     pop:     'Try: sing a 2-bar hook over the loop, then find it on the neck and repeat it.',
     country: 'Try: major pentatonic over the I, then chase the chord tones through IV and V.',
     gospel:  'Try: answer the band — fill the space after each change with a 2-beat run-up.',
+    reggae:  'Try: chop only the offbeats — let the bass own the downbeat, you ride the &.',
+    disco:   'Try: lock a 16th muted scratch, pop a chord stab on the & of 2 and 4.',
+    latin:   'Try: state the melody once, then trade space with the clave — never crowd it.',
+    soul:    'Try: land the chank on 2 and 4 only — leave beats 1 and 3 for the pocket.',
+    afrobeat:'Try: pick one 2-bar phrase and loop it hypnotically — the groove is repetition.',
   };
   // J-2 intent chips (D-J8: intents, not scores). An intent is a SELF-checked
   // musical aim the player picks before/while jamming — shown on the status line,
@@ -4579,6 +4604,11 @@
     pop:     ['Sing a hook, find it, repeat it', 'Melody only — no runs', 'Leave room for the vocal'],
     country: ['Chase chord tones through IV and V', 'Double-stop the turnaround', 'Bend into the 3rd, steel-style'],
     gospel:  ['Answer the band after each change', 'Walk up into beat 1', 'Resolve every run to a chord tone'],
+    reggae:  ['Chop only the offbeats', 'Let the bass be the hook', 'One skank, locked for 8 bars'],
+    disco:   ['16th scratch — never stop the hand', 'Octaves with the four-floor kick', 'Stab the & of 2 and 4'],
+    latin:   ['Trade space with the clave', 'Land the 3rd, bossa-soft', 'State the melody, then vary it'],
+    soul:    ['Chank on 2 and 4 only', 'Answer the vocal line', 'Sit in the pocket — less is more'],
+    afrobeat:['Loop one 2-bar phrase', 'Interlock, don\'t solo', 'Lock to the kick, hypnotic'],
   };
   const JAM_INTENTS_BASS = ['Walk into every change', 'Lock the one with the kick', 'Ghost notes between the roots'];
 
@@ -6881,6 +6911,41 @@
     country_chuck:  { div: 2, bars: 1, label: 'country chuck (the chicka)',
       grid: ['.', { t: 'chord', a: 'chuck' }, '.', { t: 'chord', a: 'chuck', acc: 1 },
              '.', { t: 'chord', a: 'chuck' }, '.', { t: 'chord', a: 'chuck', acc: 1 }] },
+    // ── World / genre comp cells (band-intel genre batch, panel 2026-06-13) ──────
+    // Reggae skank (reggae-idiom): the muted chord chop on EVERY offbeat (the &s) —
+    // beats are silent, the space is the genre. The bass owns the riddim. div:2.
+    reggae_skank:   { div: 2, bars: 1, label: 'reggae skank (offbeat chop)',
+      grid: ['.', { t: 'chord', a: 'chuck', acc: 1 }, '.', { t: 'chord', a: 'chuck' },
+             '.', { t: 'chord', a: 'chuck', acc: 1 }, '.', { t: 'chord', a: 'chuck' }] },
+    // Disco 16th scratch (disco-idiom): the constant muted 16th "chicken-scratch"
+    // wah guitar with a chord stab popping the &-of-2 and &-of-4. The single most
+    // identifiable disco comp voice (string stabs = a 2nd lane, roadmapped). div:4.
+    disco_scratch_16: { div: 4, bars: 1, label: 'disco 16th scratch',
+      grid: [{ t: 'chord', a: 'chuck', acc: 1 }, { t: 'chord', a: 'chuck' }, { t: 'chord', a: 'chuck' }, { t: 'chord', a: 'chuck' },
+             { t: 'chord', a: 'chuck' }, { t: 'chord', a: 'chuck' }, { t: 'chord', a: 'stab', acc: 1 }, { t: 'chord', a: 'chuck' },
+             { t: 'chord', a: 'chuck' }, { t: 'chord', a: 'chuck' }, { t: 'chord', a: 'chuck' }, { t: 'chord', a: 'chuck' },
+             { t: 'chord', a: 'chuck' }, { t: 'chord', a: 'chuck' }, { t: 'chord', a: 'stab', acc: 1 }, { t: 'chord', a: 'chuck' }] },
+    // Bossa comp (latin-idiom): the nylon thumb-shell on beats 1 & 3 with the chord
+    // stabs riding the offbeats — the João Gilberto syncopation. STRAIGHT 8ths. div:2.
+    bossa_comp:     { div: 2, bars: 1, label: 'bossa comp (nylon)',
+      grid: [{ t: 'shell', a: 'sus', acc: 1 }, { t: 'chord', a: 'stab' }, '.', { t: 'chord', a: 'stab' },
+             { t: 'shell', a: 'sus' }, { t: 'chord', a: 'stab' }, '.', { t: 'chord', a: 'stab' }] },
+    // Soul rhythm-guitar stabs (soul-idiom): the clean Motown/Stax chank lands ONLY
+    // on the backbeat (2 & 4) plus the &-of-4 push; beats 1 & 3 are empty (the bass
+    // and kick own them). The space is the pocket. div:4.
+    soul_stab_16:   { div: 4, bars: 1, label: 'soul rhythm-guitar stabs',
+      grid: ['.', '.', '.', '.',
+             { t: 'chord', a: 'stab', acc: 1 }, '.', '.', '.',
+             '.', '.', '.', '.',
+             { t: 'chord', a: 'stab', acc: 1 }, '.', { t: 'chord', a: 'stab' }, '.'] },
+    // Afrobeat interlock (afrobeat-idiom): the two-guitar interlock folded into one
+    // lane — ringing top notes against muted chucks, a hypnotic 16th syncopation
+    // over the vamp. The bass ostinato + percussion carry the rest. div:4.
+    afrobeat_interlock: { div: 4, bars: 1, label: 'afrobeat interlock',
+      grid: [{ t: 'top', a: 'ring', acc: 1 }, { t: 'chord', a: 'chuck' }, '.', { t: 'chord', a: 'chuck' },
+             { t: 'top', a: 'ring' }, '.', { t: 'chord', a: 'chuck' }, '.',
+             { t: 'chord', a: 'chuck' }, { t: 'top', a: 'ring' }, '.', { t: 'chord', a: 'chuck' },
+             '.', { t: 'chord', a: 'chuck' }, { t: 'top', a: 'ring', acc: 1 }, '.'] },
   };
   // Startup integrity guard (mirrors validateStrumPatterns): grid shape, known
   // targets/artics, a label on every cell (player-facing from day one).
@@ -6988,6 +7053,27 @@
     funk_pocket_16: { kind: 'pattern', div: 4, bars: 1, label: '16th funk pocket',
       grid: [{ iv: 0, acc: 1 }, '.', '.', { iv: 0, g: 1 }, '.', '.', { iv: 0, g: 1 }, '.',
              '.', { iv: 0, g: 1 }, '.', { iv: 7 }, '.', '.', { iv: 10 }, '.'] },
+    // ── World / genre bass figures (band-intel genre batch, bass-pedagogy-vetted
+    // 2026-06-13) — each the genre's idiomatic low-end ROLE, register-folded by the
+    // engine, beat-1 root-locked to the kick.
+    // Reggae one-drop riddim: root pickup on 1, the REST on beat 3 (step 4) where
+    // the kick drops in — the bass IS the hook, round R–♭3–5–♭3 contour.
+    reggae_riddim:    { kind: 'pattern', div: 2, bars: 1, label: 'reggae one-drop riddim',
+      grid: [{ iv: 0, acc: 1 }, '.', { iv: 0 }, { iv: 3 }, '.', { iv: 5 }, { iv: 3 }, '.'] },
+    // Disco octave bass: relentless root/up-octave eighth bounce, accents on the two
+    // downbeats — the four-on-the-floor lock.
+    octave_jump_bass: { kind: 'pattern', div: 2, bars: 1, label: 'disco octave bass',
+      grid: [{ iv: 0, acc: 1 }, { iv: 12 }, { iv: 0 }, { iv: 12 }, { iv: 0, acc: 1 }, { iv: 12 }, { iv: 0 }, { iv: 12 }] },
+    // Bossa surdo two-feel: root on 1 & 3, the 5th pushing the &-of-2 & &-of-4 — the
+    // figure that defines bossa low-end.
+    bossa_bass:       { kind: 'pattern', div: 2, bars: 1, label: 'bossa nova root–5 surdo',
+      grid: [{ iv: 0, acc: 1 }, '.', '.', { iv: 7 }, { iv: 0 }, '.', '.', { iv: 7 }] },
+    // Afrobeat melodic ostinato (Fela/Tony-Allen): a syncopated &-pushed loop —
+    // R → 5 → R → ♭7 → octave → 5 → ghost-R — that climbs the ♭7 into the octave then
+    // walks back to loop seamlessly, locked to the kick on beat 1. The bass IS the hook.
+    afro_ostinato:    { kind: 'pattern', div: 4, bars: 1, label: 'Afrobeat melodic ostinato',
+      grid: [{ iv: 0, acc: 1 }, '.', { iv: 7 }, '.', { iv: 0 }, '.', { iv: 10 }, { iv: 12, hold: 1 },
+             '.', '.', { iv: 7 }, '.', { iv: 5 }, '.', { iv: 0, g: 1 }, '.'] },
   };
   // Startup integrity guard (mirrors validateCompGrooves): grid shape, the
   // beat-1 root (the kick lock is structural), iv range, a root window under
@@ -7496,12 +7582,15 @@
       snare:     'g.g.a.gng.g.a.g.',
       hh_closed: 'n.nnn.nnn.nnn.nn',
     } },
-    // Bossa nova (2-bar cell, swing-locked): the surdo kick (1, &-of-2, 4) under a
-    // straight-8th hat, with the 3-2 bossa clave on the cross-stick across both bars.
-    bossa: { div: 2, preSwung: true, cellBars: 2, lanes: {
+    // Bossa nova (2-bar cell): the surdo kick (1, &-of-2, 4) under an EVEN straight-8th
+    // hat, with the 2-3 son-clave cross-stick across both bars (latin-idiom + drum-
+    // pedagogy 2026-06-13). EVEN 8ths → preSwung:false so the global swing warp never
+    // touches it; the whole bossa band (comp/bass) is direction-neutral 1-bar so the
+    // cross-stick is the sole clave carrier (2-side bar 1, 3-side bar 2).
+    bossa: { div: 2, preSwung: false, cellBars: 2, lanes: {
       hh_closed:    'nnnnnnnnnnnnnnnn',
       kick:         'n..n..n.n..n..n.',
-      snare_xstick: 'a..a..a...a.a...',
+      snare_xstick: 'a..a.a...a..a.a.',
     } },
     // New Orleans second line (2-bar cell): the syncopated street-beat — a NOLA
     // bass-drum phrase + a ghost-rolled snare with the "big four" landing late.
@@ -7510,6 +7599,32 @@
       kick:      'n..n.n..n..n.n.n',
       snare:     'g.a.g.gng.a.g.aa',
       hh_closed: 'n.n.n.n.n.n.n.n.',
+    } },
+    // ── World / genre drum grooves (band-intel genre batch, drum-pedagogy-vetted
+    // 2026-06-13) ───────────────────────────────────────────────────────────────
+    // Soul/Motown straight backbeat: kick 1+3, snare 2+4, the hh_open voice doubling
+    // as the TAMBOURINE riding the backbeat (2 & 4), straight 8th hats.
+    soul_backbeat: { div: 2, preSwung: false, fillFamily: 'rock_tom', lanes: {
+      kick:      'n...n...',
+      snare:     '..a...a.',
+      hh_closed: 'nnnnnnnn',
+      hh_open:   '..n...n.',
+    } },
+    // 12/8 soul ballad (doo-wop "slow 6/8"): a steady triplet ride wash, kick on the
+    // felt main pulse (1 & 3), snare on the backbeat (2 & 4). div:3 IS the triplet grid.
+    soul_12_8: { div: 3, preSwung: true, fillFamily: 'jazz_tom', lanes: {
+      ride:  'nnnnnnnnnnnn',
+      kick:  'n.....n.....',
+      snare: '...a.....a..',
+    } },
+    // Afrobeat (Tony-Allen lineage, 2-bar cell): a tight unbroken 16th hat OSTINATO
+    // (the spine) over a broken, ghost-laden, jazz-influenced kick/snare conversation
+    // with DISPLACED backbeats — the genre lives in the syncopation, never a square
+    // backbeat. Approximated on the kit (panel call, like second_line).
+    afrobeat: { div: 4, preSwung: false, cellBars: 2, fillFamily: 'funk_snare', lanes: {
+      hh_closed: 'nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn',
+      kick:      'n....n..n.....n.n..n..n....n.n..',
+      snare:     'g.g.a..g.g.a.g..g.g.a..g.g.a.gng',
     } },
   };
   // Self-contained 1-bar fill cells (carry their own kick). The phrase's last bar
@@ -7598,6 +7713,23 @@
     // sizzle, deliberately NOT the bare-pop default. (octave_jump_bass deferred —
     // root_pump stands in.)
     'pop:dance:groove':       { picks: { comp: 'pop_push',      bass: 'root_pump',      drums: 'four_on_floor' },     ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    // ── World / genre recipes (band-intel Wave 1, panel 2026-06-13) — each its idiom
+    // agent's call, with bass-pedagogy (bass figures) + drum-pedagogy (drum cells) +
+    // harmony (tokens) sign-off. groove is the DEFAULT every Jam/bare config inherits;
+    // sparse/full fall back to groove via the resolver. Each genre's instruments play
+    // their idiomatic ROLE (the mandate: never whole-note chords + four-on-the-floor).
+    //   reggae — the offbeat skank over the round one-drop riddim (bass IS the hook).
+    //   disco — 16th scratch guitar + octave bass locked to four-on-the-floor.
+    //   latin — nylon bossa comp + surdo root–5 bass under the 2-3 son-clave kit.
+    //   soul — the backbeat chank + a melodic Motown counter-line over the tambourine
+    //          backbeat; the `ballad` feel swaps in the 12/8 triplet drummer.
+    //   afrobeat — the two-guitar interlock + the hypnotic ostinato over Tony Allen.
+    'reggae:default:groove':   { picks: { comp: 'reggae_skank',       bass: 'reggae_riddim',    drums: 'reggae_one_drop' }, ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'disco:default:groove':    { picks: { comp: 'disco_scratch_16',   bass: 'octave_jump_bass', drums: 'four_on_floor' },   ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'latin:default:groove':    { picks: { comp: 'bossa_comp',         bass: 'bossa_bass',       drums: 'bossa' },           ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'soul:default:groove':     { picks: { comp: 'soul_stab_16',       bass: 'motown_counter',   drums: 'soul_backbeat' },   ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'soul:ballad:groove':      { picks: { comp: 'vamp_half',          bass: 'sustained_root',   drums: 'soul_12_8' },       ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'afrobeat:default:groove': { picks: { comp: 'afrobeat_interlock', bass: 'afro_ostinato',    drums: 'afrobeat' },        ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
   };
   const ARRANGEMENT_BASE = { picks: {}, ensemble: { drums: 'auto', bass: 'auto', comp: 'auto', pad: 'auto', lead: 'auto' }, registers: {}, tier: 'groove' };
   // Which density tier a cfg sits in: authored cfg.densityTier wins; else derive

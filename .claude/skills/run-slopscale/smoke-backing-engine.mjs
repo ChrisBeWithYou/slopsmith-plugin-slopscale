@@ -650,6 +650,38 @@ try {
       && pop.picks.comp === "pop_push" && pop.picks.bass === "root_pump" && pop.picks.drums === "straight_8th_rock";
     out.popNotFourFloor = pop.picks.drums !== "four_on_floor";   // the mandate: not four-on-the-floor for everything
     out.bluesEmpty = !unrec.picks.comp && !unrec.picks.bass && !unrec.picks.drums;
+    // Wave 1 world genres (band-intel 2026-06-13) — each idiomatic, never a generic kit.
+    const reggae = D.resolveArrangement({ audio: { profile: "reggae" } });
+    const disco = D.resolveArrangement({ audio: { profile: "disco" } });
+    const latin = D.resolveArrangement({ audio: { profile: "latin" } });
+    const soul = D.resolveArrangement({ audio: { profile: "soul" } });
+    const afrobeat = D.resolveArrangement({ audio: { profile: "afrobeat" } });
+    out.wave1Picks =
+         reggae.picks.comp === "reggae_skank" && reggae.picks.bass === "reggae_riddim" && reggae.picks.drums === "reggae_one_drop"
+      && disco.picks.comp === "disco_scratch_16" && disco.picks.bass === "octave_jump_bass" && disco.picks.drums === "four_on_floor"
+      && latin.picks.comp === "bossa_comp" && latin.picks.bass === "bossa_bass" && latin.picks.drums === "bossa"
+      && soul.picks.comp === "soul_stab_16" && soul.picks.bass === "motown_counter" && soul.picks.drums === "soul_backbeat"
+      && afrobeat.picks.comp === "afrobeat_interlock" && afrobeat.picks.bass === "afro_ostinato" && afrobeat.picks.drums === "afrobeat";
+    // the mandate: none of the Wave-1 genres falls back to a plain straight-8th rock kit
+    out.wave1NotGeneric = [reggae, disco, latin, soul, afrobeat].every((r) => r.picks.drums && r.picks.drums !== "straight_8th_rock");
+    // the soul `ballad` feel swaps in the 12/8 triplet drummer
+    const soulBallad = D.resolveArrangement({ audio: { profile: "soul" }, arrangementFeel: "ballad" });
+    out.soulBallad = soulBallad.picks.drums === "soul_12_8";
+    // (c2) THE SUBSTRATE VALUE for a Wave-1 genre: an un-wired reggae cfg gets the
+    // offbeat skank + the riddim bass from the recipe alone (the i-iv minor vamp).
+    const rcfg = Object.assign(S.readConfig(), {
+      practiceType: "scale", mode: "scale", shapeNotes: null, fretboardSystem: "position",
+      key: "A", scale: "natural_minor", stringSetup: "guitar_6_standard", bpm: 80, bars: 8,
+      fretMin: 5, fretMax: 9, direction: "up_down", sequence: "none",
+      progression: "i-iv", chordOverride: "auto", chordDepth: "seventh",
+      meter: { numerator: 4, denominator: 4, grouping: [4] },
+      backingStyle: "pad", swing: "straight", backingComp: "", backingBass: "",
+      backingDensity: undefined, backingPadDev: false,
+      audio: { notes: true, harmony: true, metronome: false, profile: "reggae", brightness: 0.58 },
+    });
+    out.reggaeComp = D.compCellForConfig(rcfg);
+    const rbe = (S.makeBundle(S.generateExercise(rcfg)).backingEvents) || [];
+    out.reggaeBand = rbe.some((e) => e.comp === "reggae_skank") && rbe.some((e) => e.role === "bass");
     // (b) tier derivation: full tier picks the heavier djent texture + double kick
     const metalFull = D.resolveArrangement({ audio: { profile: "metal" }, densityTier: "full" });
     out.fullTier = metalFull.picks.comp === "metal_pedal_16" && metalFull.picks.drums === "metal_double_kick";
@@ -690,6 +722,11 @@ try {
   ok(c6f.compDefault === "metal_chug_8", "compCellForConfig: an UN-WIRED metal cfg inherits metal_chug_8 from the recipe", `got=${c6f.compDefault}`);
   ok(c6f.recipeComp && c6f.recipeBass, "the un-wired metal cfg gets a full band (comp + bass) from the recipe alone");
   ok(c6f.bluesComp === "boogie_stab", "NON-REGRESSION: a blues boogie cfg still resolves boogie_stab (recipe never overrides the boogie route)", `got=${c6f.bluesComp}`);
+  ok(c6f.wave1Picks, "Wave 1 recipes resolve: reggae=skank/riddim/one-drop, disco=scratch/octave/four-floor, latin=bossa×3, soul=stab/motown/backbeat, afrobeat=interlock/ostinato/afrobeat");
+  ok(c6f.wave1NotGeneric, "the mandate: NO Wave-1 genre defaults to a plain straight-8th rock kit");
+  ok(c6f.soulBallad, "soul `ballad` feel swaps in the 12/8 triplet drummer (soul_12_8)");
+  ok(c6f.reggaeComp === "reggae_skank", "compCellForConfig: an un-wired reggae cfg inherits reggae_skank from the recipe", `got=${c6f.reggaeComp}`);
+  ok(c6f.reggaeBand, "the un-wired reggae cfg gets the offbeat skank + the riddim bass from the recipe alone");
 
   if (errs.length) { fail++; console.log(`  FAIL page errors: ${errs.join(" | ")}`); }
 } finally { await browser.close(); }
