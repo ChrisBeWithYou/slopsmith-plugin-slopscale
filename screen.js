@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.23-beta.10';
+  const SLOPSCALE_VERSION = '0.7.24-beta.1';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -566,6 +566,12 @@
     ['djent_skip_gallop',  'djent_moving_chug'],
     ['djent_moving_chug',  'djent_herta_chug'],
     ['djent_herta_chug',   'djent_lock_the_cell'],
+    // Metal LEAD-over-backing application rungs (panel 2026-06-13): the gallop
+    // teaches the i–♭VI–♭VII power chords; now SOLO over them, then add the
+    // Phrygian color, then trade bars in the jam cap.
+    ['melodic_metal_gallop', 'metal_lead_changes'],
+    ['metal_lead_changes',   'metal_lead_phrygian'],
+    ['metal_lead_phrygian',  'djent_lock_the_cell'],
     // ── CORE: BASS spine prereqs (2026-06-08) — the bass Beginner→Advanced climb
     // through the instrument-aware Core bands (bass_rh_pulse is the on-ramp).
     ['bass_rh_pulse',          'bass_root_click'],
@@ -633,7 +639,7 @@
     { id:'core_advanced',     label:'Advanced',     kind:'core', pinned:true, pathways:['seventh_vocab','whole_neck_freedom','guide_tones_path','ii_V_I_workout','modal_vamp','melmin_exotic_12key','harmonic_minor_exotic','sweep_arpeggio_primer','bass_scale_modes','bass_scale_shifts','bass_scale_whole_neck','bass_arp_changes','bass_lc_guide_tones','bass_lc_approach','bass_rh_three_finger','bass_lc_capstone','bass_lc_trade'] },
     { id:'style_blues',       label:'Blues',        kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner — minor-pentatonic box 1, the blue note (♭5), and a steady pulse over the 12-bar form.', pathways:['blues_box','blues_shuffle','blues_bends','blues_call_response','blues_mix','blues_turnaround','blues_turnaround_build'] },
     { id:'style_country',     label:'Country',      kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core Beginner→Intermediate — major pentatonic and the CAGED major scale; you target chord tones inside the shape, then add the country idiom (double-stops, chicken pickin\', the ♭VII train change).', pathways:['major_pent_country','country_cowboy_changes','country_double_stops','country_chicken_pickin','country_pedal_bends','country_train'] },
-    { id:'style_metal',       label:'Metal',        kind:'style', family:'High-Gain & Technical', buildsOn:'Builds on Core — power chords and palm-mute pulse (Beginner), tight 16th picking (Intermediate), plus exotic/harmonic-minor scales and sweep mechanics (Advanced). The djent sub-ladder climbs chug precision → accent control → grouping cells → cell vocabulary → moving stacks, topping out in a trade-bars jam.', pathways:['metalcore_chug','melodic_metal_gallop','djent_chug_lock','djent_accent_grid','djent_polymeter','djent_skip_gallop','djent_moving_chug','djent_herta_chug','djent_lock_the_cell','melodeath_twin_leads','death_chromatic'] },
+    { id:'style_metal',       label:'Metal',        kind:'style', family:'High-Gain & Technical', buildsOn:'Builds on Core — power chords and palm-mute pulse (Beginner), tight 16th picking (Intermediate), plus exotic/harmonic-minor scales and sweep mechanics (Advanced). The djent sub-ladder climbs chug precision → accent control → grouping cells → cell vocabulary → moving stacks, topping out in a trade-bars jam; and the lead rungs put you SOLOING over a full chugging rhythm section.', pathways:['metalcore_chug','melodic_metal_gallop','metal_lead_changes','metal_lead_phrygian','djent_chug_lock','djent_accent_grid','djent_polymeter','djent_skip_gallop','djent_moving_chug','djent_herta_chug','djent_lock_the_cell','melodeath_twin_leads','death_chromatic'] },
     { id:'style_rock',        label:'Rock',         kind:'style', family:'Roots & Rock',          buildsOn:'Builds on Core — power chords + the backbeat (Beginner), the pentatonic box (Beginner), then the blues-rock mix, pedal-tone riffs, and the ♭VII classic-rock changes.', pathways:['rock_power_backbeat','rock_pentatonic','rock_lead_vocab','rock_pedal_riff','rock_classic_changes'] },
     // Concepts family — "concept ladders" (one skill, sequenced easy→mastery): a
     // VERTICAL column through difficulty, vs the Core bands' horizontal staircase.
@@ -2066,6 +2072,41 @@
         { subdivision:'reverse_gallop', progression:'metal_i_bVI_bVII' },
         { scale:'natural_minor', subdivision:'gallop' },
         { progression:'metal_i_bVII_bVI_V', subdivision:'gallop' },
+      ]
+    },
+    // ── Metal LEAD over the band (band-intel application rungs, panel 2026-06-13) ──
+    // The Metal pack's missing APPLICATION layer: the band is all riff-drills with
+    // no "solo over the band." These put the player in a pure LEAD role over a real
+    // distorted rhythm section (double-tracked DI-through-Metal-amp power-chord comp
+    // + a root-pump bass + drums) — the live trigger for the distorted-comp realism.
+    // The LEAD stays clean DI in STANDARD tuning, high in the singing register
+    // (fret 11–15 box) — DECOUPLED from the heavy backing (guitar-pedagogy ruling:
+    // the "lead must use the low open string" rule is for ONE player covering both
+    // roles; here the backing is audio and the hands are free). Comp = power 5ths.
+    metal_lead_changes: {
+      label:'Lead Over the Band',
+      goal:'Stop drilling riffs — SOLO over them. A full metal rhythm section chugs i–♭VI–♭VII (Em–C–D) underneath: double-tracked palm-muted power chords, a locked bass, drums. Your job is the lead — run E natural minor in the 12th-fret box, in time, and HEAR the band move under you. Every note of the box fits all three chords (it IS the key), so you can\'t hit a wrong note — the skill is phrasing in time and feeling the changes. Then start landing chord tones as each chord arrives (the root or 5th of the chord playing NOW). A clean lead tone over a heavy band is exactly how real metal lead practice sounds: the backing can be as detuned and heavy as you like — your lead stays in standard, up where it sings.',
+      scales:['natural_minor','harmonic_minor'],
+      tempoTiers:[80, 100, 110, 120],
+      base:{ practiceType:'scale', scale:'natural_minor', key:'E', progression:'metal_i_bVI_bVII', chordOverride:'5', backingComp:'metal_chug_8', backingBass:'root_pump', audioProfile:'metal', meter:'4/4', subdivision:'eighth', bpm:100, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', fretMin:11, fretMax:15, stringSetup:'guitar_6_standard', renderer:'highway_3d', swing:'straight' },
+      vary:[
+        { key:'E' },
+        { key:'A' },
+        { scale:'harmonic_minor', key:'E' },
+        { key:'G' },
+      ]
+    },
+    metal_lead_phrygian: {
+      label:'Phrygian Lead Over a Vamp',
+      goal:'The metal/neoclassical LEAD color: E Phrygian over a static i–♭II vamp. The rhythm guitar pedals a heavy djent sixteenth chug on one tonal center — no changes to track, so pour everything into the MODE. The signature is the ♭2 (F natural): reach for it (and the ♭6, C) as TENSION, then drop a half-step down to the root or 5th — the "Phrygian drop" is the whole sound. Same 12th-fret box as the natural-minor rung with the 2nd flattened — one new note, a big new flavor. Stay up in the singing register; let the band stay low and heavy underneath.',
+      scales:['phrygian','harmonic_minor'],
+      tempoTiers:[90, 105, 115, 125],
+      base:{ practiceType:'scale', scale:'phrygian', key:'E', progression:'phrygian_vamp', chordOverride:'5', backingComp:'metal_pedal_16', backingBass:'root_pump', audioProfile:'djent', meter:'4/4', subdivision:'eighth', bpm:105, bars:8, direction:'up_down', sequence:'none', advancedMode:true, fretboardSystem:'position', fretMin:11, fretMax:15, stringSetup:'guitar_6_standard', renderer:'highway_3d', swing:'straight' },
+      vary:[
+        { key:'E' },
+        { scale:'harmonic_minor', key:'E' },
+        { key:'A' },
+        { key:'D' },
       ]
     },
     melodeath_twin_leads: {
@@ -4329,18 +4370,25 @@
   // tone is overridden to a bass program when the instrument itself is a bass.
   // Phase B (WAF for all backing): the comp is a SAMPLED instrument by default, with
   // the synth pad (scheduleHarmonyPad) as the per-voice failover until the preset
-  // loads. The distorted family keeps the synth pad for now — a distorted comp's
-  // real voice is the NAM amp model (in progress); a sampled e-piano under metal
-  // would be a regression, so pad stays its placeholder/failover until NAM lands.
+  // loads. A family may also declare a dedicated `pad` slot for the Keys/sustain
+  // layer when it should differ from the comp voice (distorted does — see below).
   // notes.sg — the GUIDE voice defaults to the sampled Shinyguitar electric DI
   // (Christian's by-ear gate PASSED 2026-06-12: now the default, not a pin-only
   // A/B). The WAF tone stays declared as the warm-up cover + bend voice; the
   // acoustic family keeps its steel-string (an electric DI under a bluegrass
   // exercise would be wrong); resolveAudioProfile clears sg for bass instruments.
+  // harmony.sg + harmony.amp (band-intel Track C3 unlock, 2026-06-13): the
+  // DISTORTED family's comp is no longer the synth-pad placeholder — it's the
+  // sampled DI guitar through the METAL amp insert (power chords through high
+  // gain = the sound the genre actually has; the amp chain shipped 2026-06-12
+  // with a procedural cab IR, so the old "until NAM lands" gate is open). The
+  // WAF clean preset covers while the samples warm; the Keys SUSTAIN layer
+  // keeps the synth pad via the dedicated `pad` slot (a sustained DI through a
+  // high-gain amp would be mush, and the pad's job is glue).
   const AUDIO_FAMILY_DEFAULTS = {
     clean:      { harmony: { engine: 'sample', tone: 'epiano', level: 0.9 },  notes: { tone: 'clean', sg: true }, bass: { tone: 'bass'    }, brightness: 0.5 },
     acoustic:   { harmony: { engine: 'sample', tone: 'piano',  level: 0.8 },  notes: { tone: 'guitar', sg: false }, bass: { tone: 'upright' }, brightness: 0.6 },
-    distorted:  { harmony: { tone: 'pad',    level: 0.7 },  notes: { tone: 'clean', sg: true }, bass: { tone: 'bass'    }, brightness: 0.42 },
+    distorted:  { harmony: { engine: 'sample', tone: 'clean', sg: true, amp: 'metal', level: 0.6 }, pad: { tone: 'pad', level: 0.7 }, notes: { tone: 'clean', sg: true }, bass: { tone: 'bass' }, brightness: 0.42 },
     electronic: { harmony: { engine: 'sample', tone: 'epiano', level: 0.85 }, notes: { tone: 'clean', sg: true }, bass: { tone: 'bass'    }, brightness: 0.7 },
   };
   const GLOBAL_AUDIO_DEFAULT = {
@@ -4354,8 +4402,8 @@
     blues:      { family: 'clean',      harmony: { engine: 'sample', tone: 'organ',  level: 0.85 }, brightness: 0.5 },
     jazz:       { family: 'clean',      harmony: { engine: 'sample', tone: 'epiano', level: 0.85 }, brightness: 0.55, drums: { kit: 'kit_jazz' } },
     rock:       { family: 'clean',      harmony: { engine: 'sample', tone: 'organ',  level: 0.8 },  brightness: 0.55 },
-    metal:      { family: 'distorted',  harmony: { tone: 'pad', level: 0.7 },  brightness: 0.42 },
-    djent:      { family: 'distorted',  harmony: { tone: 'pad', level: 0.65 }, brightness: 0.38 },
+    metal:      { family: 'distorted',  harmony: { engine: 'sample', tone: 'clean', sg: true, amp: 'metal', level: 0.6 },  brightness: 0.42 },
+    djent:      { family: 'distorted',  harmony: { engine: 'sample', tone: 'clean', sg: true, amp: 'metal', level: 0.55 }, brightness: 0.38 },
     gospel:     { family: 'clean',      harmony: { engine: 'sample', tone: 'organ',  level: 0.9 },  brightness: 0.55 },
     bluegrass:  { family: 'acoustic',   harmony: { engine: 'sample', tone: 'guitar', level: 0.78 }, brightness: 0.62, drums: { kit: 'kit_acoustic_soft' } },
     'city-pop': { family: 'electronic', harmony: { engine: 'sample', tone: 'epiano', level: 0.8 },  brightness: 0.68 },
@@ -4626,6 +4674,15 @@
       band:'advanced', instrument:'guitar', style:'metal', kind:'scale',
       base:{ scale:'phrygian_dominant', meter:'4/4', subdivision:'sixteenth', bars:8, direction:'up_down', sequence:'fours', fretboardSystem:'caged' },
       vary:[ { key:'E', shape:'E' }, { key:'A', shape:'E' }, { key:'D', shape:'E' }, { key:'B', shape:'E' } ],
+    },
+    // Application: solo over a real chugging metal band (the distorted-comp realism
+    // trigger as a timed Workout block — band-intel, panel 2026-06-13). vary holds
+    // duration constant (length-locked): key/scale only.
+    g_metal_lead: {
+      role:'application', label:'Lead over a metal band', competency:'metal lead phrasing over changes', creditsPathway:'metal_lead_changes',
+      band:'advanced', instrument:'guitar', style:'metal', kind:'scale',
+      base:{ scale:'natural_minor', progression:'metal_i_bVI_bVII', chordOverride:'5', backingComp:'metal_chug_8', backingBass:'root_pump', audioProfile:'metal', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', sequence:'none', fretboardSystem:'position', fretMin:11, fretMax:15 },
+      vary:[ { key:'E' }, { key:'A' }, { scale:'harmonic_minor', key:'E' }, { key:'D' } ],
     },
 
     // ── Phase 5 guitar library — derived from already-vetted PATHWAYS bases (so the
@@ -5268,6 +5325,9 @@
       harmony: { ...GLOBAL_AUDIO_DEFAULT.harmony, ...famDef.harmony, ...(profDef ? profDef.harmony : {}) },
       notes:   { ...GLOBAL_AUDIO_DEFAULT.notes,   ...famDef.notes,   ...(profDef ? profDef.notes   : {}) },
       bass:    { ...GLOBAL_AUDIO_DEFAULT.bass,    ...famDef.bass,    ...(profDef ? profDef.bass    : {}) },
+      // Dedicated Keys/sustain-layer voice when declared (distorted family);
+      // absent = null and the pad bus follows the harmony voice (back-compat).
+      pad:     (famDef.pad || (profDef && profDef.pad)) ? { ...famDef.pad, ...(profDef ? profDef.pad : {}) } : null,
       // Ensemble drums slot (Phase D): a kit id resolved profile ← family default;
       // resolveDrumKit() applies the mixer override + the unregistered→kit_909 fallback.
       drums:   { kit: (profDef && profDef.drums && profDef.drums.kit) || DRUM_KIT_FAMILY_DEFAULT[fam] || 'kit_909',
@@ -5463,12 +5523,26 @@
     if (pin) return pin === 'shiny';
     return !!(prof && prof.notes && prof.notes.sg);
   };
+  // RHYTHM (harmony) comp voice resolution — same contract (band-intel C3,
+  // 2026-06-13): the distorted family's profile declares harmony.sg, so metal/
+  // djent comp rides the DI through the Metal amp by default; a pin wins both ways.
+  const sgHarmWanted = prof => {
+    const pin = mixerState.harmony && mixerState.harmony.instrument;
+    if (pin) return pin === 'shiny';
+    return !!(prof && prof.harmony && prof.harmony.sg);
+  };
   // Kick the lazy loads for every buffer the bundle's shiny-pinned strips need.
   // Returns the in-flight promises (awaitVoices races them against its cap).
   function sgPrewarm(bundle) {
-    const wantHarm = sgToneFor('harmony'), wantPad = sgToneFor('pad');
-    let wantNotes = sgToneFor('notes');
-    if (!wantNotes) { try { wantNotes = sgNotesWanted(resolveAudioProfile((bundle && bundle.config) || {})); } catch (_) {} }
+    const wantPad = sgToneFor('pad');
+    let wantHarm = sgToneFor('harmony'), wantNotes = sgToneFor('notes');
+    if (!wantHarm || !wantNotes) {
+      try {
+        const prof = resolveAudioProfile((bundle && bundle.config) || {});
+        if (!wantHarm) wantHarm = sgHarmWanted(prof);
+        if (!wantNotes) wantNotes = sgNotesWanted(prof);
+      } catch (_) {}
+    }
     if (!wantHarm && !wantPad && !wantNotes) return [];
     const files = new Set();
     if (bundle && (wantHarm || wantPad)) for (const ev of bundle.backingEvents || []) {
@@ -5489,22 +5563,53 @@
   // WAF voice) when the buffer isn't decoded yet. artic 'chug' = the palm-mute
   // envelope; everything else sustains to `d` then releases naturally. `vel` picks
   // the velocity LAYER (timbre); `vol` is the gain — both vary, like a real hit.
-  function sgVoice(ctx, busName, when, midi, d, vol, artic, vel) {
-    const kc = sgNearestKc(midi), vl = sgLayer(vel == null ? 1 : vel);
-    const rrKey = kc + '_' + vl;
-    const rr = (sgRR[rrKey] = ((sgRR[rrKey] || 0) + 1) % 2);
-    const file = `sg_sus_${kc}_${vl}_rr${rr + 1}.ogg`;
+  // opts (band-intel C2 double-track, 2026-06-13): { pan, delay, cents } — a
+  // per-voice StereoPanner BEFORE the bus entry (the amp chain is channel-wise,
+  // so L/R separation survives the WaveShaper/cab), a seeded onset offset, and
+  // a small detune. The doubled voice naturally pulls the OTHER round-robin
+  // take (sgRR increments per call) — real double-tracking is two takes.
+  function sgVoice(ctx, busName, when, midi, d, vol, artic, vel, opts) {
+    if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) {
+      const st = (globalThis.__ss_sgStats = globalThis.__ss_sgStats || { voices: 0, doubled: 0, chucks: 0, mutestr: 0 });
+      st.voices++;
+      if (opts && opts.pan != null) st.doubled++;
+      if (artic === 'chuck') st.chucks++;
+      if (artic && artic.mutestr != null) st.mutestr++;
+    }
+    let file;
+    if (artic === 'chuck') {
+      // Multi-string dead-strum chuck — unpitched, 4 recorded chucks × 2 RR.
+      const n = (sgRR.chuck = ((sgRR.chuck || 0) + 1) % 8);
+      file = `sg_chuck_${(n >> 1) + 1}_rr${(n & 1) + 1}.ogg`;
+    } else if (artic && artic.mutestr != null) {
+      // Per-string dead mute (sample string 1 = LOW = our s=0).
+      const sN = Math.max(1, Math.min(6, artic.mutestr + 1));
+      const rr = (sgRR['mut' + sN] = ((sgRR['mut' + sN] || 0) + 1) % 2);
+      file = `sg_mutestr_${sN}_rr${rr + 1}.ogg`;
+    } else {
+      const kc = sgNearestKc(midi), vl = sgLayer(vel == null ? 1 : vel);
+      const rrKey = kc + '_' + vl;
+      const rr = (sgRR[rrKey] = ((sgRR[rrKey] || 0) + 1) % 2);
+      file = `sg_sus_${kc}_${vl}_rr${rr + 1}.ogg`;
+    }
     const entry = sgBuffers[file];
     if (!entry || entry.state !== 'ready') { ensureSgBuffer(file); return false; }
+    const unpitched = artic === 'chuck' || (artic && artic.mutestr != null);
+    if (opts && opts.delay) when += opts.delay;
     const src = ctx.createBufferSource();
     src.buffer = entry.buf;
-    src.playbackRate.value = Math.pow(2, (midi - kc) / 12);
+    src.playbackRate.value = unpitched
+      ? 1
+      : Math.pow(2, ((midi - sgNearestKc(midi)) + ((opts && opts.cents) || 0) / 100) / 12);
     const g = ctx.createGain();
     const v = Math.max(0.0001, vol * SG_LEVEL);
     g.gain.setValueAtTime(0.0001, when);
     g.gain.exponentialRampToValueAtTime(v, when + 0.003);
     let stopAt;
-    if (artic === 'chug') {
+    if (unpitched) {
+      // Recorded thunk — play it as-is, just bound the tail.
+      stopAt = when + Math.min(0.5, entry.buf.duration + 0.05);
+    } else if (artic === 'chug') {
       // Palm-mute: a short hold then a fast exponential tail — thump, not a gate.
       g.gain.setValueAtTime(v, when + 0.025);
       g.gain.setTargetAtTime(0.0001, when + 0.025, 0.055);
@@ -5515,7 +5620,13 @@
       g.gain.setTargetAtTime(0.0001, end, 0.08);
       stopAt = end + 0.4;
     }
-    src.connect(g); g.connect(trackBus(ctx, busName));
+    src.connect(g);
+    let out = g;
+    if (opts && opts.pan != null && typeof ctx.createStereoPanner === 'function') {
+      const p = ctx.createStereoPanner(); p.pan.value = opts.pan;
+      g.connect(p); out = p; audioNodes.push(p);
+    }
+    out.connect(trackBus(ctx, busName));
     src.start(when); src.stop(stopAt);
     audioNodes.push(src, g);
     return true;
@@ -6689,7 +6800,7 @@
   // UNDECLARED = the legacy coalesced pad, unchanged (genre cells ship vetted,
   // per the locked plan: jazz is the pilot, boogie's stabs the proof shape).
   // Every cell carries a player-facing label (the future goal-card line).
-  const COMP_ARTIC = { stab: 0.45, chug: 0.22, sus: 1.0, ring: 0 };   // hit length ×step (ring = to the chord's end)
+  const COMP_ARTIC = { stab: 0.45, chug: 0.22, sus: 1.0, ring: 0, chuck: 0.15 };   // hit length ×step (ring = to the chord's end; chuck = the recorded dead-strum)
   const COMP_VEL = { accent: 1.0, normal: 0.78, ghost: 0.45 };        // sound-design velocity tiers
   const COMP_GROOVES = {
     vamp_half:   { div: 1, bars: 1, label: 'half-note vamp',
@@ -6711,6 +6822,30 @@
     // stacked weight on the strong-beat side (oom-pah, not shuffle).
     boogie_stab: { div: 2, bars: 1, label: 'offbeat shuffle stabs',
       grid: ['.', { t: 'shell', a: 'stab' }, '.', { t: 'shell', a: 'stab', acc: 1 }, '.', { t: 'shell', a: 'stab' }, '.', { t: 'shell', a: 'stab', acc: 1 }] },
+    // ── Metal rhythm-section comp cells (band-intel, panel 2026-06-13) — the
+    // chugging backing the new metal LEAD pathways ride over. Power 5ths (target
+    // root5) ONLY: under high gain the perfect 5th is the one interval that stays
+    // clean — a comp 3rd turns to mud and clashes the lead's own 3rd (harmony
+    // ruling). rock_chug is WRONG for metal (its rings are anti-metal — metal-idiom).
+    // The comp plays the double-tracked DI-through-Metal-amp insert; accents mark
+    // the quarter pulse.
+    metal_chug_8:   { div: 2, bars: 1, label: 'metal eighth chug (power 5ths)',
+      grid: [{ t: 'root5', a: 'chug', acc: 1 }, { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug', acc: 1 }, { t: 'root5', a: 'chug' },
+             { t: 'root5', a: 'chug', acc: 1 }, { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug', acc: 1 }, { t: 'root5', a: 'chug' }] },
+    // Djent sixteenth pedal chug — one low pedal note (lifts an octave over the
+    // bass for the guitar+bass octave lock), relentless 16ths, the static-vamp engine.
+    metal_pedal_16: { div: 4, bars: 1, label: 'djent sixteenth pedal chug',
+      grid: [{ t: 'pedal', a: 'chug', acc: 1 }, { t: 'pedal', a: 'chug' }, { t: 'pedal', a: 'chug' }, { t: 'pedal', a: 'chug' },
+             { t: 'pedal', a: 'chug', acc: 1 }, { t: 'pedal', a: 'chug' }, { t: 'pedal', a: 'chug' }, { t: 'pedal', a: 'chug' },
+             { t: 'pedal', a: 'chug', acc: 1 }, { t: 'pedal', a: 'chug' }, { t: 'pedal', a: 'chug' }, { t: 'pedal', a: 'chug' },
+             { t: 'pedal', a: 'chug', acc: 1 }, { t: 'pedal', a: 'chug' }, { t: 'pedal', a: 'chug' }, { t: 'pedal', a: 'chug' }] },
+    // The gallop (eighth + two sixteenths) on power 5ths — [hit, rest, hit, hit]
+    // per beat; the accented downbeat rings through the rest as the 'eighth'.
+    metal_gallop:   { div: 4, bars: 1, label: 'metal gallop (power 5ths)',
+      grid: [{ t: 'root5', a: 'chug', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' },
+             { t: 'root5', a: 'chug', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' },
+             { t: 'root5', a: 'chug', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' },
+             { t: 'root5', a: 'chug', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }] },
   };
   // Startup integrity guard (mirrors validateStrumPatterns): grid shape, known
   // targets/artics, a label on every cell (player-facing from day one).
@@ -6749,7 +6884,11 @@
     if (step.t === 'top')   return midis.slice(-1);
     if (step.t === 'pedal') return [pcAtOrAbove(c.rootPc % 12, lift ? 52 : 40)];
     if (step.t === 'root5') {
-      const r = pcAtOrAbove(c.rootPc % 12, 48);
+      // Anchored LOW (E2 region) so power 5ths sit UNDER the lead — harmony
+      // ruling for the metal lead-over-backing context: comp top ≤ ~midi 52,
+      // lead ≥ 57, a clean window above the smear. root5 is the metal cells'
+      // target and was unused by any shipped cell before, so the low anchor is safe.
+      const r = pcAtOrAbove(c.rootPc % 12, 40);
       return [r, r + 7];
     }
     // shell: guide tones (3rd + 7th) + the 9 colour — the boogie shell rule;
@@ -9629,7 +9768,11 @@
     if (tok === 'U') { struck = sorted.slice(-4); order = struck.slice().reverse(); }  // up: top ≤4, high→low
     else             { struck = sorted; order = struck; }                              // down / chuck: all, low→high
     const span = Math.max(1, order.length);
-    const stagger = Math.max(0.006, Math.min(0.018, (stepSec * 0.40) / span));
+    // Accent-aware rake (band-intel C1): an accented strike snaps tighter (a
+    // faster wrist), a ghost/mute drags slightly wider — the loose-vs-snapped
+    // contrast is most of what reads as a human strum hand.
+    const widthMul = accent ? 0.7 : mute ? 1.15 : 1.0;
+    const stagger = Math.max(0.005, Math.min(0.02, (stepSec * 0.40 * widthMul) / span));
     const sus = mute ? Math.max(0.04, stepSec * 0.35) : Math.max(0.05, stepSec * 0.92);
     order.forEach((p, k) => {
       notes.push(noteDefaults({
@@ -13575,12 +13718,15 @@
     // soft asymmetric clip, presence on top.
     drive: { label: 'Overdrive', preHp: 75, preMid: [800, 0.8, 4], drive: 6, curve: 'soft',
              post: [['lowshelf', 100, 0, -1], ['peaking', 850, 0.9, 2], ['peaking', 3000, 0.9, 2]],
-             makeup: 0.42 },
+             makeup: 0.42, comp: [-16, 3, 0.008, 0.12] },
     // Metal: tight high-gain — hard pre-HP so chugs don't flub, hard clip,
-    // post mid scoop + thump + presence.
+    // post mid scoop + thump + presence. comp = the distorted lane's own soft
+    // compressor (threshold/ratio/attack/release — band-intel C3 spec), so
+    // stacked power-chord comp hits stay dense without leaning on the master
+    // limiter.
     metal: { label: 'Metal', preHp: 110, drive: 16, curve: 'hard',
              post: [['lowshelf', 95, 0, 2], ['peaking', 580, 1.1, -5], ['peaking', 3500, 0.9, 3]],
-             makeup: 0.24 },
+             makeup: 0.24, comp: [-16, 3, 0.008, 0.12] },
   };
   const AMP_OPTIONS = [['', 'Amp: Auto'], ['off', 'No amp'], ['clean', 'Clean'], ['drive', 'Overdrive'], ['metal', 'Metal']];
   function ampCurve(kind, drive) {
@@ -13640,7 +13786,14 @@
     const cab = mk(ctx.createConvolver()); cab.buffer = cabIrBuffer(ctx);
     const makeup = mk(ctx.createGain()); makeup.gain.value = p.makeup;
     head.connect(cab); cab.connect(makeup);
-    return { input: preHp, output: makeup, nodes };
+    let out = makeup;
+    if (p.comp) {
+      const c = mk(ctx.createDynamicsCompressor());
+      c.threshold.value = p.comp[0]; c.ratio.value = p.comp[1];
+      c.attack.value = p.comp[2]; c.release.value = p.comp[3]; c.knee.value = 6;
+      makeup.connect(c); out = c;
+    }
+    return { input: preHp, output: out, nodes };
   }
   // Per-strip amp resolution: an explicit pick wins; 'off' = bypass; Auto ('')
   // gives the sampled DI guitar voice the Clean amp (a raw DI line is sterile)
@@ -13648,10 +13801,14 @@
   // _ampWant is set by the scheduler each pass (it knows the resolved voices);
   // wireTrackAmp is idempotent on the wanted id, so re-calls are free.
   const _ampWant = { notes: null, harmony: null };
-  function resolveAmpId(name, voiceIsSgSample) {
+  function resolveAmpId(name, voiceIsSgSample, prof) {
     const sel = (mixerState[name] && mixerState[name].amp) || '';
     if (sel === 'off') return null;
     if (AMP_PRESETS[sel]) return sel;
+    // Auto: a profile-declared amp wins (distorted family's comp declares
+    // 'metal' — band-intel C3); else the DI sample voice takes Clean.
+    const slot = prof && (name === 'harmony' ? prof.harmony : prof.notes);
+    if (slot && AMP_PRESETS[slot.amp]) return slot.amp;
     return voiceIsSgSample ? 'clean' : null;
   }
   function wireTrackAmp(ctx, name) {
@@ -15732,9 +15889,14 @@
     // Mixer per-channel instrument override wins over the profile's voice (Phase C).
     const profHarmGm = harmProfile.harmony.engine === 'sample' ? TONE_GM[harmProfile.harmony.tone] : null;
     const harmGm  = mixerInstrumentFor('harmony') ?? profHarmGm;
-    // The Keys strip ('pad' bus — the sustained layer): its own override, else the
-    // profile's harmony voice (profiles grow a dedicated pad slot incrementally).
-    const padGm   = mixerInstrumentFor('pad') ?? profHarmGm;
+    // The Keys strip ('pad' bus — the sustained layer): its own override, else
+    // the profile's dedicated pad slot when declared (distorted keeps the synth
+    // pad there — engine!=='sample' resolves null → scheduleHarmonyPad), else
+    // the harmony voice (back-compat).
+    const profPadGm = harmProfile.pad
+      ? (harmProfile.pad.engine === 'sample' ? TONE_GM[harmProfile.pad.tone] : null)
+      : profHarmGm;
+    const padGm   = mixerInstrumentFor('pad') ?? profPadGm;
     const bassGm  = mixerInstrumentFor('bass')    ?? (harmProfile.bass.engine    === 'sample' ? TONE_GM[harmProfile.bass.tone]    : null);
     const notesGm = mixerInstrumentFor('notes')   ?? (harmProfile.notes.engine   === 'sample' ? TONE_GM[harmProfile.notes.tone]   : null);
     if (audio.harmony && harmGm != null) ensureWafPreset(harmGm);
@@ -15750,13 +15912,14 @@
     // Like the ensureWafPreset calls above, scheduling kicks the lazy buffer
     // loads itself — paths that skip prewarm (e.g. jamPlay) still warm up, and
     // the rolling window picks the samples up at the next chunk/wrap.
-    const sgHarm = sgToneFor('harmony'), sgPad = sgToneFor('pad'), sgNotes = sgNotesWanted(harmProfile);
+    const sgHarm = sgHarmWanted(harmProfile), sgPad = sgToneFor('pad'), sgNotes = sgNotesWanted(harmProfile);
     if (sgHarm || sgPad || sgNotes) sgPrewarm(bundle);
     // Amp inserts (Guide + Rhythm): resolve each strip's amp for THIS pass (an
-    // explicit pick wins; Auto = Clean for the DI sample voice, none otherwise)
-    // and (re)wire the pre-fader insert — idempotent, so per-chunk calls are free.
-    _ampWant.notes = resolveAmpId('notes', sgNotes);
-    _ampWant.harmony = resolveAmpId('harmony', sgHarm);
+    // explicit pick wins; Auto = the profile's declared amp, else Clean for the
+    // DI sample voice, else none) and (re)wire the pre-fader insert —
+    // idempotent, so per-chunk calls are free.
+    _ampWant.notes = resolveAmpId('notes', sgNotes, harmProfile);
+    _ampWant.harmony = resolveAmpId('harmony', sgHarm, harmProfile);
     wireTrackAmp(ctx, 'notes'); wireTrackAmp(ctx, 'harmony');
     const wafVoice = (preset, busName, when, midi, d, vol) => {
       const e = wafPlayer.queueWaveTable(ctx, trackBus(ctx, busName), preset, when, midi, d, vol * wafLoudnessTrim(midi));
@@ -15786,17 +15949,43 @@
         const preset = busName === 'harmony' ? harmPreset : padPreset;
         // Sampled-guitar pin (mixer 'Electric DI'): per-chord all-or-nothing so a
         // half-sampled chord never sounds; WAF (then the pad) covers until warm.
-        const useSg = (busName === 'harmony' ? sgHarm : sgPad) && sgReadyFor(ev.midis, vel);
+        const useSg = (busName === 'harmony' ? sgHarm : sgPad) && (ev.a === 'chuck' || sgReadyFor(ev.midis, vel));
         if (useSg || (preset && wafPlayer)) {
           // Scale per-voice level by 1/√(chord size) so a dense comp doesn't sum hot
           // into the limiter (anti-clip; matches the synth pad's density-scaling).
           const hn = (ev.midis || []).length, hScale = 1 / Math.sqrt(Math.max(1, hn));
-          for (const m of (ev.midis || [])) {
-            const v = harmProfile.harmony.level * WAF_VOICE_VOL[busName] * hScale * vel;
-            if ((!useSg || !sgVoice(ctx, busName, when, m, d, v, ev.a, vel)) && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v);
+          if (useSg && ev.a === 'chuck') {
+            // The recorded multi-string dead-strum — ONE unpitched sample per
+            // hit (never per chord note). Cold buffer = skip (a missing ghost
+            // beats a wrongly pitched WAF stand-in).
+            sgVoice(ctx, busName, when, 0, d, harmProfile.harmony.level * WAF_VOICE_VOL[busName] * vel, 'chuck', vel);
+          } else if (useSg && busName === 'harmony') {
+            // DOUBLE-TRACK (band-intel C2): two takes of the comp guitar, hard
+            // L/R (±0.35), the right side a seeded 12–20ms late + a few cents
+            // flat/sharp — per-voice panners sit BEFORE the bus entry so the
+            // L/R spread survives the (channel-wise) amp chain, and the RR
+            // alternation means each side literally plays a different take.
+            // ~0.72 per side keeps the sum at the single-voice loudness.
+            const jit = (Math.abs(Math.sin(ev.t * 12.9898)) * 43758.5453) % 1;   // deterministic per hit
+            const dly = 0.012 + jit * 0.008, cents = (jit > 0.5 ? 1 : -1) * (3 + jit * 3);
+            for (const m of (ev.midis || [])) {
+              const v = harmProfile.harmony.level * WAF_VOICE_VOL[busName] * hScale * vel * 0.72;
+              const okL = sgVoice(ctx, busName, when, m, d, v, ev.a, vel, { pan: -0.35 });
+              const okR = sgVoice(ctx, busName, when, m, d, v, ev.a, vel, { pan: 0.35, delay: dly, cents });
+              if (!okL && !okR && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v / 0.72);
+            }
+          } else {
+            for (const m of (ev.midis || [])) {
+              const v = harmProfile.harmony.level * WAF_VOICE_VOL[busName] * hScale * vel;
+              if ((!useSg || !sgVoice(ctx, busName, when, m, d, v, ev.a, vel)) && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v);
+            }
           }
         } else {
-          scheduleHarmonyPad(ctx, when, ev.midis || [], d, instrument, harmProfile.harmony.tone, { bright: harmProfile.brightness, level: harmProfile.harmony.level * vel, bus: busName });
+          // Keys dip (band-intel B2 seed): when the comp guitar is playing, the
+          // sustained pad steps back −3 dB so the band doesn't smear (the
+          // arrangement knows who plays at build time — no live analysis).
+          const padLevel = (harmProfile.pad && harmProfile.pad.level != null ? harmProfile.pad.level : harmProfile.harmony.level) * (sgHarm ? 0.7 : 1);
+          scheduleHarmonyPad(ctx, when, ev.midis || [], d, instrument, (harmProfile.pad && harmProfile.pad.tone) || harmProfile.harmony.tone, { bright: harmProfile.brightness, level: padLevel * vel, bus: busName });
         }
       }
     }
@@ -15828,8 +16017,14 @@
       // BENT notes (the sampler can't slide pitch) so blues bends stay audible.
       // The 'Electric DI' pin tries the Shinyguitar voice first (muted notes —
       // n.mt — get the palm-mute envelope); WAF covers while it warms.
+      // Articulation routing (band-intel C1): a DEAD note (n.mt — the ghost
+      // thunk) plays the recorded per-string mute sample; a palm-muted pitched
+      // note (n.pm — the chug) gets the short-hold envelope; everything else
+      // sustains. The dead-note sample is honest in a way an envelope-choked
+      // pitched sustain never was.
+      const sgArtic = n.mt ? { mutestr: n.s } : n.pm ? 'chug' : '';
       const sgPlayed = sgNotes && bend <= 0
-        && sgVoice(ctx, 'notes', when, midi, dur, harmProfile.notes.level * WAF_VOICE_VOL.notes, n.mt ? 'chug' : '', 1);
+        && sgVoice(ctx, 'notes', when, midi, dur, harmProfile.notes.level * WAF_VOICE_VOL.notes, sgArtic, 1);
       if (sgPlayed) {
         // scheduled on the sample voice — nothing further
       } else if (notesPreset && wafPlayer && bend <= 0) {
