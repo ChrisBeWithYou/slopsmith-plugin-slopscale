@@ -109,13 +109,13 @@ What's **designed, not yet built** (the next humanization tranche):
 
 - **Sampled voices — WebAudioFont.** The melodic backing (comp, bass, guide
   voice) plays GM multisample presets in the **WebAudioFont** format —
-  JavaScript preset files converted from SF2 SoundFonts. We bundle the
-  programs we actually use from the **JCLive** GM soundfont (14 presets,
-  ~3.7 MB) plus **FluidR3_GM** one-shots for the sampled drum kits, all
-  self-hosted under `static/wafonts/` and served by our own plugin route — no
-  CDN, offline-safe. This mirrors how the host's piano/drums plugins make
-  sound. The WebAudioFont player code is MIT; redistribution of the JCLive /
-  FluidR3 sample *data* is flagged for verification before public release.
+  JavaScript preset files converted from SF2 SoundFonts. We bundle the 14
+  melodic programs we actually use plus the drum one-shots, all from the
+  **FluidR3_GM** soundfont (MIT — provenance in `static/wafonts/README.md`;
+  the previously-bundled JCLive variants were removed 2026-06-12 over
+  unverifiable sound-data provenance), self-hosted under `static/wafonts/`
+  and served by our own plugin route — no CDN, offline-safe. This mirrors how
+  the host's piano/drums plugins make sound.
 - **Synthesis fallbacks/voices.** Until a preset's async load lands (or if it
   fails), each voice independently falls back to a synthesized stand-in:
   additive-sine organ, a Rhodes-style e-piano, a filtered triangle+saw pad
