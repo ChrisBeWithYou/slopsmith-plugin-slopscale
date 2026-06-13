@@ -732,6 +732,20 @@ try {
     });
     const rgch = S.generateExercise(rgcfg);
     out.ragtimeToken = !!(rgch && rgch.chart && (rgch.chart.notes || []).length);
+    // Wave 3b — rock-family bands + meter-driven prog (band-intel 2026-06-13).
+    const w3surf = D.resolveArrangement({ audio: { profile: "surf" } });
+    const w3shoe = D.resolveArrangement({ audio: { profile: "shoegaze" } });
+    const w3emo = D.resolveArrangement({ audio: { profile: "emo" } });
+    const w3punk = D.resolveArrangement({ audio: { profile: "punk" } });
+    const w3prog = D.resolveArrangement({ audio: { profile: "prog" } });
+    out.wave3bPicks =
+         w3surf.picks.comp === "metal_chug_8" && w3surf.picks.bass === "root_pump" && w3surf.picks.drums === "straight_8th_rock"
+      && w3shoe.picks.comp === "drone_wash" && w3shoe.picks.drums === "straight_8th_rock"
+      && w3emo.picks.comp === "emo_twinkle" && w3emo.picks.bass === "motown_counter"
+      && w3punk.picks.comp === "punk_down8" && w3punk.picks.bass === "root_pump"
+      && w3prog.picks.comp === "charleston" && w3prog.picks.bass === "motown_counter";
+    // every Wave-3b genre keeps a drummer (rock-family) — none drumless
+    out.wave3bDrummed = [w3surf, w3shoe, w3emo, w3punk, w3prog].every((r) => !!r.picks.drums);
     // (b) tier derivation: full tier picks the heavier djent texture + double kick
     const metalFull = D.resolveArrangement({ audio: { profile: "metal" }, densityTier: "full" });
     out.fullTier = metalFull.picks.comp === "metal_pedal_16" && metalFull.picks.drums === "metal_double_kick";
@@ -782,6 +796,8 @@ try {
   ok(c6f.wave3aPicks, "Wave 3a recipes resolve: classical=classical_arp, flamenco=rasgueado_tangos, folk=travis_pick, gypsy_jazz=la_pompe, ragtime=stride_oompah — all drumless");
   ok(c6f.wave3aDrumless, "Wave 3a all 5 solo idioms declare drums:off (DRUMLESS_PROFILES)");
   ok(c6f.ragtimeToken, "ragtime_circle (III7–VI7–II7–V7–I secondary-dominant chain) generates a valid chart");
+  ok(c6f.wave3bPicks, "Wave 3b recipes resolve: surf=metal_chug/root_pump, shoegaze=drone_wash, emo=emo_twinkle/motown, punk=punk_down8, prog=charleston/motown");
+  ok(c6f.wave3bDrummed, "Wave 3b (rock-family) all keep a drummer (not drumless)");
 
   if (errs.length) { fail++; console.log(`  FAIL page errors: ${errs.join(" | ")}`); }
 } finally { await browser.close(); }

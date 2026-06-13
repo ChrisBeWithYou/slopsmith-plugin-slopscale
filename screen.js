@@ -4444,6 +4444,15 @@
     folk:        { family: 'acoustic',   harmony: { engine: 'sample', tone: 'guitar', level: 0.78 }, brightness: 0.6 },
     gypsy_jazz:  { family: 'acoustic',   harmony: { engine: 'sample', tone: 'guitar', level: 0.78 }, brightness: 0.62 },
     ragtime:     { family: 'acoustic',   harmony: { engine: 'sample', tone: 'piano',  level: 0.8 },  brightness: 0.55 },
+    // World/genre Wave 3b (band-intel, 2026-06-13) — rock-family bands + prog. Mostly
+    // clean electric, differentiated by brightness; punk is bright distorted (DI→metal
+    // amp, less scooped than metal). The signature reverb/effects/lead tone is a
+    // sound-design lane we only approximate here (the band STRUCTURE is honest).
+    surf:        { family: 'clean',      harmony: { engine: 'sample', tone: 'clean',  level: 0.78 }, brightness: 0.66 },
+    shoegaze:    { family: 'clean',      harmony: { engine: 'sample', tone: 'clean',  level: 0.8 },  brightness: 0.7 },
+    emo:         { family: 'clean',      harmony: { engine: 'sample', tone: 'clean',  level: 0.78 }, brightness: 0.66 },
+    punk:        { family: 'distorted',  harmony: { engine: 'sample', tone: 'clean', sg: true, amp: 'metal', level: 0.62 }, brightness: 0.55 },
+    prog:        { family: 'clean',      harmony: { engine: 'sample', tone: 'clean',  level: 0.78 }, brightness: 0.62 },
   };
 
   // ── Drum kits (audio-realism Phase D) ────────────────────────────────────────
@@ -4550,6 +4559,14 @@
     folk:        { label:'Folk',           defaultKey:'G', progressions:['I-IV-V','I-V-vi-IV','I-vi-IV-V','vi-IV-I-V','mixolydian_rock'], leadScales:['major','major_pentatonic','mixolydian','dorian'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'folk' },
     gypsy_jazz:  { label:'Gypsy Jazz',     defaultKey:'A', progressions:['minor_ii_V_i','i-VI-III-VII','rhythm_changes_a','andalusian'], leadScales:['harmonic_minor','melodic_minor','dorian','major'], chordDepth:'seventh', chordOverride:'auto', guideTones:true, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'gypsy_jazz' },
     ragtime:     { label:'Ragtime / Stride', defaultKey:'C', progressions:['I-IV-V','circle_diatonic','I-vi-ii-V','ragtime_circle'], leadScales:['major','major_pentatonic','mixolydian','blues'], chordDepth:'seventh', chordOverride:'auto', guideTones:true, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'ragtime' },
+    // ── World / genre Wave 3b (band-intel, panel 2026-06-13) — the rock-family bands
+    // + meter-driven prog. Mostly reuse the rock cells; the signature is the LEAD
+    // technique + TONE (a sound-design lane), not the band structure.
+    surf:        { label:'Surf',           defaultKey:'E', progressions:['andalusian','i-VII-VI-VII','phrygian_vamp','i-VI-III-VII','I-IV-V'], leadScales:['harmonic_minor','phrygian_dominant','minor_pentatonic','major'], chordDepth:'triad', chordOverride:'5', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'surf' },
+    shoegaze:    { label:'Shoegaze',       defaultKey:'A', progressions:['I-V-vi-IV','vi-IV-I-V','i-VII-VI-VII','static_i'], leadScales:['major','natural_minor','major_pentatonic'], chordDepth:'ninth', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'shoegaze' },
+    emo:         { label:'Emo',            defaultKey:'D', progressions:['I-V-vi-IV','vi-IV-I-V','I-vi-IV-V','dorian_vamp'], leadScales:['major','major_pentatonic','lydian','dorian'], chordDepth:'triad', chordOverride:'auto', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'emo' },
+    punk:        { label:'Punk',           defaultKey:'E', progressions:['I-IV-V','I-V-vi-IV','i-VII-VI-VII'], leadScales:['major_pentatonic','minor_pentatonic','major','natural_minor'], chordDepth:'triad', chordOverride:'5', guideTones:false, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'punk' },
+    prog:        { label:'Prog',           defaultKey:'E', progressions:['dorian_vamp','lydian_vamp','mixolydian_vamp','i-VII-VI-VII','so_what','ii-V-I'], leadScales:['dorian','lydian','mixolydian','melodic_minor','major'], chordDepth:'ninth', chordOverride:'auto', guideTones:true, feel:{ swing:'straight', backingStyle:'pad' }, audioProfile:'prog' },
   };
   // Resolve a style palette into a mergeable partial config the way a Pathway/Custom/
   // Jam consumer uses it: Object.assign({}, base, stylePaletteConfig('blues')). opts let
@@ -4602,6 +4619,7 @@
     andalusian:'Andalusian (i–♭VII–♭VI–V)', blues_turnaround:'Blues turnaround',
     pachelbel:'Pachelbel (I–V–vi–iii–IV…)', circle_diatonic:'Circle of 5ths', 'i-VI-III-VII':'i–♭VI–♭III–♭VII',
     ragtime_circle:'Ragtime chain (III7–VI7–II7–V7–I)', 'I-vi-ii-V':'I–vi–ii–V',
+    lydian_vamp:'Lydian vamp (I–II)',
   };
   function jamProgressionLabel(token) {
     return JAM_PROG_LABELS[token] || String(token || '').replace(/_/g, ' ');
@@ -4634,6 +4652,11 @@
     folk:     'Try: a simple melody over the alternating thumb — let the open strings drone.',
     gypsy_jazz:'Try: chase the arpeggio of each chord — outline the changes, Django-style.',
     ragtime:  'Try: syncopate your right hand against the steady stride — land off the beat.',
+    surf:     'Try: fast double-picked single notes in harmonic minor — drip the (imagined) reverb.',
+    shoegaze: 'Try: bury a simple melody in the wash — bend into notes, let everything ring.',
+    emo:      'Try: a twinkly arpeggio high on the neck — ring open strings against fretted notes.',
+    punk:     'Try: all downstrokes, power chords, no let-up — three chords, attitude over polish.',
+    prog:     'Try: outline the mode (Dorian/Lydian), phrase a long line that resolves where you mean it.',
   };
   // J-2 intent chips (D-J8: intents, not scores). An intent is a SELF-checked
   // musical aim the player picks before/while jamming — shown on the status line,
@@ -4666,6 +4689,11 @@
     folk:     ['Melody over the drone', 'Keep it simple, song-serving', 'Ornament the Celtic turns'],
     gypsy_jazz:['Chase each chord arpeggio', 'Enclose the target note', 'Swing the eighths hard'],
     ragtime:  ['Syncopate against the stride', 'Land off the beat', 'Outline the secondary dominants'],
+    surf:     ['Fast double-picking', 'Exotic harmonic-minor color', 'Glissando into the phrase'],
+    shoegaze: ['Bury the melody in the wash', 'Bend into every note', 'Let it all ring'],
+    emo:      ['Twinkle high on the neck', 'Open strings against fretted', 'Interlock, don\'t solo'],
+    punk:     ['All downstrokes, no let-up', 'Three chords, attitude', 'Lock to the driving kick'],
+    prog:     ['Outline the mode', 'Phrase across the barline', 'Resolve where you mean it'],
   };
   const JAM_INTENTS_BASS = ['Walk into every change', 'Lock the one with the kick', 'Ghost notes between the roots'];
 
@@ -7072,6 +7100,28 @@
     stride_oompah:  { div: 1, bars: 1, label: 'stride oom-pah (L.H.)',
       grid: [{ t: 'root5', a: 'stab', acc: 1 }, { t: 'chord', a: 'stab' },
              { t: 'root5', a: 'stab' }, { t: 'chord', a: 'stab', acc: 1 }] },
+    // ── World / genre comp cells Wave 3b (band-intel, panel 2026-06-13) — rock-family.
+    // surf + prog need NO new comp (reuse metal_chug_8 / charleston); these 3 are the
+    // genuinely-distinct rock-family rhythm parts. ──────────────────────────────────
+    // Shoegaze open drone wash: re-articulate the open voicing each half-bar at full
+    // sustain so the bed keeps ringing/blooming (vamp_half sags dry without the effects
+    // wall). The magic is the reverb/chorus WALL (sound-design); this keeps the drone alive. div:1.
+    drone_wash:  { div: 1, bars: 1, label: 'open drone wash',
+      grid: [{ t: 'chord', a: 'ring', acc: 1 }, { t: 'chord', a: 'sus' }, { t: 'chord', a: 'ring' }, { t: 'chord', a: 'sus' }] },
+    // Midwest-emo twinkle: a 16th let-ring arpeggio — a droning low pedal anchors the
+    // beats while the TOP voice climbs/falls in a melodic contour (asymmetric, vs
+    // classical_arp's symmetric broken chord). Open-string blur on purpose. div:4.
+    emo_twinkle: { div: 4, bars: 1, label: 'emo twinkle arpeggio (ringing, top-voice melody)',
+      grid: [{ t: 'pedal', a: 'ring', acc: 1 }, { t: 'shell', a: 'ring' }, { t: 'top', a: 'ring' }, { t: 'shell', a: 'ring' },
+             { t: 'top', a: 'ring' }, { t: 'shell', a: 'ring' }, { t: 'top', a: 'ring' }, { t: 'pedal', a: 'ring' },
+             { t: 'shell', a: 'ring' }, { t: 'top', a: 'ring' }, { t: 'shell', a: 'ring' }, { t: 'top', a: 'ring' },
+             { t: 'pedal', a: 'ring' }, { t: 'shell', a: 'ring' }, { t: 'top', a: 'ring' }, { t: 'shell', a: 'ring' }] },
+    // Punk wall-of-downstrokes: relentless ALL-8th power 5ths, EVERY eighth accented
+    // (no quarter-pulse weighting like metal_chug_8, no beat-3 ring like rock_chug) —
+    // the uniform all-downstroke attack IS the genre. root5 only, tight chug. div:2.
+    punk_down8:  { div: 2, bars: 1, label: 'punk downstroke wall (power 5ths)',
+      grid: [{ t: 'root5', a: 'chug', acc: 1 }, { t: 'root5', a: 'chug', acc: 1 }, { t: 'root5', a: 'chug', acc: 1 }, { t: 'root5', a: 'chug', acc: 1 },
+             { t: 'root5', a: 'chug', acc: 1 }, { t: 'root5', a: 'chug', acc: 1 }, { t: 'root5', a: 'chug', acc: 1 }, { t: 'root5', a: 'chug', acc: 1 }] },
   };
   // Startup integrity guard (mirrors validateStrumPatterns): grid shape, known
   // targets/artics, a label on every cell (player-facing from day one).
@@ -7912,6 +7962,25 @@
     'gypsy_jazz:default:groove':  { picks: { comp: 'la_pompe',         bass: 'two_feel' },       ensemble: { drums: 'off', bass: 'on', comp: 'on' } },
     'ragtime:default:groove':     { picks: { comp: 'stride_oompah',    bass: 'two_feel' },       ensemble: { drums: 'off', bass: 'on', comp: 'on' } },
     'ragtime:boogie:groove':      { picks: { comp: 'boogie_stab',      bass: 'bass_ostinato' },  ensemble: { drums: 'off', bass: 'on', comp: 'on' } },
+    // ── World / genre recipes Wave 3b (band-intel, panel 2026-06-13) — the rock-family
+    // bands + meter-driven prog. REUSE-FIRST: the signature is each genre's LEAD
+    // technique + TONE (sound-design), not the band, so surf/prog reuse rock cells
+    // outright; shoegaze/emo/punk add one distinct comp each. The ODD METER that
+    // defines prog is a rhythm-meter/pathway concern — these cells stay 4/4.
+    //   surf — exotic-key all-8th muted power chords (metal_chug_8) + driving 8th bass.
+    //   shoegaze — the open drone wash (re-rung) + a prominent melodic bass; sparse =
+    //     half-time + vamp_half (the dream-pop float).
+    //   emo — the twinkle arpeggio + a melodic counter-line bass.
+    //   punk — the all-downstroke wall + the driving pick bass, fast.
+    //   prog — a syncopated jazzy comp + a fusion counter-line bass; `fusion` feel = a
+    //     busy 16th pocket.
+    'surf:default:groove':     { picks: { comp: 'metal_chug_8', bass: 'root_pump',      drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
+    'shoegaze:default:sparse': { picks: { comp: 'vamp_half',    bass: 'sustained_root', drums: 'half_time' },         ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
+    'shoegaze:default:groove': { picks: { comp: 'drone_wash',   bass: 'root_pump',      drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
+    'emo:default:groove':      { picks: { comp: 'emo_twinkle',  bass: 'motown_counter', drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'punk:default:groove':     { picks: { comp: 'punk_down8',   bass: 'root_pump',      drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
+    'prog:default:groove':     { picks: { comp: 'charleston',   bass: 'motown_counter', drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'prog:fusion:groove':      { picks: { comp: 'charleston',   bass: 'funk_pocket_16', drums: 'funk_16th' },         ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
   };
   const ARRANGEMENT_BASE = { picks: {}, ensemble: { drums: 'auto', bass: 'auto', comp: 'auto', pad: 'auto', lead: 'auto' }, registers: {}, tier: 'groove' };
   // Which density tier a cfg sits in: authored cfg.densityTier wins; else derive
