@@ -1215,12 +1215,38 @@
   .slopscale-jam-fam { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; margin: 9px 0 4px; }
   .slopscale-jam-fam:first-child { margin-top: 0; }
   .slopscale-jam-fam-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* Jam style picker (IA redesign 2026-06-14): search + collapsible family accordion. */
+  .slopscale-jam-search { width: 100%; box-sizing: border-box; padding: 7px 10px; font-size: 12.5px; border-radius: 8px; border: 1px solid #334155; background: #0b1220; color: #e2e8f0; margin-bottom: 6px; }
+  .slopscale-jam-search::placeholder { color: #64748b; }
+  .slopscale-jam-fam-head { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; padding: 7px 9px; margin-top: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #94a3b8; background: #0b1220; border: 1px solid #1e293b; border-radius: 8px; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
+  .slopscale-jam-fam-head:hover { background: #131c2e; color: #e2e8f0; }
+  .slopscale-jam-fam-head.open { color: #e2e8f0; border-color: #334155; }
+  .slopscale-jam-fam-chev { width: 11px; color: #64748b; }
+  .slopscale-jam-fam-lab { flex: 1; }
+  .slopscale-jam-fam-cur { font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--ss-accent, #4080e0); font-size: 11.5px; }
+  /* Jam control disclosures (setup-vs-live IA) + the Highlight scaffold ladder. */
+  .slopscale-jam-disc { margin-top: 8px; border-top: 1px solid #1e293b; }
+  .slopscale-jam-disc-sum { list-style: none; cursor: pointer; padding: 8px 2px 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #94a3b8; display: flex; align-items: center; gap: 6px; }
+  .slopscale-jam-disc-sum::-webkit-details-marker { display: none; }
+  .slopscale-jam-disc-sum::before { content: '▸'; color: #64748b; font-size: 10px; }
+  .slopscale-jam-disc[open] > .slopscale-jam-disc-sum::before { content: '▾'; }
+  .slopscale-jam-disc-sum:hover { color: #e2e8f0; }
+  .slopscale-jam-disc-body { display: flex; flex-direction: column; gap: var(--ss-sp-2, 8px); padding: 0 0 4px; }
+  .slopscale-jam-ladder { flex-direction: column; }
+  .slopscale-jam-ladder .slopscale-jam-hl-btn { flex: none; text-align: left; }
+  .slopscale-jam-ladder-cap { font-weight: 400; text-transform: none; letter-spacing: 0; color: #64748b; font-size: 10.5px; }
   /* "Your band" lineup — one quiet row per active player; names the real voice. */
   .slopscale-jam-bandstrip { display: flex; flex-direction: column; gap: 3px; }
   .slopscale-band-row { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 4px 9px; background: rgba(148, 163, 184, 0.08); border-radius: 6px; }
   .slopscale-band-ic { font-size: 13px; width: 15px; text-align: center; }
   .slopscale-band-role { color: #94a3b8; min-width: 50px; }
   .slopscale-band-name { color: #e2e8f0; font-weight: 600; }
+  /* "Your band" per-row voice swap (moved out of the buried Mixer onto the strip). */
+  .slopscale-band-voice { margin-left: auto; max-width: 58%; padding: 3px 6px; font-size: 11.5px; border-radius: 6px; border: 1px solid #334155; background: #0b1220; color: #e2e8f0; cursor: pointer; }
+  .slopscale-band-name-mute { margin-left: auto; color: #64748b; font-style: italic; font-weight: 500; }
+  /* Live-change landed-flash (telegraph): accent pulse on the pane, never green. */
+  @keyframes ss-jam-applied { 0% { box-shadow: inset 0 0 0 2px var(--ss-accent-edge, #4080e0); } 100% { box-shadow: inset 0 0 0 2px transparent; } }
+  .slopscale-jam-applied { animation: ss-jam-applied 0.65s ease-out; border-radius: 8px; }
   .slopscale-jam-style { padding: 7px 12px; font-size: 12.5px; font-weight: 600; border-radius: 8px; border: 1px solid #334155; background: #0b1220; color: #cbd5e1; cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s; }
   .slopscale-jam-style:hover { background: #1e293b; color: #f1f5f9; }
   .slopscale-jam-style.active { background: var(--ss-accent-grad); border-color: var(--ss-accent-edge); color: #f8fafc; }
@@ -1230,7 +1256,7 @@
   .slopscale-jam-feel-btn:hover, .slopscale-jam-hl-btn:hover { background: #1e293b; color: #e2e8f0; }
   .slopscale-jam-feel-btn.active { background: var(--ss-accent-grad); border-color: var(--ss-accent-edge); color: #f8fafc; }
   /* Highlight active = the target green (--ss-meter), matching the strip markers. */
-  .slopscale-jam-hl-btn.active { background: rgba(34,197,94,0.18); border-color: #22c55e; color: #bbf7d0; }
+  .slopscale-jam-hl-btn.active { background: var(--ss-accent-grad); border-color: var(--ss-accent-edge); color: #f8fafc; }   /* mirror-not-judge: accent, never green (green = cleared) */
   .slopscale-jam-prog-row { display: block; font-size: 12px; color: #94a3b8; }
   .slopscale-jam-prog-row select { width: 100%; margin-top: 3px; }
   .slopscale-jam-try { font-size: 12.5px; line-height: 1.45; color: #cbd5e1; border-left: 3px solid var(--ss-accent, #4080e0); padding: 4px 0 4px 9px; font-style: italic; }
@@ -1495,83 +1521,99 @@
            The live target-highlight + mix bar are the next pass. -->
       <div class="slopscale-jam-only slopscale-jam-inspector">
         <div class="slopscale-jam-intro">Apply what you've drilled over a style backing — and find your own voice.</div>
+        <!-- ── PRIMARY entry path (IA redesign 2026-06-14): style → your band → an
+             optional aim → ▶ Jam, all visible without a scroll. Everything else lives
+             in the collapsible disclosures below (setup vs live vs advanced). ── -->
         <div class="slopscale-group-title">Style</div>
-        <div class="slopscale-jam-styles" id="slopscale-jam-styles"><!-- renderJamStyles() --></div>
-        <!-- "Your band" lineup (genre-band panel 2026-06-13): names each active
-             player from the resolved recipe so the bands read as different at a
-             glance. Read-only; per-track instrument swap is in the Mixer (M). -->
+        <div class="slopscale-jam-styles" id="slopscale-jam-styles"><!-- renderJamStyles(): search + family accordion + recent --></div>
+        <!-- "Your band" lineup: names each active player from the resolved recipe; each
+             row's voice is TAPPABLE (the per-row swap wired in renderBandStrip — so the
+             common "change the guitar tone" no longer means leaving for the Mixer). -->
         <div class="slopscale-group-title">Your band</div>
         <div class="slopscale-jam-bandstrip" id="slopscale-jam-bandstrip"><!-- renderBandStrip() --></div>
-        <div class="slopscale-jam-row">
-          <label>Key
-            <select id="slopscale-jam-key">
-              <option value="C">C</option><option value="Db">Db</option><option value="D">D</option>
-              <option value="Eb">Eb</option><option value="E">E</option><option value="F">F</option>
-              <option value="Gb">Gb</option><option value="G">G</option><option value="Ab">Ab</option>
-              <option value="A" selected>A</option><option value="Bb">Bb</option><option value="B">B</option>
-            </select>
-          </label>
-          <label>Tempo (BPM)
-            <input type="number" id="slopscale-jam-tempo" min="40" max="220" step="1" value="90">
-          </label>
-        </div>
-        <!-- Changes picker (slice J-1, D-J5a): the style's named progressions;
-             "Mix" round-robins them per pass — the switch-it-up shuffle. -->
-        <label class="slopscale-jam-prog-row">Changes
-          <select id="slopscale-jam-prog"><!-- syncJamStyleDetails() --></select>
-        </label>
-        <div class="slopscale-group-title">Feel</div>
-        <div class="slopscale-jam-feel" id="slopscale-jam-feel" role="group" aria-label="Feel">
-          <button type="button" class="slopscale-jam-feel-btn active" data-feel="straight">Straight</button>
-          <button type="button" class="slopscale-jam-feel-btn" data-feel="swing">Swing</button>
-          <button type="button" class="slopscale-jam-feel-btn" data-feel="shuffle">Shuffle</button>
-        </div>
-        <!-- J-2 Harmonic-Depth dial (D-J5b): staged chordDepth — Simple hears the
-             skeleton, Core is the style's authored depth, Rich enriches the upper
-             voices. Roots stay pinned; power-chord styles keep their 5ths. -->
-        <div class="slopscale-group-title">Depth</div>
-        <div class="slopscale-jam-feel" id="slopscale-jam-depth" role="group" aria-label="Harmonic depth">
-          <button type="button" class="slopscale-jam-feel-btn" data-depth="simple">Simple</button>
-          <button type="button" class="slopscale-jam-feel-btn active" data-depth="core">Core</button>
-          <button type="button" class="slopscale-jam-feel-btn" data-depth="rich">Rich</button>
-        </div>
-        <!-- Highlight: the teaching mirror — lights the current chord's tones on the
-             fretboard strip as the backing moves through changes. Default chord-tones. -->
-        <div class="slopscale-group-title">Highlight</div>
-        <div class="slopscale-jam-hl" id="slopscale-jam-hl" role="group" aria-label="Fretboard highlight">
-          <button type="button" class="slopscale-jam-hl-btn active" data-hl="chord">Chord</button>
-          <button type="button" class="slopscale-jam-hl-btn" data-hl="guide">Guide</button>
-          <button type="button" class="slopscale-jam-hl-btn" data-hl="scale">Scale</button>
-          <button type="button" class="slopscale-jam-hl-btn" data-hl="off">Off</button>
-        </div>
-        <div class="slopscale-help">The fretboard strip lights these on your neck as the backing moves through the changes.</div>
-        <!-- Band (slice J-1): the guide-line AUDIO is opt-in (D-J1 — the band
-             plays, YOU are the lead voice; the silent visual map stays). The
-             bass-mode row shows only for bass players (D-J2 — the band's bass
-             drops by default: a bassist owns the foundation). -->
-        <div class="slopscale-group-title">Band</div>
-        <div class="slopscale-jam-feel" id="slopscale-jam-guide" role="group" aria-label="Guide line audio">
-          <button type="button" class="slopscale-jam-feel-btn active" data-guide="off">Band only</button>
-          <button type="button" class="slopscale-jam-feel-btn" data-guide="on">+ Guide line</button>
-        </div>
-        <div id="slopscale-jam-band-row">
-          <div class="slopscale-jam-feel" id="slopscale-jam-band" role="group" aria-label="Bass band mode">
-            <button type="button" class="slopscale-jam-feel-btn active" data-band="no_bass">You're the bassist</button>
-            <button type="button" class="slopscale-jam-feel-btn" data-band="drums_only">Drums only</button>
-            <button type="button" class="slopscale-jam-feel-btn" data-band="full">Full band</button>
-          </div>
-        </div>
-        <!-- The per-style "try this" intent seed (goal-card grammar; JAM_PROMPTS). -->
+        <!-- The per-style "try this" seed + the optional intent chips: the AIM — the
+             motivation lever, promoted into the primary path; self-checked, never judged. -->
         <div class="slopscale-jam-try" id="slopscale-jam-try"></div>
-        <!-- J-2 intent chips (D-J8): pick a musical aim — self-checked only, shown
-             on the status line, never judged. The drill→Jam hand-off injects the
-             drilled device as the first chip (D-J10). renderJamIntents() fills. -->
         <div class="slopscale-jam-intents" id="slopscale-jam-intents" role="group" aria-label="Jam intent"></div>
-        <!-- J-2 (D-J3): the pending-change chip — a mid-jam panel edit lands at the
-             top of the next loop cycle (band convention), telegraphed here. -->
+        <!-- The live-change telegraph (a queued change → its beats-to-the-wrap countdown
+             → the landed flash). Telegraph the boundary; never fake mid-loop immediacy. -->
         <div class="slopscale-jam-pending" id="slopscale-jam-pending" hidden></div>
         <button type="button" class="slopscale-jam-go" id="slopscale-jam-go">▶ Jam</button>
-        <div class="slopscale-help">Loops a backing in the chosen style — every pass varies a little. Change anything mid-jam and the band picks it up at the top of the next cycle. No score, no rank; it's a mirror, not a judge.</div>
+        <!-- ── SET UP THE BAND: configure-then-forget (these wrap-quantize when live). ── -->
+        <details class="slopscale-jam-disc" open>
+          <summary class="slopscale-jam-disc-sum">Set up the band</summary>
+          <div class="slopscale-jam-disc-body">
+            <div class="slopscale-jam-row">
+              <label>Key
+                <select id="slopscale-jam-key">
+                  <option value="C">C</option><option value="Db">Db</option><option value="D">D</option>
+                  <option value="Eb">Eb</option><option value="E">E</option><option value="F">F</option>
+                  <option value="Gb">Gb</option><option value="G">G</option><option value="Ab">Ab</option>
+                  <option value="A" selected>A</option><option value="Bb">Bb</option><option value="B">B</option>
+                </select>
+              </label>
+              <label>Tempo (BPM)
+                <input type="number" id="slopscale-jam-tempo" min="40" max="220" step="1" value="90">
+              </label>
+            </div>
+            <label class="slopscale-jam-prog-row">Changes
+              <select id="slopscale-jam-prog"><!-- syncJamStyleDetails() --></select>
+            </label>
+            <div class="slopscale-group-title">Feel</div>
+            <div class="slopscale-jam-feel" id="slopscale-jam-feel" role="group" aria-label="Feel">
+              <button type="button" class="slopscale-jam-feel-btn active" data-feel="straight">Straight</button>
+              <button type="button" class="slopscale-jam-feel-btn" data-feel="swing">Swing</button>
+              <button type="button" class="slopscale-jam-feel-btn" data-feel="shuffle">Shuffle</button>
+            </div>
+          </div>
+        </details>
+        <!-- ── WHILE YOU PLAY: the live knobs your hands reach for mid-jam. ── -->
+        <details class="slopscale-jam-disc" open>
+          <summary class="slopscale-jam-disc-sum">While you play</summary>
+          <div class="slopscale-jam-disc-body">
+            <!-- Highlight = a SCAFFOLD LADDER (most support → bare neck): training wheels
+                 that recede as you grow. The fretboard strip lights these on your neck. -->
+            <div class="slopscale-group-title">Highlight <span class="slopscale-jam-ladder-cap">— training wheels; climb down as you grow</span></div>
+            <div class="slopscale-jam-hl slopscale-jam-ladder" id="slopscale-jam-hl" role="group" aria-label="Fretboard highlight">
+              <button type="button" class="slopscale-jam-hl-btn active" data-hl="chord">Chord tones — most support</button>
+              <button type="button" class="slopscale-jam-hl-btn" data-hl="guide">Guide tones (3rd &amp; 7th)</button>
+              <button type="button" class="slopscale-jam-hl-btn" data-hl="scale">Scale</button>
+              <button type="button" class="slopscale-jam-hl-btn" data-hl="off">Off — bare neck</button>
+            </div>
+          </div>
+        </details>
+        <!-- ── MORE: the rarely-touched (collapsed by default). ── -->
+        <details class="slopscale-jam-disc">
+          <summary class="slopscale-jam-disc-sum">More</summary>
+          <div class="slopscale-jam-disc-body">
+            <!-- Harmonic-Depth dial (D-J5b): Simple = the skeleton, Core = the style's
+                 authored depth, Rich = one step richer. Roots pinned; power-5ths kept. -->
+            <div class="slopscale-group-title">Harmonic depth</div>
+            <div class="slopscale-jam-feel" id="slopscale-jam-depth" role="group" aria-label="Harmonic depth">
+              <button type="button" class="slopscale-jam-feel-btn" data-depth="simple">Simple</button>
+              <button type="button" class="slopscale-jam-feel-btn active" data-depth="core">Core</button>
+              <button type="button" class="slopscale-jam-feel-btn" data-depth="rich">Rich</button>
+            </div>
+            <!-- Guide-line AUDIO is opt-in (D-J1 — the band plays, YOU are the lead voice;
+                 the silent visual map on the strip stays either way). -->
+            <div class="slopscale-group-title">Guide line</div>
+            <div class="slopscale-jam-feel" id="slopscale-jam-guide" role="group" aria-label="Guide line audio">
+              <button type="button" class="slopscale-jam-feel-btn active" data-guide="off">Band only</button>
+              <button type="button" class="slopscale-jam-feel-btn" data-guide="on">+ Guide line</button>
+            </div>
+            <!-- Bass band-mode shows only for bass players (D-J2 — a bassist owns the
+                 foundation, so the band's bass drops by default). -->
+            <div id="slopscale-jam-band-row">
+              <div class="slopscale-group-title">Bass</div>
+              <div class="slopscale-jam-feel" id="slopscale-jam-band" role="group" aria-label="Bass band mode">
+                <button type="button" class="slopscale-jam-feel-btn active" data-band="no_bass">You're the bassist</button>
+                <button type="button" class="slopscale-jam-feel-btn" data-band="drums_only">Drums only</button>
+                <button type="button" class="slopscale-jam-feel-btn" data-band="full">Full band</button>
+              </div>
+            </div>
+          </div>
+        </details>
+        <div class="slopscale-help">Change anything mid-jam and the band picks it up at the top of the next cycle. No score, no rank; it's a mirror, not a judge.</div>
       </div>
 
       <!-- Single exercise mode — pathway + custom controls -->

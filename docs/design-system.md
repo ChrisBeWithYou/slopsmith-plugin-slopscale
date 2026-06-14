@@ -41,6 +41,18 @@
    bottom-right — are host/third-party overlay territory (floating plugin buttons,
    toasts). SlopScale never anchors chrome or load-bearing readouts there. (§7
    "Corner etiquette" has the layout rules.)
+9. **A dense pane is one primary + one cluster + a `▸ More` disclosure — never a
+   wall.** When a control surface grows past a scannable height, structure it as:
+   (a) a PRIMARY block always visible without a scroll — the identity choice, the lit
+   primary action, an optional aim; (b) the commonly-touched controls; (c) everything
+   else behind labelled native `<details>` disclosures, grouped by **setup-vs-live**
+   (configure-then-forget vs the knobs your hands reach for *while* playing), **not by
+   topic** — because a setup control that looks like a live knob feels *broken* when it
+   doesn't respond instantly. And collapse any long selectable SET (a ~20+-item picker)
+   to **search + categories (reveal-on-demand) + a Recent/Favourites row** — never render
+   the whole wall. Adopted from the Jam-UX redesign (2026-06-14, `docs/jam-ux-redesign-
+   roundtable.md`); it is the standing fix for the **Custom / Workout** inspectors users
+   also called "overwhelming."
 
 ---
 
