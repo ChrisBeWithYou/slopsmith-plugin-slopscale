@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.24-beta.16';
+  const SLOPSCALE_VERSION = '0.7.24-beta.17';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -4128,6 +4128,7 @@
   let jamBandMode = 'no_bass';    // bass players: 'no_bass' | 'drums_only' | 'full' (guitar always full)
   let _jamPending = false;        // J-2 (D-J3): a live panel change is queued for the next loop wrap
   let _jamSnapshot = null;        // the panel state the CURRENT jam pass was built from (delta source)
+  let _jamApplyToken = 0;         // Jam-UX reliability: monotonic guard so a stale async voice-swap apply can't win (the out-of-order race)
   let jamIntent = '';             // J-2 (D-J8): the picked intent — self-checked, shown, NEVER judged
   let _jamDeviceIntent = null;    // J-2 (D-J10): the drill→Jam hand-off's device intent (chip injected first)
   let jamDepth = 'core';          // J-2 (D-J5b): Harmonic-Depth dial — 'simple' | 'core' | 'rich' (persisted)
@@ -14224,6 +14225,7 @@
         // (the A-B loop pins playback at leadIn, so no second count-in).
         if (_jamPending && isJamMode()) {
           jamPendingClear();
+          flashJamApplied();   // telegraph: the queued change LANDED at the top of the cycle
           jamPlay();
           return;
         }
@@ -14998,6 +15000,56 @@
   function mixerKitFor(key) {
     const k = mixerState[key] && mixerState[key].kit;
     return (k && KIT_REGISTRY[k]) ? k : null;
+  }
+  // Preload the WAF presets behind the mixer's instrument dropdowns so a LIVE swap is
+  // warm (instant + audible), not a cold ~2s load that lands on the thin oscillator
+  // fallback (the "switch is too quiet / didn't trigger" report). Bounded (~12 GM
+  // presets, decoded once + cached); 'shiny'/synth options have no WAF preset to load.
+  function prewarmMixerCandidates() {
+    if (typeof ensureWafPreset !== 'function') return;
+    for (const opt of [...MIXER_INSTRUMENTS.melodic, ...MIXER_INSTRUMENTS.bass]) {
+      const gm = TONE_GM[opt[0]];
+      if (gm != null) ensureWafPreset(gm);
+    }
+  }
+  // Is a channel's pinned WAF instrument decoded? shiny (Electric DI), synth voices,
+  // and Auto have their own readiness/fallback — only a cold WAF sample swap would land
+  // on the thin oscillator, so gate ONLY that case (never tear down a good voice for it).
+  function liveInstrumentReady(k) {
+    const tone = mixerState[k] && mixerState[k].instrument;
+    if (!tone || tone === 'shiny') return true;
+    const gm = TONE_GM[tone];
+    if (gm == null) return true;                       // synth voice (pad/synthlead) — always ready
+    return !!getReadyWafPreset(gm);
+  }
+  // Re-schedule the backing on a freshly-picked voice under a short gain DIP on the
+  // backing group, instead of a hard stopAudio() cut mid-sample (the "abrupt" click).
+  // The player's own notes + click bypass backingGroup, so the time reference never
+  // ducks. (The true equal-power crossfade folds into the Stage-3 in-place hot-swap;
+  // this dip is the contained Stage-1 de-click.)
+  function liveSwapReschedule() {
+    const ctx = audioCtx, g = audioBus && audioBus.backingGroup && audioBus.backingGroup.gain;
+    const doSwap = () => { anchorPlayClock(currentPracticeTime); stopAudio(); scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS); };
+    if (!ctx || !g) { doSwap(); return; }
+    const DIP = 0.05;
+    try { g.cancelScheduledValues(ctx.currentTime); g.setValueAtTime(Math.max(0.0001, g.value || 1), ctx.currentTime); g.exponentialRampToValueAtTime(0.0001, ctx.currentTime + DIP); } catch (_) {}
+    setTimeout(() => {
+      doSwap();
+      try { const t = ctx.currentTime; g.cancelScheduledValues(t); g.setValueAtTime(0.0001, t); g.exponentialRampToValueAtTime(1, t + DIP); } catch (_) {}
+    }, Math.round(DIP * 1000) + 15);
+  }
+  // The shared LIVE voice/kit swap apply — called by BOTH the Mixer change handler and
+  // the "Your band" strip's per-row voice menu, so a swap from either place is identical:
+  // token-guarded against the async race, ready-gated, and ducked (not hard-cut). Assumes
+  // mixerState[k] is already set + saved by the caller.
+  async function commitLiveVoiceSwap(k, isKit) {
+    if (!activeBundle) return;
+    const tok = ++_jamApplyToken;
+    await awaitVoices(activeBundle);
+    if (tok !== _jamApplyToken) return;          // superseded by a newer swap (the race guard)
+    if (!playing || paused) return;              // paused/stopped: state is set; resume schedules on it
+    if (!isKit && !liveInstrumentReady(k)) return;
+    liveSwapReschedule();
   }
   function mixerLoad() {
     try {
@@ -16894,6 +16946,17 @@
   // Applied inside wafVoice (and to the bent-note oscillator fallback so it matches
   // the sampled voice it stands in for). See ROADMAP audio-realism Phase A.
   const WAF_VOICE_VOL = { notes: 0.7, harmony: 0.5, pad: 0.5, bass: 0.8, drums: 0.7 };
+  // Per-WAF-preset loudness makeup (Jam-UX reliability slice, sound-design): WebAudioFont
+  // peak-normalises each preset INDEPENDENTLY (it matches peaks, not perceived loudness),
+  // so a sustained voice (organ/epiano/strings/pad) reads far louder than a plucked one
+  // (clean/guitar/nylon) at the same peak — a live instrument swap then lurches in level
+  // ("too quiet / too loud"). This linear trim equalises perceived loudness across a swap;
+  // twin of DRUM_PIECE_GAIN / sgSourceTrim, calibrated against the clean GM27 voice = 1.0.
+  // By-ear tunable. Keyed by GM preset number (built from a readable tone→trim table).
+  const WAF_TONE_TRIM = { organ: 0.62, epiano: 0.78, piano: 0.80, strings: 0.70, pad: 0.72, clav: 0.85, brass: 0.74, synthlead: 0.85, clean: 1.0, guitar: 1.05, nylon: 1.05, bass: 0.95, upright: 1.0 };
+  const WAF_GM_TRIM = {};
+  for (const [tone, tr] of Object.entries(WAF_TONE_TRIM)) { const gm = TONE_GM[tone]; if (gm != null) WAF_GM_TRIM[gm] = tr; }
+  const wafGmTrim = gm => (gm != null && WAF_GM_TRIM[gm] != null) ? WAF_GM_TRIM[gm] : 1;
   function wafLoudnessTrim(midi) {
     const f = 440 * Math.pow(2, (midi - 69) / 12);
     let db;
@@ -17067,7 +17130,7 @@
       if (ev.role === 'bass') {
         // Backing bass line — a real bass voice on its own bus, not the harmony pad.
         for (const m of (ev.midis || [])) {
-          if (bassPreset && wafPlayer) wafVoice(bassPreset, 'bass', when, m, d, harmProfile.bass.level * WAF_VOICE_VOL.bass * vel, { seed: ev.t + m, artic: ev.a });
+          if (bassPreset && wafPlayer) wafVoice(bassPreset, 'bass', when, m, d, harmProfile.bass.level * WAF_VOICE_VOL.bass * vel * wafGmTrim(bassGm), { seed: ev.t + m, artic: ev.a });
           else schedulePluckedString(ctx, when, midiToFreq(m), d, 'bass', harmProfile.bass.level * vel, 0);
         }
       } else {
@@ -17080,7 +17143,14 @@
         const busName = (ev.role === 'pad' || ev.padBus) ? 'pad' : (ev.comp != null ? 'harmony' : 'pad');
         const preset = busName === 'harmony' ? harmPreset : padPreset;
         // The Keys voice rides its OWN level (harmProfile.pad.level) on the pad bus.
-        const lvlBase = (busName === 'pad' && harmProfile.pad && Number.isFinite(harmProfile.pad.level)) ? harmProfile.pad.level : harmProfile.harmony.level;
+        // Genre-level decouple (Jam-UX reliability slice): a genre's harmony.level is
+        // tuned for THAT genre's own voice; when the user PINS a different instrument in
+        // the mixer, that genre level is wrong for it (a second "too quiet/loud" offender).
+        // Use a neutral reference for an overridden voice; WAF_GM_TRIM does the per-voice match.
+        const compGm = busName === 'harmony' ? harmGm : padGm;
+        const lvlBase = mixerInstrumentFor(busName) != null ? 0.8
+          : (busName === 'pad' && harmProfile.pad && Number.isFinite(harmProfile.pad.level)) ? harmProfile.pad.level
+          : harmProfile.harmony.level;
         // Sampled-guitar pin (mixer 'Electric DI'): per-chord all-or-nothing so a
         // half-sampled chord never sounds; WAF (then the pad) covers until warm.
         const useSg = (busName === 'harmony' ? sgHarm : sgPad) && (ev.a === 'chuck' || sgReadyFor(ev.midis, vel));
@@ -17106,12 +17176,12 @@
               const v = lvlBase * WAF_VOICE_VOL[busName] * hScale * vel * 0.72;
               const okL = sgVoice(ctx, busName, when, m, d, v, ev.a, vel, { pan: -0.35 });
               const okR = sgVoice(ctx, busName, when, m, d, v, ev.a, vel, { pan: 0.35, delay: dly, cents });
-              if (!okL && !okR && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v / 0.72, { seed: ev.t + m, artic: ev.a });
+              if (!okL && !okR && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v / 0.72 * wafGmTrim(compGm), { seed: ev.t + m, artic: ev.a });
             }
           } else {
             for (const m of (ev.midis || [])) {
               const v = lvlBase * WAF_VOICE_VOL[busName] * hScale * vel;
-              if ((!useSg || !sgVoice(ctx, busName, when, m, d, v, ev.a, vel)) && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v, { seed: ev.t + m, artic: ev.a });
+              if ((!useSg || !sgVoice(ctx, busName, when, m, d, v, ev.a, vel)) && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v * wafGmTrim(compGm), { seed: ev.t + m, artic: ev.a });
             }
           }
         } else {
@@ -18471,57 +18541,118 @@
     const cfg = Object.assign({}, base, { jamStyle: styleId, audio: Object.assign({}, base.audio, { profile: pal.audioProfile || '', brightness: undefined }) });
     const prof = resolveAudioProfile(cfg), ens = resolveArrangement(cfg).ensemble, groove = resolveGroove(cfg);
     const padRole = prof.pad && prof.pad.role, padOn = padRole && ens.pad !== 'off';
+    // [icon, role, mixerKey, autoLabel, kind] — kind drives the per-row voice menu
+    // (the swap moved OUT of the buried Mixer onto the band strip; 'none' = drumless = read-only).
     const rows = [];
     if (ens.comp !== 'off') {
-      if (padOn && padRole === 'comp') rows.push(['🎹', 'Keys', bandVoiceLabel(prof.pad)]);   // comp-on-keys (jazz piano)
+      if (padOn && padRole === 'comp') rows.push(['🎹', 'Keys', 'pad', bandVoiceLabel(prof.pad), 'melodic']);   // comp-on-keys (jazz piano)
       else {
-        rows.push(['🎸', 'Rhythm', bandVoiceLabel(prof.harmony)]);
-        if (padOn && padRole === 'sustain') rows.push(['🎹', 'Keys', bandVoiceLabel(prof.pad)]);
+        rows.push(['🎸', 'Rhythm', 'harmony', bandVoiceLabel(prof.harmony), 'melodic']);
+        if (padOn && padRole === 'sustain') rows.push(['🎹', 'Keys', 'pad', bandVoiceLabel(prof.pad), 'melodic']);
       }
     }
-    if (ens.bass !== 'off') rows.push(['🎵', 'Bass', bandVoiceLabel(prof.bass, 'bass')]);
-    rows.push(['🥁', 'Drums', (ens.drums !== 'off' && groove) ? (BAND_KIT_LABEL[prof.drums && prof.drums.kit] || 'Kit') : '— drumless']);
-    host.innerHTML = rows.map(([ic, role, name]) =>
-      `<div class="slopscale_beta-band-row"><span class="slopscale_beta-band-ic">${ic}</span><span class="slopscale_beta-band-role">${role}</span><span class="slopscale_beta-band-name">${name}</span></div>`).join('');
+    if (ens.bass !== 'off') rows.push(['🎵', 'Bass', 'bass', bandVoiceLabel(prof.bass, 'bass'), 'bass']);
+    const drumsOn = ens.drums !== 'off' && groove;
+    rows.push(['🥁', 'Drums', 'drums', drumsOn ? (BAND_KIT_LABEL[prof.drums && prof.drums.kit] || 'Kit') : '— drumless', drumsOn ? 'drums' : 'none']);
+    host.innerHTML = '';
+    for (const [ic, role, mkey, autoLabel, kind] of rows) {
+      const row = document.createElement('div'); row.className = 'slopscale_beta-band-row';
+      row.innerHTML = `<span class="slopscale_beta-band-ic">${ic}</span><span class="slopscale_beta-band-role">${role}</span>`;
+      if (kind === 'none') {
+        const n = document.createElement('span'); n.className = 'slopscale_beta-band-name slopscale_beta-band-name-mute'; n.textContent = autoLabel; row.appendChild(n);
+      } else {
+        const sel = document.createElement('select'); sel.className = 'slopscale_beta-band-voice'; sel.setAttribute('aria-label', role + ' voice');
+        const opts = kind === 'drums' ? MIXER_KITS : (kind === 'bass' ? MIXER_INSTRUMENTS.bass : MIXER_INSTRUMENTS.melodic);
+        const cur = (kind === 'drums' ? mixerState[mkey].kit : mixerState[mkey].instrument) || '';
+        for (const [val, lab] of opts) {
+          const o = document.createElement('option'); o.value = val;
+          o.textContent = (val === '') ? `Auto · ${autoLabel}` : lab;
+          if (val === cur) o.selected = true;
+          sel.appendChild(o);
+        }
+        sel.addEventListener('change', () => {
+          if (kind === 'drums') mixerState[mkey].kit = sel.value || null;
+          else mixerState[mkey].instrument = sel.value || null;
+          mixerSave();
+          commitLiveVoiceSwap(mkey, kind === 'drums');   // same token-guarded swap as the Mixer
+        });
+        row.appendChild(sel);
+      }
+      host.appendChild(row);
+    }
   }
+  // The saved jam style is the SOURCE OF TRUTH (the picker is now a collapsible
+  // accordion, so the active chip may not be in the DOM — never read the style from a
+  // `.active` chip). Recent = the last few jammed styles (frictionless re-entry).
+  let _jamPickerOpenFam = '';   // expanded family ('' = the active style's family; '__none__' = all collapsed)
+  let _jamPickerQuery = '';
+  function currentJamStyleId() {
+    let s = null; try { s = localStorage.getItem('slopscale_beta.jamStyle'); } catch (_) {}
+    return (s && STYLE_PALETTES[s]) ? s : Object.keys(STYLE_PALETTES)[0];
+  }
+  function jamRecentStyles() {
+    try { return (JSON.parse(localStorage.getItem('slopscale_beta.jamRecent') || '[]') || []).filter(id => STYLE_PALETTES[id]); } catch (_) { return []; }
+  }
+  function setJamStyleId(id) {
+    if (!STYLE_PALETTES[id]) return;
+    try { localStorage.setItem('slopscale_beta.jamStyle', id); } catch (_) {}
+    try { const r = jamRecentStyles().filter(x => x !== id); r.unshift(id); localStorage.setItem('slopscale_beta.jamRecent', JSON.stringify(r.slice(0, 4))); } catch (_) {}
+  }
+  function jamFamilyOf(id) { for (const [lab, ids] of GENRE_FAMILIES) if (ids.includes(id)) return lab; return null; }
+  // The Jam style picker (IA redesign, panel 2026-06-14): the 29-chip WALL collapsed to
+  // a search box + a Recent row + 6 collapsible FAMILY sections (only the active style's
+  // family — or the one you open — shows its chips). ~7 things visible instead of 29.
   function renderJamStyles() {
     const host = $('slopscale_beta-jam-styles');
     if (!host) return;
     host.innerHTML = '';
-    let saved = null;
-    try { saved = localStorage.getItem('slopscale_beta.jamStyle'); } catch (_) {}
-    const allIds = Object.keys(STYLE_PALETTES);
-    const activeId = (saved && STYLE_PALETTES[saved]) ? saved : allIds[0];
-    const seen = new Set();
+    const activeId = currentJamStyleId();
+    const q = _jamPickerQuery.trim().toLowerCase();
+    const pickStyle = (id) => {
+      setJamStyleId(id);
+      syncJamStyleDetails(id);                 // Changes picker + Band strip + intents
+      if (playing && isJamMode()) jamPlay();   // a genre change = a NEW band → switch now (its count-in is the entrance)
+      renderJamStyles();
+    };
     const mkChip = (id) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'slopscale_beta-jam-style' + (id === activeId ? ' active' : '');
       btn.dataset.style = id;
       btn.textContent = STYLE_PALETTES[id].label;
-      btn.addEventListener('click', () => {
-        host.querySelectorAll('.slopscale_beta-jam-style').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        try { localStorage.setItem('slopscale_beta.jamStyle', id); } catch (_) {}
-        syncJamStyleDetails(id);   // updates the Changes picker + the Band strip
-        // A genre change = a NEW band → switch NOW (its count-in is the entrance),
-        // not queued to the loop wrap. Other panel edits (key/tempo/feel) still
-        // queue to the wrap via jamQueueChange — same band, top-of-form convention.
-        if (playing && isJamMode()) jamPlay();
-      });
+      btn.addEventListener('click', () => pickStyle(id));
       return btn;
     };
-    const addGroup = (label, ids) => {
-      const present = ids.filter(id => STYLE_PALETTES[id] && !seen.has(id));
-      if (!present.length) return;
-      const lab = document.createElement('div'); lab.className = 'slopscale_beta-jam-fam'; lab.textContent = label;
-      host.appendChild(lab);
-      const row = document.createElement('div'); row.className = 'slopscale_beta-jam-fam-row';
-      for (const id of present) { seen.add(id); row.appendChild(mkChip(id)); }
-      host.appendChild(row);
-    };
-    for (const [label, ids] of GENRE_FAMILIES) addGroup(label, ids);
-    addGroup('Other', allIds);   // defensive: any un-grouped style still shows
+    const chipRow = (ids) => { const r = document.createElement('div'); r.className = 'slopscale_beta-jam-fam-row'; ids.forEach(id => r.appendChild(mkChip(id))); host.appendChild(r); };
+    const search = document.createElement('input');
+    search.type = 'search'; search.className = 'slopscale_beta-jam-search'; search.placeholder = 'Search styles…'; search.value = _jamPickerQuery;
+    search.setAttribute('aria-label', 'Search styles');
+    search.addEventListener('input', () => { _jamPickerQuery = search.value; renderJamStyles(); });
+    host.appendChild(search);
+    if (q) {   // search mode: a flat filtered result, no families
+      const hits = Object.keys(STYLE_PALETTES).filter(id => STYLE_PALETTES[id].label.toLowerCase().includes(q) || id.includes(q));
+      if (hits.length) chipRow(hits);
+      else { const e = document.createElement('div'); e.className = 'slopscale_beta-jam-fam'; e.textContent = 'no match'; host.appendChild(e); }
+      setTimeout(() => { const s = host.querySelector('.slopscale_beta-jam-search'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }, 0);
+      return;
+    }
+    const recent = jamRecentStyles().filter(id => id !== activeId).slice(0, 3);
+    if (recent.length) { const l = document.createElement('div'); l.className = 'slopscale_beta-jam-fam'; l.textContent = 'Recent'; host.appendChild(l); chipRow(recent); }
+    const openFam = _jamPickerOpenFam || jamFamilyOf(activeId) || GENRE_FAMILIES[0][0];
+    for (const [label, ids] of GENRE_FAMILIES) {
+      const present = ids.filter(id => STYLE_PALETTES[id]);
+      if (!present.length) continue;
+      const isOpen = label === openFam;
+      const head = document.createElement('button');
+      head.type = 'button';
+      head.className = 'slopscale_beta-jam-fam-head' + (isOpen ? ' open' : '');
+      head.setAttribute('aria-expanded', String(isOpen));
+      const cur = (present.includes(activeId) && !isOpen) ? `<span class="slopscale_beta-jam-fam-cur">${STYLE_PALETTES[activeId].label}</span>` : '';
+      head.innerHTML = `<span class="slopscale_beta-jam-fam-chev">${isOpen ? '▾' : '▸'}</span><span class="slopscale_beta-jam-fam-lab">${label}</span>${cur}`;
+      head.addEventListener('click', () => { _jamPickerOpenFam = isOpen ? '__none__' : label; renderJamStyles(); });
+      host.appendChild(head);
+      if (isOpen) chipRow(present);
+    }
     syncJamStyleDetails(activeId);
   }
   // Per-style Inspector details (slice J-1): the named Changes picker over the
@@ -18595,7 +18726,8 @@
   // the player presses ▶ Jam — nothing autoplays.
   function jamArmFromDrill(styleId, key, deviceLabel) {
     selectMode('jam');
-    document.querySelector(`#slopscale_beta-jam-styles .slopscale_beta-jam-style[data-style="${styleId}"]`)?.click();
+    setJamStyleId(styleId);
+    renderJamStyles();
     const keySel = $('slopscale_beta-jam-key');
     if (key && keySel && [...keySel.options].some(o => o.value === key)) keySel.value = key;
     if (deviceLabel) {
@@ -18612,10 +18744,20 @@
   // panel state (band convention — the new key/tempo/feel/changes land at the
   // top of the cycle, telegraphed, no stop+restart and no mid-phrase glitch).
   // The current panel state, read the same way jamPlay reads it.
+  // The live-change "landed" flash (telegraph): when a queued change applies at the loop
+  // top, pulse the jam pane so the player SEES it take (closes the "I asked → the band did
+  // it" loop). Visual only, reduced-motion-aware, no audio (mirror-not-judge: accent, not green).
+  function flashJamApplied() {
+    const el = document.querySelector('.slopscale_beta-jam-inspector');
+    if (!el || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+    el.classList.remove('slopscale_beta-jam-applied');
+    void el.offsetWidth;   // restart the animation
+    el.classList.add('slopscale_beta-jam-applied');
+    setTimeout(() => el.classList.remove('slopscale_beta-jam-applied'), 650);
+  }
   function jamPanelState() {
-    const styleBtn = document.querySelector('#slopscale_beta-jam-styles .slopscale_beta-jam-style.active');
     return {
-      style: (styleBtn && styleBtn.dataset.style) || '',
+      style: currentJamStyleId(),
       key: (($('slopscale_beta-jam-key') || {}).value) || 'A',
       tempo: Math.max(40, Math.min(220, parseInt(($('slopscale_beta-jam-tempo') || {}).value || '90', 10) || 90)),
       feel: jamFeel,
@@ -18657,8 +18799,7 @@
   // reference line and the progression comp is the backing band. Loops [leadIn,
   // duration] so it keeps going. A MIRROR — no score, no rank (north star).
   async function jamPlay() {
-    const styleBtn = document.querySelector('#slopscale_beta-jam-styles .slopscale_beta-jam-style.active');
-    const styleId = (styleBtn && styleBtn.dataset.style) || Object.keys(STYLE_PALETTES)[0];
+    const styleId = currentJamStyleId();   // saved id is the source of truth (the picker accordion may hide the active chip)
     const jamKey = ($('slopscale_beta-jam-key') || {}).value || 'A';
     const jamTempo = Math.max(40, Math.min(220, parseInt(($('slopscale_beta-jam-tempo') || {}).value || '90', 10) || 90));
     // Changes picker (D-J5a): '__mix' = round-robin the palette's progressions[]
@@ -18721,6 +18862,7 @@
       const lead = (activeBundle && activeBundle.leadIn) || 0;
       if (dur > lead + 0.1) { try { setSegmentLoop(lead, dur); } catch (_) {} }
       startPlayback();
+      prewarmMixerCandidates();         // warm the instrument-swap candidates so a mid-jam voice switch is instant (Jam-UX reliability)
       refreshStatusFromState();
       _jamSnapshot = jamPanelState();   // the delta baseline for wrap-boundary live changes (J-2)
       jamPendingClear();
@@ -23050,14 +23192,7 @@
       if (kitSel) mixerState[sel.dataset.k].kit = sel.value || null;
       else mixerState[sel.dataset.k].instrument = sel.value || null;
       mixerSave();
-      if (activeBundle) {
-        await awaitVoices(activeBundle);
-        if (playing && !paused) {   // paused stays silent; resume re-schedules on the new voice
-          anchorPlayClock(currentPracticeTime);
-          stopAudio();
-          scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
-        }
-      }
+      commitLiveVoiceSwap(sel.dataset.k, !!kitSel);   // token-guarded + ready-gated + ducked (shared with the band strip)
     });
     // Mid-run downshift chip (beginner rungs): accept = close-and-arm the kinder
     // tier (load it, focus Play, start nothing); dismiss = quiet for the session
@@ -23288,7 +23423,7 @@
     jamArmFromDrill, jamTargetPcs, jamNextGuidePcs,
     getActiveBundleInfo: () => activeBundle ? { config: activeBundle.config, duration: activeBundle.songInfo && activeBundle.songInfo.duration, leadIn: activeBundle.leadIn } : null,
     sgStats: () => { const out = { ready: 0, loading: 0, failed: 0 }; for (const k of Object.keys(sgBuffers)) out[sgBuffers[k].state] = (out[sgBuffers[k].state] || 0) + 1; return out; } };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, ARRANGEMENT_RECIPES, resolveArrangement, compCellForConfig, activeBundleBacking: () => activeBundle ? activeBundle.backingEvents : null, activeBundleChords: () => activeBundle ? activeBundle.chords : null, activeBundleCfg: () => activeBundle ? activeBundle.config : null, irState: () => Object.fromEntries(Object.entries(_irBufs).map(([k, v]) => [k, v.state])), rigState: () => JSON.parse(JSON.stringify(rigState)), buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, resolveAudioProfile, resolveMix, resolveAmpId, sgNotesWanted,
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, ARRANGEMENT_RECIPES, resolveArrangement, compCellForConfig, activeBundleBacking: () => activeBundle ? activeBundle.backingEvents : null, activeBundleChords: () => activeBundle ? activeBundle.chords : null, activeBundleCfg: () => activeBundle ? activeBundle.config : null, irState: () => Object.fromEntries(Object.entries(_irBufs).map(([k, v]) => [k, v.state])), rigState: () => JSON.parse(JSON.stringify(rigState)), buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, resolveAudioProfile, resolveMix, resolveAmpId, sgNotesWanted, wafGmTrim, WAF_GM_TRIM, TONE_GM, liveInstrumentReady, prewarmMixerCandidates, jamApplyToken: () => _jamApplyToken, mixerStateRef: () => mixerState,
     busRms: () => { const out = {}; if (audioBus && audioBus.analysers) { for (const k in audioBus.analysers) { const an = audioBus.analysers[k]; const buf = new Float32Array(an.fftSize); an.getFloatTimeDomainData(buf); let s = 0; for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i]; out[k] = Math.sqrt(s / buf.length); } } return out; },
     busGains: () => { const out = {}; if (audioBus && audioBus.tracks) { for (const k in audioBus.tracks) out[k] = audioBus.tracks[k].gain.value; } return out; }, ampState: () => ({ want: { ..._ampWant }, wired: audioBus && audioBus.amps ? Object.fromEntries(Object.entries(audioBus.amps).map(([k, v]) => [k, v.id])) : null }), avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
