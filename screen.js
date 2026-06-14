@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.24-beta.15';
+  const SLOPSCALE_VERSION = '0.7.24-beta.16';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -6822,6 +6822,37 @@
     }
     return out.sort((a, b) => a - b);
   }
+  // Two-hand rootless JAZZ keys comp (piano-pedagogy ruleset — specced 2026-06-05,
+  // BUILT in the genre-band realism slice 2026-06-13). The jazz "piano" was the guitar
+  // comp grid (one 3-note treble shell stack, MIDI ≥58) on a piano sound — NO left hand.
+  // A real comper plays rootless A/B voicings: a 4-note shell in the 3rd octave (A-form
+  // 3-5-7-9 / B-form 7-9-3-5), the bass owning the root, ALTERNATING form by bar so
+  // successive chords voice-lead (the A↔B circle-of-fifths swap). The lower register is
+  // the two-hand feel the treble-only shell lacked. Falls back to the existing rootless
+  // shell when there's no clear 3rd+7th (power/sus chord). Deterministic (barIdx only).
+  function voiceKeysComp(rootPc, intervals, barIdx) {
+    const iv = (intervals || []).map(i => (((i % 12) + 12) % 12));
+    const has = x => iv.includes(x);
+    const third = has(4) ? 4 : has(3) ? 3 : null;
+    const sev = has(10) ? 10 : has(11) ? 11 : null;
+    if (third == null || sev == null)                       // power/sus → the existing rootless shell
+      return compTargetMidis({ t: 'shell' }, [], { rootPc, intervals }, false);
+    const fifth = has(6) ? 6 : has(8) ? 8 : 7;              // keep a ♭5/♯5 alteration, else P5
+    const ninth = has(1) ? 1 : 2;                           // ♭9 (altered dom) else 9
+    // A-form (3-5-7-9) / B-form (7-9-3-5), alternating by bar; stacked ascending from
+    // the 3rd octave (~MIDI 50) — the cursor handles the inversion so the form just
+    // changes which guide tone is lowest (the voice-leading variety).
+    const degs = (barIdx & 1) === 0 ? [third, fifth, sev, ninth] : [sev, ninth, third, fifth];
+    const out = []; let cursor = 50;
+    for (const d of degs) {
+      const apc = (((rootPc + d) % 12) + 12) % 12;
+      const m = cursor + ((((apc - cursor) % 12) + 12) % 12);   // lowest pc ≥ cursor
+      if (!out.includes(m)) out.push(m);
+      cursor = m + 2;
+    }
+    if (out.length < 2) return compTargetMidis({ t: 'shell' }, [], { rootPc, intervals }, false);
+    return out.sort((a, b) => a - b);
+  }
   // ── Voice-leading between successive backing chords (backing-engine step 2) ──
   // The named differentiator: the comp moves like a comper's hand, not a machine.
   // Piano-pedagogy rule-set: anchor only the FIRST chord to the register centre
@@ -7022,6 +7053,20 @@
   // Every cell carries a player-facing label (the future goal-card line).
   const COMP_ARTIC = { stab: 0.45, chug: 0.22, sus: 1.0, ring: 0, chuck: 0.15 };   // hit length ×step (ring = to the chord's end; chuck = the recorded dead-strum)
   const COMP_VEL = { accent: 1.0, normal: 0.78, ghost: 0.45 };        // sound-design velocity tiers
+  // Continuous comp velocity (genre-band realism slice, rhythm-meter): three flat
+  // tiers read as a grid. Keep an authored ACCENT as the ceiling, but give the
+  // un-accented hits a METRIC contour — the bar's downbeat heavier than an on-beat
+  // heavier than an off-beat subdivision — so the comp has a pulse, not a flat level.
+  // Deterministic (no rng; the same cfg → the same chart — the per-hit ±wobble is the
+  // scheduler's audio-only RR, not the chart).
+  function compHitVel(step, k, div, numer) {
+    const base = step.acc ? COMP_VEL.accent : step.a === 'chug' ? COMP_VEL.ghost : COMP_VEL.normal;
+    if (step.acc) return base;                                   // authored accent = the loudest hit, untouched
+    const downbeat = (k % (div * Math.max(1, numer))) === 0;     // bar downbeat
+    const onBeat = (k % div) === 0;                              // a beat (not an off-beat sub)
+    const bump = downbeat ? 0.12 : onBeat ? 0.05 : -0.03;
+    return Math.max(0.2, Math.min(0.97, base + bump));
+  }
   const COMP_GROOVES = {
     vamp_half:   { div: 1, bars: 1, label: 'half-note vamp',
       grid: [{ t: 'chord', a: 'sus', acc: 1 }, '.', { t: 'chord', a: 'sus' }, '.'] },
@@ -7756,6 +7801,11 @@
           lastCompVar = vi; activeGrid = cell.vary[vi];
         }
         const cellSteps = activeGrid.length;
+        // Jazz comp-on-Keys (piano-pedagogy): a two-hand rootless A/B voicing instead of
+        // the single treble shell stack (the "no left hand" fix). barIdx alternates the
+        // A↔B form so successive chords voice-lead. Only the full-voicing targets
+        // (shell/chord) reroute; top/pedal/root5 keep compTargetMidis.
+        const keysMidis = _padComp ? voiceKeysComp(c.rootPc, c.intervals, Math.round(c.startSec / measureSeconds(cfg))) : null;
         const hits = fh && fh.length ? fh.slice() : [];
         for (let k = 0; ; k++) {
           const t0 = c.startSec + k * stepSec;
@@ -7773,8 +7823,8 @@
               })())
             : Math.min(c.endSec, t0 + Math.max(0.06, stepSec * frac));
           hits.push({ t: +t0.toFixed(6), end: +end.toFixed(6), name: '',
-                      midis: compTargetMidis(step, midis, c, lift),
-                      vel: step.acc ? COMP_VEL.accent : step.a === 'chug' ? COMP_VEL.ghost : COMP_VEL.normal,
+                      midis: (keysMidis && (step.t == null || step.t === 'shell' || step.t === 'chord')) ? keysMidis : compTargetMidis(step, midis, c, lift),
+                      vel: compHitVel(step, k, cell.div, cfg.meter.numerator),
                       a: step.a,   // articulation tag — the sample voice keys its open↔muted switch off it
                       comp: cellId,
                       padBus: _padComp });   // comp-on-Keys (e.g. jazz piano): route this comp hit to the Keys strip
@@ -16963,9 +17013,46 @@
     _ampWant.harmony = resolveAmpId('harmony', sgHarm, harmProfile);
     _ampWant.bass = resolveAmpId('bass', false, harmProfile);   // genre-band: metal/punk overdriven bass (bass_drive)
     wireTrackAmp(ctx, 'notes'); wireTrackAmp(ctx, 'harmony'); wireTrackAmp(ctx, 'bass');
-    const wafVoice = (preset, busName, when, midi, d, vol) => {
-      const e = wafPlayer.queueWaveTable(ctx, trackBus(ctx, busName), preset, when, midi, d, vol * wafLoudnessTrim(midi));
-      if (e) audioNodes.push({ stop() { try { e.cancel(); } catch (_) {} }, disconnect() {} });
+    // Per-hit articulation envelope + round-robin micro-variation (genre-band realism
+    // slice 2026-06-13): the WAF backing band was articulation-DEAF — every hit played
+    // the preset's own sustain envelope cut to length, so a chug, a stab and a let-ring
+    // were the SAME sample, only shorter/louder (the "MIDI smell"). sgVoice already does
+    // this for the DI guitar; this ports it to the WAF voices (comp/bass/keys) so the
+    // whole band catches up. `opts` (backing only):
+    //   · artic — reshapes the returned envelope GainNode: chug/stab impose a percussive
+    //             RELEASE (the preset's sustainy decay is what made a chug ring); sus/
+    //             ring/undefined keep the natural bloom.
+    //   · seed  — a DETERMINISTIC per-hit micro-variation: ±detune (the source's detune
+    //             AudioParam), ±gain, +onset jitter — kills the machine-gun on repeats.
+    // No opts (the practice 'notes' voice) → byte-identical to before (the grading voice
+    // stays clean/in-tune). Zero extra nodes: detune/gain/onset ride params that already
+    // exist; the envelope reshape reuses the GainNode queueWaveTable returns. Seeded =
+    // the same cfg sounds the same every pass (determinism is a hard rule).
+    const wafVoice = (preset, busName, when, midi, d, vol, opts) => {
+      let v = vol, w = when, h = 0;
+      if (opts && opts.seed != null) {
+        h = Math.abs(Math.sin(opts.seed * 12.9898 + midi * 0.073) * 43758.5453) % 1;   // deterministic per-hit hash
+        v *= 1 + (h - 0.5) * 0.10;      // ±~0.4 dB gain wobble
+        w += h * 0.004;                 // 0–4 ms onset jitter (later only — never before `when`)
+      }
+      const e = wafPlayer.queueWaveTable(ctx, trackBus(ctx, busName), preset, w, midi, d, Math.max(0.0001, v) * wafLoudnessTrim(midi));
+      if (!e) return;
+      if (opts) {
+        // RR detune (cents) — independent of, and additive to, playbackRate; deterministic.
+        if (opts.seed != null && e.audioBufferSourceNode && e.audioBufferSourceNode.detune) {
+          const h2 = (h * 1.618) % 1;
+          try { e.audioBufferSourceNode.detune.setValueAtTime((h2 - 0.5) * 9, w); } catch (_) {}   // ±~4.5 cents
+        }
+        // Articulation envelope: impose a percussive release on muted/short hits — the
+        // gate that separates a chug/stab from a held note (sus/ring keep the bloom).
+        const art = opts.artic;
+        if ((art === 'chug' || art === 'stab') && e.gain) {
+          const hold = art === 'chug' ? 0.04 : 0.07;   // brief sustain at the attack
+          const tau  = art === 'chug' ? 0.05 : 0.10;   // then a fast exponential gate
+          try { e.gain.cancelScheduledValues(w + hold); e.gain.setTargetAtTime(0.0001, w + hold, tau); } catch (_) {}
+        }
+      }
+      audioNodes.push({ stop() { try { e.cancel(); } catch (_) {} }, disconnect() {} });
     };
     if (audio.harmony) for (const ev of bundle.backingEvents || []) {
       if (ev.role === 'drums') continue;   // drums have their own kit/bus/loop below
@@ -16980,7 +17067,7 @@
       if (ev.role === 'bass') {
         // Backing bass line — a real bass voice on its own bus, not the harmony pad.
         for (const m of (ev.midis || [])) {
-          if (bassPreset && wafPlayer) wafVoice(bassPreset, 'bass', when, m, d, harmProfile.bass.level * WAF_VOICE_VOL.bass * vel);
+          if (bassPreset && wafPlayer) wafVoice(bassPreset, 'bass', when, m, d, harmProfile.bass.level * WAF_VOICE_VOL.bass * vel, { seed: ev.t + m, artic: ev.a });
           else schedulePluckedString(ctx, when, midiToFreq(m), d, 'bass', harmProfile.bass.level * vel, 0);
         }
       } else {
@@ -17019,12 +17106,12 @@
               const v = lvlBase * WAF_VOICE_VOL[busName] * hScale * vel * 0.72;
               const okL = sgVoice(ctx, busName, when, m, d, v, ev.a, vel, { pan: -0.35 });
               const okR = sgVoice(ctx, busName, when, m, d, v, ev.a, vel, { pan: 0.35, delay: dly, cents });
-              if (!okL && !okR && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v / 0.72);
+              if (!okL && !okR && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v / 0.72, { seed: ev.t + m, artic: ev.a });
             }
           } else {
             for (const m of (ev.midis || [])) {
               const v = lvlBase * WAF_VOICE_VOL[busName] * hScale * vel;
-              if ((!useSg || !sgVoice(ctx, busName, when, m, d, v, ev.a, vel)) && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v);
+              if ((!useSg || !sgVoice(ctx, busName, when, m, d, v, ev.a, vel)) && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v, { seed: ev.t + m, artic: ev.a });
             }
           }
         } else {
