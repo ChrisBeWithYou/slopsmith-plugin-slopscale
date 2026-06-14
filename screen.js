@@ -4407,9 +4407,12 @@
   };
   const AUDIO_PROFILES = {
     blues:      { family: 'clean',      harmony: { engine: 'sample', tone: 'organ',  level: 0.85 }, brightness: 0.5 },
-    jazz:       { family: 'clean',      harmony: { engine: 'sample', tone: 'epiano', level: 0.85 }, brightness: 0.55, drums: { kit: 'kit_jazz' } },
+    // jazz combo (panel 2026-06-13): walking UPRIGHT bass (was the generic electric)
+    // + the comp routed to the Keys bus as a PIANO (pad.role:'comp' — un-orphans Keys
+    // and makes the comper a piano, not the Rhodes). drums kit_jazz already correct.
+    jazz:       { family: 'clean',      harmony: { engine: 'sample', tone: 'epiano', level: 0.85 }, bass: { tone: 'upright', level: 0.9 }, pad: { engine: 'sample', tone: 'piano', role: 'comp', level: 0.85 }, brightness: 0.55, drums: { kit: 'kit_jazz' } },
     rock:       { family: 'clean',      harmony: { engine: 'sample', tone: 'organ',  level: 0.8 },  brightness: 0.55 },
-    metal:      { family: 'distorted',  harmony: { engine: 'sample', tone: 'clean', sg: true, amp: 'metal', level: 0.6 },  brightness: 0.42 },
+    metal:      { family: 'distorted',  harmony: { engine: 'sample', tone: 'clean', sg: true, amp: 'metal', level: 0.6 }, bass: { tone: 'bass', amp: 'bass_drive', level: 0.85 }, brightness: 0.42 },
     djent:      { family: 'distorted',  harmony: { engine: 'sample', tone: 'clean', sg: true, amp: 'metal', level: 0.55 }, brightness: 0.38 },
     gospel:     { family: 'clean',      harmony: { engine: 'sample', tone: 'organ',  level: 0.9 },  brightness: 0.55 },
     bluegrass:  { family: 'acoustic',   harmony: { engine: 'sample', tone: 'guitar', level: 0.78 }, brightness: 0.62, drums: { kit: 'kit_acoustic_soft' } },
@@ -4420,7 +4423,13 @@
     // Jam now sounds like its instrument, not a generic pad.
     funk:       { family: 'clean',      harmony: { engine: 'sample', tone: 'clav',   level: 0.8 },  brightness: 0.6 },
     pop:        { family: 'clean',      harmony: { engine: 'sample', tone: 'epiano', level: 0.8 },  brightness: 0.62 },
-    country:    { family: 'clean',      harmony: { engine: 'sample', tone: 'clean',  level: 0.78 }, brightness: 0.6 },
+    // country band (panel 2026-06-13): the bed is a steel-string ACOUSTIC (the clean
+    // electric is the Tele LEAD, a later track), a round UPRIGHT-ish bass, a soft
+    // ACOUSTIC kit (was sharing kit_rock with metal), + a slow-swell pedal-steel PAD
+    // on the Keys track (role:'sustain'; honest ~80% — no real pitch-glide yet). The
+    // acoustic family also flips the warm defaults. Arrangement (country_chuck/two_feel/
+    // train_beat) is already correct — this is the timbre fix.
+    country:    { family: 'acoustic',   harmony: { engine: 'sample', tone: 'guitar', level: 0.76 }, bass: { tone: 'upright', level: 0.9 }, pad: { engine: 'sample', tone: 'pad', role: 'sustain', level: 0.48 }, drums: { kit: 'kit_acoustic_soft' }, brightness: 0.55 },
     // World/genre batch (band-intel, 2026-06-13): reggae = bright clean skank;
     // disco = clean 16th scratch guitar; latin = nylon (bossa); soul = warm Rhodes;
     // afrobeat = clean percussive interlock. One comp VOICE each (the engine plays a
@@ -4451,7 +4460,7 @@
     surf:        { family: 'clean',      harmony: { engine: 'sample', tone: 'clean',  level: 0.78 }, brightness: 0.66 },
     shoegaze:    { family: 'clean',      harmony: { engine: 'sample', tone: 'clean',  level: 0.8 },  brightness: 0.7 },
     emo:         { family: 'clean',      harmony: { engine: 'sample', tone: 'clean',  level: 0.78 }, brightness: 0.66 },
-    punk:        { family: 'distorted',  harmony: { engine: 'sample', tone: 'clean', sg: true, amp: 'metal', level: 0.62 }, brightness: 0.55 },
+    punk:        { family: 'distorted',  harmony: { engine: 'sample', tone: 'clean', sg: true, amp: 'metal', level: 0.62 }, bass: { tone: 'bass', amp: 'bass_drive', level: 0.82 }, brightness: 0.55 },
     prog:        { family: 'clean',      harmony: { engine: 'sample', tone: 'clean',  level: 0.78 }, brightness: 0.62 },
   };
 
@@ -5489,6 +5498,26 @@
     piano: 0, epiano: 4, clav: 7, organ: 19, nylon: 24, guitar: 25, clean: 27,
     upright: 32, bass: 33, strings: 48, brass: 61, synthlead: 81, synthpad: 88, pad: 89,
   };
+  // Startup integrity guard (mirrors validateStylePalettes/validateArrangementRecipes):
+  // every AUDIO_PROFILES voice points at a real TONE_GM sample, every kit at a real
+  // KIT_REGISTRY id, every pad.role is a known role, every family is known. Placed
+  // HERE (not next to AUDIO_PROFILES) because it depends on TONE_GM, defined just above.
+  // Closes a real gap: drums.kit was previously unguarded — a typo'd kit fell silently
+  // to kit_909 at play time. Throws on load, same as a bad progression token.
+  (function validateAudioProfiles() {
+    const PAD_ROLES = new Set(['sustain', 'comp', 'counter']);
+    const chkTone = (id, slot, where) => {
+      if (slot && (slot.engine == null || slot.engine === 'sample') && slot.tone != null && !(slot.tone in TONE_GM))
+        throw new Error(`[SlopScale audio-profile] ${id} ${where} tone "${slot.tone}" is not a TONE_GM voice`);
+    };
+    for (const id of Object.keys(AUDIO_PROFILES)) {
+      const p = AUDIO_PROFILES[id];
+      chkTone(id, p.harmony, 'harmony'); chkTone(id, p.bass, 'bass'); chkTone(id, p.pad, 'pad'); chkTone(id, p.notes, 'notes');
+      if (p.pad && p.pad.role != null && !PAD_ROLES.has(p.pad.role)) throw new Error(`[SlopScale audio-profile] ${id} pad.role "${p.pad.role}" not in ${[...PAD_ROLES].join('|')}`);
+      if (p.drums && p.drums.kit != null && !KIT_REGISTRY[p.drums.kit]) throw new Error(`[SlopScale audio-profile] ${id} drums.kit "${p.drums.kit}" is not a KIT_REGISTRY kit`);
+      if (p.family && !AUDIO_FAMILY_DEFAULTS[p.family]) throw new Error(`[SlopScale audio-profile] ${id} family "${p.family}" unknown`);
+    }
+  })();
   const wafFile = gm => String(gm * 10).padStart(4, '0') + '_' + WAF_SF;
   const wafVar  = gm => '_tone_' + wafFile(gm);
   const wafUrl  = gm => WAF_BASE + wafFile(gm) + '.js';
@@ -6738,6 +6767,36 @@
     // by the register-anchor + bass-gap, so no upperLow floor here.
     return voiceChord(rootPc, intervals, Object.assign({ instrument, maxVoices: 4, upperHigh: 74 }, bassWin));
   }
+  // A SUSTAINED pad/Keys voicing for the Keys (pad) bus — the 2nd harmonic layer
+  // (Keys un-orphan, panel 2026-06-13). ROOTLESS and placed just ABOVE the comp's
+  // top voice so it never doubles a comp pitch in the same octave (harmony-theory's
+  // mud rule): the bass owns the root, the comp owns the rhythmic mids, the pad
+  // floats guide-tones + one colour up top. Subordinate by construction (≤3 voices,
+  // low level + the comp-duck downstream). Deterministic — no rng.
+  function voiceBackingPad(rootPc, intervals, compMidis) {
+    const iv = (intervals || []).map(i => (((i % 12) + 12) % 12));
+    const has = x => iv.includes(x);
+    const degs = [];
+    const third = has(4) ? 4 : has(3) ? 3 : null;
+    const sev = has(10) ? 10 : has(11) ? 11 : null;
+    if (third != null) degs.push(third);
+    if (sev != null) degs.push(sev);
+    if (has(2)) degs.push(2); else if (has(9)) degs.push(9); else if (has(7)) degs.push(7);  // 9th / 6th / 5th colour
+    if (!degs.length) degs.push(has(7) ? 7 : 0);                                              // last-ditch (power chord) → 5th/root
+    // Lowest pad voice sits just OVER the comp ceiling (rootless, no same-octave
+    // double); capped so it stays a treble shimmer, not stratospheric.
+    const compTop = (compMidis && compMidis.length) ? Math.max.apply(null, compMidis) : 64;
+    const LO = Math.min(76, Math.max(62, compTop + 1)), HI = LO + 22;
+    const out = []; let cursor = LO;
+    for (const d of degs) {
+      const apc = (((rootPc + d) % 12) + 12) % 12;
+      let m = cursor + ((((apc - cursor) % 12) + 12) % 12);   // lowest pc ≥ cursor
+      if (m > HI) m -= 12;
+      if (!out.includes(m) && !((compMidis || []).includes(m))) out.push(m);
+      cursor = m + 2;
+    }
+    return out.sort((a, b) => a - b);
+  }
   // ── Voice-leading between successive backing chords (backing-engine step 2) ──
   // The named differentiator: the comp moves like a comper's hand, not a machine.
   // Piano-pedagogy rule-set: anchor only the FIRST chord to the register centre
@@ -7544,12 +7603,22 @@
     const cell = cellId ? COMP_GROOVES[cellId] : null;
     const figId = bassFigureForConfig(cfg);
     const lift = !!figId;                               // a real bass plays — the comp drops its folded root
+    // Keys (pad) layer (un-orphan, panel 2026-06-13): a profile may declare a 2nd
+    // harmonic voice on the Keys bus — 'sustain' = a separate rootless pad ABOVE the
+    // comp (voiceBackingPad), 'comp' = the comp itself routed to Keys (e.g. jazz's
+    // comping PIANO). Gated off when the recipe sets ensemble.pad:'off' (metal/punk
+    // stay keyless) and never fires for an un-recipe'd / pad-less profile.
+    const _prof = resolveAudioProfile(cfg);
+    const _padRole = (_prof.pad && _prof.pad.role) || null;
+    const _padOn = !!_padRole && resolveArrangement(cfg).ensemble.pad !== 'off';
+    const _padSustain = _padOn && _padRole === 'sustain';
+    const _padComp = _padOn && _padRole === 'comp';
     const beatSec = (60 / cfg.bpm) * (4 / cfg.meter.denominator);
     const timeline = compileChordTimeline(cfg, duration);
     // Generators draw ONLY from the chart's seeded rng (determinism is a hard
     // rule — the same cfg walks the same line on every pass and regenerate).
     const figHits = figId ? buildBassFigureEvents(figId, timeline, duration, beatSec, chartRng(cfg)) : null;
-    let prevVoicing = null, evIdx = 0, lastPad = null;
+    let prevVoicing = null, evIdx = 0, lastPad = null, lastSustainPad = null;
     for (let ci = 0; ci < timeline.length; ci++) {
       const c = timeline[ci];
       if (evIdx % cycleLen === 0 && prevVoicing && Math.abs((prevVoicing[1] ?? 55) - 55) > 5) prevVoicing = null;
@@ -7591,11 +7660,25 @@
                       midis: compTargetMidis(step, midis, c, lift),
                       vel: step.acc ? COMP_VEL.accent : step.a === 'chug' ? COMP_VEL.ghost : COMP_VEL.normal,
                       a: step.a,   // articulation tag — the sample voice keys its open↔muted switch off it
-                      comp: cellId });
+                      comp: cellId,
+                      padBus: _padComp });   // comp-on-Keys (e.g. jazz piano): route this comp hit to the Keys strip
         }
         hits.sort((a, b) => (a.t - b.t) || (a.role === 'bass' ? -1 : b.role === 'bass' ? 1 : 0));
         if (hits.length) Object.assign(hits[0], { name: c.name, cpcs: c.cpcs, gpcs: c.gpcs, rn: c.rn, fn: c.fn });
         events.push(...hits);
+        // Sustain Keys pad (un-orphan): a separate held rootless voice ABOVE the comp.
+        // Coalesce consecutive identical voicings so it doesn't re-attack every bar.
+        if (_padSustain) {
+          const pmidis = voiceBackingPad(c.rootPc, c.intervals, midis);
+          if (pmidis.length) {
+            if (lastSustainPad && lastSustainPad.end >= c.startSec - 1e-4 && lastSustainPad.midis.length === pmidis.length && lastSustainPad.midis.every((m, k) => m === pmidis[k])) {
+              lastSustainPad.end = c.endSec;
+            } else {
+              lastSustainPad = { t: c.startSec, end: c.endSec, role: 'pad', name: '', midis: pmidis };
+              events.push(lastSustainPad);
+            }
+          }
+        }
         continue;
       }
       // Legacy pad: coalesce consecutive identical chords into one sustained
@@ -14267,6 +14350,14 @@
              // makeup raised 0.24→0.38 (2026-06-13 dogfood: the rhythm comp read
              // "low volume"); the master limiter still guards peaks. By-ear tunable.
              makeup: 0.38, comp: [-16, 3, 0.008, 0.12], ir: 'v30_4x12' },
+    // Bass overdrive (genre-band panel 2026-06-13, bass-pedagogy): a SEPARATE preset
+    // for the BASS bus — do NOT reuse drive/metal (their 75–110 Hz preHp guts the
+    // bass fundamental). Low HP keeps the sub, a gentle upper-mid grind adds the
+    // pick clank, NO mid-scoop, NO cab (noCab — see buildAmpChain). makeup keeps a
+    // driven bass from jumping over the band. metal/punk's "driving bass" voice.
+    bass_drive: { label: 'Bass OD', preHp: 30, preMid: [1200, 0.7, 3], drive: 4, curve: 'hard',
+             post: [['lowshelf', 90, 0, 1], ['peaking', 1000, 0.8, 3]],
+             makeup: 0.6, noCab: true },
   };
   const AMP_OPTIONS = [['', 'Amp: Auto'], ['off', 'No amp'], ['clean', 'Clean'], ['drive', 'Overdrive'], ['metal', 'Metal']];
   function ampCurve(kind, drive) {
@@ -14379,15 +14470,22 @@
       if (q) eq.Q.value = q; eq.gain.value = g;
       head.connect(eq); head = eq;
     }
-    const cab = mk(ctx.createConvolver());
-    // A user cab (Rig view) overrides the preset's; else the preset's IR; else procedural.
-    const irName = ov.irName ? ('user:' + ampId) : p.ir;
-    const irBuf = irName ? ensureCabIr(ctx, irName) : null;
-    cab.buffer = irBuf || cabIrBuffer(ctx);          // the real cab IR, or the procedural fallback while it loads / when absent
-    if (irName && !irBuf) (_irPending[irName] = _irPending[irName] || []).push(cab);
     // makeup = the amp output; a user output trim (Rig view) overrides the preset default.
     const makeup = mk(ctx.createGain()); makeup.gain.value = (ov.output != null ? ov.output : p.makeup);
-    head.connect(cab); cab.connect(makeup);
+    if (p.noCab) {
+      // Bass OD: NO guitar cab — the procedural/guitar IRs roll off ~90 Hz + 4.3 kHz,
+      // which would gut the bass fundamental (bass-pedagogy). The shaper + post-EQ
+      // shape the grind; the bass bus's own lowpass carve tames any fizz.
+      head.connect(makeup);
+    } else {
+      const cab = mk(ctx.createConvolver());
+      // A user cab (Rig view) overrides the preset's; else the preset's IR; else procedural.
+      const irName = ov.irName ? ('user:' + ampId) : p.ir;
+      const irBuf = irName ? ensureCabIr(ctx, irName) : null;
+      cab.buffer = irBuf || cabIrBuffer(ctx);        // the real cab IR, or the procedural fallback while it loads / when absent
+      if (irName && !irBuf) (_irPending[irName] = _irPending[irName] || []).push(cab);
+      head.connect(cab); cab.connect(makeup);
+    }
     let out = makeup;
     if (p.comp) {
       const c = mk(ctx.createDynamicsCompressor());
@@ -14402,14 +14500,14 @@
   // and leaves every other voice (EP/organ/WAF guitars/synths) un-amped.
   // _ampWant is set by the scheduler each pass (it knows the resolved voices);
   // wireTrackAmp is idempotent on the wanted id, so re-calls are free.
-  const _ampWant = { notes: null, harmony: null };
+  const _ampWant = { notes: null, harmony: null, bass: null };
   function resolveAmpId(name, voiceIsSgSample, prof) {
     const sel = (mixerState[name] && mixerState[name].amp) || '';
     if (sel === 'off') return null;
     if (AMP_PRESETS[sel]) return sel;
     // Auto: a profile-declared amp wins (distorted family's comp declares
     // 'metal' — band-intel C3); else the DI sample voice takes Clean.
-    const slot = prof && (name === 'harmony' ? prof.harmony : prof.notes);
+    const slot = prof && (name === 'harmony' ? prof.harmony : name === 'bass' ? prof.bass : prof.notes);
     if (slot && AMP_PRESETS[slot.amp]) return slot.amp;
     return voiceIsSgSample ? 'clean' : null;
   }
@@ -14472,6 +14570,75 @@
     if (rigState[ampId]) { delete rigState[ampId].output; if (!Object.keys(rigState[ampId]).length) delete rigState[ampId]; rigSave(); }
     rigApplyOutput(ampId); renderRig();
   }
+  // ── MIX_RECIPES — the per-genre MIX delta layer (genre-band panel 2026-06-13,
+  // sound-design) ──────────────────────────────────────────────────────────────
+  // The DATA twin of AUDIO_PROFILES (timbre) + ARRANGEMENT_RECIPES (rhythm): per
+  // style, DELTAS over the house mix so the LOUD layers (drums, bass) carry the
+  // genre signature, not just the buried comp. The `drumkit` EQ/comp differentiates
+  // kits that SHARE one FluidR3 sample set (kit_rock/soft/jazz differ only by level)
+  // — metal reads tight/scooped, country warm/soft, on the SAME samples. masterTrim
+  // pre-corrects for arrangement DENSITY so a dense metal wall and a sparse jazz trio
+  // land at a consistent, non-clipping perceived loudness (the limiter does equal GR).
+  // Applied with ramps at play time (applyMixRecipe, idempotent per chunk); the master
+  // limiter always backstops. An un-recipe'd style → MIX_BASE (today's flat house mix).
+  // Fields: level{bus→gain mult over the fader} · pan{bus→abs} · carve{harmonyHP/padHP/
+  // bassLP Hz} · send{bus→reverb} · drumkit{loShelf{f,dB},hiShelf{dB},compRatio,compThr} ·
+  // masterTrim. Full matrix + the other genres are the P1 roll-out; P0 ships the 3 exemplars.
+  const MIX_BASE = { level: {}, pan: {}, carve: {}, send: {}, drumkit: null, masterTrim: 1 };
+  const MIX_RECIPES = {
+    country: { level: { bass: 1.12, drums: 0.9, pad: 0.9 }, pan: { harmony: 0.25, pad: -0.22 },
+               carve: { harmonyHP: 150 }, send: { harmony: 0.24, pad: 0.26, drums: 0.16 },
+               drumkit: { loShelf: { f: 120, dB: 2 }, hiShelf: { dB: -4 }, compRatio: 2.5, compThr: -16 }, masterTrim: 1 },
+    metal:   { level: { drums: 1.06, pad: 0 }, pan: { harmony: 0.3, pad: -0.3 },
+               carve: { harmonyHP: 200, bassLP: 1900 }, send: { harmony: 0.08, pad: 0.1, bass: 0.05, drums: 0.06 },
+               drumkit: { loShelf: { f: 80, dB: 1 }, hiShelf: { dB: 2 }, compRatio: 4, compThr: -18 }, masterTrim: 0.8 },
+    jazz:    { level: { drums: 0.8, bass: 1.12, pad: 0.95 }, pan: { harmony: 0.2, pad: -0.18, drums: 0.1 },
+               carve: { harmonyHP: 150 }, send: { harmony: 0.26, pad: 0.28, drums: 0.2 },
+               drumkit: { loShelf: { f: 110, dB: 0 }, hiShelf: { dB: -2 }, compRatio: 2, compThr: -14 }, masterTrim: 1 },
+  };
+  function resolveMix(cfg) {
+    const style = cfgAudioProfile(cfg || {});
+    return (style && MIX_RECIPES[style]) || MIX_BASE;
+  }
+  // Apply a style's mix deltas to the live bus graph (ramped — no jump on a genre
+  // switch). Proactively touches each backing bus so its FX nodes exist, then sets
+  // per-bus level (over the user fader) / pan / carve / send + the drum kit voicing +
+  // the backing-group loudness trim. Restores the house drum voicing for un-recipe'd
+  // styles so a prior genre's tilt never lingers.
+  function applyMixRecipe(ctx, cfg) {
+    const bus = audioBus; if (!bus || !ctx) return;
+    const mix = resolveMix(cfg), now = ctx.currentTime, R = 0.25;
+    const ramp = (param, v) => { if (!param) return; try { param.setTargetAtTime(v, now, R); } catch (_) { try { param.value = v; } catch (__) {} } };
+    for (const name of ['harmony', 'pad', 'bass', 'drums']) trackBus(ctx, name);   // ensure buses + FX exist
+    // masterTrim folds into the per-bus faders (NOT backingGroup — the break-envelope
+    // automation owns that node; two writers would fight). Scaling all four backing
+    // faders by masterTrim is the same overall loudness pre-trim, conflict-free.
+    const mt = mix.masterTrim != null ? mix.masterTrim : 1;
+    for (const name of ['harmony', 'pad', 'bass', 'drums']) {
+      const fader = bus.tracks[name];
+      if (fader) ramp(fader.gain, mixerGainFor(name) * (mix.level[name] != null ? mix.level[name] : 1) * mt);
+      const pan = bus.panners[name];
+      if (pan && mix.pan[name] != null) ramp(pan.pan, mix.pan[name]);
+      const fx = bus.fx && bus.fx[name];
+      if (fx && name !== 'drums') {
+        if (mix.send[name] != null) ramp(fx.send.gain, mix.send[name]);
+        const cv = name === 'bass' ? mix.carve.bassLP : (name === 'harmony' ? mix.carve.harmonyHP : mix.carve.padHP);
+        if (cv != null) ramp(fx.carve.frequency, cv);
+      }
+    }
+    const dfx = bus.fx && bus.fx.drums, dk = mix.drumkit;
+    if (dfx) {
+      if (mix.send.drums != null) ramp(dfx.send.gain, mix.send.drums);
+      if (dk) {
+        if (dk.loShelf) { ramp(dfx.loShelf.frequency, dk.loShelf.f); ramp(dfx.loShelf.gain, dk.loShelf.dB); }
+        if (dk.hiShelf && dk.hiShelf.dB != null) ramp(dfx.hiShelf.gain, dk.hiShelf.dB);
+        if (dk.compRatio != null) ramp(dfx.comp.ratio, dk.compRatio);
+        if (dk.compThr != null) ramp(dfx.comp.threshold, dk.compThr);
+      } else {   // un-recipe'd: restore the house drum voicing
+        ramp(dfx.loShelf.gain, 0); ramp(dfx.hiShelf.gain, -3); ramp(dfx.comp.ratio, 3); ramp(dfx.comp.threshold, -18);
+      }
+    }
+  }
   function trackBus(ctx, name) {
     const bus = ensureAudioBus(ctx);
     if (!bus.tracks[name]) {
@@ -14492,6 +14659,10 @@
         // — the punch lever is THIS comp's makeup, NEVER a looser master limiter —
         // plus a gentle >8 kHz shelf so hats stay out of the player's pick-attack
         // air-band. The per-hit 3–6 ms attack ramp lives in scheduleDrumHit.
+        // A genre-settable low-shelf at the head of the kit chain (MIX_RECIPES'
+        // drumkit.loShelf — warm body for country, tight thump for metal).
+        const loShelf = ctx.createBiquadFilter();
+        loShelf.type = 'lowshelf'; loShelf.frequency.value = 110; loShelf.gain.value = 0;
         const comp = ctx.createDynamicsCompressor();
         comp.threshold.value = -18; comp.knee.value = 6; comp.ratio.value = 3;
         comp.attack.value = 0.005; comp.release.value = 0.12;
@@ -14499,12 +14670,13 @@
         shelf.type = 'highshelf'; shelf.frequency.value = 8000; shelf.gain.value = -3;
         // The default pan sets the kit slightly off-centre so the dry/centered
         // player pops forward; a touch of the shared room glues the kit to the band.
-        g.connect(comp); comp.connect(shelf);
+        g.connect(loShelf); loShelf.connect(comp); comp.connect(shelf);
         let drumOut = shelf;
         if (canPan) { const pan = mkPan(); shelf.connect(pan); drumOut = pan; }
         drumOut.connect(groupOut); mkTap(drumOut);
         const send = ctx.createGain(); send.gain.value = 0.07;
         shelf.connect(send); send.connect(ensureSharedReverb(ctx, bus));
+        bus.fx = bus.fx || {}; bus.fx.drums = { loShelf, hiShelf: shelf, comp, send };   // MIX_RECIPES handles
       } else if (name === 'harmony' || name === 'pad' || name === 'bass') {
         // Mix 7b (step 3.5; sound-design): register-carve + pan + one shared
         // short reverb send — persistent per-bus nodes only, zero assets.
@@ -14520,6 +14692,7 @@
         // Shared reverb send (post-carve, pre-pan so the room stays centered).
         const send = ctx.createGain(); send.gain.value = name === 'bass' ? 0.07 : 0.18;
         carve.connect(send); send.connect(ensureSharedReverb(ctx, bus));
+        bus.fx = bus.fx || {}; bus.fx[name] = { carve, send };   // MIX_RECIPES per-genre carve/space deltas
       } else {
         // click / notes stay DRY (the time reference); pan defaults centered but
         // the pot works — panning the player apart from the band is a real
@@ -14534,7 +14707,7 @@
       // pre-fader console insert, so the fader stays a loudness control and
       // never becomes a drive knob. applyMixer's contract (bus.tracks[name] is
       // the fader) is untouched; trackBus returns the entry as the voice input.
-      if (name === 'notes' || name === 'harmony') {
+      if (name === 'notes' || name === 'harmony' || name === 'bass') {
         bus.voiceIn = bus.voiceIn || {}; bus.amps = bus.amps || {};
         const entry = ctx.createGain(); entry.gain.value = 1;
         bus.voiceIn[name] = entry;
@@ -16568,6 +16741,7 @@
     // points (idempotent) — cheap, and every chunk sees its upcoming breaks.
     if (audio.harmony) scheduleBackingEnvelope(bundle, ctx, base, startFrom, duration);
     const harmProfile = resolveAudioProfile({ ...cfg, audio });
+    if (audio.harmony) applyMixRecipe(ctx, { ...cfg, audio });   // genre-band: per-genre MIX deltas (ramped, idempotent per chunk)
     // Sample path: if a voice wants a sampled instrument, kick its (async) load
     // and use it once ready; until then, fall back to the oscillator voice.
     // Three sampled voices: harmony (backing comp), bass (backing bass line),
@@ -16606,7 +16780,8 @@
     // idempotent, so per-chunk calls are free.
     _ampWant.notes = resolveAmpId('notes', sgNotes, harmProfile);
     _ampWant.harmony = resolveAmpId('harmony', sgHarm, harmProfile);
-    wireTrackAmp(ctx, 'notes'); wireTrackAmp(ctx, 'harmony');
+    _ampWant.bass = resolveAmpId('bass', false, harmProfile);   // genre-band: metal/punk overdriven bass (bass_drive)
+    wireTrackAmp(ctx, 'notes'); wireTrackAmp(ctx, 'harmony'); wireTrackAmp(ctx, 'bass');
     const wafVoice = (preset, busName, when, midi, d, vol) => {
       const e = wafPlayer.queueWaveTable(ctx, trackBus(ctx, busName), preset, when, midi, d, vol * wafLoudnessTrim(midi));
       if (e) audioNodes.push({ stop() { try { e.cancel(); } catch (_) {} }, disconnect() {} });
@@ -16631,8 +16806,13 @@
         // Articulation-routed strips: COMP_GROOVES hits (ev.comp — the cell-driven
         // comping) play on 'harmony' (the Rhythm strip); the legacy coalesced
         // sustained pad plays on 'pad' (the Keys strip). One event, one strip.
-        const busName = ev.comp != null ? 'harmony' : 'pad';
+        // Keys un-orphan (panel 2026-06-13): a role:'pad' sustain event OR a comp hit
+        // flagged padBus (comp-on-Keys, e.g. jazz piano) routes to the Keys strip; a
+        // cell comp hit (ev.comp) → Rhythm; the legacy coalesced pad (no comp) → Keys.
+        const busName = (ev.role === 'pad' || ev.padBus) ? 'pad' : (ev.comp != null ? 'harmony' : 'pad');
         const preset = busName === 'harmony' ? harmPreset : padPreset;
+        // The Keys voice rides its OWN level (harmProfile.pad.level) on the pad bus.
+        const lvlBase = (busName === 'pad' && harmProfile.pad && Number.isFinite(harmProfile.pad.level)) ? harmProfile.pad.level : harmProfile.harmony.level;
         // Sampled-guitar pin (mixer 'Electric DI'): per-chord all-or-nothing so a
         // half-sampled chord never sounds; WAF (then the pad) covers until warm.
         const useSg = (busName === 'harmony' ? sgHarm : sgPad) && (ev.a === 'chuck' || sgReadyFor(ev.midis, vel));
@@ -16644,7 +16824,7 @@
             // The recorded multi-string dead-strum — ONE unpitched sample per
             // hit (never per chord note). Cold buffer = skip (a missing ghost
             // beats a wrongly pitched WAF stand-in).
-            sgVoice(ctx, busName, when, 0, d, harmProfile.harmony.level * WAF_VOICE_VOL[busName] * vel, 'chuck', vel);
+            sgVoice(ctx, busName, when, 0, d, lvlBase * WAF_VOICE_VOL[busName] * vel, 'chuck', vel);
           } else if (useSg && busName === 'harmony') {
             // DOUBLE-TRACK (band-intel C2): two takes of the comp guitar, hard
             // L/R (±0.35), the right side a seeded 12–20ms late + a few cents
@@ -16655,14 +16835,14 @@
             const jit = (Math.abs(Math.sin(ev.t * 12.9898)) * 43758.5453) % 1;   // deterministic per hit
             const dly = 0.012 + jit * 0.008, cents = (jit > 0.5 ? 1 : -1) * (3 + jit * 3);
             for (const m of (ev.midis || [])) {
-              const v = harmProfile.harmony.level * WAF_VOICE_VOL[busName] * hScale * vel * 0.72;
+              const v = lvlBase * WAF_VOICE_VOL[busName] * hScale * vel * 0.72;
               const okL = sgVoice(ctx, busName, when, m, d, v, ev.a, vel, { pan: -0.35 });
               const okR = sgVoice(ctx, busName, when, m, d, v, ev.a, vel, { pan: 0.35, delay: dly, cents });
               if (!okL && !okR && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v / 0.72);
             }
           } else {
             for (const m of (ev.midis || [])) {
-              const v = harmProfile.harmony.level * WAF_VOICE_VOL[busName] * hScale * vel;
+              const v = lvlBase * WAF_VOICE_VOL[busName] * hScale * vel;
               if ((!useSg || !sgVoice(ctx, busName, when, m, d, v, ev.a, vel)) && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v);
             }
           }
@@ -18191,7 +18371,10 @@
       // D-J1: the generated line is SILENT by default — the band plays, the
       // player is the lead voice. "+ Guide line" opts the audio back in; the
       // visual line stays either way (it's the silent map on the highway).
-      audio: Object.assign({}, base.audio, { notes: !!jamGuideLine, harmony: true, metronome: false, profile: palette.audioProfile || '' }),
+      // brightness: undefined → resolveAudioProfile uses the GENRE's brightness, not the
+      // stale Custom slider (Jam has no brightness control). This is the Jam half of the
+      // "brightness clobbered to 0.5" fix; the Custom-mode opt-in slider is a roll-out item.
+      audio: Object.assign({}, base.audio, { notes: !!jamGuideLine, harmony: true, metronome: false, profile: palette.audioProfile || '', brightness: undefined }),
     });
     try {
       if (playing) stopPlayback();
@@ -22769,6 +22952,6 @@
     jamArmFromDrill, jamTargetPcs, jamNextGuidePcs,
     getActiveBundleInfo: () => activeBundle ? { config: activeBundle.config, duration: activeBundle.songInfo && activeBundle.songInfo.duration, leadIn: activeBundle.leadIn } : null,
     sgStats: () => { const out = { ready: 0, loading: 0, failed: 0 }; for (const k of Object.keys(sgBuffers)) out[sgBuffers[k].state] = (out[sgBuffers[k].state] || 0) + 1; return out; } };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, ARRANGEMENT_RECIPES, resolveArrangement, compCellForConfig, irState: () => Object.fromEntries(Object.entries(_irBufs).map(([k, v]) => [k, v.state])), rigState: () => JSON.parse(JSON.stringify(rigState)), buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, resolveAudioProfile, sgNotesWanted, ampState: () => ({ want: { ..._ampWant }, wired: audioBus && audioBus.amps ? Object.fromEntries(Object.entries(audioBus.amps).map(([k, v]) => [k, v.id])) : null }), avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, ARRANGEMENT_RECIPES, resolveArrangement, compCellForConfig, activeBundleBacking: () => activeBundle ? activeBundle.backingEvents : null, activeBundleChords: () => activeBundle ? activeBundle.chords : null, activeBundleCfg: () => activeBundle ? activeBundle.config : null, irState: () => Object.fromEntries(Object.entries(_irBufs).map(([k, v]) => [k, v.state])), rigState: () => JSON.parse(JSON.stringify(rigState)), buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, resolveAudioProfile, resolveMix, resolveAmpId, sgNotesWanted, ampState: () => ({ want: { ..._ampWant }, wired: audioBus && audioBus.amps ? Object.fromEntries(Object.entries(audioBus.amps).map(([k, v]) => [k, v.id])) : null }), avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
