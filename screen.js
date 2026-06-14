@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.24-beta.13';
+  const SLOPSCALE_VERSION = '0.7.24-beta.14';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -6735,8 +6735,14 @@
     // minor chords sit in the SAME register — a minor 3rd no longer folds an octave
     // above a major 3rd. A bass→upper MINIMUM GAP (not a fixed floor) keeps
     // consistent clearance regardless of root and kills low-register mud.
-    const minBassGap = o.instrument === 'bass' ? 14 : 10;
-    const CENTER = 55; // ~G3
+    // Backing voicing STYLE (genre-band, harmony 2026-06-13): 'triad' (strum genres —
+    // country/folk/rock) sits a guitar register LOWER + tighter to the bass, root
+    // doubled on top = a strummed cowboy chord, NOT the mid-register jazz-piano spread
+    // that made every genre sound jazzy. Default 'shell' = the rootless-ish mid spread
+    // that swings for jazz/funk. (Metal's power 5ths come via the root5 target.)
+    const style = o.voicingStyle || 'shell';
+    const minBassGap = o.instrument === 'bass' ? 14 : (style === 'triad' ? 4 : 10);
+    const CENTER = style === 'triad' ? 50 : 55; // triad sits ~a 3rd lower (~D3)
     let cursor = bass + minBassGap, first = true;
     for (const r of upper) {
       // r.pc is the interval ABOVE THE ROOT (0..11); the actual pitch class is
@@ -6755,17 +6761,36 @@
       if (!out.includes(midi)) out.push(midi);
       cursor = midi + (midi < 67 ? 3 : 2);   // inter-voice min gap: ≥3 below ~G4, ≥2 above (anti-cluster)
     }
+    // Triad/guitar: double the root an octave above the top voice — the open-chord
+    // RING that reads as a strummed guitar, not a keyboard. One extra voice over the cap.
+    if (style === 'triad' && out.length <= maxVoices) {
+      const top = Math.max.apply(null, out), rpc = ((rootPc % 12) + 12) % 12;
+      let rd = rpc; while (rd <= top) rd += 12;
+      if (rd <= upperHigh + 6 && out.indexOf(rd) < 0) out.push(rd);
+    }
     return out.sort((a, b) => a - b);
   }
-  function voiceBackingChord(rootPc, intervals, instrument, lift) {
+  // Which comp VOICING STYLE a genre uses (Layer 2, genre-band 2026-06-13): 'triad' =
+  // the low, root-DOUBLED GUITAR voicing (the strum genres, where the mid-register
+  // rootless jazz spread sounded wrong/"jazzy"); else 'shell' = the rootless-ish spread
+  // that voice-leads and swings (jazz/funk/soul/gospel/blues + the default). Keyed by
+  // profile id because rock's family is 'clean' (family alone would mis-route it).
+  const VOICING_TRIAD = new Set(['country', 'folk', 'bluegrass', 'rock', 'punk', 'surf', 'norteno']);
+  function backingVoicingStyle(profileId) { return VOICING_TRIAD.has(profileId) ? 'triad' : 'shell'; }
+  function voiceBackingChord(rootPc, intervals, instrument, lift, voicingStyle) {
     // Register LIFT (backing-engine step 4): when a real BASS FIGURE plays, the
     // comp drops its folded low root — lowest voice ≥48, the bass-pedagogy
     // pad-lift rule — so pad/cell voicings never fight the bass lane's register.
-    const bassWin = lift ? { bassLow: 48, bassHigh: 59 }
+    // Triad/guitar voicings sit a bit LOWER (overlapping the bass's top, the way a real
+    // guitar+bass band does — open chords reach down to E2) so they read as a strummed
+    // guitar, not a lifted mid-register pad. Other styles keep the clear-of-the-bass lift.
+    const bassWin = (voicingStyle === 'triad' && instrument !== 'bass')
+      ? (lift ? { bassLow: 43, bassHigh: 55 } : { bassLow: 40, bassHigh: 52 })
+      : lift ? { bassLow: 48, bassHigh: 59 }
       : instrument === 'bass' ? { bassLow: 23, bassHigh: 40 } : { bassLow: 36, bassHigh: 48 };
     // Register (mud + minor-chord octave consistency) is handled inside voiceChord
     // by the register-anchor + bass-gap, so no upperLow floor here.
-    return voiceChord(rootPc, intervals, Object.assign({ instrument, maxVoices: 4, upperHigh: 74 }, bassWin));
+    return voiceChord(rootPc, intervals, Object.assign({ instrument, maxVoices: 4, upperHigh: 74, voicingStyle }, bassWin));
   }
   // A SUSTAINED pad/Keys voicing for the Keys (pad) bus — the 2nd harmonic layer
   // (Keys un-orphan, panel 2026-06-13). ROOTLESS and placed just ABOVE the comp's
@@ -7005,8 +7030,21 @@
     // Charleston: the figure's character lives on the '&-of-2' PUSH (jazz-idiom
     // vetting 2026-06-07) — accent the anticipation, not beat 1 (a beat-1-heavy
     // comp teaches inverted swing time).
+    // Charleston comp — now with per-bar VARIANTS (Layer 3, jazz-idiom 2026-06-13): a
+    // real comper never plays the same bar twice. The engine seed-rotates these 6
+    // one-bar rhythms (no immediate repeat) so jazz/gospel comping breathes + anticipates
+    // + lays out instead of looping one stab forever. `grid` = the base (variant 0).
+    // All `t:'shell'` (rootless guide-tone stabs — the jazz comp voice).
     charleston:  { div: 2, bars: 1, label: 'Charleston comp',
-      grid: [{ t: 'shell', a: 'stab' }, '.', '.', { t: 'shell', a: 'sus', acc: 1 }, '.', '.', '.', '.'] },
+      grid: [{ t: 'shell', a: 'stab' }, '.', '.', { t: 'shell', a: 'sus', acc: 1 }, '.', '.', '.', '.'],
+      vary: [
+        [{ t: 'shell', a: 'stab' }, '.', '.', { t: 'shell', a: 'sus', acc: 1 }, '.', '.', '.', '.'],   // 0: Charleston (1 + &-of-2)
+        ['.', '.', '.', '.', '.', '.', '.', { t: 'shell', a: 'sus', acc: 1 }],                          // 1: &-of-4 push — anticipate the next chord
+        ['.', '.', '.', '.', '.', '.', '.', '.'],                                                        // 2: lay out — the comper drops (the space)
+        ['.', { t: 'shell', a: 'stab' }, '.', '.', '.', { t: 'shell', a: 'stab', acc: 1 }, '.', '.'],    // 3: offbeat pair (&-of-1 + &-of-3)
+        [{ t: 'shell', a: 'stab' }, '.', '.', { t: 'shell', a: 'sus' }, '.', '.', '.', { t: 'shell', a: 'sus', acc: 1 }], // 4: Charleston + the &-of-4 anticipation
+        ['.', '.', { t: 'shell', a: 'stab' }, '.', '.', '.', { t: 'shell', a: 'stab', acc: 1 }, '.'],    // 5: backbeat stabs (2 & 4)
+      ] },
     rock_chug:   { div: 2, bars: 1, label: 'eighth chug',
       grid: [{ t: 'chord', a: 'chug', acc: 1 }, { t: 'chord', a: 'chug' }, { t: 'chord', a: 'chug' }, { t: 'chord', a: 'chug' },
              { t: 'chord', a: 'ring', acc: 1 }, '.', { t: 'chord', a: 'chug' }, { t: 'chord', a: 'chug' }] },
@@ -7207,12 +7245,16 @@
     for (const id of Object.keys(COMP_GROOVES)) {
       const c = COMP_GROOVES[id];
       const expect = (c.bars || 1) * 4 * c.div;
-      if (c.grid.length !== expect) throw new Error(`[SlopScale comp-groove] ${id} grid has ${c.grid.length} steps, expected ${expect}`);
       if (!c.label) throw new Error(`[SlopScale comp-groove] ${id} has no player-facing label`);
-      for (const s of c.grid) {
-        if (s === '.') continue;
-        if (!s || typeof s !== 'object' || !TGT.has(s.t) || COMP_ARTIC[s.a] == null) throw new Error(`[SlopScale comp-groove] ${id} has a bad step ${JSON.stringify(s)}`);
-      }
+      const chkGrid = (g, tag) => {
+        if (g.length !== expect) throw new Error(`[SlopScale comp-groove] ${id} ${tag} has ${g.length} steps, expected ${expect}`);
+        for (const s of g) {
+          if (s === '.') continue;
+          if (!s || typeof s !== 'object' || !TGT.has(s.t) || COMP_ARTIC[s.a] == null) throw new Error(`[SlopScale comp-groove] ${id} ${tag} has a bad step ${JSON.stringify(s)}`);
+        }
+      };
+      chkGrid(c.grid, 'grid');
+      if (c.vary) c.vary.forEach((g, i) => chkGrid(g, `vary[${i}]`));   // Layer 3: each bar-variant
     }
   })();
   // Which cell (if any) drives the comp for this cfg. Authored wins; density 1
@@ -7646,18 +7688,24 @@
     const _padOn = !!_padRole && resolveArrangement(cfg).ensemble.pad !== 'off';
     const _padSustain = _padOn && _padRole === 'sustain';
     const _padComp = _padOn && _padRole === 'comp';
+    // Voicing STYLE (Layer 2): strum genres get a tight low GUITAR triad and a strummer
+    // RE-GRABS each chord (no voice-leading); jazz/funk comp the rootless 'shell' AND
+    // voice-lead it. cfgAudioProfile keys the style; jazz's comp-on-keys still shells.
+    const _voicingStyle = _padComp ? 'shell' : backingVoicingStyle(cfgAudioProfile(cfg));
     const beatSec = (60 / cfg.bpm) * (4 / cfg.meter.denominator);
     const timeline = compileChordTimeline(cfg, duration);
     // Generators draw ONLY from the chart's seeded rng (determinism is a hard
     // rule — the same cfg walks the same line on every pass and regenerate).
     const figHits = figId ? buildBassFigureEvents(figId, timeline, duration, beatSec, chartRng(cfg)) : null;
-    let prevVoicing = null, evIdx = 0, lastPad = null, lastSustainPad = null;
+    let prevVoicing = null, evIdx = 0, lastPad = null, lastSustainPad = null, lastCompVar = -1;
     for (let ci = 0; ci < timeline.length; ci++) {
       const c = timeline[ci];
       if (evIdx % cycleLen === 0 && prevVoicing && Math.abs((prevVoicing[1] ?? 55) - 55) > 5) prevVoicing = null;
-      const midis = prevVoicing
-        ? voiceLeadBackingChord(c.rootPc, c.intervals, cfg.instrument, prevVoicing, lift)
-        : voiceBackingChord(c.rootPc, c.intervals, cfg.instrument, lift);
+      const midis = _voicingStyle === 'triad'
+        ? voiceBackingChord(c.rootPc, c.intervals, cfg.instrument, lift, 'triad')   // strummer re-grabs each chord (no voice-leading)
+        : prevVoicing
+          ? voiceLeadBackingChord(c.rootPc, c.intervals, cfg.instrument, prevVoicing, lift)
+          : voiceBackingChord(c.rootPc, c.intervals, cfg.instrument, lift, _voicingStyle);
       prevVoicing = midis;
       evIdx++;
       const fh = figHits ? figHits[ci] : null;
@@ -7672,12 +7720,26 @@
         // chord event's sounding window — every strike is its own short event
         // with artic-derived length + a velocity tier.
         const stepSec = beatSec / cell.div;
-        const cellSteps = cell.grid.length;
+        // Layer 3 (seed-rotated bar variation, genre-band 2026-06-13): a cell may carry
+        // vary:[grid…] — per-BAR variant grids the engine rotates DETERMINISTICALLY (a
+        // bar-absolute seeded pick + no immediate repeat) so the comp doesn't loop byte-
+        // identical every bar (the jazz "robotic" fix; jazz_swing's drum comp[] proves
+        // the mechanism). One variant per chord event (= per bar at 1 chord/bar).
+        let activeGrid = cell.grid;
+        if (cell.vary && cell.vary.length > 1) {
+          const barIdx = Math.round(c.startSec / measureSeconds(cfg));
+          const vseed = (typeof resolveHumanSeed === 'function' ? resolveHumanSeed(cfg) : 0) || 1;
+          const hh = Math.abs(Math.sin((barIdx + 1) * 53.17 + vseed * 1.7) * 43758.5453);
+          let vi = Math.floor((hh - Math.floor(hh)) * cell.vary.length) % cell.vary.length;
+          if (vi === lastCompVar) vi = (vi + 1) % cell.vary.length;   // no immediate repeat
+          lastCompVar = vi; activeGrid = cell.vary[vi];
+        }
+        const cellSteps = activeGrid.length;
         const hits = fh && fh.length ? fh.slice() : [];
         for (let k = 0; ; k++) {
           const t0 = c.startSec + k * stepSec;
           if (t0 >= c.endSec - 1e-4 || t0 >= duration - 1e-4) break;
-          const step = cell.grid[k % cellSteps];
+          const step = activeGrid[k % cellSteps];
           if (step === '.' || !step) continue;
           const frac = COMP_ARTIC[step.a];
           const end = step.a === 'ring' ? c.endSec
@@ -7685,7 +7747,7 @@
                 for (let j = k + 1; ; j++) {
                   const tj = c.startSec + j * stepSec;
                   if (tj >= c.endSec - 1e-4) return c.endSec;
-                  if (cell.grid[j % cellSteps] !== '.') return tj;
+                  if (activeGrid[j % cellSteps] !== '.') return tj;
                 }
               })())
             : Math.min(c.endSec, t0 + Math.max(0.06, stepSec * frac));
