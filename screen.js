@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.24-beta.12';
+  const SLOPSCALE_VERSION = '0.7.24-beta.13';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -7041,6 +7041,17 @@
              { t: 'root5', a: 'chug', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' },
              { t: 'root5', a: 'chug', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' },
              { t: 'root5', a: 'chug', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }] },
+    // Metal syncopated chug + power-chord STABS (panel 2026-06-13, metal+guitar-
+    // pedagogy): the riff BREATHES — palm-muted ghost chugs (a:'chug' = ghost vel)
+    // with the chord BARKING out on the syncopations (a:'stab'+acc = full, short, not
+    // a sustained ring — metal stabs are hard and short) + rest HOLES (the air IS the
+    // riff). The contrast between the muted motor and the barked stab is what makes it
+    // a riff, not a metronomic chug. Power 5ths only (low, under the lead). div:4.
+    metal_chug_stab: { div: 4, bars: 1, label: 'metal syncopated chug + stab',
+      grid: [{ t: 'root5', a: 'stab', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' },
+             { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }, { t: 'root5', a: 'stab', acc: 1 }, '.',
+             { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }, '.',
+             { t: 'root5', a: 'stab', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }] },
     // ── Genre comp cells (B1 batch, panel 2026-06-13) ───────────────────────────
     // Funk 16th chank (funk-idiom): the constant-strum-hand 16th part — muted
     // chucks with chord stabs landing on the syncopations, accent the one. div:4.
@@ -7050,11 +7061,18 @@
              '.', { t: 'chord', a: 'chuck' }, { t: 'chord', a: 'stab' }, '.',
              '.', { t: 'chord', a: 'stab' }, { t: 'chord', a: 'chuck' }, '.'] },
     // Country chuck — the "chicka" of boom-chicka (country-idiom + bass-pedagogy:
-    // in a full band the BASS owns the "boom" via the two_feel figure, so the
-    // GUITAR plays only the offbeat muted chord chuck, riding the backbeat). div:2.
-    country_chuck:  { div: 2, bars: 1, label: 'country chuck (the chicka)',
-      grid: ['.', { t: 'chord', a: 'chuck' }, '.', { t: 'chord', a: 'chuck', acc: 1 },
-             '.', { t: 'chord', a: 'chuck' }, '.', { t: 'chord', a: 'chuck', acc: 1 }] },
+    // in a full band the BASS owns the "boom" via the two_feel figure on 1 & 3, so
+    // the GUITAR plays only the chord chuck. FIX (panel 2026-06-13, country+guitar-
+    // pedagogy): the chord must land ON THE BACKBEAT (2 & 4), NOT on every offbeat —
+    // a chop on every "&" with empty beats IS the reggae skank (that's why it sounded
+    // like reggae). Here: a down-up "CHICK-a" brush ON 2 and ON 4 (the on-beat strike
+    // accented, the 16th-tail up-stroke ghosted), beats 1 & 3 EMPTY (bass owns them).
+    // Placement on the beat, not between beats, is what makes it country. div:4.
+    country_chuck:  { div: 4, bars: 1, label: 'country chicka (backbeat brush)',
+      grid: ['.', '.', '.', '.',
+             { t: 'chord', a: 'chuck', acc: 1 }, { t: 'chord', a: 'chuck' }, '.', '.',
+             '.', '.', '.', '.',
+             { t: 'chord', a: 'chuck', acc: 1 }, { t: 'chord', a: 'chuck' }, '.', '.'] },
     // ── World / genre comp cells (band-intel genre batch, panel 2026-06-13) ──────
     // Reggae skank (reggae-idiom): the muted chord chop on EVERY offbeat (the &s) —
     // beats are silent, the space is the genre. The bass owns the riddim. div:2.
@@ -7272,8 +7290,23 @@
       grid: [{ iv: 0, acc: 1, hold: 1 }, '.', '.', '.'] },
     two_feel:       { kind: 'pattern', div: 1, bars: 1, label: 'two-feel bass (root–5)',
       grid: [{ iv: 0, acc: 1 }, '.', { iv: 7 }, '.'] },
+    // Walking two-feel (panel 2026-06-13, country+bass-pedagogy): the root–5 boom on
+    // 1 & 3 + a 6th→♭7 walk-up climbing the back half of the bar into the next chord's
+    // root — the country bassist's signature approach run (the ♭7 leads up a half-step
+    // to ANY next root). Half the "country feel" the static two_feel was missing. A
+    // pattern approximation of the true next-chord-aware walk (the gen is a follow-on). div:2.
+    two_feel_walk:  { kind: 'pattern', div: 2, bars: 1, label: 'walking two-feel (root–5 + approach)',
+      grid: [{ iv: 0, acc: 1 }, '.', '.', '.', { iv: 7 }, '.', { iv: 9 }, { iv: 10 }] },
     root_pump:      { kind: 'pattern', div: 2, bars: 1, label: 'eighth-note root pump',
       grid: [{ iv: 0, acc: 1 }, { iv: 0 }, { iv: 0 }, { iv: 0 }, { iv: 0, acc: 1 }, { iv: 0 }, { iv: 0 }, { iv: 0 }] },
+    // Metal GALLOP bass (panel 2026-06-13, bass+metal-pedagogy): the root on the exact
+    // gallop grid — eighth + two 16ths per beat ([root, rest, root, root]×4) — so it
+    // hits onset-for-onset with the metal_gallop comp AND the metal_drive kick (a.nna).
+    // THAT lock is what makes the rhythm section sound like one tight band, not three
+    // parts. Root-only (power-chord context); the down-accent leads each gallop. div:4.
+    root_gallop:    { kind: 'pattern', div: 4, bars: 1, label: 'metal gallop bass (kick-locked)',
+      grid: [{ iv: 0, acc: 1 }, '.', { iv: 0 }, { iv: 0 }, { iv: 0, acc: 1 }, '.', { iv: 0 }, { iv: 0 },
+             { iv: 0, acc: 1 }, '.', { iv: 0 }, { iv: 0 }, { iv: 0, acc: 1 }, '.', { iv: 0 }, { iv: 0 }] },
     // The shipped blues boogie bass, ported verbatim as figure #1 (root–5–6–♭7
     // on the beats) — the boogie recipe = this + the boogie_stab comp cell.
     bass_ostinato:  { kind: 'pattern', div: 1, bars: 1, label: 'boogie bass figure',
@@ -7856,7 +7889,11 @@
     // on beat 1 for the metal edge. The full tier still escalates to the relentless
     // 16th double-bass (metal_double_kick).
     metal_drive: { div: 2, preSwung: false, fillFamily: 'rock_tom', fillEveryBars: 8, lanes: {
-      kick:      { pat: 'n.nnn.nnn.nnn.nn', div: 4 },
+      // Clean per-beat gallop (a.nn ×4 — drum-pedagogy 2026-06-13): the downbeat ACCENT
+      // + two ghost 16ths, identical every beat, so the kick lands onset-for-onset with
+      // the gallop comp + root_gallop bass (the lock). The accent over the 16ths is what
+      // makes it GALLOP instead of a 16th machine-gun.
+      kick:      { pat: 'a.nna.nna.nna.nn', div: 4 },
       snare:     '..a...a.',
       hh_closed: 'nnnnnnnn',
       crash_l:   'n.......',
@@ -7866,6 +7903,16 @@
     train_beat: { div: 4, preSwung: false, fillFamily: 'funk_snare', fillEveryBars: 16, lanes: {
       kick:      'n...n...n...n...',
       snare:     'g.g.a.g.g.g.a.g.',
+    } },
+    // Country cross-stick backbeat (the moderate-tempo DEFAULT — drum-pedagogy 2026-
+    // 06-13): the laid-back country/Americana verse groove — kick "boom" on 1 & 3, a
+    // quiet CROSS-STICK (rim click, the woody "tick") on the 2 & 4 backbeat, steady 8th
+    // hats for forward motion. The train_beat's constant 16th snare buzz was too busy/
+    // relentless as a default; this opens it up. (train_beat stays the up-tempo drive.)
+    country_backbeat: { div: 4, preSwung: false, fillFamily: 'rock_tom', fillEveryBars: 8, lanes: {
+      kick:         'n.......n.......',
+      snare_xstick: '....n.......n...',
+      hh_closed:    'n.n.n.n.n.n.n.n.',
     } },
     // Gospel pocket: a deeper ghost web than funk + a laid-back gospel kick, hats
     // with a couple of gaps so the pocket breathes.
@@ -7966,9 +8013,12 @@
     // groove = today's metal-lead picks; full = the heavier djent texture; sparse
     // = a held root. (The metal lead pathways still hand-wire comp/bass, so the
     // recipe is the default an UN-wired metal context inherits for free.)
-    'metal:default:sparse': { picks: { comp: 'metal_chug_8',   bass: 'sustained_root', drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
-    'metal:default:groove': { picks: { comp: 'metal_chug_8',   bass: 'root_pump',      drums: 'metal_drive' },       ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
-    'metal:default:full':   { picks: { comp: 'metal_pedal_16', bass: 'root_pump',      drums: 'metal_double_kick' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
+    // Rhythm-deepening (panel 2026-06-13): the constant straight-8th metal_chug_8 was the
+    // "metronome" — escalate gallop (sparse) → the breathing syncopated chug+stab riff
+    // (groove default) → djent 16ths (full); root_gallop bass + the a.nna kick LOCK to it.
+    'metal:default:sparse': { picks: { comp: 'metal_gallop',    bass: 'root_gallop', drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
+    'metal:default:groove': { picks: { comp: 'metal_chug_stab', bass: 'root_gallop', drums: 'metal_drive' },       ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
+    'metal:default:full':   { picks: { comp: 'metal_pedal_16',  bass: 'root_gallop', drums: 'metal_double_kick' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
     'djent:default:groove': { picks: { comp: 'metal_pedal_16', bass: 'root_pump',      drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
     'djent:default:full':   { picks: { comp: 'metal_pedal_16', bass: 'root_pump',      drums: 'metal_double_kick' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
     // ── Genre recipes (band-intel B1 authoring batch, panel 2026-06-13) — each its
@@ -7996,9 +8046,12 @@
     'funk:default:sparse':    { picks: { comp: 'pop_push',      bass: 'two_feel',       drums: 'half_time' },        ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
     'funk:default:groove':    { picks: { comp: 'funk_chank_16', bass: 'funk_pocket_16', drums: 'funk_16th' },        ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
     'funk:default:full':      { picks: { comp: 'funk_chank_16', bass: 'funk_pocket_16', drums: 'gospel_pocket' },    ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
-    'country:default:sparse': { picks: { comp: 'vamp_half',     bass: 'two_feel',       drums: 'train_beat' },       ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
-    'country:default:groove': { picks: { comp: 'country_chuck', bass: 'two_feel',       drums: 'train_beat' },       ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
-    'country:default:full':   { picks: { comp: 'country_chuck', bass: 'root_pump',      drums: 'train_beat' },       ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    // Rhythm-deepening (panel 2026-06-13): the comp now lands ON the backbeat (was the
+    // reggae skank), the bass walks into the change (two_feel_walk), and the default
+    // drummer plays the laid-back cross-stick backbeat (train_beat = the up-tempo drive).
+    'country:default:sparse': { picks: { comp: 'country_chuck', bass: 'two_feel',      drums: 'country_backbeat' }, ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'country:default:groove': { picks: { comp: 'country_chuck', bass: 'two_feel_walk', drums: 'country_backbeat' }, ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
+    'country:default:full':   { picks: { comp: 'country_chuck', bass: 'two_feel_walk', drums: 'train_beat' },       ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
     'pop:default:sparse':     { picks: { comp: 'vamp_half',     bass: 'two_feel',       drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
     'pop:default:groove':     { picks: { comp: 'pop_push',      bass: 'root_pump',      drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on' } },
     // Dance-pop sub-feel (cfg.arrangementFeel:'dance') — the four-on-the-floor
