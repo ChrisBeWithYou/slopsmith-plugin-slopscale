@@ -7085,11 +7085,32 @@
     // a sustained ring — metal stabs are hard and short) + rest HOLES (the air IS the
     // riff). The contrast between the muted motor and the barked stab is what makes it
     // a riff, not a metronomic chug. Power 5ths only (low, under the lead). div:4.
+    // Metal riff — the base + per-bar VARIANTS (Layer 3 reuse, metal-idiom 2026-06-13):
+    // a real riff PHRASES across bars (a riff isn't one bar looped). The engine rotates
+    // these so the metal comp breathes (rests) → drives (gallop) → barks (stabs) bar to
+    // bar — the multi-bar "riff" feel without a fragile hand-built 2-bar grid. Power 5ths.
     metal_chug_stab: { div: 4, bars: 1, label: 'metal syncopated chug + stab',
       grid: [{ t: 'root5', a: 'stab', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' },
              { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }, { t: 'root5', a: 'stab', acc: 1 }, '.',
              { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }, '.',
-             { t: 'root5', a: 'stab', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }] },
+             { t: 'root5', a: 'stab', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }],
+      vary: [
+        // 0: the base — chug motor + stabs on 1 / &-of-2 / 4
+        [{ t: 'root5', a: 'stab', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' },
+         { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }, { t: 'root5', a: 'stab', acc: 1 }, '.',
+         { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }, '.',
+         { t: 'root5', a: 'stab', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }],
+        // 1: breathing — rest holes, stabs punctuate the space
+        [{ t: 'root5', a: 'stab', acc: 1 }, '.', '.', { t: 'root5', a: 'chug' },
+         { t: 'root5', a: 'chug' }, '.', { t: 'root5', a: 'stab', acc: 1 }, '.',
+         '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }, '.',
+         { t: 'root5', a: 'stab', acc: 1 }, '.', '.', '.'],
+        // 2: gallop drive — the relentless e+2-16ths chug under an accented downbeat
+        [{ t: 'root5', a: 'chug', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' },
+         { t: 'root5', a: 'chug', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' },
+         { t: 'root5', a: 'chug', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' },
+         { t: 'root5', a: 'stab', acc: 1 }, '.', { t: 'root5', a: 'chug' }, { t: 'root5', a: 'chug' }],
+      ] },
     // ── Genre comp cells (B1 batch, panel 2026-06-13) ───────────────────────────
     // Funk 16th chank (funk-idiom): the constant-strum-hand 16th part — muted
     // chucks with chord stabs landing on the syncopations, accent the one. div:4.
@@ -11697,6 +11718,38 @@
     bundle.backingEvents = r.backing;
   }
 
+  // ── Tier-2: per-genre micro-timing LEAN (rhythm-meter 2026-06-13) ─────────────
+  // The "feel" polish: a SYSTEMATIC (not random) per-role timing offset that drags
+  // the backbeat/comp behind the kick+bass (laid-back) or pushes it ahead (urgent).
+  // The relative offset BETWEEN roles is what the ear reads as a "pocket" — distinct
+  // from the engine's symmetric ±jitter (which can't make a CONSISTENT lean). Seconds,
+  // +late / −early; keyed by audioProfile (+ drum VOICE — the backbeat snare is the
+  // prime mover). Deterministic, so byte-golden charts stay byte-golden. The kick +
+  // bass-root stay anchored; the snare/comp lean against them = the audible drag.
+  const FEEL_TIMING = {
+    country: { snare_xstick: 0.013, snare: 0.013, comp: 0.009 },   // laid-back country backbeat
+    jazz:    { snare: 0.012, snare_xstick: 0.012, comp: 0.010 },   // brushy lay-back behind the ride
+    blues:   { snare: 0.012, comp: 0.010 },                        // lazy shuffle drag
+    soul:    { snare: 0.014, comp: 0.010 },                        // deep behind-the-beat pocket
+    reggae:  { snare_xstick: 0.016, snare: 0.016, bass: -0.005 },  // the one-drop drag
+    gospel:  { snare: 0.012, comp: 0.008 },
+    funk:    { comp: -0.004 },                                     // tight/forward 16th pocket
+    // metal/djent/punk/disco: on-the-grid (urgency/precision IS the feel) — no entry.
+  };
+  function applyFeelLean(events, cfg, duration) {
+    const lean = FEEL_TIMING[cfgAudioProfile(cfg)];
+    if (!lean || !events || !events.length) return;
+    const hi = (duration || 1e9) - 0.02;
+    for (const ev of events) {
+      const dt = ev.role === 'drums' ? (lean[ev.voice] != null ? lean[ev.voice] : (lean.drums || 0))
+               : ev.role === 'bass'  ? (lean.bass || 0)
+               : (lean.comp || 0);   // comp + pad ride the comp lean
+      if (!dt) continue;
+      const t = Math.max(0, Math.min(hi, ev.t + dt));
+      if (ev.end != null) ev.end = +(ev.end + (t - ev.t)).toFixed(6);
+      ev.t = +t.toFixed(6);
+    }
+  }
   function makeBundle(exercise) {
     const cfg = exercise.session;
     // Count-in is baked here (not at generation) so the stored chart + LCD stay
@@ -11765,6 +11818,7 @@
     };
     syncHighwaySettings(bundle);
     if (!c.backingEvents) applySwingToBundle(bundle, cfg);   // sessions are swung per-block at assembly; single exercises swing here
+    applyFeelLean(bundle.backingEvents, cfg, c.duration);    // Tier-2: per-genre micro-timing LEAN (after swing) — the laid-back/pushed pocket
     // Don't project arpeggio/chord shapes onto the note highway — handShapes
     // drive the highway_3d overlay box. Chord names still appear via `chords`
     // events and the chord-preview thumbnail still renders from chordTemplates.
