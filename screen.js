@@ -7849,6 +7849,18 @@
       snare:     '..a...a.',
       hh_closed: 'nnnnnnnn',
     } },
+    // Metal DRIVE (the groove-tier default — groove audit 2026-06-13, metal-idiom +
+    // drum-pedagogy): straight_8th_rock read as a GENERIC rock beat under a metal
+    // band. The iconic galloping kick (eighth + two sixteenths per beat = "DUN-da-da")
+    // on its own div:4 lane, a driving 8th hat, the 2 & 4 backbeat, and a CRASH accent
+    // on beat 1 for the metal edge. The full tier still escalates to the relentless
+    // 16th double-bass (metal_double_kick).
+    metal_drive: { div: 2, preSwung: false, fillFamily: 'rock_tom', fillEveryBars: 8, lanes: {
+      kick:      { pat: 'n.nnn.nnn.nnn.nn', div: 4 },
+      snare:     '..a...a.',
+      hh_closed: 'nnnnnnnn',
+      crash_l:   'n.......',
+    } },
     // Train beat (country/newgrass): a constant 16th snare buzz of ghosts with the
     // 2 & 4 accents on top, kick on the quarters — the snare carries the time, no hat.
     train_beat: { div: 4, preSwung: false, fillFamily: 'funk_snare', fillEveryBars: 16, lanes: {
@@ -7955,7 +7967,7 @@
     // = a held root. (The metal lead pathways still hand-wire comp/bass, so the
     // recipe is the default an UN-wired metal context inherits for free.)
     'metal:default:sparse': { picks: { comp: 'metal_chug_8',   bass: 'sustained_root', drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
-    'metal:default:groove': { picks: { comp: 'metal_chug_8',   bass: 'root_pump',      drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
+    'metal:default:groove': { picks: { comp: 'metal_chug_8',   bass: 'root_pump',      drums: 'metal_drive' },       ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
     'metal:default:full':   { picks: { comp: 'metal_pedal_16', bass: 'root_pump',      drums: 'metal_double_kick' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
     'djent:default:groove': { picks: { comp: 'metal_pedal_16', bass: 'root_pump',      drums: 'straight_8th_rock' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
     'djent:default:full':   { picks: { comp: 'metal_pedal_16', bass: 'root_pump',      drums: 'metal_double_kick' }, ensemble: { drums: 'on', bass: 'on', comp: 'on', pad: 'off' } },
@@ -18169,17 +18181,63 @@
   // Jam-mode style grid (skeleton) — chips from the shared STYLE_PALETTES; selecting
   // one marks it active for now. Backing playback + live target-highlight land in the
   // post-checkpoint pass (Jam is a mirror, never a song generator — north star).
+  // ── Jam: grouped style picker + the "Your band" lineup strip (genre-band panel
+  // 2026-06-13) ────────────────────────────────────────────────────────────────
+  // 29 flat chips read as a wall (below table-stakes — market); group by family so
+  // "I want funk" is ≤2 taps. Every STYLE_PALETTES key must appear (orphans → "Other").
+  const GENRE_FAMILIES = [
+    ['Rock / Metal',    ['rock', 'punk', 'metal', 'djent', 'prog', 'surf', 'shoegaze', 'emo']],
+    ['Blues / Jazz',    ['blues', 'jazz', 'gypsy_jazz', 'ragtime', 'new_orleans']],
+    ['Funk / Soul',     ['funk', 'soul', 'gospel', 'disco']],
+    ['Folk / Acoustic', ['country', 'bluegrass', 'folk', 'classical', 'flamenco']],
+    ['World / Latin',   ['reggae', 'latin', 'afrobeat', 'norteno', 'tango']],
+    ['Pop',             ['pop', 'city-pop']],
+  ];
+  // Human labels for a resolved backing voice — the Band strip names the REAL player,
+  // not "Auto". A distorted/overdriven amp re-labels the guitar/bass.
+  const BAND_TONE_LABEL = { piano: 'Piano', epiano: 'Rhodes', clav: 'Clavinet', organ: 'Organ', nylon: 'Nylon guitar', guitar: 'Acoustic guitar', clean: 'Electric guitar', upright: 'Upright bass', bass: 'Electric bass', strings: 'Strings', brass: 'Brass', synthlead: 'Synth lead', synthpad: 'Synth pad', pad: 'Pad' };
+  const BAND_KIT_LABEL = { kit_rock: 'Rock kit', kit_acoustic_soft: 'Soft kit', kit_jazz: 'Jazz kit', kit_909: 'Synth kit (909)', kit_808: 'Synth kit (808)' };
+  function bandVoiceLabel(slot, role) {
+    if (!slot) return '—';
+    if (role === 'bass') return slot.amp === 'bass_drive' ? 'Overdriven bass' : (BAND_TONE_LABEL[slot.tone] || 'Bass');
+    if (slot.amp === 'metal' || slot.amp === 'drive') return 'Distorted guitar';
+    return BAND_TONE_LABEL[slot.tone] || (slot.tone || '—');
+  }
+  // The "Your band" lineup: read the resolved recipe + profile for a style and name
+  // each ACTIVE role's instrument (so the player SEES country ≠ metal ≠ jazz before
+  // a note plays — and it's the contract the audio must honor). Read-only naming;
+  // per-track instrument SWAP lives in the Mixer (M) for now.
+  function renderBandStrip(styleId) {
+    const host = $('slopscale-jam-bandstrip'); if (!host) return;
+    const pal = STYLE_PALETTES[styleId];
+    if (!pal) { host.innerHTML = ''; return; }
+    const base = readConfig();
+    const cfg = Object.assign({}, base, { jamStyle: styleId, audio: Object.assign({}, base.audio, { profile: pal.audioProfile || '', brightness: undefined }) });
+    const prof = resolveAudioProfile(cfg), ens = resolveArrangement(cfg).ensemble, groove = resolveGroove(cfg);
+    const padRole = prof.pad && prof.pad.role, padOn = padRole && ens.pad !== 'off';
+    const rows = [];
+    if (ens.comp !== 'off') {
+      if (padOn && padRole === 'comp') rows.push(['🎹', 'Keys', bandVoiceLabel(prof.pad)]);   // comp-on-keys (jazz piano)
+      else {
+        rows.push(['🎸', 'Rhythm', bandVoiceLabel(prof.harmony)]);
+        if (padOn && padRole === 'sustain') rows.push(['🎹', 'Keys', bandVoiceLabel(prof.pad)]);
+      }
+    }
+    if (ens.bass !== 'off') rows.push(['🎵', 'Bass', bandVoiceLabel(prof.bass, 'bass')]);
+    rows.push(['🥁', 'Drums', (ens.drums !== 'off' && groove) ? (BAND_KIT_LABEL[prof.drums && prof.drums.kit] || 'Kit') : '— drumless']);
+    host.innerHTML = rows.map(([ic, role, name]) =>
+      `<div class="slopscale-band-row"><span class="slopscale-band-ic">${ic}</span><span class="slopscale-band-role">${role}</span><span class="slopscale-band-name">${name}</span></div>`).join('');
+  }
   function renderJamStyles() {
     const host = $('slopscale-jam-styles');
     if (!host) return;
     host.innerHTML = '';
-    // Last-jammed style restores as the active chip (slice J-1: pick-up-where-
-    // you-left-off; with 9 styles a flat grid stays the right IA — no families).
     let saved = null;
     try { saved = localStorage.getItem('slopscale.jamStyle'); } catch (_) {}
-    const ids = Object.keys(STYLE_PALETTES);
-    const activeId = (saved && STYLE_PALETTES[saved]) ? saved : ids[0];
-    ids.forEach((id) => {
+    const allIds = Object.keys(STYLE_PALETTES);
+    const activeId = (saved && STYLE_PALETTES[saved]) ? saved : allIds[0];
+    const seen = new Set();
+    const mkChip = (id) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'slopscale-jam-style' + (id === activeId ? ' active' : '');
@@ -18189,11 +18247,25 @@
         host.querySelectorAll('.slopscale-jam-style').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         try { localStorage.setItem('slopscale.jamStyle', id); } catch (_) {}
-        syncJamStyleDetails(id);
-        jamQueueChange();   // mid-jam: applies at the next wrap (J-2)
+        syncJamStyleDetails(id);   // updates the Changes picker + the Band strip
+        // A genre change = a NEW band → switch NOW (its count-in is the entrance),
+        // not queued to the loop wrap. Other panel edits (key/tempo/feel) still
+        // queue to the wrap via jamQueueChange — same band, top-of-form convention.
+        if (playing && isJamMode()) jamPlay();
       });
-      host.appendChild(btn);
-    });
+      return btn;
+    };
+    const addGroup = (label, ids) => {
+      const present = ids.filter(id => STYLE_PALETTES[id] && !seen.has(id));
+      if (!present.length) return;
+      const lab = document.createElement('div'); lab.className = 'slopscale-jam-fam'; lab.textContent = label;
+      host.appendChild(lab);
+      const row = document.createElement('div'); row.className = 'slopscale-jam-fam-row';
+      for (const id of present) { seen.add(id); row.appendChild(mkChip(id)); }
+      host.appendChild(row);
+    };
+    for (const [label, ids] of GENRE_FAMILIES) addGroup(label, ids);
+    addGroup('Other', allIds);   // defensive: any un-grouped style still shows
     syncJamStyleDetails(activeId);
   }
   // Per-style Inspector details (slice J-1): the named Changes picker over the
@@ -18219,6 +18291,7 @@
     const tryEl = $('slopscale-jam-try');
     if (tryEl) tryEl.textContent = JAM_PROMPTS[styleId] || '';
     renderJamIntents(styleId);
+    renderBandStrip(styleId);   // the "Your band" lineup follows the selected style
   }
   // J-2 intent chips (D-J8). One tappable row: the drill hand-off's device intent
   // first (when armed), then the style's set — bass players get the bass-native
