@@ -2131,26 +2131,34 @@
         </label>
       </div>
 
-      <div class="slopscale_beta-group-title slopscale_beta-custom-only">Instrument</div>
-      <div class="slopscale_beta-grid-2 slopscale_beta-custom-only">
-        <label>Instrument family
-          <select name="instrument">
-            <option value="guitar">Guitar</option>
-            <option value="bass">Bass</option>
-          </select>
-        </label>
-        <label>String setup
-          <select name="stringSetup">
-            <option value="guitar_6_standard" selected>6-string guitar — standard</option>
-            <option value="guitar_6_drop_d">6-string guitar — Drop D</option>
-            <option value="guitar_7_standard">7-string guitar — standard</option>
-            <option value="guitar_8_standard">8-string guitar — standard</option>
-            <option value="bass_4_standard">4-string bass — standard</option>
-            <option value="bass_5_standard">5-string bass — standard low B</option>
-            <option value="bass_6_standard">6-string bass — standard (B-E-A-D-G-C)</option>
-          </select>
-        </label>
-      </div>
+      <!-- Custom declutter (design-system #9, 2026-06-14): the setup-once controls collapse
+           into native <details> (matching the pane's advanced-card look) so the resting
+           Custom pane is scannable. CUSTOM-ONLY (not advanced-only), so a closed card does
+           NOT disable its inputs (the disable at screen.js ~18262 is scoped to
+           .slopscale_beta-advanced-only) — fretMin/keyCycle/etc. stay in FormData when collapsed.
+           Instrument/tuning is also in the header Setup popover, so it's safe to fold here. -->
+      <details class="slopscale_beta-advanced-card slopscale_beta-custom-only">
+        <summary class="slopscale_beta-advanced-summary">Instrument &amp; tuning</summary>
+        <div class="slopscale_beta-grid-2">
+          <label>Instrument family
+            <select name="instrument">
+              <option value="guitar">Guitar</option>
+              <option value="bass">Bass</option>
+            </select>
+          </label>
+          <label>String setup
+            <select name="stringSetup">
+              <option value="guitar_6_standard" selected>6-string guitar — standard</option>
+              <option value="guitar_6_drop_d">6-string guitar — Drop D</option>
+              <option value="guitar_7_standard">7-string guitar — standard</option>
+              <option value="guitar_8_standard">8-string guitar — standard</option>
+              <option value="bass_4_standard">4-string bass — standard</option>
+              <option value="bass_5_standard">5-string bass — standard low B</option>
+              <option value="bass_6_standard">6-string bass — standard (B-E-A-D-G-C)</option>
+            </select>
+          </label>
+        </div>
+      </details>
 
       <!-- Rhythm / Groove — the playable feel of the exercise: tempo, count-in,
            click rate, and Feel (straight/swing/shuffle). Feel STAYS here (it's a
@@ -2193,43 +2201,39 @@
              as a device rather than a fault. Filled live by syncDivisionHelp(). -->
         <div class="slopscale_beta-help slopscale_beta-custom-only" id="slopscale_beta-division-help" style="grid-column:1/-1;margin-top:2px;"></div>
       </div>
-      <div class="slopscale_beta-grid-2 slopscale_beta-custom-only">
-        <label class="slopscale_beta-toggle"><input name="harmonize" type="checkbox"> Harmonize 3rds/6ths (twin-guitar)</label>
-        <label class="slopscale_beta-toggle"><input name="tremolo" type="checkbox"> Tremolo-pick (mark notes)</label>
-      </div>
-
-      <!-- Preview Audio panel RETIRED (design-system §14, 2026-06-01). The three
-           per-bus mutes are now practice-framed pill toggles in the stage view-bar
-           (Notes / Backing / Click) next to the Mixer button — they are REAL
-           form controls placed there via form="slopscale_beta-controls" (the same trick
-           #slopscale_beta-custom-open-midis uses), so readConfig's data.get('audio*')
-           path is unchanged; they just live elsewhere in the DOM.
-           "Backing tone" (brightness) became a per-channel Tone knob on the Comp
-           channel in the Mixer; the form value is kept here as a hidden input the
-           Mixer knob reads/writes (UI relocation only — the audio path is the same
-           data.get('brightness')). -->
+      <!-- Hidden Mixer-linked form values — kept OUTSIDE the "More options" disclosure
+           (they're read by id by the Mixer; never visually grouped). brightness =
+           the Comp Tone knob's form value; audioProfile = the per-channel voice. -->
       <input type="hidden" name="brightness" id="slopscale_beta-brightness" value="0.5">
-      <!-- Backing-voice selection moved to the Mixer (M): a per-channel instrument
-           dropdown on Player/Comp/Bass (Phase C). The voice defaults from the style. -->
       <input type="hidden" name="audioProfile" id="slopscale_beta-audio-profile" value="">
 
-      <div class="slopscale_beta-grid-3 slopscale_beta-custom-only">
-        <label>First fret <input name="fretMin" type="number" min="0" max="20" step="1" value="0"></label>
-        <label>Last fret <input name="fretMax" type="number" min="3" max="24" step="1" value="5"></label>
-        <label>Bars <input name="bars" type="number" min="1" max="32" step="1" value="4"></label>
-      </div>
-      <div class="slopscale_beta-grid-2 slopscale_beta-custom-only">
-        <label>Key cycle
-          <select name="keyCycle">
-            <option value="none">Off</option>
-            <option value="circle_of_fifths">Circle of fifths (recommended)</option>
-            <option value="circle_of_fourths">Circle of fourths</option>
-            <option value="chromatic">Chromatic</option>
-          </select>
-        </label>
-        <label>Keys to cycle <input name="keyCycleLength" type="number" min="2" max="12" step="1" value="12"></label>
-      </div>
-      <div class="slopscale_beta-help slopscale_beta-custom-only" id="slopscale_beta-keycycle-help" style="display:none">Runs the same drill through every key in order — e.g. <b>triads in all 12 keys, circle of fifths</b>, or a scale around the cycle. Circle-of-fifths is the gentlest ramp (one accidental per step); set Keys to 12 for the full tour. Starting key = the Key selector above.</div>
+      <!-- Custom declutter (design-system #9): the less-common per-exercise options fold
+           into a collapsed native <details> (CUSTOM-ONLY, not advanced-only → inputs are
+           NOT disabled when collapsed; they stay in FormData). -->
+      <details class="slopscale_beta-advanced-card slopscale_beta-custom-only">
+        <summary class="slopscale_beta-advanced-summary">More options</summary>
+        <div class="slopscale_beta-grid-2">
+          <label class="slopscale_beta-toggle"><input name="harmonize" type="checkbox"> Harmonize 3rds/6ths (twin-guitar)</label>
+          <label class="slopscale_beta-toggle"><input name="tremolo" type="checkbox"> Tremolo-pick (mark notes)</label>
+        </div>
+        <div class="slopscale_beta-grid-3">
+          <label>First fret <input name="fretMin" type="number" min="0" max="20" step="1" value="0"></label>
+          <label>Last fret <input name="fretMax" type="number" min="3" max="24" step="1" value="5"></label>
+          <label>Bars <input name="bars" type="number" min="1" max="32" step="1" value="4"></label>
+        </div>
+        <div class="slopscale_beta-grid-2">
+          <label>Key cycle
+            <select name="keyCycle">
+              <option value="none">Off</option>
+              <option value="circle_of_fifths">Circle of fifths (recommended)</option>
+              <option value="circle_of_fourths">Circle of fourths</option>
+              <option value="chromatic">Chromatic</option>
+            </select>
+          </label>
+          <label>Keys to cycle <input name="keyCycleLength" type="number" min="2" max="12" step="1" value="12"></label>
+        </div>
+        <div class="slopscale_beta-help" id="slopscale_beta-keycycle-help" style="display:none">Runs the same drill through every key in order — e.g. <b>triads in all 12 keys, circle of fifths</b>, or a scale around the cycle. Circle-of-fifths is the gentlest ramp (one accidental per step); set Keys to 12 for the full tour. Starting key = the Key selector above.</div>
+      </details>
 
       <details class="slopscale_beta-advanced-card slopscale_beta-advanced-only slopscale_beta-custom-only">
         <summary class="slopscale_beta-advanced-summary">Arpeggios and harmony</summary>
@@ -2385,26 +2389,34 @@
           <!-- populated by syncSessionSummary() -->
         </div>
         <button type="button" id="slopscale_beta-library-open" class="slopscale_beta-lib-browse-btn">+ Browse library…</button>
-        <label class="slopscale_beta-toggle slopscale_beta-breathe-toggle" title="Insert a short count-in between exercises so they don't slam together — sized to tempo, and longer when the technique or neck position changes">
-          <input id="slopscale_beta-breathe-toggle" type="checkbox" checked> Breathe between blocks
-        </label>
+        <!-- Custom/Workout declutter (design-system #9, 2026-06-14): the secondary
+             configure-once options (breathe / preview audio / length) fold into a
+             collapsed native <details> so the resting Workout pane is just Program +
+             Segments + ▶ Start. These are read by getElementById (no `name`), so a
+             closed card keeps their state readable — no disable concern. -->
+        <details class="slopscale_beta-advanced-card">
+          <summary class="slopscale_beta-advanced-summary">Workout options</summary>
+          <label class="slopscale_beta-toggle slopscale_beta-breathe-toggle" title="Insert a short count-in between exercises so they don't slam together — sized to tempo, and longer when the technique or neck position changes">
+            <input id="slopscale_beta-breathe-toggle" type="checkbox" checked> Breathe between blocks
+          </label>
 
-        <div class="slopscale_beta-group-title">Preview audio</div>
-        <div class="slopscale_beta-audio-options" aria-label="Session audio options">
-          <label class="slopscale_beta-toggle"><input id="slopscale_beta-session-audio-notes" type="checkbox" checked> Hear generated notes</label>
-          <label class="slopscale_beta-toggle"><input id="slopscale_beta-session-audio-metronome" type="checkbox" checked> Metronome click</label>
-          <label class="slopscale_beta-toggle"><input id="slopscale_beta-session-audio-harmony" type="checkbox" checked> Harmony backing</label>
-        </div>
-        <!-- Backing-voice selection lives in the Mixer (M) now — Phase C. -->
+          <div class="slopscale_beta-group-title">Preview audio</div>
+          <div class="slopscale_beta-audio-options" aria-label="Session audio options">
+            <label class="slopscale_beta-toggle"><input id="slopscale_beta-session-audio-notes" type="checkbox" checked> Hear generated notes</label>
+            <label class="slopscale_beta-toggle"><input id="slopscale_beta-session-audio-metronome" type="checkbox" checked> Metronome click</label>
+            <label class="slopscale_beta-toggle"><input id="slopscale_beta-session-audio-harmony" type="checkbox" checked> Harmony backing</label>
+          </div>
+          <!-- Backing-voice selection lives in the Mixer (M) now — Phase C. -->
 
-        <label class="slopscale_beta-length-row">Session length
-          <select id="slopscale_beta-length-preset" title="How long you're settling in for. 'As built' keeps each block's natural length; the others spread the time across your blocks.">
-            <option value="">As built</option>
-            <option value="quick">Quick — ~10 min</option>
-            <option value="standard">Standard — ~20 min</option>
-            <option value="woodshed">Woodshed — ~30 min</option>
-          </select>
-        </label>
+          <label class="slopscale_beta-length-row">Session length
+            <select id="slopscale_beta-length-preset" title="How long you're settling in for. 'As built' keeps each block's natural length; the others spread the time across your blocks.">
+              <option value="">As built</option>
+              <option value="quick">Quick — ~10 min</option>
+              <option value="standard">Standard — ~20 min</option>
+              <option value="woodshed">Woodshed — ~30 min</option>
+            </select>
+          </label>
+        </details>
 
         <div class="slopscale_beta-actions">
           <button type="button" id="slopscale_beta-launch-session" class="primary">▶ Start Workout</button>
