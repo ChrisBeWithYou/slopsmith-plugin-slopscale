@@ -48,7 +48,7 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const SLOPSCALE_VERSION = '0.7.24-beta.18';
+  const SLOPSCALE_VERSION = '0.7.24-beta.19';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -13108,10 +13108,11 @@
   // Audio is queued in ~SCHED_WINDOW_SECONDS chunks of chart time (never the
   // whole chart at once — see the constant's comment). Chunk seams — including
   // the loop seam, which is just a chunk boundary where the chart position
-  // wraps duration→leadIn — are gapless because each chunk is scheduled on the
-  // same AudioContext clock before the previous one ends; the last note's tail
-  // rings naturally into the next chunk. The visual clock wraps by phase-carry
-  // (see tick()), so neither audio nor playhead freezes at the seam.
+  // wraps (duration→leadIn for a whole-chart loop, or B→A for an A-B segment
+  // loop such as Jam / section looping) — are gapless because each chunk is
+  // scheduled on the same AudioContext clock before the previous one ends; the
+  // last note's tail rings naturally into the next chunk. The visual clock
+  // wraps by phase-carry (see tick()), so neither audio nor playhead freezes.
 
   // Whether note/metronome/harmony audio is enabled for the active bundle.
   function loopAudioEnabled() {
@@ -13126,11 +13127,16 @@
     const dur = activeBundle?.songInfo?.duration || 0;
     const lead = activeBundle?.leadIn || 0;
     const from = currentPracticeTime;
+    // Bound the first chunk at the active loop's high edge — B when an A-B
+    // segment loop is engaged (Jam / section looping), else the chart duration —
+    // so a loop's first lap never schedules dead audio past B; the seam refill
+    // (scheduleNextChunk) takes over and wraps B→A from there.
+    const hi = (segmentLoopA != null && segmentLoopB != null) ? segmentLoopB : dur;
     // The first chunk covers at least the full count-in: its clicks must all
     // land even when the lead-in outruns the window (slow-tempo 2-bar count-in),
     // and with all audio off no refill ever runs (loopAudioEnabled gates it) —
     // a handful of click nodes, so scheduling them upfront costs nothing.
-    const winEnd = Math.min(dur, Math.max(from + SCHED_WINDOW_SECONDS, from < lead ? lead + 0.01 : 0));
+    const winEnd = Math.min(hi, Math.max(from + SCHED_WINDOW_SECONDS, from < lead ? lead + 0.01 : 0));
     const before = audioNodes.length;
     const ret = schedulePreviewAudio(activeBundle, from, delaySeconds, winEnd);
     if (ret == null) { scheduledUntilCtx = 0; schedChartPos = 0; schedChunks = []; return; }
@@ -13147,12 +13153,18 @@
     const dur = activeBundle?.songInfo?.duration || 0;
     const lead = activeBundle?.leadIn || 0;
     if (dur - lead <= 0) return;
+    // The window the seam wraps within: an explicit A-B segment loop when
+    // engaged (Jam, section looping), else the whole-chart music region. The
+    // wrapped chunk is scheduled on the same ctx clock as the chunk before it,
+    // so the B→A (or duration→leadIn) seam is gapless — no stopAudio.
+    const lo = (segmentLoopA != null && segmentLoopB != null) ? segmentLoopA : lead;
+    const hi = (segmentLoopA != null && segmentLoopB != null) ? segmentLoopB : dur;
     let from = schedChartPos;
-    if (from >= dur - 1e-6) {
+    if (from >= hi - 1e-6) {
       if (finiteRunActive()) return;   // play-once drill: no audio past the end
-      from = lead;                      // loop seam: wrap to the music start
+      from = lo;                        // loop seam: wrap to the loop start
     }
-    const winEnd = Math.min(dur, from + SCHED_WINDOW_SECONDS);
+    const winEnd = Math.min(hi, from + SCHED_WINDOW_SECONDS);
     const before = audioNodes.length;
     const ret = schedulePreviewAudio(activeBundle, from,
       Math.max(0, scheduledUntilCtx - audioCtx.currentTime), winEnd, /*onsetOnly*/ true);
@@ -13175,10 +13187,11 @@
   }
 
   // Per-frame: refill the next chunk before the scheduled horizon runs dry,
-  // and re-anchor if the audio fell out of sync (resumed from an A-B loop,
-  // a seek that bypassed the anchor, or a long rAF stall). Called from tick()
-  // when no A-B segment loop is engaged (incl. finite runs, which need the
-  // refill too — their initial chunk no longer covers the whole drill).
+  // and re-anchor if the audio fell out of sync (a seek that bypassed the
+  // anchor, or a long rAF stall). Called from tick() for every looping mode —
+  // whole-chart, finite (which needs the refill too — its initial chunk no
+  // longer covers the whole drill), AND the A-B segment loop (Jam / section
+  // looping), whose seam is now gapless via the B→A wrap in scheduleNextChunk.
   function maybeScheduleLoopAhead(nowMs) {
     if (!audioCtx || !activeBundle || !loopAudioEnabled()) return;
     const dur = activeBundle.songInfo?.duration || 0;
@@ -14213,38 +14226,39 @@
       if (_preRollUntil > 0 && currentPracticeTime >= _preRollUntil) _preRollUntil = 0;   // resume pre-roll done → normal play (notes audible, judge live)
       if (_preRollUntil === 0) maybeOfferDownshift();   // beginner mid-run offer (cheap: gated flags first, evaluates once per run)
       const duration = activeBundle.songInfo.duration || 1;
-      // A-B segment loop wins over whole-chart wrap when both endpoints are
-      // set. No count-in or rewind animation in this phase — just snap to A
-      // and re-schedule audio. (See docs/section-looping.md "Phase 2 — UI"
-      // for the count-in / rewind plan.)
-      if (segmentLoopA != null && segmentLoopB != null && currentPracticeTime >= segmentLoopB) {
-        // J-2 (D-J3): the wrap is the change-quantum. A queued jam-panel change
-        // rebuilds the jam from the LIVE panel state right at the boundary —
-        // jamPlay stops this run (audio dies exactly where the wrap would have
-        // re-scheduled it anyway) and restarts at the new chart's music start
-        // (the A-B loop pins playback at leadIn, so no second count-in).
-        if (_jamPending && isJamMode()) {
-          jamPendingClear();
-          flashJamApplied();   // telegraph: the queued change LANDED at the top of the cycle
-          jamPlay();
-          return;
+      // A-B segment loop wins over the whole-chart wrap when both endpoints are
+      // set (Jam pins [leadIn, duration]; section looping pins a sub-region).
+      // The seam is GAPLESS: the rolling-window scheduler pre-schedules the next
+      // lap's audio ahead of B (scheduleNextChunk wraps B→A on the same ctx
+      // clock — no stopAudio, no ~200 ms re-schedule gap), and the visual clock
+      // wraps by phase-carry, exactly like the whole-chart seam below.
+      if (segmentLoopA != null && segmentLoopB != null) {
+        maybeScheduleLoopAhead(nowMs);   // keep the audio horizon refilled past B (wraps B→A)
+        if (currentPracticeTime >= segmentLoopB) {
+          // J-2 (D-J3): the wrap is the change-quantum. A queued jam change lands
+          // IN-PLACE here — jamHotSwapAtWrap rebuilds the chart from the live
+          // panel and swaps the bundle WITHOUT tearing down the renderer (it
+          // re-reads the bundle each frame), re-anchoring the clock + loop itself.
+          // It returns false when it had to fall back to the full jamPlay()
+          // rebuild (which re-arms the rAF), true on an in-place swap (we do).
+          if (_jamPending && isJamMode()) {
+            if (jamHotSwapAtWrap()) rafId = requestAnimationFrame(tick);
+            return;
+          }
+          triggerWrapRewind(segmentLoopB, segmentLoopA);   // visible rewind tell on the overview
+          _runLooped = true;                               // recap: a wrap means the loop region was fully reached
+          // Phase-carry the clock (drift-free), no audio touch — the next lap is
+          // already scheduled on the ctx clock by maybeScheduleLoopAhead above.
+          const loopLen = segmentLoopB - segmentLoopA;
+          playAnchorChartTime -= loopLen;
+          currentPracticeTime -= loopLen;
+          if (window.slopsmith && typeof window.slopsmith.emit === 'function') {
+            window.slopsmith.emit('slopscale_beta:loop:wrap', { a: segmentLoopA, b: segmentLoopB, time: currentPracticeTime });
+          }
+          _loopWraps++;
+          const lc = $('slopscale_beta-loop-count');
+          if (lc) { lc.hidden = false; lc.textContent = 'Loop ' + _loopWraps; }
         }
-        triggerWrapRewind(segmentLoopB, segmentLoopA);   // visible rewind tell on the overview
-        _runLooped = true;                               // recap: a wrap means the loop region was fully reached
-        currentPracticeTime = segmentLoopA;
-        anchorPlayClock(segmentLoopA);
-        stopAudio();
-        // Whole-segment scheduling (A-B regions are short), but bounded at B:
-        // events past B were dead weight — killed unheard by this very
-        // stopAudio() at the next wrap — and on a long Workout that waste was
-        // the whole rest of the chart, every few seconds.
-        schedulePreviewAudio(activeBundle, segmentLoopA, AUDIO_LOOKAHEAD_SECONDS, segmentLoopB);
-        if (window.slopsmith && typeof window.slopsmith.emit === 'function') {
-          window.slopsmith.emit('slopscale_beta:loop:wrap', { a: segmentLoopA, b: segmentLoopB, time: segmentLoopA });
-        }
-        _loopWraps++;
-        const lc = $('slopscale_beta-loop-count');
-        if (lc) { lc.hidden = false; lc.textContent = 'Loop ' + _loopWraps; }
       } else if (finiteRunActive()) {
         // Finite drill (Depth Ladder slice 1): the right-sized run plays ONCE, then
         // ends with the existing session-summary closure instead of looping. The
@@ -18798,7 +18812,11 @@
   // a Pathway/Custom draws from) + the Jam key/tempo/feel; the lead scale is the
   // reference line and the progression comp is the backing band. Loops [leadIn,
   // duration] so it keeps going. A MIRROR — no score, no rank (north star).
-  async function jamPlay() {
+  // Build the jam exercise config from the LIVE panel state. Shared by jamPlay
+  // (the full play path) and jamHotSwapAtWrap (the in-place loop-seam swap) so
+  // the two can never drift. Returns { cfg } or null when the style has no
+  // palette (nothing to play).
+  function buildJamConfig() {
     const styleId = currentJamStyleId();   // saved id is the source of truth (the picker accordion may hide the active chip)
     const jamKey = ($('slopscale_beta-jam-key') || {}).value || 'A';
     const jamTempo = Math.max(40, Math.min(220, parseInt(($('slopscale_beta-jam-tempo') || {}).value || '90', 10) || 90));
@@ -18807,7 +18825,7 @@
     const progVal = (($('slopscale_beta-jam-prog') || {}).value) || '__mix';
     const palIdx = progVal === '__mix' ? 0 : Math.max(0, (STYLE_PALETTES[styleId] || { progressions: [] }).progressions.indexOf(progVal));
     const palette = stylePaletteConfig(styleId, { key: jamKey, progressionIdx: palIdx });
-    if (!palette) return;
+    if (!palette) return null;
     const base = readConfig();   // instrument / tuning / renderer / audio defaults
     // Home box derived from the KEY (D-J7: a suggestion, not the old frets-2-9
     // cage): the silent guide pattern sits in the box-1 window at the key's root
@@ -18853,6 +18871,13 @@
       // "brightness clobbered to 0.5" fix; the Custom-mode opt-in slider is a roll-out item.
       audio: Object.assign({}, base.audio, { notes: !!jamGuideLine, harmony: true, metronome: false, profile: palette.audioProfile || '', brightness: undefined }),
     });
+    return { cfg };
+  }
+
+  async function jamPlay() {
+    const built = buildJamConfig();
+    if (!built) return;
+    const { cfg } = built;
     try {
       if (playing) stopPlayback();
       const exercise = generateExercise(cfg);
@@ -18870,6 +18895,57 @@
       showStatus(`Jam error: ${e.message || e}`);
       console.error('[SlopScale] jam failed', e);
     }
+  }
+
+  // In-place jam swap AT the loop seam (called from tick when _jamPending). The
+  // chart is rebuilt from the live panel and the active/renderer bundles are
+  // swapped WITHOUT stopRenderer→attachRenderer→init — the renderers re-read the
+  // bundle every frame (see attachRenderer's rendererBundle + drawOnce), so the
+  // canvas, the borrowed host viz, and the pitch tracker all keep running; only
+  // the audio is re-anchored to the new chart's downbeat. This replaces the old
+  // jamPlay() rebuild seam (full teardown + count-in-less restart + possible
+  // ~3 s host-viz reload). Returns true on an in-place swap (caller re-arms the
+  // rAF), false when it fell back to the full jamPlay() (which re-arms itself).
+  function jamHotSwapAtWrap() {
+    const built = buildJamConfig();
+    // No renderer alive, or no config → can't swap in place; full rebuild.
+    if (!built || !renderer) { jamPendingClear(); flashJamApplied(); jamPlay(); return false; }
+    const { cfg } = built;
+    let exercise;
+    try { exercise = generateExercise(cfg); }
+    catch (e) { console.warn('[SlopScale] jam hot-swap build failed, rebuilding', e); jamPendingClear(); flashJamApplied(); jamPlay(); return false; }
+    lastExercise = exercise;
+    // Swap the bundles (identical derivation to attachRenderer): the highway gets
+    // a chord-free view + bgReactive:false; other renderers get the full bundle.
+    activeBundle = makeBundle(exercise);
+    rendererBundle = (cfg.renderer === 'highway_3d')
+      ? Object.assign({}, activeBundle, { chords: [], chordTemplates: [], bgReactive: false })
+      : activeBundle;
+    fretboardSyncRange();
+    // Re-anchor the loop + clock to the NEW chart's music region and (re)start its
+    // audio from the downbeat. A deliberate content change can't be gaplessly
+    // morphed, so the audio does re-anchor here — but it's a clean downbeat
+    // re-entry, not the old stop+rebuild. Set the bounds directly (not via
+    // setSegmentLoop) so its playing-branch reschedule doesn't double up with
+    // the scheduleCurrentPassAndAnchor below.
+    const dur = activeBundle.songInfo?.duration || 0;
+    const lead = activeBundle.leadIn || 0;
+    if (dur > lead + 0.1) { segmentLoopA = lead; segmentLoopB = dur; }
+    else { segmentLoopA = null; segmentLoopB = null; }
+    currentPracticeTime = lead;
+    _runMaxChartTime = lead;
+    _loopWraps = 0;
+    anchorPlayClock(lead);
+    stopAudio();
+    scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
+    syncTransport();                  // overview bands + ruler + loop readout reflect the new chart
+    prewarmMixerCandidates();         // re-warm swap candidates for the new band's voices
+    _jamSnapshot = jamPanelState();   // the new delta baseline
+    jamPendingClear();
+    flashJamApplied();                // telegraph: the queued change LANDED at the top of the cycle
+    refreshStatusFromState();
+    drawOnce();
+    return true;
   }
 
   // Switch top-level practice mode. Guided/Custom drive the hidden pathway
@@ -23397,10 +23473,12 @@
     if (playing && !paused) {   // paused stays silent; resume re-anchors from A
       // Re-anchor the play clock and re-schedule audio from A so the listener
       // hears the loop region immediately, not silence until the next wrap.
-      // Bounded at B — see the A-B wrap branch in tick() for why.
+      // Use the chunk scheduler (not a one-shot schedule) so the rolling window
+      // is tracked from here and the B→A seam stays gapless (bounded at B inside
+      // scheduleCurrentPassAndAnchor — see the A-B wrap branch in tick()).
       anchorPlayClock(aNum);
       stopAudio();
-      schedulePreviewAudio(activeBundle, aNum, AUDIO_LOOKAHEAD_SECONDS, bNum);
+      scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
     } else {
       drawOnce();
     }
