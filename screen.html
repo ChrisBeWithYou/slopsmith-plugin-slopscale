@@ -1209,7 +1209,18 @@
   .slopscale_beta-jam-inspector { display: flex; flex-direction: column; gap: var(--ss-sp-2, 8px); }
   .slopscale_beta-jam-intro, .slopscale_beta-mode-intro { font-size: 12.5px; line-height: 1.45; color: #cbd5e1; }
   .slopscale_beta-jam-soon { color: var(--ss-accent, #4080e0); font-weight: 600; }
-  .slopscale_beta-jam-styles { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* Grouped style picker (genre-band panel): the container stacks family groups;
+     each group is a small label + a wrapping chip row. */
+  .slopscale_beta-jam-styles { display: block; }
+  .slopscale_beta-jam-fam { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; margin: 9px 0 4px; }
+  .slopscale_beta-jam-fam:first-child { margin-top: 0; }
+  .slopscale_beta-jam-fam-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* "Your band" lineup — one quiet row per active player; names the real voice. */
+  .slopscale_beta-jam-bandstrip { display: flex; flex-direction: column; gap: 3px; }
+  .slopscale_beta-band-row { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 4px 9px; background: rgba(148, 163, 184, 0.08); border-radius: 6px; }
+  .slopscale_beta-band-ic { font-size: 13px; width: 15px; text-align: center; }
+  .slopscale_beta-band-role { color: #94a3b8; min-width: 50px; }
+  .slopscale_beta-band-name { color: #e2e8f0; font-weight: 600; }
   .slopscale_beta-jam-style { padding: 7px 12px; font-size: 12.5px; font-weight: 600; border-radius: 8px; border: 1px solid #334155; background: #0b1220; color: #cbd5e1; cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s; }
   .slopscale_beta-jam-style:hover { background: #1e293b; color: #f1f5f9; }
   .slopscale_beta-jam-style.active { background: var(--ss-accent-grad); border-color: var(--ss-accent-edge); color: #f8fafc; }
@@ -1486,6 +1497,11 @@
         <div class="slopscale_beta-jam-intro">Apply what you've drilled over a style backing — and find your own voice.</div>
         <div class="slopscale_beta-group-title">Style</div>
         <div class="slopscale_beta-jam-styles" id="slopscale_beta-jam-styles"><!-- renderJamStyles() --></div>
+        <!-- "Your band" lineup (genre-band panel 2026-06-13): names each active
+             player from the resolved recipe so the bands read as different at a
+             glance. Read-only; per-track instrument swap is in the Mixer (M). -->
+        <div class="slopscale_beta-group-title">Your band</div>
+        <div class="slopscale_beta-jam-bandstrip" id="slopscale_beta-jam-bandstrip"><!-- renderBandStrip() --></div>
         <div class="slopscale_beta-jam-row">
           <label>Key
             <select id="slopscale_beta-jam-key">
