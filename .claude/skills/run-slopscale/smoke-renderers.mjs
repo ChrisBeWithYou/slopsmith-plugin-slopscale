@@ -166,6 +166,7 @@ async function run() {
   const results = [];
   try {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await ctx.addInitScript(() => { globalThis.__SS_HARNESS__ = true; });   // exposes __ss_debug.avSync() for the transport row (harmless: debug-only)
     const page = await ctx.newPage();
     page.on("pageerror", (e) => { if (!isBenign(e.message)) pageErrors.push(e.message); });
     page.on("console", (m) => {
@@ -269,6 +270,58 @@ async function run() {
       if (!/play/i.test(end.txt)) tFails.push(`stopped button reads "${end.txt}" (expected Play)`);
       if (!end.stopOff) tFails.push("Stop not disabled after stopping");
       results.push({ kind: "transport", pass: tFails.length === 0, status: "play/pause + dedicated stop", canvas: null, pixels: "n/a", clock: { from: "0:00", to: end.t }, fails: tFails, notes: [] });
+    }
+
+    // ── Seamless A-B jam loop + in-place hot-swap (Stage-3 transport rework,
+    // promoted from probe-jam-transport). The A-B segment loop (Jam) now loops
+    // via the GAPLESS rolling-window scheduler — wrap B->A on the same ctx clock,
+    // phase-carry the visual clock — instead of stopAudio()+reschedule at every
+    // wrap (which made jams STUTTER at the seam). The gapless invariant:
+    // scheduledUntilCtx stays AHEAD of the ctx clock at every frame, incl. wraps
+    // (the old path reset it to 0). A queued jam change lands at the wrap IN
+    // PLACE: the bundle is swapped without tearing down the renderer, so the
+    // canvas DOM node survives, the chart changes, and playback never stops.
+    {
+      const jFails = [];
+      const errBase = pageErrors.length;
+      await page.evaluate(() => document.querySelector('[data-mode="jam"]')?.click());
+      await page.waitForTimeout(300);
+      await page.evaluate(() => { const t = document.getElementById("slopscale-jam-tempo"); if (t) t.value = "90"; });
+      await page.evaluate(() => document.getElementById("slopscale-jam-go")?.click());
+      const ready = await page.waitForFunction(() => { const a = globalThis.__ss_debug?.avSync?.(); return a && a.playing && a.scheduledUntilCtx > 0; }, { timeout: 8000 }).then(() => true).catch(() => false);
+      if (!ready) jFails.push("jam did not start (no anchored ctx clock)");
+      if (ready) {
+        // Force a SHORT loop so it wraps several times within the sample window.
+        const loop = await page.evaluate(() => { const info = window.SlopScale.getActiveBundleInfo(); const lead = info.leadIn || 0; window.SlopScale.setSegmentLoop(lead, lead + 1.2); return { a: lead, b: lead + 1.2, dur: info.duration }; });
+        const samples = [];
+        for (let i = 0; i < 36; i++) { const s = await page.evaluate(() => { const a = globalThis.__ss_debug.avSync(); return a ? { c: a.ctxNow, s: a.scheduledUntilCtx, t: a.practiceTime, p: a.playing } : null; }); if (s) samples.push(s); await page.waitForTimeout(80); }
+        const steady = samples.slice(7);   // skip the first ~0.5s while the short-loop horizon fills
+        if (steady.length < 20) jFails.push(`too few transport samples (${steady.length})`);
+        else {
+          const minAhead = Math.min(...steady.map((s) => s.s - s.c));
+          if (!steady.every((s) => s.p)) jFails.push("playback stopped mid-loop");
+          if (!(minAhead > 0.25)) jFails.push(`audio horizon fell behind the ctx clock (minAhead=${minAhead.toFixed(3)}s) — loop seam NOT gapless`);
+          const maxT = Math.max(...steady.map((s) => s.t));
+          if (maxT > loop.b + 0.3) jFails.push(`playhead ran past B (maxT=${maxT.toFixed(2)} > B=${loop.b.toFixed(2)}) — no phase-carry wrap`);
+          let wraps = 0; for (let i = 1; i < steady.length; i++) if (steady[i].t < steady[i - 1].t - 0.3) wraps++;
+          if (wraps < 2) jFails.push(`loop did not cycle at least twice (wraps=${wraps})`);
+        }
+        // In-place hot-swap: tag the canvas, re-arm a short loop, queue a tempo change.
+        const before = await page.evaluate(() => { const c = document.getElementById("slopscale-canvas"); if (c) c.__probeTag = "SWAP"; const info = window.SlopScale.getActiveBundleInfo(); window.SlopScale.setSegmentLoop(info.leadIn || 0, (info.leadIn || 0) + 1.0); const t = document.getElementById("slopscale-jam-tempo"); if (t) { t.value = "150"; t.dispatchEvent(new Event("change", { bubbles: true })); } return { dur: info.duration, tagged: !!c }; });
+        if (!before.tagged) jFails.push("could not tag the live canvas");
+        let swapped = false, after = null;
+        for (let i = 0; i < 50; i++) { after = await page.evaluate(() => { const c = document.getElementById("slopscale-canvas"); const info = window.SlopScale.getActiveBundleInfo(); const lp = window.SlopScale.getSegmentLoop(); const a = globalThis.__ss_debug.avSync(); const chip = document.getElementById("slopscale-jam-pending"); return { tag: c ? c.__probeTag : null, dur: info.duration, lead: info.leadIn, la: lp.a, lb: lp.b, playing: a ? a.playing : false, pendingHidden: chip ? chip.hidden : true }; }); if (Math.abs(after.dur - before.dur) > 0.05 && after.pendingHidden) { swapped = true; break; } await page.waitForTimeout(100); }
+        if (!swapped) jFails.push("queued change never landed at the wrap (chart duration unchanged)");
+        if (after && after.tag !== "SWAP") jFails.push("canvas was rebuilt on the swap (renderer torn down — NOT in-place)");
+        if (after && !after.playing) jFails.push("playback stopped during the hot-swap");
+        if (after && !(after.la != null && Math.abs(after.la - after.lead) < 0.06 && after.lb != null && Math.abs(after.lb - after.dur) < 0.06)) jFails.push(`loop did not re-anchor to the new chart ([${after.la},${after.lb}] vs new [${after.lead},${after.dur}])`);
+      }
+      // Stop the jam + close any modal so the wakelock phase (fresh ctx) is clean.
+      await page.evaluate(() => document.getElementById("slopscale-stop")?.click());
+      await page.waitForTimeout(200);
+      await page.evaluate(() => document.getElementById("slopscale-results-close")?.click());
+      for (const e of pageErrors.slice(errBase)) jFails.push(`pageerror: ${e}`);
+      results.push({ kind: "jam-transport", pass: jFails.length === 0, status: "seamless A-B loop + in-place hot-swap", canvas: null, pixels: "n/a", clock: { from: "-", to: "-" }, fails: jFails, notes: [] });
     }
 
     // ── Wake-lock/session teardown pairing (promoted from probe-wakelock-leak,
