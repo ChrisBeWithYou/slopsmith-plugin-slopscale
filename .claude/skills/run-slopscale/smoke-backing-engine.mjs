@@ -267,6 +267,14 @@ try {
     out.compVels = [...new Set(comp.map((e) => e.vel))].sort().join(",");
     out.compShort = comp.every((e) => e.end - e.t < 1.5);
     out.compLabeled = comp.filter((e) => e.cpcs).length;
+    // continuous metric-contoured velocity (genre-band realism slice 2026-06-13): the
+    // 3 flat tiers became a continuous contour — an authored accent stays the 1.0
+    // ceiling, non-accent hits lift on the beat / dip off it. Sample two cells.
+    const rc = harm(gen({ backingComp: "rock_chug" }));
+    out.compVelSet = [...new Set(comp.concat(rc).map((e) => e.vel))].sort((a, b) => a - b);
+    out.velAccentCeiling = out.compVelSet.includes(1);
+    out.velContinuous = out.compVelSet.filter((v) => v < 1).length >= 2;   // >1 non-accent level = a contour, not one flat tier
+    out.velBounded = out.compVelSet.every((v) => v >= 0.2 && v <= 1);
     // (c) the jazz pilot: swung non-boogie cfg auto-picks the Charleston
     const jazz = harm(gen({ swing: "swing_8", backingComp: "" }));
     out.jazzComp = jazz.some((e) => e.comp === "charleston");
@@ -288,7 +296,8 @@ try {
   });
   ok(c3.padCount > 0 && !c3.padHasVel, "undeclared cfg keeps the legacy coalesced pad", `events=${c3.padCount}`);
   ok(c3.compCount >= c3.padCount * 3 && c3.compShort, "a declared cell re-articulates the comp (the pad-kill)", `hits=${c3.compCount} vs pad=${c3.padCount}`);
-  ok(c3.compVels.includes("0.78") && c3.compVels.includes("1"), "hits carry the sound-design velocity tiers", `vels=${c3.compVels}`);
+  ok(c3.velAccentCeiling, "an authored accent stays the velocity ceiling (1.0)", `vels=${c3.compVelSet}`);
+  ok(c3.velContinuous && c3.velBounded, "comp hits carry a continuous METRIC contour in [0.2,1], not 3 flat tiers", `vels=${c3.compVelSet}`);
   ok(c3.compLabeled > 0, "chord-change labels survive re-articulation (one labeled hit per change)", `labeled=${c3.compLabeled}`);
   ok(c3.jazzComp, "the jazz pilot: swung cfg auto-picks the Charleston cell");
   ok(c3.vampComp, "backingDensity 1 = the half-note vamp");
