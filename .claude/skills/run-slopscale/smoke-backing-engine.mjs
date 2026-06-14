@@ -640,7 +640,7 @@ try {
     // every shipped profile now has a recipe → use a BOGUS id to prove the
     // empty-picks fallthrough (the additive/no-regression invariant).
     const unrec = D.resolveArrangement({ audio: { profile: "__no_such_style__" } });
-    out.metalPicks = metal.picks.comp === "metal_chug_8" && metal.picks.bass === "root_pump" && metal.tier === "groove";
+    out.metalPicks = metal.picks.comp === "metal_chug_stab" && metal.picks.bass === "root_gallop" && metal.tier === "groove";
     out.djentPicks = djent.picks.comp === "metal_pedal_16" && djent.picks.bass === "root_pump";
     out.genrePicks = blues.picks.comp === "boogie_stab" && jazz.picks.comp === "charleston" && jazz.picks.bass === "walking"
       && rock.picks.comp === "rock_chug" && rock.picks.bass === "root_pump" && gospel.picks.comp === "charleston" && gospel.picks.drums === "gospel_pocket";
@@ -648,7 +648,7 @@ try {
     // funk on a 16th funk kit (NOT straight_8th), country boom split (bass two_feel
     // + guitar chuck), pop on an 8th backbeat (NOT four-on-the-floor by default).
     out.genrePicks2 = funk.picks.comp === "funk_chank_16" && funk.picks.bass === "funk_pocket_16" && funk.picks.drums === "funk_16th"
-      && country.picks.comp === "country_chuck" && country.picks.bass === "two_feel" && country.picks.drums === "train_beat"
+      && country.picks.comp === "country_chuck" && country.picks.bass === "two_feel_walk" && country.picks.drums === "country_backbeat"
       && pop.picks.comp === "pop_push" && pop.picks.bass === "root_pump" && pop.picks.drums === "straight_8th_rock";
     out.popNotFourFloor = pop.picks.drums !== "four_on_floor";   // the mandate: not four-on-the-floor for everything
     out.bluesEmpty = !unrec.picks.comp && !unrec.picks.bass && !unrec.picks.drums;
@@ -762,7 +762,7 @@ try {
     });
     out.compDefault = D.compCellForConfig(cfg);
     const be = (S.makeBundle(S.generateExercise(cfg)).backingEvents) || [];
-    out.recipeComp = be.some((e) => e.comp === "metal_chug_8");
+    out.recipeComp = be.some((e) => e.comp === "metal_chug_stab");
     out.recipeBass = be.some((e) => e.role === "bass");
     // (d) NON-REGRESSION: a blues boogie cfg is byte-identical with vs without the
     // recipe layer (it has no recipe → the boogie route still wins).
@@ -776,14 +776,14 @@ try {
     out.bluesComp = D.compCellForConfig(bz);   // still boogie_stab (the boogie route, not a recipe)
     return out;
   });
-  ok(c6f.metalPicks, "resolveArrangement: metal → metal_chug_8 + root_pump @ groove tier");
+  ok(c6f.metalPicks, "resolveArrangement: metal → metal_chug_stab + root_gallop @ groove tier");
   ok(c6f.djentPicks, "resolveArrangement: djent → metal_pedal_16 + root_pump");
   ok(c6f.genrePicks, "genre recipes resolve: blues=boogie_stab, jazz=charleston/walking, rock=rock_chug/root_pump, gospel=charleston/gospel_pocket");
-  ok(c6f.genrePicks2, "batch 2 idiomatic: funk=funk_chank_16/funk_pocket_16/funk_16th, country=country_chuck/two_feel/train_beat, pop=pop_push/root_pump/straight_8th_rock");
+  ok(c6f.genrePicks2, "batch 2 idiomatic: funk=funk_chank_16/funk_pocket_16/funk_16th, country=country_chuck/two_feel_walk/country_backbeat, pop=pop_push/root_pump/straight_8th_rock");
   ok(c6f.popNotFourFloor, "the mandate: pop's DEFAULT drummer is NOT four-on-the-floor (that's the dance sub-feel)");
   ok(c6f.bluesEmpty, "a still-un-recipe'd style (city-pop) returns EMPTY picks — the old logic runs (no regression)");
   ok(c6f.fullTier, "the full density tier picks the heavier texture (metal_pedal_16 + metal_double_kick)");
-  ok(c6f.compDefault === "metal_chug_8", "compCellForConfig: an UN-WIRED metal cfg inherits metal_chug_8 from the recipe", `got=${c6f.compDefault}`);
+  ok(c6f.compDefault === "metal_chug_stab", "compCellForConfig: an UN-WIRED metal cfg inherits metal_chug_stab from the recipe", `got=${c6f.compDefault}`);
   ok(c6f.recipeComp && c6f.recipeBass, "the un-wired metal cfg gets a full band (comp + bass) from the recipe alone");
   ok(c6f.bluesComp === "boogie_stab", "NON-REGRESSION: a blues boogie cfg still resolves boogie_stab (recipe never overrides the boogie route)", `got=${c6f.bluesComp}`);
   ok(c6f.wave1Picks, "Wave 1 recipes resolve: reggae=skank/riddim/one-drop, disco=scratch/octave/four-floor, latin=bossa×3, soul=stab/motown/backbeat, afrobeat=interlock/ostinato/afrobeat");
